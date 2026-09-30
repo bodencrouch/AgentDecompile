@@ -144,12 +144,14 @@ export function ProjectDialog({
     const body = new FormData();
     body.append("file", file, file.name);
     body.append("role", "member");
-    const uploaded = await request(`${API}/binaries`, {
-      method: "POST",
-      body,
-    });
-    const path = uploaded.binary?.locator || uploaded.binary?.repo;
-    if (!path) throw new Error("Upload returned no server path.");
+    // source_path is the immutable staged upload. binary.locator can name
+    // another project and binary.repo a virtual Ghidra-only row; neither is a
+    // readable file for import-binary. Registration may fail (HTTP 400) while
+    // staging succeeded, so read the body instead of throwing on status.
+    const response = await fetch(`${API}/binaries`, { method: "POST", body });
+    const uploaded = await response.json().catch(() => ({}));
+    const path: string | undefined = uploaded?.source_path;
+    if (!path) throw new Error(uploaded?.error || "Upload returned no server path.");
     return path;
   }
   async function queueImportBatch(

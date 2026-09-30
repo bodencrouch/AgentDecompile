@@ -6,14 +6,76 @@ an imported Ghidra project invalid, and their totals never describe that project
 from __future__ import annotations
 
 import sqlite3
+import json
 from pathlib import Path
 from typing import Any
 
-from .common import live_db, live_root
+from .common import live_db, runtime_work_dir
 
 
 def _program(value: Any) -> str:
     return str(value or '').strip().lstrip('/')
+
+
+def _verifier_owner(out_path: Path) -> str | None:
+    """Match the exact output argument of a live byte verifier."""
+    for proc in Path('/proc').iterdir():
+        if not proc.name.isdigit():
+            continue
+        try:
+            args = proc.joinpath('cmdline').read_bytes().decode('utf-8', 'replace').split('\0')
+        except OSError:
+            continue
+        if 'verify-byteexact' not in args:
+            continue
+        for index, arg in enumerate(args[:-1]):
+            if arg == '--out' and Path(args[index + 1]).resolve() == out_path.resolve():
+                return proc.name
+    return None
+
+
+def _whole_image_status(root: Path | None, name: str, state_path: Path | None = None) -> dict[str, Any]:
+    pending = {'state': 'pending', 'claim': 'none', 'reason': 'No fresh direct compiler and objdiff receipt is recorded.'}
+    if root is None or not name:
+        return pending
+    stem = Path(name.split('__', 1)[-1]).stem
+    source = str(root / name.split('__', 1)[-1])
+    db = str(live_db() or '')
+    for proc in Path('/proc').iterdir():
+        if not proc.name.isdigit():
+            continue
+        try:
+            argv = proc.joinpath('cmdline').read_bytes().replace(b'\0', b' ').decode('utf-8', 'replace')
+        except OSError:
+            continue
+        if ('verify-direct-full-image' in argv and db and db in argv
+                and f'--src-dir {source}' in argv):
+            waiting = '/bin/bash' in argv.split(' ', 1)[0]
+            return {'state': 'scheduled' if waiting else 'running', 'claim': 'none',
+                    'ownerPid': proc.name,
+                    'reason': ('An external direct verifier is waiting for the current pass.' if waiting else
+                               'Direct verification is active; no full-image receipt yet.')}
+    receipts = sorted(root.glob(f'{stem}.direct-receipt-*/receipt.json'),
+                      key=lambda path: path.stat().st_mtime_ns, reverse=True)
+    for path in receipts:
+        try:
+            receipt = json.loads(path.read_text(encoding='utf-8'))
+            if receipt.get('schema') != 'agentdecompile.direct-compiler-full-image-objdiff-receipt.v1':
+                continue
+            started = int(receipt.get('startedNs') or 0)
+            current = state_path is None or started >= state_path.stat().st_mtime_ns
+            reported = bool(receipt.get('verified') and receipt.get('compilerProducedWholeImage')
+                            and receipt.get('wholeFileByteIdentical') and not receipt.get('errors')
+                            and isinstance(receipt.get('objdiff'), dict))
+            return {'state': 'stale' if not current else 'verified-reported' if reported else 'failed',
+                    'claim': 'receipt-reported' if current else 'historical-receipt',
+                    'receipt': str(path), 'reportedVerified': reported,
+                    'reason': ('Receipt predates the current function pass.' if not current else
+                               'Direct receipt reports compiler output and zero differences.' if reported else
+                               '; '.join(str(error) for error in receipt.get('errors') or []) or 'Direct receipt is negative.')}
+        except (OSError, ValueError, TypeError, AttributeError):
+            continue
+    return pending
 
 
 def _runs(locator: str, slug: str, program: str, all_corpora: bool) -> list[dict]:
@@ -135,7 +197,7 @@ def corpus_status(*, locator: str = '', slug: str = '', program: str = '', scope
     public_runs = [_public_run(run) for run in runs]
     stages = public_runs[0].get('stages', []) if len(public_runs) == 1 else []
     evidence_sources = []
-    root = live_root()
+    root = runtime_work_dir()
     if root is not None:
         for relative in ('output/work_queue/logical_queue_summary.json', 'output/exact_universal/_coverage.json'):
             path = root / relative
@@ -148,6 +210,8 @@ def corpus_status(*, locator: str = '', slug: str = '', program: str = '', scope
         'matching': {'byStatus': matching, 'claim': 'advisory', 'unit': 'recorded directed pair observations', 'reason': 'Recorded pair observations across matching runs, not unique functions or current-wave totals. The verify tier means a candidate needs verification; it is not byte proof.'},
         'totals': totals,
     }
+    if not all_corpora:
+        recovery['wholeImage'] = _whole_image_status(root, Path(program).name or slug)
     return {'ok': True, 'available': not errors, 'scope': selection, 'workflow': {'runs': public_runs, 'source': 'durable-workflow'}, 'recovery': recovery,
             'claimBoundary': 'Source availability, compilation, and byte verification are separate claims.',
             # A missing receipt is an active measurement state, never a claim
@@ -161,6 +225,48 @@ def corpus_status(*, locator: str = '', slug: str = '', program: str = '', scope
 
 
 def recover_status(**selection: str) -> dict[str, Any]:
+    if selection.pop('fast', False):
+        program = str(selection.get('program') or '').strip()
+        slug = str(selection.get('slug') or '').strip()
+        names = [Path(program).name, slug]
+        if '__' in slug:
+            names.append(slug.split('__', 1)[1])
+        root = runtime_work_dir()
+        for name in dict.fromkeys(name for name in names if name):
+            path = root / f'{name}.byteexact.json.state.json' if root else None
+            if path is None or not path.is_file():
+                continue
+            try:
+                rows = json.loads(path.read_text(encoding='utf-8'))
+            except (OSError, ValueError):
+                continue
+            if not isinstance(rows, dict):
+                continue
+            values = [value for value in rows.values() if isinstance(value, dict)]
+            exact = sum(bool(value.get('result', {}).get('ok')) for value in values)
+            out_path = Path(str(path)[:-len('.state.json')])
+            owner = _verifier_owner(out_path)
+            complete = False
+            if owner is None and out_path.is_file():
+                try:
+                    receipt = json.loads(out_path.read_text(encoding='utf-8'))
+                    complete = (out_path.stat().st_mtime >= path.stat().st_mtime
+                                and receipt.get('total') == len(values))
+                except (OSError, ValueError, AttributeError):
+                    pass
+            state = 'running' if owner else 'completed' if complete else 'interrupted'
+            label = 'Live verifier' if owner else 'Completed function pass' if complete else 'Retained verifier state; no live owner'
+            return {'ok': True, 'scope': {'kind': 'binary', 'slug': slug, 'program': program, 'reason': ''},
+                    'state': state, 'summary': f'{label}: {len(values):,} processed; {exact:,} byte-exact function results.',
+                    'path': str(path), 'files': [], 'count': None, 'leftoverCount': None,
+                    'workflow': {'runs': [], 'source': 'live-verify-state'},
+                    'recovery': {'verification': {'count': exact, 'processed': len(values), 'claim': 'partial-function-level',
+                                                    'reason': 'Function verification state; not a completed full-image receipt.',
+                                                    'ownerPid': owner},
+                                 'wholeImage': _whole_image_status(root, name, path)},
+                    'evidenceSources': [{'path': str(path), 'status': 'available', 'required': False,
+                                         'reason': 'Current verifier state, rewritten during the active pass.'}],
+                    'errors': [], 'fast': True}
     status = corpus_status(**selection)
     runs = status['workflow']['runs']
     current = runs[0] if runs else {}

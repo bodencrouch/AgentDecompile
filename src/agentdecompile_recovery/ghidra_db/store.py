@@ -298,17 +298,28 @@ def copy_program_item(
     dest_dir = dest_prp.parent
     dest_dir.mkdir(parents=True, exist_ok=True)
     shutil.copy2(entry.property_file, dest_prp)
-    if dest_name:
-        # Keep READ_ONLY and any newer Ghidra properties. Storage IDs live in
-        # the destination filename/index, so only the displayed name changes.
-        tree = ElementTree.parse(dest_prp)
-        basic = tree.getroot().find('BASIC_INFO')
-        if basic is None:
-            raise ProjectLayoutError(f'{entry.property_file}: missing BASIC_INFO')
-        field = next((node for node in basic.findall('STATE') if node.get('NAME') == 'NAME'), None)
+    # Keep READ_ONLY and any newer Ghidra properties. Storage IDs live in the
+    # destination filename/index, so only the displayed name changes. PARENT is
+    # always recorded: an indexed destination must not infer the folder from
+    # its storage shard directory.
+    tree = ElementTree.parse(dest_prp)
+    basic = tree.getroot().find('BASIC_INFO')
+    if basic is None:
+        raise ProjectLayoutError(f'{entry.property_file}: missing BASIC_INFO')
+    states = {node.get('NAME'): node for node in basic.findall('STATE')}
+    changed = False
+    field = states.get('NAME')
+    if dest_name or field is None:
+        # Mangled LocalFileSystem items may carry no NAME state; the copy gets
+        # a new storage name, so the display name must be recorded explicitly.
         if field is None:
             field = ElementTree.SubElement(basic, 'STATE', {'NAME': 'NAME', 'TYPE': 'string'})
         field.set('VALUE', item_name)
+        changed = True
+    if states.get('PARENT') is None:
+        ElementTree.SubElement(basic, 'STATE', {'NAME': 'PARENT', 'TYPE': 'string', 'VALUE': entry.folder_path or '/'})
+        changed = True
+    if changed:
         tree.write(dest_prp, encoding='utf-8', xml_declaration=True)
     dest_db = dest_dir / f"{HIDDEN_DIR_PREFIX}{name}{DATA_DIR_EXTENSION}"
     if dest_db.exists():
@@ -595,6 +606,12 @@ def materialize_server_repo(source: str | Path, dest_root: Path, *, name: str = 
 def _folder_order(folders: dict[str, Any]) -> list[str]:
     names = set(folders)
     names.add("/")
+    # Ghidra's index reader needs every ancestor folder line before a child
+    # folder line; an item under /a/b must not leave /a implicit.
+    for path in list(names):
+        parts = [part for part in path.split("/") if part]
+        for depth in range(1, len(parts)):
+            names.add("/" + "/".join(parts[:depth]))
     # Parents before children, then lexical — same walk order as writeIndexFolder.
     return sorted(names, key=lambda path: (path.count("/"), path.lower()))
 

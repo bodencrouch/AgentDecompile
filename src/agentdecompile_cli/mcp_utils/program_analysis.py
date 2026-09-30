@@ -315,7 +315,17 @@ def _defer_expensive_default_analyzers(program: GhidraProgram, analyzers: list[s
 
 def _run_auto_analysis(program: GhidraProgram, *, force: bool, analyzers: list[str] | None = None) -> list[str]:
     deferred = _defer_expensive_default_analyzers(program, analyzers)
-    run_analysis(program, force_analysis=force)
+    # ghidrecomp only analyzes when Ghidra would "ask to analyze". An imported
+    # program can carry neither that prompt flag nor the analyzed flag; this
+    # function is only reached when analysis is pending, so run it anyway.
+    ask = True
+    try:
+        from ghidra.program.util import GhidraProgramUtilities  # pyright: ignore[reportMissingModuleSource]
+
+        ask = bool(GhidraProgramUtilities.shouldAskToAnalyze(program))
+    except Exception:
+        ask = True
+    run_analysis(program, force_analysis=force or not ask)
     wait_for_program_analysis_idle(program)
     return deferred
 

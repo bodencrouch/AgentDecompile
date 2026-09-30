@@ -436,9 +436,24 @@ def _register_path_binary(
             return {"ok": False, "error": "This source path now contains different bytes. Register a separate preserved copy so existing evidence keeps its original identity."}
         if digest:
             con.execute("INSERT OR IGNORE INTO binary_content_identity VALUES(?,?)", (repo, digest))
-        candidates = con.execute("SELECT slug,repo_path FROM binary ORDER BY COALESCE(func_count,0) DESC,id").fetchall()
+        candidates = con.execute("SELECT slug,repo_path,md5,content_sha256 FROM binary ORDER BY COALESCE(func_count,0) DESC,id").fetchall()
         if digest:
             identical = next((item for item in candidates if binary_sha256(item[1] or "") == digest), None)
+            if identical is None:
+                virtual = [item for item in candidates if not Path(item[1] or '').is_file()
+                           and (item[3] or '').lower() == digest]
+                if not virtual and any(not Path(item[1] or '').is_file() and item[2] for item in candidates):
+                    with Path(repo).open('rb') as stream:
+                        md5 = hashlib.file_digest(stream, 'md5').hexdigest()
+                    if binary_sha256(repo) != digest:
+                        return {"ok": False, "error": "The source changed while its identity was being read."}
+                    virtual = [item for item in candidates if not Path(item[1] or '').is_file()
+                               and (item[2] or '').lower() == md5]
+                if len(virtual) > 1:
+                    virtual = [item for item in virtual if item[0] == name]
+                    if len(virtual) != 1:
+                        return {"ok": False, "error": "Several virtual corpus binaries match these bytes; select one exact existing slug."}
+                identical = virtual[0] if virtual else None
             if identical:
                 name = identical[0]
                 con.execute("CREATE TABLE IF NOT EXISTS binary_source_alias (source_path TEXT PRIMARY KEY, binary_slug TEXT NOT NULL, sha256 TEXT NOT NULL)")
@@ -449,9 +464,20 @@ def _register_path_binary(
         existing = con.execute("SELECT slug FROM binary WHERE repo_path=?", (repo,)).fetchone()
         collision = next((item for item in candidates if item[0] == name and item[1] != repo), None)
         if collision:
-            prior_digest = binary_sha256(collision[1] or "")
-            if not prior_digest:
-                return {"ok": False, "error": "An entry with this name has unavailable bytes. Resolve its identity or choose an explicit distinct name before importing."}
+            # A same-basename historical row may have unavailable bytes (moved,
+            # deleted, or otherwise unreadable source). That must not block
+            # importing different, available bytes under this name: the new
+            # entry gets a distinct, hash-qualified identity and the historical
+            # row is left untouched.
+            recorded = con.execute("SELECT content_sha256 FROM binary WHERE slug=?", (name,)).fetchone()
+            if recorded and str(recorded[0] or "").lower() == digest:
+                # The historical row records these exact bytes: reuse its
+                # identity instead of splitting it into a second row.
+                con.execute("CREATE TABLE IF NOT EXISTS binary_source_alias (source_path TEXT PRIMARY KEY, binary_slug TEXT NOT NULL, sha256 TEXT NOT NULL)")
+                con.execute("INSERT INTO binary_source_alias VALUES(?,?,?) ON CONFLICT(source_path) DO UPDATE SET binary_slug=excluded.binary_slug,sha256=excluded.sha256", (repo, name, digest))
+                con.commit()
+                _CACHE.clear()
+                return {"ok": True, "binary": _binary_row(name), "reused": True, "sha256": digest}
             name = f"{name}-{digest}"
         if existing is None:
             name = _unique_binary_slug(con, name)
@@ -496,21 +522,50 @@ def save_upload_binary(
         return {"ok": False, "error": "AGENT_DECOMPILE_CORPUS_WORK_DIR is unset"}
     dest_dir = root / "imports"
     dest_dir.mkdir(parents=True, exist_ok=True)
-    base = Path(filename or slug or "upload.bin").name or "upload.bin"
+    base = Path(filename or slug or "upload.bin").name
+    if base in ("", ".", ".."):
+        base = "upload.bin"
     if Path(base).suffix.lower() == ".gpr":
         return {
             "ok": False,
             "error": "A Ghidra project is Name.gpr plus a sibling Name.rep. Register the project path; do not upload the .gpr file.",
         }
-    dest_dir = dest_dir / hashlib.sha256(data).hexdigest()
+    digest = hashlib.sha256(data).hexdigest()
+    dest_dir = dest_dir / digest
     dest_dir.mkdir(parents=True, exist_ok=True)
     dest = dest_dir / base
-    try:
-        with dest.open("xb") as handle:
-            handle.write(data)
-    except FileExistsError:
-        pass
-    return register_path_binary(str(dest), slug=slug or dest.name, role=role, label=label)
+    if dest.exists() and (not dest.is_file() or hashlib.sha256(dest.read_bytes()).hexdigest() != digest):
+        # A partial or foreign file under this content-addressed name would block
+        # these bytes forever. Keep it beside the name for inspection.
+        os.replace(dest, dest_dir / f"{base}.invalid-{os.urandom(4).hex()}")
+    if not dest.exists():
+        staging = dest_dir / f".{base}.{os.getpid()}.{os.urandom(4).hex()}.part"
+        try:
+            with staging.open("xb") as handle:
+                handle.write(data)
+                handle.flush()
+                os.fsync(handle.fileno())
+            try:
+                os.link(staging, dest)  # atomic create-if-absent; readers never see a partial file
+            except FileExistsError:
+                pass
+        finally:
+            staging.unlink(missing_ok=True)
+        if hashlib.sha256(dest.read_bytes()).hexdigest() != digest:
+            return {"ok": False, "error": "The staged upload does not match its content hash. It was left in place for inspection."}
+    payload = register_path_binary(str(dest), slug=slug or dest.name, role=role, label=label)
+    # The staged file is the importable source even when the corpus reuses a
+    # virtual (Ghidra-only) row or cannot register it; callers import from here.
+    # A reused row whose own source file holds these exact bytes stays the
+    # source, so the imported program keeps its corpus binding.
+    source = str(dest)
+    reused_repo = str(((payload.get("binary") or {}).get("repo")) or "") if payload.get("reused") else ""
+    if reused_repo and Path(reused_repo).is_file():
+        from .library_identity import binary_sha256
+        if binary_sha256(reused_repo) == digest:
+            source = reused_repo
+    payload["source_path"] = source
+    return payload
 
 
 def remove_registered_binary(slug: str, *, confirm: bool) -> dict[str, Any]:
@@ -1365,10 +1420,7 @@ def workbench_context_payload(
         "locator": locator.strip(),
     }
     if session["slug"] and not session["program"]:
-        rows, _ = query_db(
-            "SELECT repo_path FROM binary WHERE slug=? LIMIT 1", (session["slug"],),
-            ignore_missing=True,
-        )
+        rows, _ = query_db("SELECT repo_path FROM binary WHERE slug=? LIMIT 1", (session["slug"],), ignore_missing=True)
         if rows and rows[0][0]:
             session["program"] = str(rows[0][0])
     if not any(session.values()):
@@ -1804,13 +1856,31 @@ def _parse_ref_blob(prog, data: bytes, count: int) -> list[tuple[int, int]]:
     if rec < 9:
         return []
     out: list[tuple[int, int]] = []
+    # Each entry is address(8) flags(1) refType(1) operandIndex(1). The type is
+    # Ghidra's RefType value; fold it into the kind codes _REF_KIND names
+    # (1 data, 3 call, 4 jump, 6 computed jump, 7 computed call).
+    calls = {3, 4, 9, 11, 16, 18}
+    computed_calls = {8, 10, 12}
+    jumps = {1, 2, 14, 17, 19}
+    computed_jumps = {6, 13}
     for index in range(int(count)):
         chunk = data[index * rec : (index + 1) * rec]
         encoded = int.from_bytes(chunk[:8], "big")
         va = prog.virtual_address(encoded)
         if va is None:
             continue
-        out.append((int(va), int(chunk[8])))
+        ref_type = int(chunk[9]) if len(chunk) > 9 else int(chunk[8])
+        if ref_type in calls:
+            kind = 3
+        elif ref_type in computed_calls:
+            kind = 7
+        elif ref_type in jumps:
+            kind = 4
+        elif ref_type in computed_jumps:
+            kind = 6
+        else:
+            kind = 1
+        out.append((int(va), kind))
     return out
 
 
@@ -1825,6 +1895,63 @@ def _lookup_ref_row(prog, table_name: str, key_name: str, wanted: int) -> dict[s
         if va == wanted:
             return row
     return None
+
+
+def _ref_row(prog, table_name, key_name, wanted, raw_key):
+    """Ref-table row for one function entry, by B-tree key when possible.
+
+    The ref tables are keyed by the same encoded address long as the symbol
+    row, so one descent replaces a multi-million-row scan. Any tree shape the
+    keyed reader does not handle falls back to the scan.
+    """
+    from agentdecompile_recovery.ghidra_db.btree import BTreeError
+    from agentdecompile_recovery.ghidra_db.master_table import find_row, find_table
+
+    if raw_key is None:
+        return _lookup_ref_row(prog, table_name, key_name, wanted)
+    table = find_table(prog.buffer_file, table_name)
+    if table is None:
+        return None
+    if raw_key >= 1 << 63:
+        # Tree keys are signed longs; the decoded address keeps the unsigned form.
+        raw_key -= 1 << 64
+    try:
+        return find_row(prog.buffer_file, table, raw_key)
+    except BTreeError:
+        return _lookup_ref_row(prog, table_name, key_name, wanted)
+
+
+def _body_ref_rows(prog, table_name, raw_low, span):
+    """FROM-style ref rows for every instruction key in one function body.
+
+    FROM REFS is keyed by the referencing instruction, so a function's calls sit
+    under the keys between its entry and the next function, not under the entry.
+    Returns None when the keyed read is not possible, so the caller keeps the
+    entry-only row.
+    """
+    from agentdecompile_recovery.ghidra_db.btree import BTreeError
+    from agentdecompile_recovery.ghidra_db.master_table import find_table, iter_rows_in_range
+
+    if raw_low is None or span <= 0:
+        return None
+    # The offset is the low 32 bits of the encoded long; a body that would carry
+    # into the next base index cannot be read as one contiguous key range.
+    if (raw_low & 0xFFFFFFFF) + span > 0x100000000:
+        return None
+    if raw_low >= 1 << 63:
+        raw_low -= 1 << 64
+    table = find_table(prog.buffer_file, table_name)
+    if table is None:
+        return []
+    rows = []
+    try:
+        for row in iter_rows_in_range(prog.buffer_file, table, raw_low, raw_low + span):
+            rows.append(row)
+            if len(rows) >= 4096:
+                break
+    except BTreeError:
+        return None
+    return rows
 
 
 def program_workspace(
@@ -1855,18 +1982,45 @@ def program_workspace(
         return {"ok": False, "error": str(exc)[:800]}
     if entry is None:
         return {"ok": False, "error": f"{name} is not in {loc}"}
+    # A session carries one project slug, but a repository holds many programs.
+    # The corpus row for this program is the one whose repo_path is its path.
+    from agentdecompile_recovery.corpus.dashboard.common import query_db
+
+    slug_rows, _slug_error = query_db(
+        "SELECT slug FROM binary WHERE repo_path = ? LIMIT 1", (entry.project_path,), ignore_missing=True
+    )
+    if slug_rows:
+        slug = str(slug_rows[0][0] if not isinstance(slug_rows[0], dict) else slug_rows[0].get("slug") or slug)
     try:
         with entry.open() as prog:
             bits = _bits_from_language(prog.language_id)
-            functions: list[tuple[int, str]] = []
-            named = 0
-            for func in prog.functions():
-                if func.entry is None:
-                    continue
-                functions.append((int(func.entry), func.name or ""))
-                if func.name and not func.name.startswith(("FUN_", "Unwind@", "thunk_")):
-                    named += 1
-            functions.sort(key=lambda item: item[0])
+            # The function list is the slow part (every symbol row decoded), and it
+            # only changes when the program database does, so key it by that file.
+            try:
+                db_stamp = entry.database_path.stat().st_mtime_ns
+            except OSError:
+                db_stamp = time.time_ns()
+            # One slot per database: a new analysis replaces the old list instead of
+            # leaving it behind under a stale stamp.
+            fn_key = f"fnlist:{entry.database_path}"
+            fn_stamp = f"{entry.version}:{db_stamp}"
+            fn_hit = _CACHE.get(fn_key)
+            if fn_hit is not None and fn_hit[1][0] == fn_stamp:
+                functions, raw_keys, named = fn_hit[1][1]
+            else:
+                functions: list[tuple[int, str]] = []
+                raw_keys: dict[int, int] = {}
+                named = 0
+                for func in prog.functions():
+                    if func.entry is None:
+                        continue
+                    functions.append((int(func.entry), func.name or ""))
+                    if func.address is not None:
+                        raw_keys.setdefault(int(func.entry), func.address.raw)
+                    if func.name and not func.name.startswith(("FUN_", "Unwind@", "thunk_")):
+                        named += 1
+                functions.sort(key=lambda item: item[0])
+                _CACHE[fn_key] = (time.time(), (fn_stamp, (functions, raw_keys, named)))
             if not functions:
                 overview = {
                     "program": name,
@@ -1912,8 +2066,8 @@ def program_workspace(
                             )
                 if len(comments) >= 24:
                     break
-            incoming = _lookup_ref_row(prog, "TO REFS", "To Address", pick)
-            outgoing = _lookup_ref_row(prog, "FROM REFS", "From Address", pick)
+            incoming = _ref_row(prog, "TO REFS", "To Address", pick, raw_keys.get(pick))
+            outgoing = _ref_row(prog, "FROM REFS", "From Address", pick, raw_keys.get(pick))
             by_entry = {start: fname for start, fname in functions}
 
             def owning(va: int) -> tuple[int, str]:
@@ -1944,10 +2098,20 @@ def program_workspace(
                         )
                     )
             callees: list[dict[str, Any]] = []
-            if outgoing is not None:
+            body_rows = _body_ref_rows(prog, "FROM REFS", raw_keys.get(pick), nxt - pick)
+            if body_rows is None:
+                body_rows = [outgoing] if outgoing is not None else []
+                body_only_calls = False
+            else:
+                body_only_calls = True
+            for out_row in body_rows:
                 for va, rtype in _parse_ref_blob(
-                    prog, outgoing.get("Ref Data") or b"", int(outgoing.get("Number of Refs") or 0)
+                    prog, out_row.get("Ref Data") or b"", int(out_row.get("Number of Refs") or 0)
                 ):
+                    if body_only_calls and rtype not in {3, 5, 7, 8} and not (va in by_entry and va != pick):
+                        # Body-wide refs include data reads and local branches; keep
+                        # calls and jumps that land on another function's entry.
+                        continue
                     owner, owner_name = owning(va)
                     callees.append(
                         _format_store_node(
@@ -2180,13 +2344,13 @@ def render_workbench(*, static_mode: bool = False) -> str:
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>AgentDecompile — {esc(WORKSPACE_NAME)}</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23d07a3a'/%3E%3Ctext x='16' y='21' text-anchor='middle' font-size='13' font-family='ui-sans-serif,system-ui,sans-serif' font-weight='800' fill='%231a120c'%3EAD%3C/text%3E%3C/svg%3E">
-<link rel="stylesheet" href="/dashboard/static/dashboard.css">
-<link rel="stylesheet" href="/dashboard/static/workbench.css?v=live12">
+<link rel="stylesheet" href="/dashboard/static/dashboard.css?v=a11y1">
+<link rel="stylesheet" href="/dashboard/static/workbench.css?v=live13">
 <link rel="stylesheet" href="/dashboard/static/workbench-tokens.css?v=onepage1">
 <link rel="stylesheet" href="/dashboard/static/workbench-controls.css?v=onepage1">
-<link rel="stylesheet" href="/dashboard/static/workbench-chrome.css?v=onepage1">
-<link rel="stylesheet" href="/dashboard/static/workbench-sidebar.css?v=live11">
-<link rel="stylesheet" href="/dashboard/static/workbench-editor.css?v=live24">
+<link rel="stylesheet" href="/dashboard/static/workbench-chrome.css?v=onepage2">
+<link rel="stylesheet" href="/dashboard/static/workbench-sidebar.css?v=live12">
+<link rel="stylesheet" href="/dashboard/static/workbench-editor.css?v=live27">
 <link rel="stylesheet" href="/dashboard/static/workbench-dialogs.css?v=onepage1">
 <link rel="stylesheet" href="/dashboard/static/workbench-overlays.css?v=onepage1">
 </head>
@@ -2300,7 +2464,7 @@ def render_workbench(*, static_mode: bool = False) -> str:
 <script src="/dashboard/static/react-dom.js"></script>
 <script src="/dashboard/static/htm.js"></script>
 <script src="/dashboard/static/dashboard.js" defer></script>
-<script src="/dashboard/static/workbench-app.js?v=live29" defer></script>
+<script src="/dashboard/static/workbench-app.js?v=live41" defer></script>
 </body>
 </html>
 """

@@ -44,10 +44,16 @@ except Exception:
     stateDone = None
 needsAnalysis = False if pending is False else (True if stateDone is False else (False if stateDone is True else True if pending is None else pending))
 try:
-    observedProgramPath = str(globals().get('programPath') or currentProgram.getDomainFile().getPathname())
+    observedProgramPath = str(currentProgram.getDomainFile().getPathname())
 except Exception:
     observedProgramPath = ''
-__result__ = json.dumps({'programPath': observedProgramPath, 'needsAnalysis': needsAnalysis, 'executablePath': str(currentProgram.getExecutablePath()), 'architecture': str(currentProgram.getLanguageID()), 'ghidraVersion': str(Application.getApplicationVersion()), 'workSize': int(currentProgram.getFunctionManager().getFunctionCount())})"""
+def observedValue(method):
+    try:
+        value = getattr(currentProgram, method)()
+        return str(value) if value is not None else ''
+    except Exception:
+        return ''
+__result__ = json.dumps({'identityVersion': 2, 'requestedProgramPath': str(globals().get('programPath') or ''), 'programName': observedValue('getName'), 'executableMD5': observedValue('getExecutableMD5'), 'executableSHA256': observedValue('getExecutableSHA256'), 'programPath': observedProgramPath, 'needsAnalysis': needsAnalysis, 'executablePath': str(currentProgram.getExecutablePath()), 'architecture': str(currentProgram.getLanguageID()), 'ghidraVersion': str(Application.getApplicationVersion()), 'workSize': int(currentProgram.getFunctionManager().getFunctionCount())})"""
 
 
 def _same_program_path(left: Any, right: Any) -> bool:
@@ -77,19 +83,37 @@ def _effective_recovery_family(stored: Any, locator: Any, program: Any, binary_i
 
 
 def _discard_unverified_probe(checkpoint: dict[str, Any], requested: str, observed: str = '') -> bool:
+    return _quarantine_probe(checkpoint, requested, observed, False)
+
+
+def _quarantine_probe(checkpoint, requested, observed, rejected):
     """Remove probe-derived state that cannot be tied to its selected program."""
-    if _same_program_path(checkpoint.get('observedProgramPath'), requested):
+    if not rejected and not observed and checkpoint.get('probeIdentityVersion') == 2 and _same_program_path(checkpoint.get('observedProgramPath'), requested):
         return False
+    legacy = not rejected and not observed and _same_program_path(checkpoint.get('observedProgramPath'), requested)
+    # Preserve evidence for inspection, never its applicability. Old request-
+    # label receipts can describe another binary even when their path matches.
+    archive = {key: value for key, value in checkpoint.items() if key != 'probeEvidenceHistory'}
+    if archive:
+        checkpoint.setdefault('probeEvidenceHistory', []).append(archive)
+    if legacy:
+        checkpoint.setdefault('legacyProbeEvidence', archive)
+        checkpoint['probeObservationStale'] = True
     for key in (
+        'probeIdentityVersion', 'programName', 'executableMD5', 'executableSHA256',
         'analysisConfirmed', 'analysisCheckedAt', 'needsAnalysis', 'executablePath',
         'architecture', 'ghidraVersion', 'workSize', 'protection',
         'externalSourceAvailable', 'programFingerprint', 'arch', 'toolchain',
         'targetImage', 'bsimComplete', 'bsimUrl', 'bsimReceipt', 'bsimFingerprint',
         'knowledgeComplete', 'knowledgeCursor', 'knowledgeFingerprint',
         'knowledgeAvailable', 'workflow', 'factsComplete', 'factsPath',
-        'binaryId', 'slug', 'repoPath', 'recoveryFamily',
+        'binaryId', 'slug', 'repoPath', 'recoveryFamily', 'factsReused',
     ):
         checkpoint.pop(key, None)
+    if legacy:
+        checkpoint['analysisConfirmed'] = False
+        checkpoint.pop('observedProgramPath', None)
+        return True
     checkpoint['probeMismatch'] = {
         'requestedProgramPath': requested,
         'observedProgramPath': observed or str(checkpoint.get('observedProgramPath') or ''),
@@ -101,17 +125,46 @@ def _discard_unverified_probe(checkpoint: dict[str, Any], requested: str, observ
 
 def _accept_probe(checkpoint: dict[str, Any], requested: str, payload: dict[str, Any]) -> bool:
     observed = str(payload.get('programPath') or '')
-    if not _same_program_path(requested, observed):
-        _discard_unverified_probe(checkpoint, requested, observed)
+    if payload.get('identityVersion') != 2 or not _same_program_path(requested, observed) or observed.strip('/') == 'Untitled':
+        _quarantine_probe(checkpoint, requested, observed, True)
+        checkpoint['probeMismatch']['payload'] = dict(payload)
         return False
+    previous_fingerprint = checkpoint.get('programFingerprint')
+    if previous_fingerprint and previous_fingerprint != payload.get('executableMD5'):
+        # A stable project path can be rebound to different bytes. Retain the
+        # old evidence, but do not carry its downstream acceptance forward.
+        _quarantine_probe(checkpoint, requested, observed, True)
     checkpoint.update(
-        observedProgramPath=observed,
+        observedProgramPath=observed, probeIdentityVersion=2,
+        programFingerprint=payload.get('executableMD5') or '',
+        **{key: payload.get(key) for key in ('programName', 'executableMD5', 'executableSHA256')},
         executablePath=payload.get('executablePath'), analysisCheckedAt=time.time(),
         needsAnalysis=payload.get('needsAnalysis'),
         **{key: payload.get(key) for key in ('architecture', 'ghidraVersion', 'workSize')},
     )
     checkpoint.pop('probeMismatch', None)
+    checkpoint.pop('probeObservationStale', None)
     return True
+
+
+def _inventory_identity_matches(checkpoint, existing):
+    """Reuse stored facts only with matching observed executable digests."""
+    if len(existing) < 9:
+        return False
+    pairs = ((checkpoint.get('executableSHA256'), existing[8], 64),
+             (checkpoint.get('executableMD5'), existing[7], 32))
+    matched = False
+    for observed, stored, length in pairs:
+        observed = str(observed or '').strip().lower()
+        stored = str(stored or '').strip().lower()
+        if not observed or not stored:
+            continue
+        if (len(observed) != length or len(stored) != length
+                or any(char not in '0123456789abcdef' for char in observed + stored)
+                or observed != stored):
+            return False
+        matched = True
+    return matched
 
 
 def _matching_concurrency() -> int:
@@ -318,6 +371,7 @@ def _public_run(row: dict[str, Any], *, detailed: bool = True, live_jobs: list[A
         'queuePosition', 'budgetSeconds', 'budgetOrigin', 'deadline', 'error',
         'jobId', 'admissionPending', 'executionLocator',
         'executionProgramPaths', 'stages', 'retryDecisions', 'objectiveBudget',
+        'programs', 'supersededBy', 'supersededReason',
     }
     result = {key: row[key] for key in fields if key in row}
     if isinstance(result.get('objectiveBudget'), dict):
@@ -442,7 +496,8 @@ def list_runs(*, public: bool = False) -> list[dict[str, Any]]:
         for row in rows:
             row['queuePosition'] = positions.get(str(row['id']))
         from .actions.jobs import list_jobs
-        return [_public_run(row, detailed=row.get('status') in {'running', 'queued', 'paused'}, live_jobs=list_jobs(compact=True)) for row in rows]
+        live_jobs = list_jobs(compact=True) if rows else []
+        return [_public_run(row, detailed=row.get('status') in {'running', 'queued', 'paused'}, live_jobs=live_jobs) for row in rows]
 
     from .actions import jobs
     with _LOCK:
@@ -1429,7 +1484,7 @@ def execute(params: dict[str, Any], cancel: threading.Event) -> tuple[int, str]:
             probe_ok = (
                 shared_probe.get('ok')
                 and isinstance(payload, dict)
-                and _same_program_path(payload.get('programPath'), shared_program)
+                and _accept_probe({}, shared_program, payload)
             )
             row['sharedSessionProbe'] = {
                 'locator': shared_locator, 'program': shared_program, 'at': time.time(),
@@ -1605,7 +1660,7 @@ def execute(params: dict[str, Any], cancel: threading.Event) -> tuple[int, str]:
         # resumed: doing so can duplicate expensive work and falsely make the
         # facts stage look empty while the corpus already contains functions.
         inventory_rows, inventory_error = query_db(
-            'SELECT b.id,b.slug,b.repo_path,b.func_count,b.recovery_family,p.locator,p.program FROM binary b '
+            'SELECT b.id,b.slug,b.repo_path,b.func_count,b.recovery_family,p.locator,p.program,b.md5,b.content_sha256 FROM binary b '
             'LEFT JOIN program_binding p ON p.source_path=b.repo_path '
             'WHERE EXISTS (SELECT 1 FROM func WHERE func.binary_id=b.id)'
         )
@@ -1630,7 +1685,21 @@ def execute(params: dict[str, Any], cancel: threading.Event) -> tuple[int, str]:
             binding_key = (locator.replace('\\', '/').rstrip('/'), program.replace('\\', '/').lstrip('/'))
             canonical_source = str((Path(locator).expanduser() / program.lstrip('/')).resolve(strict=False))
             existing = inventory_by_binding.get(binding_key) or inventory_by_source.get(canonical_source)
+            if existing and not _inventory_identity_matches(checkpoint, existing):
+                checkpoint['unverifiedInventory'] = {
+                    'binaryId': existing[0], 'slug': existing[1], 'repoPath': existing[2],
+                    'storedMD5': existing[7], 'storedSHA256': existing[8],
+                    'observedMD5': checkpoint.get('executableMD5'),
+                    'observedSHA256': checkpoint.get('executableSHA256'),
+                    'reason': 'Stored inventory identity is missing or disagrees with the observed program.',
+                }
+                checkpoint.pop('factsComplete', None)
+                checkpoint.pop('factsReused', None)
+                protection_blocked.add(program)
+                update('facts', 'blocked', f'{program}: existing inventory requires matching executable hashes; retained without reuse or replacement.')
+                continue
             if existing:
+                checkpoint.pop('unverifiedInventory', None)
                 checkpoint.update(
                     factsComplete=True, binaryId=existing[0], slug=existing[1],
                     repoPath=existing[2], workSize=existing[3], factsReused=True,
@@ -1677,83 +1746,27 @@ def execute(params: dict[str, Any], cancel: threading.Event) -> tuple[int, str]:
         # older gate considered only facts written during this particular
         # coordinator invocation, so a restart hid valid corpus evidence and
         # incorrectly reported that there was nothing to cross-match.
-        existing_by_source = {str(item[2] or ''): item for item in records}
         prepared_ids = {
             checkpoint.get('binaryId')
             for program, checkpoint in row['checkpoints'].items()
-            if program in programs and checkpoint.get('analysisConfirmed') and checkpoint.get('factsComplete')
+            if program in programs and program not in protection_blocked
+            and not checkpoint.get('unverifiedInventory')
+            and checkpoint.get('analysisConfirmed') and checkpoint.get('factsComplete')
         }
         prepared_sources = {
             program for program, checkpoint in row['checkpoints'].items()
-            if program in programs and checkpoint.get('analysisConfirmed')
-            and (checkpoint.get('factsComplete') or program in existing_by_source)
+            if program in programs and program not in protection_blocked
+            and not checkpoint.get('unverifiedInventory')
+            and checkpoint.get('analysisConfirmed') and checkpoint.get('factsComplete')
         }
         candidates = [
             item for item in records
             if item[0] in prepared_ids or str(item[2] or '') in prepared_sources
         ]
 
-        # A workspace-wide BSim database makes cross-build comparison possible.
-        # Signature XML and receipts remain isolated by program and fingerprint.
-        if programs and locator:
-            committed = 0
-            for program in programs:
-                if program in protection_blocked:
-                    continue
-                if stopped():
-                    raise InterruptedError('Preparation stopped before signature generation.')
-                checkpoint = row['checkpoints'].setdefault(program, {})
-                configured = os.environ.get('AGENT_DECOMPILE_BSIM_URL', '').strip()
-                fingerprint = checkpoint.get('programFingerprint') or ''
-                identity = hashlib.sha256(json.dumps([locator, program, fingerprint]).encode()).hexdigest()[:24]
-                bsim_file = _directory().parent / 'bsim' / 'corpus' / 'signatures'
-                bsim_file.parent.mkdir(parents=True, exist_ok=True)
-                bsim_url = configured or f'file:{bsim_file}'
-                program_dir = bsim_file.parent / 'programs' / identity
-                program_dir.mkdir(parents=True, exist_ok=True)
-                receipt = program_dir / 'ingest.json'
-                while not _BSIM_LOCK.acquire(timeout=.25):
-                    if stopped():
-                        raise InterruptedError('Preparation stopped while waiting for similarity indexing.')
-                try:
-                    database_receipt = bsim_file.parent / 'created.json'
-                    database_exists = bsim_file.exists() or Path(str(bsim_file) + '.mv.db').exists()
-                    ready = bool(configured) or (database_receipt.exists() and database_exists)
-                    if ready and fingerprint and receipt.exists():
-                        try:
-                            prior = json.loads(receipt.read_text())
-                        except (OSError, ValueError):
-                            prior = {}
-                        if prior.get('status') == 'committed' and prior.get('url') == bsim_url and prior.get('programFingerprint') == fingerprint:
-                            checkpoint.update(bsimComplete=True, bsimUrl=bsim_url, bsimReceipt=str(receipt), bsimFingerprint=fingerprint)
-                            committed += 1
-                            update('bsim', 'running', f'{program}: reusing indexed signatures for this fingerprint.', completed=committed, total=len(programs))
-                            continue
-                    if not ready:
-                        created = action('bsim', 'corpus.bsim-createdatabase', {'bsim-url': bsim_url}, row)
-                        ready = created['ok']
-                        if ready:
-                            database_receipt.write_text(json.dumps({'url': bsim_url, 'at': time.time()}))
-                        else:
-                            update('bsim', 'partial', created.get('error') or created.get('log') or 'Could not create the similarity database.')
-                    if ready:
-                        signature_dir = program_dir / 'xml'
-                        generated = action('bsim', 'mcp.execute-script', {'programPath': execution_programs[program], 'code': _signature_script({'url': bsim_url, 'directory': str(signature_dir), 'locator': execution_locators[program], 'template': '' if configured else 'medium_nosize'}), 'timeout': 1200}, {**row, 'locator': execution_locators[program], 'program': execution_programs[program]})
-                        if generated['ok'] and (generated.get('data') or {}).get('signatureCount', 0) > 0:
-                            result = action('bsim', 'workbench.commit-signatures', {'bsimUrl': bsim_url, 'signatureDirectory': str(signature_dir)}, row)
-                        else:
-                            result = {**generated, 'ok': False, 'error': generated.get('error') or generated.get('log') or 'No signatures were generated.'}
-                        if result['ok']:
-                            receipt.write_text(json.dumps({'program': program, 'status': 'committed', 'url': bsim_url, 'at': time.time(), 'programFingerprint': (generated.get('data') or {}).get('programFingerprint'), 'generation': generated.get('data')}))
-                        if result['ok']:
-                            checkpoint.update(bsimComplete=True, bsimUrl=bsim_url, bsimReceipt=str(receipt), bsimFingerprint=(generated.get('data') or {}).get('programFingerprint'))
-                            committed += 1
-                        update('bsim', 'running', f'{program}: signatures indexed.' if result['ok'] else f'{program}: {result.get("error") or result.get("log") or "signature generation failed"}', completed=committed, total=len(programs))
-                finally:
-                    _BSIM_LOCK.release()
-            update('bsim', 'completed' if committed == len(programs) else 'partial', completed=committed, total=len(programs))
-        else:
-            update('bsim', 'blocked', 'Open the program project to generate similarity signatures.')
+        # BSim is one corroborating channel (S) among eight. It runs after
+        # matching and recovery so it never holds them up.
+        update('bsim', 'queued', 'Runs after matching and recovery. Similarity corroborates matches; it does not gate them.')
 
         from agentdecompile_recovery.corpus.corpus_config import load_match_pairs
         pairs = load_match_pairs()
@@ -1816,7 +1829,18 @@ def execute(params: dict[str, Any], cancel: threading.Event) -> tuple[int, str]:
             if src != dst:
                 key = (src, dst)
                 unique_pairs.setdefault(key, (src, dst, note))
-        pairs = list(unique_pairs.values())
+        rejected_sources = set()
+        for program, checkpoint in row['checkpoints'].items():
+            if program in protection_blocked or checkpoint.get('unverifiedInventory'):
+                rejected_sources.add(program)
+                rejected_sources.add(str((Path(locator).expanduser() / program.lstrip('/')).resolve(strict=False)))
+                rejected_sources.add(str((checkpoint.get('unverifiedInventory') or {}).get('repoPath') or ''))
+        pairs = []
+        for src, dst, note in unique_pairs.values():
+            if src in rejected_sources or dst in rejected_sources:
+                excluded_pairs.append({'source': src, 'target': dst, 'reason': 'Program identity was not verified for this preparation.'})
+            else:
+                pairs.append((src, dst, note))
         row['comparisonTargets'] = [{'source': src, 'target': dst, 'reason': note} for src, dst, note in pairs]
         row['comparisonTargetsFrozenAt'] = time.time()
         def input_progress(completed: int, total: int, source: str = '', functions_read: int = 0) -> None:
@@ -1937,6 +1961,72 @@ def execute(params: dict[str, Any], cancel: threading.Event) -> tuple[int, str]:
                 )
             else:
                 family_receipts[family]['reason'] = 'Waiting for this family\'s analysis and facts receipts.'
+        try:
+            # A workspace-wide BSim database makes cross-build comparison possible.
+            # Signature XML and receipts remain isolated by program and fingerprint.
+            if programs and locator:
+                committed = 0
+                for program in programs:
+                    if program in protection_blocked:
+                        continue
+                    if stopped():
+                        raise InterruptedError('Preparation stopped before signature generation.')
+                    checkpoint = row['checkpoints'].setdefault(program, {})
+                    configured = os.environ.get('AGENT_DECOMPILE_BSIM_URL', '').strip()
+                    fingerprint = checkpoint.get('programFingerprint') or ''
+                    identity = hashlib.sha256(json.dumps([locator, program, fingerprint]).encode()).hexdigest()[:24]
+                    bsim_file = _directory().parent / 'bsim' / 'corpus' / 'signatures'
+                    bsim_file.parent.mkdir(parents=True, exist_ok=True)
+                    bsim_url = configured or f'file:{bsim_file}'
+                    program_dir = bsim_file.parent / 'programs' / identity
+                    program_dir.mkdir(parents=True, exist_ok=True)
+                    receipt = program_dir / 'ingest.json'
+                    while not _BSIM_LOCK.acquire(timeout=.25):
+                        if stopped():
+                            raise InterruptedError('Preparation stopped while waiting for similarity indexing.')
+                    try:
+                        database_receipt = bsim_file.parent / 'created.json'
+                        database_exists = bsim_file.exists() or Path(str(bsim_file) + '.mv.db').exists()
+                        ready = bool(configured) or (database_receipt.exists() and database_exists)
+                        if ready and fingerprint and receipt.exists():
+                            try:
+                                prior = json.loads(receipt.read_text())
+                            except (OSError, ValueError):
+                                prior = {}
+                            if prior.get('status') == 'committed' and prior.get('url') == bsim_url and prior.get('programFingerprint') == fingerprint:
+                                checkpoint.update(bsimComplete=True, bsimUrl=bsim_url, bsimReceipt=str(receipt), bsimFingerprint=fingerprint)
+                                committed += 1
+                                update('bsim', 'running', f'{program}: reusing indexed signatures for this fingerprint.', completed=committed, total=len(programs))
+                                continue
+                        if not ready:
+                            created = action('bsim', 'corpus.bsim-createdatabase', {'bsim-url': bsim_url}, row)
+                            ready = created['ok']
+                            if ready:
+                                database_receipt.write_text(json.dumps({'url': bsim_url, 'at': time.time()}))
+                            else:
+                                update('bsim', 'partial', created.get('error') or created.get('log') or 'Could not create the similarity database.')
+                        if ready:
+                            signature_dir = program_dir / 'xml'
+                            generated = action('bsim', 'mcp.execute-script', {'programPath': execution_programs[program], 'code': _signature_script({'url': bsim_url, 'directory': str(signature_dir), 'locator': execution_locators[program], 'template': '' if configured else 'medium_nosize'}), 'timeout': 1200}, {**row, 'locator': execution_locators[program], 'program': execution_programs[program]})
+                            if generated['ok'] and (generated.get('data') or {}).get('signatureCount', 0) > 0:
+                                result = action('bsim', 'workbench.commit-signatures', {'bsimUrl': bsim_url, 'signatureDirectory': str(signature_dir)}, row)
+                            else:
+                                result = {**generated, 'ok': False, 'error': generated.get('error') or generated.get('log') or 'No signatures were generated.'}
+                            if result['ok']:
+                                receipt.write_text(json.dumps({'program': program, 'status': 'committed', 'url': bsim_url, 'at': time.time(), 'programFingerprint': (generated.get('data') or {}).get('programFingerprint'), 'generation': generated.get('data')}))
+                            if result['ok']:
+                                checkpoint.update(bsimComplete=True, bsimUrl=bsim_url, bsimReceipt=str(receipt), bsimFingerprint=(generated.get('data') or {}).get('programFingerprint'))
+                                committed += 1
+                            update('bsim', 'running', f'{program}: signatures indexed.' if result['ok'] else f'{program}: {result.get("error") or result.get("log") or "signature generation failed"}', completed=committed, total=len(programs))
+                    finally:
+                        _BSIM_LOCK.release()
+                update('bsim', 'completed' if committed == len(programs) else 'partial', completed=committed, total=len(programs))
+            else:
+                update('bsim', 'blocked', 'Open the program project to generate similarity signatures.')
+        except (InterruptedError, _PauseRequested):
+            raise
+        except Exception as exc:
+            update('bsim', 'partial', f'Similarity indexing skipped: {type(exc).__name__}: {exc}')
         _write(row)
         routed = sum(bool(execution_locators[program] and execution_programs[program]) for program in programs)
         probed = sum(

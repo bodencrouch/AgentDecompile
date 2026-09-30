@@ -1029,3 +1029,246 @@ body.workbench-page.wb-density-compact .wb-editor-body .wb-surface {
 .workbench-page .wb-compare-table tbody tr {
   cursor: pointer;
 }
+
+/* ---- CodeBrowser grid (slice 0) ----
+   Zones left to right: guide rail (placeholder, slice 5 fills it) / Explorer
+   sidebar / editor (tab strip + content) / persistent Decompile dock (slice 3).
+   Default at >=1101px; the existing single-column collapse below 1100px
+   (workbench.css) is untouched. "Use classic layout" (view.classic-layout)
+   renders today's two-column flex shell unchanged via body.wb-classic-layout. */
+
+.workbench-page .wb-guide-rail {
+  display: none;
+}
+
+@media (min-width: 1101px) {
+  body.workbench-page:not(.wb-classic-layout) .wb-app-shell {
+    display: grid;
+    grid-template-columns:
+      40px
+      minmax(200px, min(var(--wb-side-w, 360px), 22vw))
+      6px
+      minmax(0, 1fr)
+      minmax(260px, 320px);
+    align-items: stretch;
+  }
+
+  body.workbench-page:not(.wb-classic-layout) .wb-guide-rail {
+    display: block;
+    grid-column: 1;
+    min-height: 0;
+    overflow: auto;
+    background: var(--bg-panel);
+    border-right: 1px solid var(--border);
+    padding: var(--wb-space-2) 0;
+  }
+
+  body.workbench-page:not(.wb-classic-layout) .wb-sidebar {
+    grid-column: 2;
+    width: auto !important;
+    flex-basis: auto !important;
+    min-width: 0;
+    min-height: 0;
+    overflow: auto;
+  }
+
+  body.workbench-page:not(.wb-classic-layout) .wb-split-x {
+    grid-column: 3;
+  }
+
+  body.workbench-page:not(.wb-classic-layout) .wb-editor {
+    grid-column: 4;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  body.workbench-page:not(.wb-classic-layout) .wb-decompile-dock {
+    display: block;
+    grid-column: 5;
+    min-width: 0;
+    min-height: 0;
+    overflow: auto;
+    padding: var(--wb-space-3);
+    background: var(--bg-panel);
+    border-left: 1px solid var(--border);
+  }
+
+  body.workbench-page:not(.wb-classic-layout) .wb-decompile-dock-toggle {
+    display: none;
+  }
+
+  body.workbench-page:not(.wb-classic-layout) .wb-decompile-dock-body {
+    display: block;
+  }
+}
+
+/* Guide rail content (slice 5). Steps are numbered dots, one per guide
+   chapter; state (not reachable / in view / has evidence) is a data
+   attribute so it survives independent of hover/focus classes. Every step
+   stays a plain, always-focusable <button> -- never disabled -- so Tab
+   reaches all 8 regardless of reachability. The rail itself stays hidden
+   below 1101px per the existing collapse (base rule above); no horizontal
+   dot-strip variant is added for narrow widths, see implementer report. */
+.workbench-page .wb-guide-list {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--wb-space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.workbench-page .wb-guide-step {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg-raised);
+  color: var(--text-muted);
+  font: inherit;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.workbench-page .wb-guide-step:hover {
+  border-color: var(--border-strong);
+  color: var(--fg-body);
+}
+
+.workbench-page .wb-guide-step:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.workbench-page .wb-guide-step[data-state="partial"] {
+  color: var(--st-partial);
+  border-color: var(--st-partial);
+  opacity: 0.6;
+}
+
+.workbench-page .wb-guide-step[data-state="active"] {
+  color: var(--bg);
+  background: var(--accent);
+  border-color: var(--accent);
+  opacity: 1;
+}
+
+.workbench-page .wb-guide-step[data-state="proven"] {
+  color: var(--st-proven);
+  border-color: var(--st-proven);
+  background: var(--bg-panel);
+  opacity: 1;
+}
+
+@media (min-width: 1440px) {
+  body.workbench-page:not(.wb-classic-layout) .wb-app-shell {
+    grid-template-columns:
+      44px
+      minmax(220px, min(var(--wb-side-w, 360px), 26vw))
+      6px
+      minmax(0, 1fr)
+      minmax(320px, 420px);
+  }
+}
+
+/* Under 1100px: today's single-column collapse stays (workbench.css). The
+   Decompile dock becomes a same-pane "Show Decompile" toggle placed above
+   the editor's tab content instead of a side column. */
+@media (max-width: 1100px) {
+  body.workbench-page:not(.wb-classic-layout) .wb-decompile-dock {
+    order: 2;
+    border-top: 1px solid var(--border);
+    background: var(--bg-panel);
+  }
+
+  body.workbench-page:not(.wb-classic-layout) .wb-editor {
+    order: 3;
+  }
+
+  body.workbench-page:not(.wb-classic-layout) .wb-decompile-dock-toggle {
+    display: block;
+    width: 100%;
+    text-align: left;
+    padding: var(--wb-space-2) var(--wb-space-3);
+    background: var(--bg-raised);
+    color: var(--fg-body);
+    border: 1px solid var(--border);
+    border-radius: 0;
+    font: inherit;
+    cursor: pointer;
+  }
+
+  body.workbench-page:not(.wb-classic-layout) .wb-decompile-dock-toggle:hover,
+  body.workbench-page:not(.wb-classic-layout) .wb-decompile-dock-toggle:focus-visible {
+    border-color: var(--border-strong);
+  }
+
+  body.workbench-page:not(.wb-classic-layout) .wb-decompile-dock-body {
+    display: none;
+    padding: var(--wb-space-3);
+  }
+
+  body.workbench-page:not(.wb-classic-layout) .wb-decompile-dock-body.open {
+    display: block;
+  }
+}
+
+/* --- Continuous Listing rows (slice 2) --- */
+
+.workbench-page .wb-listing-rows-wrap {
+  min-height: 22rem;
+}
+
+.workbench-page table.wb-listing-rows {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 0.9rem;
+}
+
+.workbench-page table.wb-listing-rows th {
+  text-align: left;
+  padding: 2px var(--wb-space-2);
+  color: var(--fg-head);
+  font-size: var(--wb-type-kicker);
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  border-bottom: 1px solid var(--border);
+}
+
+.workbench-page table.wb-listing-rows td {
+  padding: 1px var(--wb-space-2);
+  vertical-align: top;
+  white-space: nowrap;
+}
+
+.workbench-page table.wb-listing-rows td code {
+  color: var(--addr);
+}
+
+.workbench-page tr.wb-listing-row {
+  outline: none;
+}
+
+.workbench-page tr.wb-listing-row:hover {
+  background: color-mix(in srgb, var(--border) 30%, transparent);
+}
+
+.workbench-page tr.wb-listing-row:focus,
+.workbench-page tr.wb-listing-row:focus-visible {
+  outline: 2px solid var(--focus, #4d9de0);
+  outline-offset: -2px;
+}
+
+.workbench-page .wb-listing-xref {
+  color: var(--danger, #e07a5f);
+  font-weight: 600;
+}

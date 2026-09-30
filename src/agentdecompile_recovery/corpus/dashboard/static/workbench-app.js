@@ -44,7 +44,6 @@
     { id: "wb-overview", title: "Overview", keys: ["overview", "corpus"] },
     { id: "wb-ingest", title: "Project", keys: ["add", "drop", "gpr", "upload", "project", "source", "binary"] },
     { id: "wb-sources", title: "Project", keys: ["source", "binary"] },
-    { id: "wb-functions", title: "Functions", keys: ["function", "func", "addr"] },
     { id: "wb-inspect", title: "Inspector", keys: ["inspect", "sibling", "preview"] },
     { id: "wb-graph", title: "Call trees", keys: ["graph", "call"] },
     { id: "wb-jobs", title: "Jobs", keys: ["job", "pulse"] },
@@ -1318,6 +1317,7 @@
   function selectPreparationRun(runs, locator, program, slug) {
     const normalizedLocator = String(locator || "").replace(/\/+$/, "");
     return (runs || []).filter(function (run) {
+      if (run.supersededBy) return false;
       const runLocator = String(run.locator || "").replace(/\/+$/, "");
       if (normalizedLocator) {
         return runLocator === normalizedLocator && (!program || !run.program || run.program === program || (run.programs || []).includes(program));
@@ -1538,9 +1538,12 @@
     </div>`;
   }
 
-  function RepoStatus({ dossier, user }) {
+  function RepoStatus({ dossier, user, session }) {
     if (!dossier || !dossier.ok) {
-      return html`<p id="wb-repo-status" className="wb-repo-row wb-repo-empty">No active project</p>`;
+      const locator = session && session.locator;
+      return html`<p id="wb-repo-status" className="wb-repo-row wb-repo-empty" title=${locator || ""}>${locator
+        ? (dossier && dossier.error ? "Project unavailable: " + dossier.error : "Loading " + (session.title || locator) + "…")
+        : "No project selected"}</p>`;
     }
     const kind = dossier.kind || "";
     if (kind === "shared-project") {
@@ -1636,6 +1639,7 @@
 
   function RecoverWorkbench({ program, selected, recover, recoveredRoot, onRefresh, onDump, onOneShot, onExportC, onDecompile, onGhidraBulk, onCrossPlace, onIngest }) {
     const state = (recover && recover.state) || "";
+    const wholeImage = recover && recover.recovery && recover.recovery.wholeImage;
     const files = (recover && recover.files) || [];
     const summary = (recover && recover.summary)
       || (recoveredRoot ? "A recovered source directory is set." : "No recovered source yet.");
@@ -1647,6 +1651,11 @@
         <p>${summary}</p>
         ${recover && recover.path ? html`<p className="wb-hint"><code>${recover.path}</code></p>` : null}
       </div>
+      ${wholeImage ? html`<div className=${"wb-bsim-state st-" + wholeImage.state} role="status">
+        <strong>Full-image compiler and objdiff receipt · ${wholeImage.state}</strong>
+        <p>${wholeImage.reason}</p>
+        ${wholeImage.receipt ? html`<p className="wb-hint"><code>${wholeImage.receipt}</code></p>` : null}
+      </div>` : null}
       <div className="wb-fn-tools" role="toolbar" aria-label="Recover">
         <button type="button" id="wb-recover-run" className="wb-btn wb-btn-primary"
           onClick=${onGhidraBulk}>Ghidra bulk</button>
@@ -1822,7 +1831,15 @@
     ],
     pipeline: [
       { id: "corpus.stages", label: "Stages" },
-      { id: "corpus.run", label: "Run pipeline", danger: true }
+      { id: "corpus.run", label: "Run pipeline", danger: true },
+      { id: "corpus.extract-stabs", label: "1 Extract", needsProject: true },
+      { id: "corpus.match-pair", label: "2 Match", needsProject: true, mutating: true },
+      { id: "corpus.calibrate-global", label: "3 Calibrate global", mutating: true },
+      { id: "corpus.workspace", label: "4 Link floor", mutating: true },
+      { id: "corpus.ghidra-bulk", label: "5 Ghidra bulk", mutating: true },
+      { id: "corpus.cross-place", label: "6 Cross-place" },
+      { id: "corpus.genproject", label: "7 Leftover" },
+      { id: "corpus.objdiff-check", label: "8 Objdiff audit", mutating: true }
     ],
     function: [
       { id: "mcp.decompile-function", label: "Decompile", needsFunction: true },
@@ -1851,23 +1868,6 @@
     return false;
   }
 
-  function pipelineQuickActions(baseItems, stages) {
-    return (baseItems || []).concat((stages || []).map(function (stage) {
-      return {
-        id: stage.actionId,
-        label: stage.label,
-        needsProject: stage.needsProject === true,
-        mutating: stage.mutating === true,
-        requiresCatalog: true
-      };
-    }));
-  }
-
-  function quickActionUnavailable(item, catalog, flags) {
-    const act = item.id ? catalog.find(function (row) { return row.id === item.id; }) : null;
-    return quickActionDisabled(item, flags) || (item.requiresCatalog && !act);
-  }
-
   function QuickActions({ items, catalog, onPress, flags }) {
     if (!items || !items.length) return null;
     const gate = flags || {};
@@ -1875,7 +1875,7 @@
       ${items.map(function (item, index) {
         const act = item.id ? catalog.find(function (row) { return row.id === item.id; }) : null;
         const label = item.label || (act && act.title) || item.id || "Action";
-        const off = quickActionUnavailable(item, catalog, gate);
+        const off = quickActionDisabled(item, gate);
         return html`<button key=${item.id || item.ui || String(index)} type="button"
           className=${"wb-qact" + (item.danger ? " danger" : "") + (off ? " off" : "")}
           disabled=${off}
@@ -1895,12 +1895,33 @@
     </section>`;
   }
 
-  function Modal({ open, title, onClose, children, footer, error }) {
+  function Modal({ open, title, onClose, children, footer, error, menuInvokerRef }) {
     const boxRef = useRef(null);
+    const capturedInvokerRef = useRef(null);
     useEffect(function () {
       if (!open || !boxRef.current) return;
+      /* A2: remember what had focus before the modal opened, so closing it
+         (Escape, backdrop click, or the × button) can put focus back there
+         instead of dropping it to <body>. Dialogs opened from a menu item
+         are a special case: the item itself unmounts (its menu closes) in
+         the same render that opens the dialog, so document.activeElement
+         is already <body> by the time this effect runs. menuInvokerRef is
+         the surviving menu-trigger button captured at click time, before
+         that unmount -- prefer it when present. */
+      const menuInvoker = menuInvokerRef && menuInvokerRef.current;
+      capturedInvokerRef.current = (menuInvoker && document.contains(menuInvoker))
+        ? menuInvoker
+        : document.activeElement;
+      if (menuInvokerRef) menuInvokerRef.current = null;
       const first = boxRef.current.querySelector("input, select, textarea, button.wb-btn-primary");
       if (first && typeof first.focus === "function") first.focus();
+      return function () {
+        const invoker = capturedInvokerRef.current;
+        if (invoker && typeof invoker.focus === "function" && document.contains(invoker)) {
+          invoker.focus();
+        }
+        capturedInvokerRef.current = null;
+      };
     }, [open]);
     if (!open) return null;
     /* Tab stays inside the dialog, the way a modal window behaves on a desktop. */
@@ -1962,6 +1983,26 @@
     { id: "wb-tools", title: "Commands", more: true }
   ];
 
+  /* Guide rail (slice 5). Titles and guide-anchor labels are reused verbatim
+     from the Vite frontend's GuideWorkflows.tsx (8 chapters, same order) so the
+     static dashboard doesn't grow a second guide taxonomy. GuideWorkflows.tsx
+     has no per-chapter URL (only a short "N · Section name" label) so a rail
+     click only focuses the mapped pane -- it never opens a tab and never calls
+     executeAction. `target` is the closest existing surface/centerTab id;
+     several chapters share one because the corresponding first-class surface
+     (Symbol Tree, Types/Structures/Vtables dock) doesn't exist yet -- see
+     docs/dashboard-design/2026-09-28-static-codebrowser-guide-redesign.md §2.3. */
+  const GUIDE_CHAPTERS = [
+    { title: "Orient to the project", guide: "2–3 · Projects and code browser", target: "wb-sidebar" },
+    { title: "Find symbols and types", guide: "4–5 · Symbol tree and data type manager", target: "wb-fnbrowse" },
+    { title: "Read bytes and reconstructed code", guide: "6–7 · Listing and decompile view", target: "decompile" },
+    { title: "Trace relationships and keep notes", guide: "8 · Call trees, memory map, and bookmarks", target: "graph" },
+    { title: "Check function signatures and ABI", guide: "9–11 · Functions, conventions, and return storage", target: "wb-fnbrowse" },
+    { title: "Recover structures and virtual dispatch", guide: "12–13 · Structures and vtables", target: "wb-tools" },
+    { title: "Compare template instantiations", guide: "14 · Template classes", target: "wb-tools" },
+    { title: "Diagnose decompiler inconsistencies", guide: "15–16 · Common issues and next steps", target: "decompile" }
+  ];
+
   const EDITOR_TABS = EDITOR_PRIMARY.concat(CORPUS_NAV);
 
   /* The browse page's old anchors and query keys still arrive from bookmarks,
@@ -1987,7 +2028,8 @@
 
   function editorTabFor(id) {
     if (!id) return "decompile";
-    if (id === "wb-inspect" || id === "wb-functions" || id === "inspect" || id === "wb-ingest") return "decompile";
+    if (id === "wb-functions") return "wb-fnbrowse";
+    if (id === "wb-inspect" || id === "inspect" || id === "wb-ingest") return "decompile";
     if (id === "wb-graph") return "graph";
     if (id === "match" || id === "cross-match" || id === "crossmatch") return "wb-match";
     if (id === "recover" || id === "recovery") return "wb-recovery";
@@ -2241,6 +2283,7 @@
     { id: "view.density-comfortable", title: "Use roomy layout", group: "View" },
     { id: "view.jobs-rail", title: "Dock jobs on the side", group: "View" },
     { id: "view.jobs-bottom", title: "Dock jobs at the bottom", group: "View" },
+    { id: "view.classic-layout", title: "Use classic layout", group: "View" },
     { id: "analyze.program", title: "Analyze program", accel: "mod+shift+A", group: "Analyze" },
     { id: "analyze.bsim-ingest", title: "Ingest repository into BSim", accel: "mod+shift+B", group: "Analyze" },
     { id: "analyze.bsim-report", title: "Report BSim database", group: "Analyze" },
@@ -2325,6 +2368,423 @@
     </div>`;
   }
 
+  /* Guide rail (slice 5, §5.3): state is derived only from data already in
+     scope, never invented. `reachable`/`evidence` are booleans the caller
+     computes from real app state (program selection, loaded rows/detail/
+     graph); this component only renders them. Clicking a step focuses its
+     mapped pane through the existing jumpTo mechanism -- it never runs an
+     action and never opens a network request. */
+  function GuideRail({ chapters, centerTab, reachable, evidence, onJump }) {
+    return html`<nav className="wb-guide-rail" aria-label="Guide">
+      <ol className="wb-guide-list">
+        ${chapters.map(function (chapter, i) {
+          const isReachable = Boolean(reachable[i]);
+          const inView = isReachable && centerTab === chapter.target;
+          const hasEvidence = isReachable && Boolean(evidence[i]);
+          const state = !isReachable ? "partial" : inView ? "active" : hasEvidence ? "proven" : "default";
+          const stateText = !isReachable ? "not reachable yet"
+            : inView ? "in view"
+              : hasEvidence ? "has evidence"
+                : "not started";
+          const label = (i + 1) + ". " + chapter.title + " (" + chapter.guide + ") — " + stateText;
+          return html`<li key=${chapter.title}>
+            <button type="button" className="wb-guide-step" data-state=${state}
+              title=${chapter.title}
+              aria-label=${label}
+              aria-current=${inView ? "step" : undefined}
+              onClick=${function () { onJump(chapter.target); }}>
+              <span className="wb-guide-dot" aria-hidden="true">${String(i + 1).padStart(2, "0")}</span>
+              <span className="sr-only">${label}</span>
+            </button>
+          </li>`;
+        })}
+      </ol>
+    </nav>`;
+  }
+
+  /* Symbol Tree (slice 1, redesign §5.1/§6 row 1). Lives under Explorer in the
+     left column. Every node is fetched lazily, through `runReadAction`
+     (same POST-then-poll idiom `executeAction` and `loadFunctionEvidence`
+     already use), and only the read-only catalog actions confirmed
+     `danger:false, mutating:false, long_running:false`:
+     mcp.search-symbols, mcp.list-imports, mcp.list-exports,
+     mcp.get-current-program. Nothing here ever calls a mutating action.
+
+     Classes and Namespaces both derive from one cached mcp.search-symbols
+     sweep, grouped client-side by the `namespace` field each symbol already
+     carries -- the action has no dedicated class-vs-namespace filter, so
+     "Classes" narrows that same grouping to namespaces that look like real
+     C++ types (not an import DLL, not the external/global bucket). This is
+     a heuristic, not a guarantee, and is called out as such in the slice
+     report.
+
+     The Functions node never renders its own rows (FRONTEND_INTENT §4.2 /
+     §9 -- two Functions surfaces are banned): clicking it only calls
+     onOpenFunctions(), which switches the existing wb-fnbrowse tab. */
+  const SYMTREE_PAGE = 200;
+
+  function looksLikeClassNamespace(name) {
+    if (!name) return false;
+    if (name === "Global" || name === "<EXTERNAL>") return false;
+    if (/\.(DLL|dll|EXE|exe)$/.test(name)) return false;
+    return true;
+  }
+
+  function SymbolTreeNode({ id, title, depth, expanded, loading, error, onToggle, children, isLeaf, onActivate, hint }) {
+    const indent = { paddingLeft: (depth * 14) + "px" };
+    return html`<li className="wb-symtree-li" role="treeitem" aria-expanded=${isLeaf ? undefined : Boolean(expanded)}>
+      <button type="button" className=${"wb-symtree-row wb-text-action" + (isLeaf ? " wb-symtree-leaf" : "")}
+        style=${indent}
+        title=${hint || title}
+        onClick=${function () { (isLeaf ? onActivate : onToggle)(id); }}>
+        ${!isLeaf ? html`<span className="wb-symtree-caret" aria-hidden="true">${expanded ? "▾" : "▸"}</span>` : null}
+        <span className="wb-symtree-label">${title}</span>
+        ${loading ? html`<span className="wb-hint wb-symtree-loading">loading…</span>` : null}
+      </button>
+      ${error ? html`<p className="wb-hint wb-symtree-error" style=${{ paddingLeft: ((depth + 1) * 14) + "px" }}>${error}</p>` : null}
+      ${expanded && children ? html`<ul className="wb-symtree-children" role="group">${children}</ul>` : null}
+    </li>`;
+  }
+
+  function SymbolTree({ program, hint, runReadAction, onOpenFunctions, onSelectFunction }) {
+    const [expanded, setExpanded] = useState({});
+    const [nodes, setNodes] = useState({}); // key -> { items, error, offset, hasMore, loading }
+    const [symbolSweep, setSymbolSweep] = useState(null); // shared cache for classes/namespaces
+
+    useEffect(function () {
+      setExpanded({});
+      setNodes({});
+      setSymbolSweep(null);
+    }, [program]);
+
+    function patchNode(key, patch) {
+      setNodes(function (prev) {
+        return Object.assign({}, prev, { [key]: Object.assign({}, prev[key], patch) });
+      });
+    }
+
+    async function ensureSymbolSweep() {
+      if (symbolSweep) return symbolSweep;
+      const pending = { loading: true };
+      setSymbolSweep(pending);
+      const result = await runReadAction("mcp.search-symbols", {
+        query: "", includeExternal: false, limit: 500
+      }, { timeoutMs: 8000 });
+      const next = result.ok
+        ? { items: (result.data && result.data.results) || [] }
+        : { error: result.error || "Could not read symbols." };
+      setSymbolSweep(next);
+      return next;
+    }
+
+    async function loadNamespaceGroup(key, filterFn) {
+      patchNode(key, { loading: true, error: "" });
+      const sweep = await ensureSymbolSweep();
+      if (sweep.error) { patchNode(key, { loading: false, error: sweep.error }); return; }
+      const seen = new Set();
+      const names = [];
+      (sweep.items || []).forEach(function (sym) {
+        const ns = sym.namespace || "";
+        if (!ns || seen.has(ns) || !filterFn(ns)) return;
+        seen.add(ns);
+        names.push(ns);
+      });
+      names.sort();
+      patchNode(key, { loading: false, items: names.slice(0, SYMTREE_PAGE), hasMore: names.length > SYMTREE_PAGE, allNames: names, offset: SYMTREE_PAGE });
+    }
+
+    async function loadNamespaceMembers(nsKey, namespace) {
+      patchNode(nsKey, { loading: true, error: "" });
+      const sweep = await ensureSymbolSweep();
+      if (sweep.error) { patchNode(nsKey, { loading: false, error: sweep.error }); return; }
+      const members = (sweep.items || []).filter(function (sym) { return sym.namespace === namespace; });
+      patchNode(nsKey, { loading: false, items: members.slice(0, SYMTREE_PAGE), hasMore: members.length > SYMTREE_PAGE });
+    }
+
+    async function loadFlatAction(key, actionId, offset) {
+      patchNode(key, { loading: true, error: "" });
+      const result = await runReadAction(actionId, { limit: SYMTREE_PAGE, offset: offset || 0 }, { timeoutMs: 8000 });
+      if (!result.ok) { patchNode(key, { loading: false, error: result.error || "Could not load this list." }); return; }
+      const results = (result.data && result.data.results) || [];
+      const hasMore = Boolean(result.data && result.data.hasMore);
+      setNodes(function (prev) {
+        const prior = (offset && prev[key] && prev[key].items) || [];
+        return Object.assign({}, prev, {
+          [key]: { loading: false, error: "", items: prior.concat(results), hasMore: hasMore, offset: (offset || 0) + results.length }
+        });
+      });
+    }
+
+    function toggle(key, loader) {
+      setExpanded(function (prev) {
+        const next = Object.assign({}, prev, { [key]: !prev[key] });
+        if (next[key] && !nodes[key]) loader();
+        return next;
+      });
+    }
+
+    function activateFunction(name, addr) {
+      onSelectFunction({ name: name, addr: addr });
+    }
+
+    if (!program) {
+      return html`<div id="wb-symtree" className="wb-sidebar-section wb-symbol-tree">
+        <header className="wb-sidebar-head"><h3>Symbol Tree</h3></header>
+        <p className="wb-hint">Pick a program in Explorer to browse its symbols.</p>
+      </div>`;
+    }
+    if (hint) {
+      return html`<div id="wb-symtree" className="wb-sidebar-section wb-symbol-tree">
+        <header className="wb-sidebar-head"><h3>Symbol Tree</h3></header>
+        <p className="wb-hint">${hint}</p>
+      </div>`;
+    }
+
+    function namespaceChildren(key) {
+      const node = nodes[key];
+      if (!node || !node.items) return null;
+      return node.items.map(function (ns) {
+        const nsKey = key + ":" + ns;
+        const nsNode = nodes[nsKey];
+        return html`<${SymbolTreeNode} key=${nsKey} id=${nsKey} title=${ns} depth=${1}
+          expanded=${Boolean(expanded[nsKey])} loading=${nsNode && nsNode.loading} error=${nsNode && nsNode.error}
+          onToggle=${function () { toggle(nsKey, function () { loadNamespaceMembers(nsKey, ns); }); }}
+          isLeaf=${false}
+          children=${expanded[nsKey] && nsNode && nsNode.items ? nsNode.items.map(function (sym) {
+            return html`<${SymbolTreeNode} key=${nsKey + "#" + sym.address} id=${nsKey + "#" + sym.address}
+              title=${(sym.name || sym.address) + " " + (sym.address || "")} depth=${2}
+              isLeaf=${true}
+              onActivate=${function () { activateFunction(sym.name, sym.address); }} />`;
+          }).concat(nsNode.hasMore ? [html`<li key=${nsKey + "-more"} className="wb-symtree-li" style=${{ paddingLeft: "28px" }}>
+            <span className="wb-hint">${nsNode.items.length} shown, more available</span>
+          </li>`] : []) : null} />`;
+      }).concat(node.hasMore ? [html`<li key=${key + "-more"} className="wb-symtree-li">
+        <button type="button" className="wb-text-action wb-symtree-more" style=${{ paddingLeft: "14px" }}
+          onClick=${function () {
+            const shown = node.items.length;
+            patchNode(key, { items: node.allNames.slice(0, shown + SYMTREE_PAGE), hasMore: node.allNames.length > shown + SYMTREE_PAGE });
+          }}>Show more…</button>
+      </li>`] : []);
+    }
+
+    function flatChildren(key) {
+      const node = nodes[key];
+      if (!node || !node.items) return null;
+      const items = node.items.map(function (item, i) {
+        const label = (item.name || "") + "  " + (item.address || "") + (item.library ? "  (" + item.library + ")" : "");
+        return html`<${SymbolTreeNode} key=${key + "#" + i + "#" + item.address} id=${key + "#" + i}
+          title=${label} depth=${1} isLeaf=${true}
+          onActivate=${function () { activateFunction(item.name, item.address); }} />`;
+      });
+      if (node.hasMore) {
+        items.push(html`<li key=${key + "-more"} className="wb-symtree-li">
+          <button type="button" className="wb-text-action wb-symtree-more" style=${{ paddingLeft: "14px" }}
+            onClick=${function () { loadFlatAction(key, key === "imports" ? "mcp.list-imports" : "mcp.list-exports", node.offset); }}>Show more…</button>
+        </li>`);
+      }
+      return items;
+    }
+
+    return html`<div id="wb-symtree" className="wb-sidebar-section wb-symbol-tree">
+      <header className="wb-sidebar-head"><h3>Symbol Tree</h3></header>
+      <ul className="wb-symtree-root" role="tree" aria-label="Symbol tree">
+        <${SymbolTreeNode} key="classes" id="classes" title="Classes" depth=${0}
+          expanded=${Boolean(expanded.classes)} loading=${nodes.classes && nodes.classes.loading} error=${nodes.classes && nodes.classes.error}
+          onToggle=${function () { toggle("classes", function () { loadNamespaceGroup("classes", looksLikeClassNamespace); }); }}
+          isLeaf=${false}
+          children=${expanded.classes ? namespaceChildren("classes") : null} />
+        <${SymbolTreeNode} key="namespaces" id="namespaces" title="Namespaces" depth=${0}
+          expanded=${Boolean(expanded.namespaces)} loading=${nodes.namespaces && nodes.namespaces.loading} error=${nodes.namespaces && nodes.namespaces.error}
+          onToggle=${function () { toggle("namespaces", function () { loadNamespaceGroup("namespaces", function () { return true; }); }); }}
+          isLeaf=${false}
+          children=${expanded.namespaces ? namespaceChildren("namespaces") : null} />
+        <${SymbolTreeNode} key="imports" id="imports" title="Imports" depth=${0}
+          expanded=${Boolean(expanded.imports)} loading=${nodes.imports && nodes.imports.loading} error=${nodes.imports && nodes.imports.error}
+          onToggle=${function () { toggle("imports", function () { loadFlatAction("imports", "mcp.list-imports", 0); }); }}
+          isLeaf=${false}
+          children=${expanded.imports ? flatChildren("imports") : null} />
+        <${SymbolTreeNode} key="exports" id="exports" title="Exports" depth=${0}
+          expanded=${Boolean(expanded.exports)} loading=${nodes.exports && nodes.exports.loading} error=${nodes.exports && nodes.exports.error}
+          onToggle=${function () { toggle("exports", function () { loadFlatAction("exports", "mcp.list-exports", 0); }); }}
+          isLeaf=${false}
+          children=${expanded.exports ? flatChildren("exports") : null} />
+        <li className="wb-symtree-li" role="treeitem">
+          <button type="button" className="wb-symtree-row wb-text-action" style=${{ paddingLeft: "0" }}
+            title="Open the Functions tab"
+            onClick=${onOpenFunctions}>
+            <span className="wb-symtree-caret" aria-hidden="true">▸</span>
+            <span className="wb-symtree-label">Functions</span>
+          </button>
+        </li>
+      </ul>
+    </div>`;
+  }
+
+  /* Continuous Listing rows (slice 2, redesign §5.1/§6 row 2). Replaces the
+     #wb-listing-preview text blob with an address/bytes/mnemonic/operands/
+     xref row table, backed by mcp.inspect-memory (mode: "instruction",
+     chained through each row's own fallThrough address) plus one
+     mcp.get-references call (mode: "to") for the function entry. Both are
+     confirmed danger:false/mutating:false/long_running:false in the catalog
+     -- same runReadAction reader the Symbol Tree uses.
+
+     Each inspect-memory round trip on this backend is a real Ghidra bridge
+     call, not a local computation -- measured against repos-local.gpr /
+     DragonAge2.exe it runs ~1.1s per instruction (see slice report). A
+     continuous table of any real size will blow past a 5s budget, so this
+     component fetches what it can inside `budgetMs` and falls back to the
+     existing detail.preview text -- with the measured elapsed time shown --
+     rather than pretend a partial or synthetic result is the whole listing. */
+  // "00b411a0  b6 f1   MOV DH,0xf1" lines from get-function's disassembly.
+  function parseAssemblyRows(text, addr) {
+    if (!text) return null;
+    const want = parseInt(String(addr || "").replace(/^0x/i, ""), 16);
+    const rows = [];
+    let found = false;
+    String(text).split("\n").forEach(function (line) {
+      const m = /^\s*([0-9a-fA-F]{6,16})\s+((?:[0-9a-fA-F]{2} )*[0-9a-fA-F]{2})\s+((?:(?:REP[A-Z]*|LOCK)\s+)?\S+)\s*(.*)$/i.exec(line);
+      if (!m) return;
+      const at = parseInt(m[1], 16);
+      if (at === want) found = true;
+      const targets = (m[4].match(/0x[0-9a-fA-F]{6,16}/g) || []);
+      const branch = /^(CALL|J[A-Z]{1,3}|LOOP[A-Z]*)$/i.test(m[3].split(/\s+/).pop());
+      rows.push({
+        addr: "0x" + m[1].toLowerCase(),
+        bytes: m[2],
+        mnemonic: m[3],
+        operands: m[4].trim(),
+        flows: branch ? targets : []
+      });
+    });
+    return rows.length && found ? rows : null;
+  }
+
+  function ListingRows({ addr, name, program, runReadAction, fallbackText, onJumpAddr, budgetMs, assemblyText }) {
+    const [state, setState] = useState({ status: "idle" });
+    const [focusIdx, setFocusIdx] = useState(0);
+    const seqRef = useRef(0);
+    const rowRefs = useRef([]);
+
+    useEffect(function () {
+      let cancelled = false;
+      const seq = ++seqRef.current;
+      setFocusIdx(0);
+      if (!addr || !program) { setState({ status: "idle" }); return undefined; }
+      // The function read already carries its whole disassembly; use it rather
+      // than one inspect-memory round trip per instruction.
+      const parsed = parseAssemblyRows(assemblyText, addr);
+      if (parsed) {
+        setState({ status: "ok", rows: parsed, elapsedMs: 0, budgetHit: false, inboundCount: null });
+        return undefined;
+      }
+      setState({ status: "loading" });
+      const t0 = (window.performance && performance.now) ? performance.now() : Date.now();
+      const now = function () { return (window.performance && performance.now) ? performance.now() : Date.now(); };
+      const budget = budgetMs || 5000;
+      const maxRows = 64;
+
+      async function run() {
+        const rows = [];
+        let cur = addr;
+        let inboundCount = null;
+        const refResult = await runReadAction("mcp.get-references", { target: addr, mode: "to", limit: 200 }, { timeoutMs: Math.max(1000, budget - (now() - t0)) });
+        if (cancelled || seq !== seqRef.current) return;
+        if (refResult.ok && refResult.data) inboundCount = refResult.data.count != null ? refResult.data.count : (refResult.data.references || []).length;
+        while (rows.length < maxRows) {
+          const elapsed = now() - t0;
+          if (elapsed >= budget) {
+            if (cancelled || seq !== seqRef.current) return;
+            if (rows.length) {
+              setState({ status: "ok", rows: rows, elapsedMs: elapsed, budgetHit: true, inboundCount: inboundCount });
+            } else {
+              setState({ status: "fallback", reason: "5s budget exceeded before the first row loaded", elapsedMs: elapsed });
+            }
+            return;
+          }
+          const result = await runReadAction("mcp.inspect-memory", { mode: "instruction", address: cur }, { timeoutMs: Math.max(500, budget - elapsed) });
+          if (cancelled || seq !== seqRef.current) return;
+          if (!result.ok) {
+            if (rows.length) {
+              setState({ status: "ok", rows: rows, elapsedMs: now() - t0, budgetHit: true, inboundCount: inboundCount });
+            } else {
+              setState({ status: "fallback", reason: result.error || "inspect-memory failed", elapsedMs: result.elapsedMs || (now() - t0) });
+            }
+            return;
+          }
+          const d = result.data || {};
+          const flows = (d.flows || []).map(function (f) { return typeof f === "string" ? f : (f && (f.address || f.target || f.to)); }).filter(Boolean);
+          rows.push({
+            addr: d.address || cur,
+            bytes: d.bytes || "",
+            mnemonic: d.mnemonic || "",
+            operands: (d.operands || []).map(function (o) { return o && o.text; }).filter(Boolean).join(", "),
+            flows: flows
+          });
+          if (!d.fallThrough || d.fallThrough === d.address) break;
+          cur = d.fallThrough;
+        }
+        if (cancelled || seq !== seqRef.current) return;
+        setState({ status: "ok", rows: rows, elapsedMs: now() - t0, budgetHit: false, inboundCount: inboundCount });
+      }
+      run();
+      return function () { cancelled = true; };
+    }, [addr, program, assemblyText]);
+
+    function onRowKeyDown(ev, idx, row) {
+      if (ev.key === "ArrowDown") {
+        ev.preventDefault();
+        const next = Math.min(idx + 1, state.rows.length - 1);
+        setFocusIdx(next);
+        const el = rowRefs.current[next];
+        if (el) el.focus();
+      } else if (ev.key === "ArrowUp") {
+        ev.preventDefault();
+        const prev = Math.max(idx - 1, 0);
+        setFocusIdx(prev);
+        const el = rowRefs.current[prev];
+        if (el) el.focus();
+      } else if ((ev.key === "Enter" || ev.key === " ") && row.flows && row.flows.length) {
+        ev.preventDefault();
+        onJumpAddr(row.flows[0]);
+      }
+    }
+
+    if (state.status === "ok" && state.rows && state.rows.length) {
+      return html`<div className="wb-listing-rows-wrap">
+        <table id="wb-listing-rows" className="wb-listing-rows" role="table" aria-label=${"Listing for " + (name || addr)}>
+          <thead>
+            <tr><th scope="col">Address</th><th scope="col">Bytes</th><th scope="col">Mnemonic</th><th scope="col">Operands</th><th scope="col">Xref</th></tr>
+          </thead>
+          <tbody>
+            ${state.rows.map(function (row, idx) {
+              return html`<tr key=${row.addr} ref=${function (el) { rowRefs.current[idx] = el; }}
+                tabIndex=${idx === focusIdx ? 0 : -1}
+                className="wb-listing-row"
+                onFocus=${function () { setFocusIdx(idx); }}
+                onKeyDown=${function (ev) { onRowKeyDown(ev, idx, row); }}>
+                <td><code>${row.addr}</code></td>
+                <td><code className="wb-hint">${row.bytes}</code></td>
+                <td>${row.mnemonic}</td>
+                <td>${row.operands}</td>
+                <td>${row.flows.map(function (target) {
+                  return html`<button key=${target} type="button" className="wb-text-action wb-listing-xref"
+                    title=${"Jump to " + target}
+                    onClick=${function (ev) { ev.stopPropagation(); onJumpAddr(target); }}>→${target}</button>`;
+                })}</td>
+              </tr>`;
+            })}
+          </tbody>
+        </table>
+        <p className="wb-hint">${state.rows.length} instructions${state.budgetHit ? ", stopped at the " + Math.round((budgetMs || 5000) / 1000) + "s read budget" : ""}${state.inboundCount != null ? " · " + state.inboundCount + " inbound reference" + (state.inboundCount === 1 ? "" : "s") : ""} (${Math.round(state.elapsedMs)}ms)</p>
+      </div>`;
+    }
+    return html`<div>
+      ${state.status === "fallback" ? html`<p className="wb-hint">Structured listing unavailable here (${state.reason}, ${Math.round(state.elapsedMs || 0)}ms) -- showing the text preview.</p>` : null}
+      ${state.status === "loading" ? html`<p className="wb-hint">Reading instructions…</p>` : null}
+      <pre className="wb-preview" id="wb-listing-preview">${fallbackText}</pre>
+    </div>`;
+  }
+
   function CorpusNavBar({ active, onJump, moreOpen, onMoreToggle }) {
     const primaryIds = {};
     EDITOR_PRIMARY.forEach(function (item) { primaryIds[item.id] = true; });
@@ -2335,13 +2795,16 @@
     const more = overflow.filter(function (item) { return !promoted || item.id !== promoted.id; });
     return html`<nav id="wb-corpus-nav" className="wb-corpus-nav wb-editor-tabs" aria-label="Windows">
       ${EDITOR_PRIMARY.map(function (item) {
-        const on = active === item.id ? " on" : "";
+        const isActive = active === item.id;
+        const on = isActive ? " on" : "";
         return html`<button type="button" key=${item.id} className=${"wb-corpus-nav-item" + on}
           data-surface=${item.id}
+          aria-current=${isActive ? "page" : undefined}
           onClick=${function () { onJump(item.id); }}>${item.title}</button>`;
       })}
       ${promoted ? html`<button type="button" key=${promoted.id} className="wb-corpus-nav-item on wb-nav-promoted"
         data-surface=${promoted.id}
+        aria-current="page"
         onClick=${function () { onJump(promoted.id); }}>${promoted.title}</button>` : null}
       <details className=${"wb-editor-more" + (promoted ? " on" : "")} open=${Boolean(moreOpen)}
         onToggle=${function (ev) {
@@ -2363,11 +2826,29 @@
     </nav>`;
   }
 
-  function CommandPalette({ open, query, onQuery, actions, surfaces, jobs, recentActionIds, commands, onPickAction, onPickSurface, onPickJob, onPickCommand, onClose }) {
+  function CommandPalette({ open, query, onQuery, actions, surfaces, jobs, recentActionIds, commands, onPickAction, onPickSurface, onPickJob, onPickCommand, onClose, menuInvokerRef }) {
     const inputRef = useRef(null);
+    const capturedInvokerRef = useRef(null);
     const [activeIdx, setActiveIdx] = useState(0);
     useEffect(function () {
-      if (open && inputRef.current) inputRef.current.focus();
+      if (!open) return;
+      /* A2: same invoker-focus contract as Modal -- remember what triggered
+         the palette (Ctrl+K, a menu item, …) and give it focus back on close.
+         menuInvokerRef covers the "View > Command palette" menu-item case,
+         where the item unmounts before this effect can see it as active. */
+      const menuInvoker = menuInvokerRef && menuInvokerRef.current;
+      capturedInvokerRef.current = (menuInvoker && document.contains(menuInvoker))
+        ? menuInvoker
+        : document.activeElement;
+      if (menuInvokerRef) menuInvokerRef.current = null;
+      if (inputRef.current) inputRef.current.focus();
+      return function () {
+        const invoker = capturedInvokerRef.current;
+        if (invoker && typeof invoker.focus === "function" && document.contains(invoker)) {
+          invoker.focus();
+        }
+        capturedInvokerRef.current = null;
+      };
     }, [open]);
     useEffect(function () {
       if (open) setActiveIdx(0);
@@ -2454,16 +2935,20 @@
       return "wb-palette-item" + (idx === safeIdx ? " active" : "");
     }
     return html`<div className="wb-palette-backdrop" onClick=${onClose}>
-      <div className="wb-palette" role="dialog" aria-label="Command palette" onClick=${function (ev) { ev.stopPropagation(); }}>
+      <div className="wb-palette" role="dialog" aria-modal="true" aria-label="Command palette" onClick=${function (ev) { ev.stopPropagation(); }}>
         <input ref=${inputRef} type="search" className="wb-palette-input" placeholder="Run an action or go to a surface…"
           value=${query} onInput=${function (ev) { onQuery(ev.target.value); }}
-          onKeyDown=${onPaletteInputKey} autocomplete="off" aria-activedescendant=${picks.length ? "wb-palette-pick-" + safeIdx : undefined} />
+          onKeyDown=${onPaletteInputKey} autocomplete="off"
+          role="combobox" aria-expanded="true" aria-controls="wb-palette-results"
+          aria-activedescendant=${picks.length ? "wb-palette-pick-" + safeIdx : undefined} />
+        <div id="wb-palette-results" role="listbox" aria-label="Command palette results">
         ${commandHits.length ? html`<section className="wb-palette-section">
           <h3>Workbench</h3>
           <ul>${commandHits.map(function (cmd) {
             const idx = pickCursor++;
             return html`<li key=${"cmd-" + cmd.id}>
               <button type="button" id=${"wb-palette-pick-" + idx} className=${itemClass(idx)}
+                role="option" aria-selected=${idx === safeIdx}
                 data-cmd=${cmd.id}
                 onMouseEnter=${function () { setActiveIdx(idx); }}
                 onClick=${function () { onPickCommand(cmd.id); }}>
@@ -2479,6 +2964,7 @@
             const idx = pickCursor++;
             return html`<li key=${"recent-" + act.id}>
               <button type="button" id=${"wb-palette-pick-" + idx} className=${itemClass(idx)}
+                role="option" aria-selected=${idx === safeIdx}
                 onMouseEnter=${function () { setActiveIdx(idx); }}
                 onClick=${function () { onPickAction(act.id); }}>
                 <strong>${act.title || act.id}</strong>
@@ -2493,6 +2979,7 @@
             const idx = pickCursor++;
             return html`<li key=${act.id}>
               <button type="button" id=${"wb-palette-pick-" + idx} className=${itemClass(idx)}
+                role="option" aria-selected=${idx === safeIdx}
                 onMouseEnter=${function () { setActiveIdx(idx); }}
                 onClick=${function () { onPickAction(act.id); }}>
                 <strong>${act.title || act.id}</strong>
@@ -2507,6 +2994,7 @@
             const idx = pickCursor++;
             return html`<li key=${item.id}>
               <button type="button" id=${"wb-palette-pick-" + idx} className=${itemClass(idx)}
+                role="option" aria-selected=${idx === safeIdx}
                 onMouseEnter=${function () { setActiveIdx(idx); }}
                 onClick=${function () { onPickSurface(item.id); }}>
                 <strong>${item.title}</strong>
@@ -2521,6 +3009,7 @@
             const idx = pickCursor++;
             return html`<li key=${job.id}>
               <button type="button" id=${"wb-palette-pick-" + idx} className=${itemClass(idx)}
+                role="option" aria-selected=${idx === safeIdx}
                 onMouseEnter=${function () { setActiveIdx(idx); }}
                 onClick=${function () { onPickJob(job.id); }}>
                 <strong>${job.actionId || job.id}</strong>
@@ -2529,6 +3018,7 @@
             </li>`;
           })}</ul>
         </section>` : null}
+        </div>
         ${!picks.length
           ? html`<p className="wb-hint">No matches. Try “ghidra”, “cross-match”, or “jobs”.</p>`
           : html`<p className="wb-hint wb-palette-kbd">↑↓ to move · Enter to select · Esc to close</p>`}
@@ -2563,11 +3053,38 @@
     </div>`;
   }
 
-  function SplitHandle({ axis, label, onDrag }) {
+  function SplitHandle({ axis, label, onDrag, value, min, max, step, onStep }) {
+    const orientation = axis === "x" ? "vertical" : "horizontal";
+    const stepSize = step || 16;
+    function onKeyDown(ev) {
+      if (!onStep) return;
+      let delta = 0;
+      if (orientation === "vertical") {
+        if (ev.key === "ArrowLeft") delta = -stepSize;
+        else if (ev.key === "ArrowRight") delta = stepSize;
+      } else {
+        if (ev.key === "ArrowUp") delta = stepSize;
+        else if (ev.key === "ArrowDown") delta = -stepSize;
+      }
+      if (!delta) return;
+      ev.preventDefault();
+      onStep(delta);
+    }
     return html`<div className=${"wb-split wb-split-" + axis} role="separator"
-      aria-orientation=${axis === "x" ? "vertical" : "horizontal"}
+      tabIndex="0"
+      aria-orientation=${orientation}
       aria-label=${label}
-      onMouseDown=${onDrag}></div>`;
+      aria-valuenow=${value != null ? Math.round(value) : undefined}
+      aria-valuemin=${min != null ? min : undefined}
+      aria-valuemax=${max != null ? max : undefined}
+      onMouseDown=${onDrag}
+      onKeyDown=${onKeyDown}></div>`;
+  }
+
+  function clampResize(next, min, max, setter, key) {
+    const clamped = Math.round(Math.min(max, Math.max(min, next)));
+    setter(clamped);
+    writeUiPref(key, String(clamped));
   }
 
   function beginResize(ev, startPx, setter, key, axis, min, max, invert) {
@@ -2576,9 +3093,7 @@
     document.body.classList.add(axis === "x" ? "wb-resizing-x" : "wb-resizing-y");
     function move(e) {
       const delta = (axis === "x" ? e.clientX : e.clientY) - origin;
-      const next = Math.round(Math.min(max, Math.max(min, startPx + (invert ? -delta : delta))));
-      setter(next);
-      writeUiPref(key, String(next));
+      clampResize(startPx + (invert ? -delta : delta), min, max, setter, key);
     }
     function up() {
       document.removeEventListener("mousemove", move);
@@ -2591,17 +3106,27 @@
 
   function LogDock({
     entries, tab, onTab, open, onToggle, selectedId, onSelect,
-    jobs, selectedJobId, jobDetail, onSelectJob, onCancel, actions, height, onResize
+    jobs, jobsState, program, slug, selectedJobId, jobDetail, onSelectJob, onCancel, actions, height, onResize, onKeyResize
   }) {
-    const list = jobs || [];
-    const running = list.filter(function (job) { return job.status === "running" || job.status === "queued"; });
+    const [showHistory, setShowHistory] = useState(false);
+    const all = jobs || [];
+    const active = function (job) { return ["running", "queued", "cancelling"].includes(job.status); };
+    const running = all.filter(active);
+    const current = all.filter(function (job) {
+      const params = job.params || {};
+      return !active(job) && job.status === "ok" &&
+        ((program && (params.program === program || params.programPath === program)) || (slug && params.slug === slug));
+    });
+    const history = all.filter(function (job) { return !active(job) && !current.includes(job); });
+    const list = running.concat(current, showHistory ? history : []);
     const detail = jobDetail || null;
     const logText = detail && detail.log ? String(detail.log).slice(-12000) : "";
     const rows = (entries || []).slice().reverse();
     return html`<aside id="wb-log-dock" className=${"wb-log-dock" + (open ? " open" : "")}
       style=${open ? { height: height + "px" } : undefined}>
       <${SplitHandle} axis="y" label="Resize log"
-        onDrag=${onResize} />
+        value=${height} min=${72} max=${640}
+        onDrag=${onResize} onStep=${onKeyResize} />
       <header className="wb-log-dock-head">
         <button type="button" className=${"wb-log-tab" + (tab === "log" ? " on" : "")}
           onClick=${function () { onTab("log"); if (!open) onToggle(true); }}>Log</button>
@@ -2627,6 +3152,9 @@
             </li>`;
           }) : html`<li className="wb-hint">No log lines yet.</li>`}
         </ul>` : html`<div className="wb-jobs-dock-body">
+          ${jobsState !== "ready" ? html`<p role="status">${jobsState === "loading" ? "Loading recorded jobs…" : "Job updates unavailable; showing the last received state. Retrying…"}</p>` : null}
+          <p className="wb-hint">${running.length} live across the workspace · ${current.length} selected-program results</p>
+          ${history.length ? html`<button type="button" aria-pressed=${showHistory} onClick=${function () { setShowHistory(!showHistory); }}>${showHistory ? "Hide" : "Show"} history (${history.length})</button>` : null}
           <ul className="wb-job-list">
             ${list.length ? list.map(function (job) {
               const on = job.id === selectedJobId;
@@ -2640,7 +3168,7 @@
                 ${live ? html`<button type="button" className="wb-btn danger wb-job-cancel"
                   onClick=${function (ev) { ev.stopPropagation(); onCancel(job.id); }}>Cancel</button>` : null}
               </li>`;
-            }) : html`<li className="wb-hint">No jobs yet.</li>`}
+            }) : jobsState === "ready" ? html`<li className="wb-hint">No current jobs recorded. Previous runs are available in history.</li>` : null}
           </ul>
           ${selectedJobId && logText ? html`<pre className="wb-job-log">${logText}</pre>`
             : selectedJobId ? html`<p className="wb-hint">Loading log…</p>` : null}
@@ -2692,9 +3220,13 @@
       const timer = setInterval(function () { setPreparationNow(Date.now()); }, 1000);
       return function () { clearInterval(timer); };
     }, []);
+    const [preparationsState, setPreparationsState] = useState("loading");
+    const [workflowBusy, setWorkflowBusy] = useState(false);
     const [graph, setGraph] = useState(null);
     const [actions, setActions] = useState([]);
     const [jobs, setJobs] = useState([]);
+    const [jobsState, setJobsState] = useState("loading");
+    const [programProgress, setProgramProgress] = useState({});
     const [reaction, setReaction] = useState(null);
     const [path, setPath] = useState("");
     const [newSlug, setNewSlug] = useState("");
@@ -2717,6 +3249,13 @@
     const [dialogError, setDialogError] = useState("");
     const [ctxMenu, setCtxMenu] = useState(null);
     const [dialog, setDialog] = useState("");
+    /* A2: when a dialog is opened from a menu item, the item itself is
+       unmounted (its menu closes) in the same render that opens the dialog,
+       so by the time Modal's own effect runs document.activeElement is
+       already <body>. The stable ~menu trigger~ button survives that
+       unmount, so it's captured here and handed to Modal as the fallback
+       invoker to restore focus to. */
+    const dialogInvokerRef = useRef(null);
     const [openTab, setOpenTab] = useState("local");
     const [openPaste, setOpenPaste] = useState("");
     const [funcNote, setFuncNote] = useState("");
@@ -2740,7 +3279,6 @@
     const [dropCandidates, setDropCandidates] = useState([]);
     const [treeExpanded, setTreeExpanded] = useState(true);
     const [envDefaults, setEnvDefaults] = useState({ db: "", work_dir: "", kb: "", mcp_url: "" });
-    const [pipelineStages, setPipelineStages] = useState([]);
     const [recoveredRoot, setRecoveredRoot] = useState("");
     const [bsimStatus, setBsimStatus] = useState(null);
     const [recoverInfo, setRecoverInfo] = useState(null);
@@ -2748,7 +3286,7 @@
     const [paletteQuery, setPaletteQuery] = useState("");
     const [commandFilter, setCommandFilter] = useState("");
     const [funcOffset, setFuncOffset] = useState(0);
-    const [funcLimit, setFuncLimit] = useState("all");
+    const [funcLimit, setFuncLimit] = useState("100");
     const DEFAULT_FUNCTION_ACTION = "mcp.decompile-function";
     const [pendingActionId, setPendingActionId] = useState("");
     const [lastActionId, setLastActionId] = useState(DEFAULT_FUNCTION_ACTION);
@@ -2759,18 +3297,22 @@
     const [selectedJobId, setSelectedJobId] = useState("");
     const [jobDetail, setJobDetail] = useState(null);
     const [sideW, setSideW] = useState(function () { return Number(readUiPref("wb-side-w", "360")) || 360; });
-    const [explorerH, setExplorerH] = useState(function () { return Number(readUiPref("wb-explorer-h", "240")) || 240; });
     const [logH, setLogH] = useState(function () { return Number(readUiPref("wb-log-h", "180")) || 180; });
     const [moreOpen, setMoreOpen] = useState(false);
     const [density, setDensity] = useState(function () { return readUiPref("wb-density", "compact"); });
     const [jobsRail, setJobsRail] = useState(function () { return readUiPref("wb-jobs-rail", "0") === "1"; });
+    const [classicLayout, setClassicLayout] = useState(function () { return readUiPref("wb-classic-layout", "0") === "1"; });
+    const [decompileOpenNarrow, setDecompileOpenNarrow] = useState(function () { return readUiPref("wb-decompile-open", "0") === "1"; });
+    const [lastDecompile, setLastDecompile] = useState(null);
     const [recentActionIds, setRecentActionIds] = useState(readRecentActionIds);
     const [checkedAddrs, setCheckedAddrs] = useState([]);
     const [checkAnchor, setCheckAnchor] = useState("");
     const [jobLiveText, setJobLiveText] = useState("");
     const jobsSnapshotRef = useRef(null);
     const ensureSeqRef = useRef(0);
+    const previewSeqRef = useRef(0);
     const funcSeqRef = useRef(0);
+    const evidenceSeqRef = useRef(0);
     const funcSlugRef = useRef(slug);
     const fileRef = useRef(null);
     const folderRef = useRef(null);
@@ -2825,21 +3367,25 @@
       }
     }, []);
 
-    const loadPreparations = useCallback(async function () {
+    const loadPreparations = useCallback(async function (signal) {
       if (preparationInFlight.current) return;
       preparationInFlight.current = true;
       const sequence = ++preparationSequence.current;
       try {
-        const res = await fetch(API.preparations, { cache: "no-store", signal: AbortSignal.timeout(10000) });
+        const res = await fetch(API.preparations, { cache: "no-store", signal: signal || AbortSignal.timeout(10000) });
         if (!res.ok) throw new Error("Preparation request failed (" + res.status + ")");
         const data = await res.json();
         const received = preparationResponse(data);
         if (sequence !== preparationSequence.current) return;
+        if (signal && signal.aborted) return;
         setPreparationRuns(received);
         setPreparationFeed({ receivedAt: Date.now(), error: "" });
+        setPreparationsState("ready");
       } catch (err) {
         if (sequence !== preparationSequence.current) return;
+        /* Keep the last durable preparation receipt visible while reconnecting. */
         setPreparationFeed(function (previous) { return { receivedAt: previous.receivedAt, error: String(err && err.message || err) }; });
+        setPreparationsState("error");
       } finally {
         preparationInFlight.current = false;
       }
@@ -2916,13 +3462,65 @@
       return applyWorkspace(data, row);
     }, [program, slug, selected, applyWorkspace]);
 
+    // The store listing carries only recovered C. Decompiler output comes from a
+    // Ghidra read the detail endpoint admits as a job, so poll it until it lands.
+    async function loadFunctionEvidence(row, evidenceSlug, loc, attempt) {
+      const seq = attempt ? evidenceSeqRef.current : ++evidenceSeqRef.current;
+      let data = null;
+      try {
+        const res = await fetch(
+          API.detail + "?slug=" + encodeURIComponent(evidenceSlug || "")
+            + "&addr=" + encodeURIComponent(row.addr)
+            + "&locator=" + encodeURIComponent(loc)
+            + "&program=" + encodeURIComponent(program),
+          { cache: "no-store" }
+        );
+        data = await res.json();
+      } catch (err) {
+        return;
+      }
+      if (seq !== evidenceSeqRef.current || !data) return;
+      const request = data.evidenceRequest || null;
+      let cause = "";
+      if (request && request.status === "failed" && request.jobId) {
+        try {
+          const job = await fetch(API.jobs + "/" + encodeURIComponent(request.jobId), { cache: "no-store" })
+            .then(function (res) { return res.json(); });
+          const record = (job && (job.job || job)) || {};
+          const output = String(record.log || record.output || "");
+          // The job log carries the tool's markdown error, or its JSON form.
+          const state = /\*\*State:\*\* `([^`]+)`/.exec(output) || /"state":\s*"([^"]+)"/.exec(output);
+          cause = state ? state[1] : "";
+        } catch (err) {
+          cause = "";
+        }
+        if (seq !== evidenceSeqRef.current) return;
+      }
+      setDetail(function (prev) {
+        const next = Object.assign({}, prev || {});
+        if (data.decompile && data.decompile.text) next.decompile = data.decompile;
+        if (data.assembly && data.assembly.text) next.assembly = data.assembly;
+        next.evidenceRequest = request ? Object.assign({}, request, { cause: cause }) : null;
+        return next;
+      });
+      const pending = request && (request.status === "running" || request.status === "queued" || request.status === "admitted");
+      if (pending && (attempt || 0) < 40) {
+        setTimeout(function () {
+          if (seq === evidenceSeqRef.current) loadFunctionEvidence(row, evidenceSlug, loc, (attempt || 0) + 1);
+        }, 3000);
+      }
+    }
+
     const selectRow = useCallback(async function (row) {
       setSelected(row);
       setContext(row);
       const loc = (typeof currentLocator === "function" ? currentLocator() : "") || "";
       if (loc && program) {
         const ws = await loadWorkspace(program, row);
-        if (ws && ws.ok) return;
+        if (ws && ws.ok) {
+          if (!(ws.decompile && ws.decompile.text)) loadFunctionEvidence(row, ws.slug || slug, loc, 0);
+          return;
+        }
       }
       const res = await fetch(
         API.detail + "?slug=" + encodeURIComponent(slug)
@@ -2958,7 +3556,6 @@
     }
 
     function onFuncCheck(ev, row) {
-      ev.preventDefault();
       ev.stopPropagation();
       if (!row) return;
       if (ev.shiftKey) {
@@ -2974,12 +3571,10 @@
 
     const loadContext = useCallback(async function () {
       try {
-        const query = "?slug=" + encodeURIComponent(slug || "")
-          + "&program=" + encodeURIComponent(program || "");
+        const query = "?slug=" + encodeURIComponent(slug || "") + "&program=" + encodeURIComponent(program || "");
         const res = await fetch(API.context + query, { cache: "no-store" });
         const data = await res.json();
         if (data.defaults) setEnvDefaults(data.defaults);
-        if (Array.isArray(data.pipelineStages)) setPipelineStages(data.pipelineStages);
         const session = data.session || {};
         if (!program && session.program) setProgram(session.program);
         if (!slug && session.slug) setSlug(session.slug);
@@ -2992,7 +3587,6 @@
       const list = data.actions || [];
       setActions(list);
       if (data.context && data.context.defaults) setEnvDefaults(data.context.defaults);
-      if (data.context && Array.isArray(data.context.pipelineStages)) setPipelineStages(data.context.pipelineStages);
     }, []);
 
     const loadMatchStatus = useCallback(async function () {
@@ -3011,7 +3605,7 @@
       try {
         const url = API.recoverStatus
           + "?program=" + encodeURIComponent(program || "")
-          + "&slug=" + encodeURIComponent(slug || "");
+          + "&slug=" + encodeURIComponent(slug || "") + "&fast=1";
         const res = await fetch(url, { cache: "no-store" });
         const data = await res.json();
         setRecoverInfo(data);
@@ -3034,15 +3628,22 @@
     }, []);
 
     const loadPreview = useCallback(async function (locator) {
+      const seq = ++previewSeqRef.current;
+      setDossier(null);
       if (!locator) {
         setPreview(null);
-        setDossier(null);
         return;
       }
-      const res = await fetch(API.inspect + "?locator=" + encodeURIComponent(locator), { cache: "no-store" });
-      const data = await res.json();
-      setPreview(data);
-      setDossier(data);
+      try {
+        const res = await fetch(API.inspect + "?locator=" + encodeURIComponent(locator), { cache: "no-store" });
+        const data = await res.json();
+        if (seq !== previewSeqRef.current) return;
+        setPreview(data);
+        setDossier(data);
+      } catch (err) {
+        if (seq !== previewSeqRef.current) return;
+        setDossier({ ok: false, locator: locator, error: String(err.message || err) });
+      }
     }, []);
 
     function showToast(message, kind) {
@@ -3152,6 +3753,8 @@
     }
 
     function resetTabState() {
+      ++previewSeqRef.current;
+      ++ensureSeqRef.current;
       setSlug("");
       setProgram("");
       setSelected(null);
@@ -3298,7 +3901,6 @@
       window.KotorXidUI = window.AgentDecompileUI;
       loadBinaries();
       loadCorpusStatus();
-      loadContext();
       loadActions();
       loadBrowse("");
       fetch(API.sessions, { cache: "no-store" }).then(function (res) { return res.json(); }).then(function (data) {
@@ -3375,12 +3977,31 @@
         window.clearInterval(probeTimer);
         window.removeEventListener("keydown", onKey);
       };
-    }, [loadBinaries, loadContext, loadActions, loadBrowse, loadPreview]);
+    }, [loadBinaries, loadActions, loadBrowse, loadPreview]);
 
     useEffect(function () {
-      loadPreparations();
-      const timer = window.setInterval(loadPreparations, 2000);
-      return function () { window.clearInterval(timer); };
+      loadContext();
+    }, [loadContext]);
+
+    useEffect(function () {
+      let stopped = false;
+      let timer;
+      let controller;
+      async function poll() {
+        controller = new AbortController();
+        const deadline = window.setTimeout(function () { controller.abort(); }, 10000);
+        try { await loadPreparations(controller.signal); }
+        finally {
+          window.clearTimeout(deadline);
+          if (!stopped) timer = window.setTimeout(poll, 4000);
+        }
+      }
+      poll();
+      return function () {
+        stopped = true;
+        window.clearTimeout(timer);
+        if (controller) controller.abort();
+      };
     }, [loadPreparations]);
 
     useEffect(function () {
@@ -3508,7 +4129,7 @@
       }
       function scrollSelectedFunc() {
         window.requestAnimationFrame(function () {
-          const el = document.querySelector("#wb-func-window .wb-func-row.on");
+          const el = document.querySelector("#wb-fnbrowse-table tr.on");
           if (el) el.scrollIntoView({ block: "nearest" });
         });
       }
@@ -3580,16 +4201,47 @@
     }, [density]);
 
     useEffect(function () {
-      document.body.classList.toggle("wb-jobs-rail", jobsRail);
+      /* Decompile owns the right edge in the CodeBrowser grid, so the side rail
+         only applies in classic layout. The command and pref still work either way. */
+      document.body.classList.toggle("wb-jobs-rail", jobsRail && classicLayout);
       writeUiPref("wb-jobs-rail", jobsRail ? "1" : "0");
-    }, [jobsRail]);
+    }, [jobsRail, classicLayout]);
+
+    useEffect(function () {
+      document.body.classList.toggle("wb-classic-layout", classicLayout);
+      writeUiPref("wb-classic-layout", classicLayout ? "1" : "0");
+    }, [classicLayout]);
+
+    useEffect(function () {
+      writeUiPref("wb-decompile-open", decompileOpenNarrow ? "1" : "0");
+    }, [decompileOpenNarrow]);
+
+    useEffect(function () {
+      const text = detail && detail.decompile && detail.decompile.text;
+      if (text) {
+        setLastDecompile({
+          text: text,
+          name: (selected && selected.name) || (detail && detail.name) || "",
+          addr: (selected && selected.addr) || (detail && detail.addr) || "",
+          source: detail.decompile.source || ""
+        });
+      }
+    }, [detail, selected]);
 
     useEffect(function () {
       let last = "";
+      let stopped = false;
+      let timer;
+      let controller;
       async function poll() {
+        controller = new AbortController();
+        const timeout = setTimeout(function () { controller.abort(); }, 8000);
         try {
-          const res = await fetch(API.jobs, { cache: "no-store" });
+          const res = await fetch(API.jobs, { cache: "no-store", signal: controller.signal });
+          if (!res.ok) throw new Error("Job refresh failed: " + res.status);
           const data = await res.json();
+          if (stopped) return;
+          if (!Array.isArray(data.jobs)) throw new Error("Invalid job response");
           const list = data.jobs || [];
           const note = jobsSnapshotRef.current === null ? "" : jobLiveAnnouncement(jobsSnapshotRef.current, list);
           jobsSnapshotRef.current = list;
@@ -3598,6 +4250,19 @@
             showToast(note, /failed|cancelled/.test(note) ? "error" : "info");
           }
           setJobs(list);
+          setJobsState("ready");
+          const nextProgress = {};
+          list.forEach(function (job) {
+            const params = job.params || {};
+            const key = String(params.program || params.programPath || params.binary || params.name || "").trim();
+            if (!key) return;
+            if (nextProgress[key]) return;
+            const pct = measuredJobPercent(job);
+            nextProgress[key] = { pct: pct, tool: job.actionId || "", status: job.status };
+          });
+          if (Object.keys(nextProgress).length) {
+            setProgramProgress(function (prev) { return Object.assign({}, prev, nextProgress); });
+          }
           const sig = list.map(function (job) { return job.id + job.status + job.returncode; }).join("|");
           if (sig !== last) {
             last = sig;
@@ -3606,15 +4271,18 @@
           }
           const live = list.find(function (job) { return job.status === "running"; });
           if (live) {
-            const detailRes = await fetch(API.jobs + "/" + live.id, { cache: "no-store" });
+            const detailRes = await fetch(API.jobs + "/" + live.id, { cache: "no-store", signal: controller.signal });
             const body = await detailRes.json();
-            if (body.job) setReaction({ id: body.job.actionId || live.id, data: body });
+            if (!stopped && body.job) setReaction({ id: body.job.actionId || live.id, data: body });
           }
-        } catch (_err) { /* keep last frame */ }
+        } catch (_err) { if (!stopped) setJobsState("error"); }
+        finally {
+          clearTimeout(timeout);
+          if (!stopped) timer = setTimeout(poll, 4000);
+        }
       }
       poll();
-      const timer = setInterval(poll, 1500);
-      return function () { clearInterval(timer); };
+      return function () { stopped = true; clearTimeout(timer); if (controller) controller.abort(); };
     }, [loadBinaries, loadFuncs]);
 
     async function registerLocator(locator, extraSlug, options) {
@@ -3717,7 +4385,10 @@
       }
       const regSlug = String(inspected.slug || newSlug || "").trim();
       let registered = { ok: true, binary: { slug: regSlug } };
-      if (!sameProject || !currentSession.projectSlug) {
+      // Projects and repository trees are opened, never registered as binaries;
+      // the server refuses that. Each program resolves its own corpus slug.
+      const projectKind = ["ghidra-project", "shared-fs", "shared-project"].indexOf(inspected.kind) >= 0;
+      if (!projectKind && (!sameProject || !currentSession.projectSlug)) {
         registered = await registerLocator(value, regSlug, { quiet: true });
         if (!registered.ok) {
           showToast(registered.error || "Could not register that project.", "error");
@@ -3987,7 +4658,8 @@
         setDossier(data);
         setPreview(data);
       }
-      showToast("Saved as " + kindTitle(data.kind || saveAsTarget), "success");
+      showToast("Saved as " + kindTitle(data.kind || saveAsTarget) + (data.origin_note ? ". " + data.origin_note : ""), "success");
+      if (data.origin_note) setIngestNote(data.origin_note);
       return data;
     }
 
@@ -4275,6 +4947,14 @@
       if (id === "view.density-comfortable") { setDensity("comfortable"); return; }
       if (id === "view.jobs-rail") { setJobsRail(true); return; }
       if (id === "view.jobs-bottom") { setJobsRail(false); return; }
+      if (id === "view.classic-layout") {
+        setClassicLayout(function (v) {
+          const next = !v;
+          showToast(next ? "Classic layout on" : "Classic layout off");
+          return next;
+        });
+        return;
+      }
       if (id === "analyze.program") {
         const target = program || "";
         if (!target) { showToast("Select a program first", "error"); return; }
@@ -4385,7 +5065,13 @@
     async function cancelJob(jobId) {
       if (!jobId) return;
       try {
-        await fetch(API.jobs + "/" + encodeURIComponent(jobId) + "/cancel", { method: "POST" });
+        const res = await fetch(API.jobs + "/" + encodeURIComponent(jobId) + "/cancel", { method: "POST", signal: AbortSignal.timeout(8000) });
+        const data = await res.json();
+        if (!res.ok || !data.ok || !data.job) throw new Error(data.error || "Cancellation unavailable");
+        if (!["cancelling", "cancelled"].includes(data.job.status)) {
+          showToast("Cancellation was not confirmed for " + jobId + ". Current state: " + data.job.status, "error");
+          return;
+        }
         showToast("Cancel requested for " + jobId, "info");
       } catch (_err) {
         showToast("Could not cancel job.", "error");
@@ -4428,7 +5114,7 @@
       };
     }, [binaries, slug, program, selected, rows, currentSession, dossier, envDefaults, recoveredRoot]);
 
-    const programProgress = useMemo(function () {
+    const sessionProgramProgress = useMemo(function () {
       const locator = currentLocator();
       if (!locator) return {};
       const projection = {};
@@ -4549,6 +5235,93 @@
         if (selected) selectRow(selected);
       }
       return data;
+    }
+
+    /* Quiet, budget-bounded reader for catalog actions the Symbol Tree (slice 1)
+       and the continuous Listing rows (slice 2) use. Same POST-then-poll idiom
+       as executeAction/loadFunctionEvidence above, but: (1) refuses to run
+       anything the catalog doesn't mark danger:false, mutating:false --
+       belt-and-suspenders on top of these call sites only ever naming
+       read-only ids; (2) never opens the Jobs dock or shows a toast --
+       these fire on every tree expand / row scroll, which would otherwise
+       spam both; (3) gives up at `timeoutMs` (default 5000ms, per the
+       redesign spec's "too slow" escape hatch for listing rows) and reports
+       how long it actually waited so the caller can fall back to text and
+       say why. */
+    async function runReadAction(actionId, params, options) {
+      const opts = options || {};
+      const t0 = (window.performance && performance.now) ? performance.now() : Date.now();
+      const elapsed = function () { return ((window.performance && performance.now) ? performance.now() : Date.now()) - t0; };
+      const act = actions.find(function (item) { return item.id === actionId; });
+      if (!act) return { ok: false, error: "Unknown action " + actionId, elapsedMs: elapsed() };
+      if (act.danger || act.mutating || act.long_running) {
+        return { ok: false, error: actionId + " is not a confirmed read-only action; refusing to auto-run it.", elapsedMs: elapsed() };
+      }
+      const loc = (typeof currentLocator === "function" ? currentLocator() : "") || "";
+      const ctx = {
+        slug: toolContext.slug || "",
+        program: toolContext.program || "",
+        repo: toolContext.repo || "",
+        addr: params.addr || toolContext.addr || "",
+        name: params.name || toolContext.name || "",
+        db: toolContext.db || "",
+        work_dir: toolContext.work_dir || "",
+        kb: toolContext.kb || ""
+      };
+      const body = Object.assign({ confirm: true, context: ctx, locator: loc, program: toolContext.program || "" }, params);
+      let res, data;
+      try {
+        res = await fetch("/api/v1/actions/" + actionId.replace(/\./g, "/"), {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(body)
+        });
+        data = await res.json();
+      } catch (err) {
+        return { ok: false, error: String((err && err.message) || err), elapsedMs: elapsed() };
+      }
+      if (!res.ok || !data || data.ok === false) {
+        return { ok: false, error: (data && data.error) || "Action failed", elapsedMs: elapsed() };
+      }
+      if (!(data.job && data.job.id)) {
+        // A handful of actions answer synchronously; take that if it happens.
+        return { ok: true, data: data, elapsedMs: elapsed() };
+      }
+      const jobId = data.job.id;
+      const timeoutMs = opts.timeoutMs || 5000;
+      let job = data.job;
+      while (job.status === "running" || job.status === "queued" || job.status === "admitted" || !job.status) {
+        if (elapsed() >= timeoutMs) {
+          return { ok: false, timedOut: true, error: "Timed out waiting for " + actionId, elapsedMs: elapsed(), jobId: jobId };
+        }
+        await new Promise(function (resolve) { setTimeout(resolve, 250); });
+        try {
+          const jres = await fetch(API.jobs + "/" + encodeURIComponent(jobId), { cache: "no-store" });
+          const jdata = await jres.json();
+          job = (jdata && jdata.job) || job;
+        } catch (err) {
+          // Keep polling until the deadline; a transient fetch error isn't fatal.
+        }
+      }
+      if (job.status !== "ok") {
+        const log = String(job.log || "");
+        const stateMatch = /\*\*State:\*\* `([^`]+)`/.exec(log) || /"state":\s*"([^"]+)"/.exec(log) || /"cause":\s*"([^"]+)"/.exec(log);
+        const cause = stateMatch ? stateMatch[1] : "";
+        const friendly = cause === "authentication-failed"
+          ? "The Ghidra server refused the login for this repository."
+          : (job.error || cause || "Action failed");
+        return { ok: false, error: friendly, cause: cause, elapsedMs: elapsed() };
+      }
+      const log = String(job.log || "");
+      const nl = log.indexOf("\n");
+      const jsonText = nl >= 0 ? log.slice(nl + 1) : log;
+      let parsed = null;
+      try {
+        parsed = JSON.parse(jsonText);
+      } catch (err) {
+        return { ok: false, error: "Could not parse the response for " + actionId, elapsedMs: elapsed() };
+      }
+      return { ok: true, data: parsed, elapsedMs: elapsed() };
     }
 
     useEffect(function () {
@@ -4822,16 +5595,16 @@
         body.append("role", role || "member");
         const res = await fetch(API.binaries, { method: "POST", body: body });
         const data = await res.json();
-        if (!data.ok || !data.binary) {
+        // source_path is the immutable staged upload. binary.repo can be a
+        // reused virtual Ghidra row and binary.locator a project locator;
+        // neither is a file the project import can read.
+        const staged = data.source_path || "";
+        if (!staged) {
           setIngestNote(data.error || "upload failed");
           showToast(data.error || "Could not stage " + file.name, "error");
           continue;
         }
-        const staged = data.binary.locator || data.binary.repo || "";
-        if (!staged) {
-          showToast("Upload landed but has no path to import.", "error");
-          continue;
-        }
+        if (!data.ok) showToast("Staged " + file.name + ", but the corpus did not record it: " + (data.error || "unknown reason"), "error");
         await importPathIntoProject(staged, file.name);
       }
     }
@@ -4964,11 +5737,8 @@
     }
 
     function quickBar(setName) {
-      const items = setName === "pipeline"
-        ? pipelineQuickActions(QUICK_ACTION_SETS.pipeline, pipelineStages)
-        : (QUICK_ACTION_SETS[setName] || []);
       return html`<${QuickActions}
-        items=${items}
+        items=${QUICK_ACTION_SETS[setName] || []}
         catalog=${actions}
         onPress=${runQuickAction}
         flags=${quickActionFlags()} />`;
@@ -4977,6 +5747,16 @@
     function onSearch(value) {
       setQuery(value);
       setFuncOffset(0);
+    }
+
+    /* Symbol Tree function leaves (and Listing xref jumps) select through the
+       existing wb-fnbrowse path, never a second row list: switch to the
+       Functions tab, narrow its own search so the row loads into view, then
+       reuse selectRow -- the same click handler the table itself uses. */
+    function selectFunctionLeaf(name, addr) {
+      jumpTo("wb-fnbrowse");
+      onSearch(name || addr || "");
+      selectRow({ name: name || "", addr: addr || "" });
     }
 
     function onIngestDragOver(ev) {
@@ -5028,11 +5808,11 @@
         programs: projectNames,
         imports: importItems
       };
-    } else if (currentSession && currentSession.projectSlug) {
+    } else if (currentSession && (currentSession.projectSlug || currentSession.locator)) {
       const row = binaries.find(function (item) { return item.slug === currentSession.projectSlug; });
       projectCard = {
-        key: "project-" + currentSession.projectSlug,
-        name: currentSession.title || currentSession.projectSlug,
+        key: "project-" + (currentSession.locator || currentSession.projectSlug),
+        name: currentSession.title || currentSession.projectSlug || currentSession.locator,
         kind: styleKind(currentSession.kind || (row && row.kind) || "draft"),
         row: row,
         programs: projectNames,
@@ -5098,6 +5878,46 @@
       }, { skipConfirm: !step.action_enabled, quiet: false });
     }
 
+    const selectedWorkflow = selectPreparationRun(preparationRuns, currentLocator(), program, slug);
+    const workflowLive = selectedWorkflow && ["running", "queued", "waiting"].includes(selectedWorkflow.status);
+    const standaloneWriters = running.filter(function (job) {
+      if (selectedWorkflow && (job.id === selectedWorkflow.jobId ||
+          (job.params || {}).preparation_id === selectedWorkflow.id)) return false;
+      const params = job.params || {};
+      // Catalog mutation flags are incomplete for CLI jobs; do not infer a free
+      // workspace from them. Admission remains owned by the backend.
+      return !params.db || !envDefaults.db || params.db === envDefaults.db;
+    });
+    const workflowUnavailable = !currentLocator() || !dossier || !dossier.ok;
+    const workflowBlocked = workflowBusy || workflowUnavailable || jobsState !== "ready" ||
+      preparationsState !== "ready" || (!workflowLive && standaloneWriters.length > 0);
+    const workflowLabel = workflowBusy ? "Submitting…" : workflowLive ? "Pause pipeline" :
+      standaloneWriters.length ? "Work already running" : selectedWorkflow ? "Resume pipeline" : "Start pipeline";
+    const workflowReason = workflowUnavailable ? "Select an available project first." :
+      jobsState !== "ready" || preparationsState !== "ready" ? "Waiting for current job and workflow status." :
+      !workflowLive && standaloneWriters.length ? "Existing work owns this workspace. No second pipeline will be started; standalone jobs do not support coordinator pause." :
+      workflowLive ? "Pause after accepted work drains; completed checkpoints are retained." :
+      "Continue the selected project's existing workflow and reuse valid checkpoints.";
+
+    async function controlSelectedWorkflow() {
+      if (workflowBlocked) return;
+      setWorkflowBusy(true);
+      try {
+        if (selectedWorkflow) {
+          await executeAction("workbench.workflow-control", {
+            preparation_id: selectedWorkflow.id, operation: workflowLive ? "pause" : "resume"
+          }, { skipConfirm: true, batch: false });
+        } else {
+          await executeAction("workbench.prepare", {
+            locator: currentLocator(), program: program || "", slug: slug || "", resume: true
+          }, { skipConfirm: true, batch: false });
+        }
+        await loadPreparations(new AbortController().signal);
+      } finally {
+        setWorkflowBusy(false);
+      }
+    }
+
     function renderEditorBody() {
       const tab = centerTab || "decompile";
       const recoveryRun = selectPreparationRun(preparationRuns, currentLocator(), program, slug);
@@ -5159,7 +5979,7 @@
       }
       if (tab === "wb-pipeline") {
         const ladder = (corpusStatus && corpusStatus.ladder) || {};
-        const active = (ladder.binaries || []).find(function (b) { return b.slug === slug; }) || (ladder.binaries || [])[0];
+        const active = (ladder.binaries || []).find(function (b) { return b.slug === slug; });
         return html`<${Surface} id="wb-pipeline" title="Pipeline" actions=${panelActions(
           runActionButton("corpus.run", "Run pipeline"),
           runActionButton("corpus.stages", "Stages"),
@@ -5167,7 +5987,8 @@
         )}>
           ${quickBar("pipeline")}
           <${StepLadder} title="Corpus" steps=${ladder.corpus_steps} onRun=${runLadderStep} />
-          ${active ? html`<${StepLadder} title=${"Build " + active.slug} steps=${active.steps} onRun=${runLadderStep} />` : null}
+          ${active ? html`<${StepLadder} title=${"Build " + active.slug} steps=${active.steps} onRun=${runLadderStep} />`
+            : html`<p className="wb-hint">${slug ? "Selected build is unavailable in the current corpus. No other build has been substituted." : "Select a build to see its pipeline."}</p>`}
           <${PreparationObservation} run=${recoveryRun} feed=${preparationFeed} now=${preparationNow} />
           ${recoveryRun ? html`<${StepLadder} title=${"Self-contained recovery · " + recoveryRun.status} steps=${recoveryRun.stages} />` : null}
         </${Surface}>`;
@@ -5435,6 +6256,7 @@
           ${rows.length ? html`<table id="wb-fnbrowse-table" className="wb-fnb-table">
             <thead>
               <tr>
+                <th scope="col"><span className="sr-only">Select function</span></th>
                 <th scope="col">Name</th>
                 <th scope="col">Location</th>
                 <th scope="col">Function Signature</th>
@@ -5449,8 +6271,12 @@
                     if (!on) selectRow(row);
                     openCtx(ev, functionCtxItems(row));
                   }}
-                  onClick=${function () { selectRow(row); }}
+                  onClick=${function (ev) { onFuncRowClick(ev, row); }}
                   onDoubleClick=${function () { selectRow(row); jumpTo("decompile"); }}>
+                  <td><input type="checkbox" checked=${checkedAddrs.indexOf(row.addr) >= 0}
+                    aria-label=${"Select " + (row.name || row.addr)}
+                    onClick=${function (ev) { onFuncCheck(ev, row); }}
+                    onChange=${function () {}} /></td>
                   <td>${row.name}</td>
                   <td><code>${row.addr}</code></td>
                   <td className="wb-sig">${row.signature || "—"}</td>
@@ -5578,9 +6404,13 @@
         </section>`;
       }
       const decompileText = (detail && detail.decompile && detail.decompile.text) || "";
+      /* Classic layout keeps today's side-by-side Listing/Decompile split, unchanged.
+         The CodeBrowser layout lifts Decompile into its own persistent dock (see
+         decompileDock() below), so Listing here is always single-column there. */
+      const showInlineDecompile = classicLayout && Boolean(decompileText);
       const listingTitle = (selected && selected.name) || program || "Listing";
       return html`<${Surface} id="wb-inspect" title=${"Listing: " + (program || "—")}>
-        <div id="wb-inspect-body" className=${"wb-workspace-split" + (decompileText ? "" : " wb-listing-only")}>
+        <div id="wb-inspect-body" className=${"wb-workspace-split" + (showInlineDecompile ? "" : " wb-listing-only")}>
           <div className="wb-listing-pane">
           ${overview || selected || program ? html`<div>
             <h3>Listing ${listingTitle} ${(selected && selected.addr) ? html`<code>${selected.addr}</code>` : null}</h3>
@@ -5613,16 +6443,22 @@
                 </li>`;
               })}
             </ul>` : null}
-            <pre className="wb-preview" id="wb-listing-preview">${(detail && detail.preview) || (program
-              ? ("Reading " + program + " from the Ghidra project on disk…")
-              : "Pick a program in Explorer.")}</pre>
+            ${selected && selected.addr
+              ? html`<${ListingRows} addr=${selected.addr} name=${selected.name} program=${program}
+                  runReadAction=${runReadAction}
+                  assemblyText=${detail && detail.assembly && detail.assembly.text}
+                  fallbackText=${(detail && detail.preview) || ("Reading " + program + " from the Ghidra project on disk…")}
+                  onJumpAddr=${function (target) { selectRow({ addr: target, name: target }); }} />`
+              : html`<pre className="wb-preview" id="wb-listing-preview">${(detail && detail.preview) || (program
+                  ? ("Reading " + program + " from the Ghidra project on disk…")
+                  : "Pick a program in Explorer.")}</pre>`}
           </div>` : html`<div className="wb-empty wb-empty-surface">
             <p>${hasProject
               ? "Pick a program in Explorer. Listing comes from that program."
               : "File → Open a Ghidra repository, then pick a program."}</p>
           </div>`}
           </div>
-          ${decompileText ? html`<div className="wb-decompile-pane">
+          ${showInlineDecompile ? html`<div className="wb-decompile-pane">
             <h3>Decompile: ${(selected && selected.name) || "function"}</h3>
             <p className="wb-hint">${(detail.decompile && detail.decompile.source === "recovered")
               ? "Recovered C for this function."
@@ -5647,8 +6483,62 @@
       </${Surface}>`;
     }
 
+    /* Persistent Decompile dock (CodeBrowser layout only). Shows the selected
+       function's decompile from whichever center tab is active, not only
+       Listing. When nothing is selected, it keeps the last function that had
+       a decompile, per the guide's "connected views" behavior. */
+    function decompileDockBody() {
+      const liveText = detail && detail.decompile && detail.decompile.text;
+      const text = liveText || (lastDecompile && lastDecompile.text) || "";
+      const request = detail && detail.evidenceRequest;
+      let status = "";
+      if (!liveText && request) {
+        if (request.status === "running" || request.status === "queued" || request.status === "admitted") {
+          status = "Reading this function from Ghidra…";
+        } else if (request.status === "failed") {
+          status = request.cause === "authentication-failed"
+            ? "The Ghidra server refused the login, so this function could not be read. Open a local copy of the project to read it."
+            : "Ghidra could not read this function." + (request.cause ? " (" + request.cause + ")" : "");
+        }
+      }
+      if (!text) {
+        return html`<div className="wb-decompile-pane wb-decompile-empty">
+          <h3>Decompile</h3>
+          <p className="wb-hint" role="status">${status || "Pick a function to see its decompiled C."}</p>
+        </div>`;
+      }
+      const name = (liveText && selected && selected.name)
+        || (lastDecompile && lastDecompile.name)
+        || (selected && selected.name)
+        || "function";
+      const source = (liveText && detail.decompile && detail.decompile.source)
+        || (lastDecompile && lastDecompile.source)
+        || "";
+      return html`<div className="wb-decompile-pane">
+        <h3>Decompile: ${name}</h3>
+        <p className="wb-hint" role="status">${status
+          ? status + " Showing the last function read."
+          : (source === "recovered" ? "Recovered C for this function." : "Decompiler pane.")}</p>
+        <pre className="wb-preview" id="wb-decompile-preview">${text}</pre>
+      </div>`;
+    }
+
+    function decompileDock() {
+      if (classicLayout) return null;
+      return html`<aside className="wb-decompile-dock" aria-label="Decompile">
+        <button type="button" className="wb-decompile-dock-toggle"
+          aria-expanded=${decompileOpenNarrow} aria-controls="wb-decompile-dock-body"
+          onClick=${function () { setDecompileOpenNarrow(function (v) { return !v; }); }}>
+          ${decompileOpenNarrow ? "Hide Decompile" : "Show Decompile"}
+        </button>
+        <div id="wb-decompile-dock-body" className=${"wb-decompile-dock-body" + (decompileOpenNarrow ? " open" : "")}>
+          ${decompileDockBody()}
+        </div>
+      </aside>`;
+    }
+
     return html`<div className="wb">
-      <a className="skip-link" href="#wb-functions">Skip to functions</a>
+      <a className="skip-link" href="#wb-fnbrowse" onClick=${function () { jumpTo("wb-fnbrowse"); }}>Skip to functions</a>
       <div className="wb-chrome">
       <header className="wb-toolbar">
         <div className="wb-brand">
@@ -5667,7 +6557,14 @@
           <span id="job-pulse">${running.length ? running.length + " running" : "idle"}</span>
         </p>
       </header>
-      <${RepoStatus} dossier=${dossier} user=${sharedUser} />
+      <${RepoStatus} dossier=${dossier} user=${sharedUser} session=${currentSession} />
+      <div className="wb-workflow-control" role="region" aria-label="Selected project pipeline">
+        <button type="button" className="wb-btn wb-btn-primary" disabled=${Boolean(workflowBlocked)}
+          title=${workflowReason} onClick=${controlSelectedWorkflow}>${workflowLabel}</button>
+        <span title=${currentLocator() || ""}>${(currentSession && currentSession.title) || "No project"}${program ? " · " + program : ""}</span>
+        <span role="status">${!workflowLive && standaloneWriters.length
+          ? "Waiting for existing work" : selectedWorkflow ? selectedWorkflow.status : "Not started"}</span>
+      </div>
       <nav id="wb-menubar" className="wb-menubar" aria-label="Application">
         ${[
           ["file", "File", [
@@ -5705,6 +6602,8 @@
             ["Pipeline", "view.pipeline"],
             ["Atlas", "view.atlas"],
             ["Jobs", "view.jobs"],
+            ["Live recovery status", null, function () { window.location.href = "/dashboard/live-recovery"; }],
+            ["Byte parity (whole image)", null, function () { window.location.href = "/dashboard/byte-parity"; }],
             ["—"],
             ["Run Cross-place", "run.cross-place"],
             ["STABS", "view.stabs"],
@@ -5718,7 +6617,8 @@
             ["Use compact layout", "view.density-compact"],
             ["Use roomy layout", "view.density-comfortable"],
             ["Dock jobs on the side", "view.jobs-rail"],
-            ["Dock jobs at the bottom", "view.jobs-bottom"]
+            ["Dock jobs at the bottom", "view.jobs-bottom"],
+            [classicLayout ? "Use new layout" : "Use classic layout", "view.classic-layout"]
           ]],
           ["analyze", "Analyze", [
             ["Analyze program", "analyze.program"],
@@ -5742,7 +6642,7 @@
           return html`<div key=${id} className=${"wb-menu" + (menu === id ? " on" : "")}
             onMouseEnter=${function () { if (menu) setMenu(id); }}>
             <button type="button" className="wb-menu-btn" aria-haspopup="true" aria-expanded=${menu === id}
-              onClick=${function () { setMenu(menu === id ? "" : id); }}>${label}</button>
+              onClick=${function (ev) { dialogInvokerRef.current = ev.currentTarget; setMenu(menu === id ? "" : id); }}>${label}</button>
             ${menu === id ? html`<ul className="wb-menu-list">${items.map(function (item, index) {
               if (item[0] === "—") return html`<li key=${id + "-s" + index} className="wb-menu-sep" />`;
               const cmdId = item[1];
@@ -5854,7 +6754,8 @@
         onPickSurface=${onPaletteSurface}
         onPickJob=${onPaletteJob}
         onPickCommand=${function (id) { setPaletteOpen(false); setPaletteQuery(""); runCommand(id); }}
-        onClose=${function () { setPaletteOpen(false); setPaletteQuery(""); }} />
+        onClose=${function () { setPaletteOpen(false); setPaletteQuery(""); }}
+        menuInvokerRef=${dialogInvokerRef} />
       <${ContextMenu} menu=${ctxMenu} onClose=${function () { setCtxMenu(null); }}
         onPick=${function (item) {
           setCtxMenu(null);
@@ -5874,7 +6775,7 @@
         onChange=${function (ev) { if (ev.target.files && ev.target.files.length) uploadFiles(ev.target.files); }} />
       <input id="wb-bin-folder-global" type="file" webkitdirectory="true" hidden ref=${folderRef}
         onChange=${function (ev) { if (ev.target.files && ev.target.files.length) uploadFiles(ev.target.files); }} />
-      <${Modal} open=${dialog === "open"} title="Open project" onClose=${closeDialog} error=${dialogError} footer=${html`
+      <${Modal} open=${dialog === "open"} title="Open project" onClose=${closeDialog} error=${dialogError} menuInvokerRef=${dialogInvokerRef} footer=${html`
         <button type="button" className="wb-btn" onClick=${closeDialog}>Cancel</button>
         <button type="button" className="wb-btn wb-btn-primary" id="wb-open-paste-go" onClick=${openPastedPath}>Open path</button>
       `}>
@@ -5940,7 +6841,7 @@
         </form>`}
       </${Modal}>
 
-      <${Modal} open=${dialog === "save-as"} title="Save As" onClose=${closeDialog} error=${dialogError}
+      <${Modal} open=${dialog === "save-as"} title="Save As" onClose=${closeDialog} error=${dialogError} menuInvokerRef=${dialogInvokerRef}
         footer=${html`
           <button type="button" className="wb-btn" onClick=${closeDialog}>Cancel</button>
           <button type="submit" form="wb-save-as-form" className="wb-btn wb-btn-primary">Save</button>
@@ -5963,11 +6864,13 @@
             <input value=${saveAsDest} placeholder="defaults to work directory"
               onInput=${function (ev) { setSaveAsDest(ev.target.value); }} />
           </label>`}
-          <p className="wb-hint">Save writes project metadata on disk. Ghidra databases are not copied.</p>
+          <p className="wb-hint">${saveAsTarget === "shared-project"
+            ? "Links a Ghidra Server URL. Program databases stay on the server and are not downloaded."
+            : "Copies the program databases and their version history that the source holds. Nothing is written to the source."}</p>
         </form>
       </${Modal}>
 
-      <${Modal} open=${dialog === "add-binary"} title="Add binary to this project" onClose=${closeDialog} error=${dialogError}
+      <${Modal} open=${dialog === "add-binary"} title="Add binary to this project" onClose=${closeDialog} error=${dialogError} menuInvokerRef=${dialogInvokerRef}
         footer=${html`
           <button type="button" className="wb-btn" onClick=${closeDialog}>Cancel</button>
           <button type="button" className="wb-btn" onClick=${triggerFileUpload}>Choose file…</button>
@@ -5985,7 +6888,7 @@
         </form>
       </${Modal}>
 
-      <${Modal} open=${dialog === "access"} title="Shortcuts and menus" onClose=${closeDialog}
+      <${Modal} open=${dialog === "access"} title="Shortcuts and menus" onClose=${closeDialog} menuInvokerRef=${dialogInvokerRef}
         footer=${html`<button type="button" className="wb-btn wb-btn-primary" onClick=${closeDialog}>Close</button>`}>
         <p className="wb-hint">Use the menu, the command palette, a right-click, a shortcut, or a button.</p>
         <table className="wb-access-table">
@@ -6004,7 +6907,22 @@
         </table>
       </${Modal}>
 
-      <div className="wb-app-shell" style=${{ "--wb-side-w": sideW + "px" }}>
+      <div className=${"wb-app-shell" + (classicLayout ? " wb-shell-classic" : "")} style=${{ "--wb-side-w": sideW + "px" }}>
+        <${GuideRail} chapters=${GUIDE_CHAPTERS} centerTab=${centerTab}
+          reachable=${GUIDE_CHAPTERS.map(function (chapter) {
+            return chapter.target === "wb-sidebar" ? Boolean(dossier && dossier.ok) : Boolean(program);
+          })}
+          evidence=${[
+            Boolean(dossier && dossier.ok && (dossier.programs || []).length > 0),
+            rows.length > 0,
+            Boolean(detail && (detail.preview || (detail.decompile && detail.decompile.text))),
+            Boolean(graph && (graph.center || (graph.callers && graph.callers.length) || (graph.callees && graph.callees.length))),
+            Boolean(selected && selected.addr),
+            false,
+            false,
+            Boolean(detail && detail.decompile && detail.decompile.text)
+          ]}
+          onJump=${jumpTo} />
         <aside id="wb-sidebar" className="wb-sidebar" style=${{ width: sideW + "px", flexBasis: sideW + "px" }}
           onContextMenu=${function (ev) {
             const items = [
@@ -6018,7 +6936,7 @@
             ].map(decorateCommandItem);
             openCtx(ev, items);
           }}>
-          <div id="wb-sources" className="wb-sidebar-section" style=${{ flex: "0 0 " + explorerH + "px", height: explorerH + "px" }}>
+          <div id="wb-sources" className="wb-sidebar-section">
             <header className="wb-sidebar-head">
               <h3>Explorer</h3>
               <button type="button" className="wb-text-action" data-cmd="file.add-binaries"
@@ -6043,7 +6961,7 @@
                 </button>
                 ${((projectCard.programs || []).length) ? html`<ul className="wb-programs">
                   ${(projectCard.programs || []).map(function (name) {
-                    const meter = programProgress[name] || null;
+                    const meter = programProgress[name] || sessionProgramProgress[name] || null;
                     const live = meter && meter.active;
                     const measured = live && Number.isFinite(meter.pct);
                     return html`<li key=${"prog-" + name} className=${"wb-program" + (program === name && slug === activeProjectSlug ? " on" : "") + (live ? " live" : "")}
@@ -6075,62 +6993,25 @@
                     </li>`;
                   })}
                 </ul>` : html`<ul className="wb-programs">
-                  <li className="wb-empty">Add binaries into this project.</li>
+                  <li className="wb-empty">${dossier && dossier.ok
+                    ? "This project has no programs. Add a binary to begin."
+                    : (dossier && dossier.error ? "Saved project unavailable: " + dossier.error : "Loading saved project…")}</li>
+                  ${dossier && dossier.error ? html`<li className="wb-empty"><code>${projectLocator}</code></li>` : null}
                 </ul>`}
               </li>` : null}
-              ${!projectCard ? html`<li className="wb-empty">This tab is the project. File → Open a .gpr, a repos folder, or a ghidra:// URL.</li>` : null}
+              ${!projectCard ? html`<li className="wb-empty">No project is selected in this tab. Use File → Open to choose one.</li>` : null}
             </ul>
           </div>
-          <${SplitHandle} axis="y" label="Resize explorer"
-            onDrag=${function (ev) { beginResize(ev, explorerH, setExplorerH, "wb-explorer-h", "y", 80, 720, false); }} />
-          <div id="wb-functions" className="wb-sidebar-section">
-            <h3>Functions ${total ? "(" + total + ")" : ""} ${checkedAddrs.length ? html`<span className="wb-sel-chip">${checkedAddrs.length} selected <button type="button" className="wb-sel-clear" aria-label="Clear function selection" onClick=${function () { setCheckedAddrs([]); setCheckAnchor(""); }}>×</button></span>` : null}</h3>
-            <span id="wb-func-meta" className="sr-only">${total || 0} functions${checkedAddrs.length ? ", " + checkedAddrs.length + " selected" : ""}</span>
-            ${html`<${FuncPager} compact=${true}
-              limit=${funcLimit} shown=${rows.length} total=${total}
-              onLimit=${function (n) { setFuncLimit(n); setFuncOffset(0); }} />`}
-            <div id="wb-func-window" className="wb-func-window" tabindex="0"
-              onContextMenu=${function (ev) {
-                openCtx(ev, [
-                  { title: checkedAddrs.length
-                      ? "Clear " + checkedAddrs.length + " selected"
-                      : "Nothing selected",
-                    danger: Boolean(checkedAddrs.length),
-                    run: function () { setCheckedAddrs([]); setCheckAnchor(""); } },
-                  "—",
-                  { id: "run.last" },
-                  { id: "run.cross-place" },
-                  "—",
-                  { id: "view.listing" },
-                  { id: "view.graph" }
-                ].map(decorateCommandItem));
-              }}>
-              ${rows.map(function (row) {
-                const on = selected && selected.addr === row.addr ? " on" : "";
-                const checked = checkedAddrs.indexOf(row.addr) >= 0;
-                return html`<div key=${row.addr} className=${"wb-func-row" + on + (checked ? " checked" : "")}
-                  onContextMenu=${function (ev) {
-                    if (!selected || selected.addr !== row.addr) selectRow(row);
-                    openCtx(ev, functionCtxItems(row));
-                  }}
-                  onClick=${function (ev) { onFuncRowClick(ev, row); }}>
-                  <input type="checkbox" className="wb-func-check" checked=${checked}
-                    aria-label=${"Select " + (row.name || row.addr)}
-                    onClick=${function (ev) { onFuncCheck(ev, row); }}
-                    onChange=${function () { /* controlled by onClick */ }} />
-                  <code title=${row.addr}>${row.addr}</code><span title=${row.name || ""}>${row.name}</span>
-                </div>`;
-              })}
-              ${!rows.length ? html`<p className="wb-hint">${funcNote || "Select a program to list functions."}</p>` : null}
-            </div>
-            <p className="wb-sidebar-foot">
-              <button type="button" className="wb-text-action" data-cmd="view.browse"
-                onClick=${function () { runCommand("view.browse"); }}>Browse all functions</button>
-            </p>
-          </div>
+          <${SymbolTree} program=${program}
+            hint=${dossier && dossier.error ? "Symbols need a readable project. " + dossier.error : ""}
+            runReadAction=${runReadAction}
+            onOpenFunctions=${function () { jumpTo("wb-fnbrowse"); }}
+            onSelectFunction=${function (fn) { selectFunctionLeaf(fn.name, fn.addr); }} />
         </aside>
         <${SplitHandle} axis="x" label="Resize explorer"
-          onDrag=${function (ev) { beginResize(ev, sideW, setSideW, "wb-side-w", "x", 180, 900, false); }} />
+          value=${sideW} min=${180} max=${900}
+          onDrag=${function (ev) { beginResize(ev, sideW, setSideW, "wb-side-w", "x", 180, 900, false); }}
+          onStep=${function (delta) { clampResize(sideW + delta, 180, 900, setSideW, "wb-side-w"); }} />
 
       <div className="wb-editor"
         onContextMenu=${function (ev) {
@@ -6159,6 +7040,7 @@
           ${renderEditorBody()}
         </div>
       </div>
+      ${decompileDock()}
       </div>
       <${LogDock}
         entries=${logEntries}
@@ -6169,13 +7051,17 @@
         selectedId=${openLogId}
         onSelect=${setOpenLogId}
         jobs=${jobs}
+        jobsState=${jobsState}
+        program=${program}
+        slug=${slug}
         selectedJobId=${selectedJobId}
         jobDetail=${jobDetail}
         onSelectJob=${selectJobInDock}
         onCancel=${cancelJob}
         actions=${actions}
         height=${logH}
-        onResize=${function (ev) { beginResize(ev, logH, setLogH, "wb-log-h", "y", 72, 640, true); }} />
+        onResize=${function (ev) { beginResize(ev, logH, setLogH, "wb-log-h", "y", 72, 640, true); }}
+        onKeyResize=${function (delta) { clampResize(logH + delta, 72, 640, setLogH, "wb-log-h"); }} />
         <input id="wb-bin-slug" type="hidden" value=${newSlug} />
         <input id="wb-bin-role" type="hidden" value=${role} />
         <input id="wb-bin-label" type="hidden" value=${label} />
@@ -6192,7 +7078,7 @@
           ? html`<span id="wb-status-error" className="wb-status-error" role="alert">${statusError}
               <button type="button" className="wb-status-dismiss" aria-label="Dismiss error"
                 onClick=${function () { setStatusError(""); }}>×</button></span>`
-          : html`<span id="wb-last-action" className="wb-hint">${lastNote}</span>`}
+          : html`<span id="wb-last-action" className="wb-hint" aria-live="polite" aria-atomic="true">${lastNote}</span>`}
       </footer>
     </div>`;
   }

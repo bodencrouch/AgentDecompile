@@ -3347,6 +3347,16 @@ Operator: an autonomous Claude session. The work is on branch `feat/u13-reconcil
 - **Build 26 is mislabelled** (a U1/U3 identity issue). Row 26 is `nwserver.exe`, but its recorded md5 (`91c553f6…`) belongs to `nwn2server.exe`'s bytes; its own `imported_executable` hashes to `d4bba21c…`. Which bytes its 13,839 functions were analysed from is unknown, and the live store was not changed. This qualifies two earlier records that used row 26: E-0929-2's fixture and E-0930-3's stripped-relocations example. Both describe the `nwn2server.exe` bytes, not necessarily the build that row analysed.
 - Activation runbook: [ACTIVATION.md](evidence/2026-09-30-u13/ACTIVATION.md).
 
+**E-0930-10 · U9 acceptance and storage (source; not installed).**
+- A code-level assessment of U9's remaining children cites file:line. It was spot-checked by the scripts below; an earlier plan-copying pass was discarded.
+- FP-09 (existing, verified): a deterministic compile failure is a durable ledger state. A fresh process refuses to retry the same candidate, and a changed candidate stays eligible ([fp09.sh](evidence/2026-09-30-u9/fp09.sh)).
+- A17: the input-change recheck was verified. A policy recheck was added (`active_policy`), so either change gives a `stale` refusal with the report retained ([a17.sh](evidence/2026-09-30-u9/a17.sh)).
+- FP-21: `policy_activation_check` blocks a policy that admits a known-false sample or rejects a known-good one. `recipient_acceptance.commit` has no caller in the tree yet, so these acceptance guarantees are source-only.
+- FP-20: an interrupted migration leaves the previous version and resumes exactly once, and `store.connect` refuses a writer older than the store while read-only access remains. The live store is v3 and the code v4, so activation migrates forward; see the rollback caveat in ACTIVATION.md ([fp20.sh](evidence/2026-09-30-u9/fp20.sh)).
+- FP-07 (existing, partial): `consume_report` rejects an expired generation's report, both under its own summary and under a forged current token. The "disjoint replacement finishes" clause was not exercised ([fp07.sh](evidence/2026-09-30-u9/fp07.sh)).
+- Out of repository (game runtime): FP-03, FP-06, FP-15, FP-24, A10, A18.
+- Still absent in code: A06 (bundle launchability), A11, FP-10, FP-23, FP-26, FP-27, FP-30.
+
 **E-0930-4 · Host.** RAM 31 GB with 4–6 GB available; swap 42/42 GB used; root disk 96% full; PSI full avg10 about 0.1. No full-corpus run was admitted.
 
 ## Decisions and blockers

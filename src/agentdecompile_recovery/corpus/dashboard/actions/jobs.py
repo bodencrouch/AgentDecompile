@@ -599,13 +599,37 @@ class JobStore:
         failure = getattr(self, '_store_failure', None)
         if failure:
             return {'ok': False, 'reason': f'earlier receipts are not yet durable: {failure[1]}', 'since': failure[0]}
-        try:
-            root.mkdir(parents=True, exist_ok=True, mode=0o700)
-            probe = root / f'.health.{os.getpid()}.{threading.get_ident()}'
-            probe.write_bytes(b'ok')
-            probe.unlink()
-        except OSError as exc:
-            return {'ok': False, 'reason': f'receipt directory is not writable: {exc}'}
+        return self._probe_store(root)
+
+    def _probe_store(self, root: Path, budget: float = 2.0) -> dict[str, Any]:
+        """One bounded write probe (U9 A05/FP-08): a hung device never blocks the caller.
+
+        At most one probe is outstanding; while it hangs, callers get "not responding" at once
+        instead of stacking more blocked probes on the device.
+        """
+        with self._persist_lock:
+            outstanding = getattr(self, '_store_probe', None)
+            if outstanding is not None and not outstanding['done'].is_set():
+                return {'ok': False, 'reason': f'storage not responding: a probe has waited {time.time() - outstanding["at"]:.0f} s'}
+            state = {'done': threading.Event(), 'at': time.time(), 'error': None}
+            self._store_probe = state
+
+        def probe() -> None:
+            try:
+                root.mkdir(parents=True, exist_ok=True, mode=0o700)
+                target = root / f'.health.{os.getpid()}.{threading.get_ident()}'
+                target.write_bytes(b'ok')
+                target.unlink()
+            except OSError as exc:
+                state['error'] = exc
+            finally:
+                state['done'].set()
+
+        threading.Thread(target=probe, name='job-store-probe', daemon=True).start()
+        if not state['done'].wait(budget):
+            return {'ok': False, 'reason': f'storage not responding within {budget:g} s'}
+        if state['error'] is not None:
+            return {'ok': False, 'reason': f'receipt directory is not writable: {state["error"]}'}
         return {'ok': True}
 
     def _restore_reservations_locked(self) -> None:

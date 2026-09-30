@@ -3,64 +3,85 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>AgentDecompile · Cockpit</title>
+<title>AgentDecompile Cockpit</title>
+<meta name="description" content="Every build of every program as one map: zoom in, click any function, follow its calls; drop anything to see it dismantled.">
+<link rel="icon" href="data:,">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;600&family=Saira+Semi+Condensed:wght@500;700&display=swap">
 <link rel="stylesheet" href="/dashboard/cockpit/cockpit.css">
 </head>
 <body>
-<div class="ck" id="ck">
-  <header class="ck-top">
-    <strong class="ck-brand">AgentDecompile</strong>
-    <span class="ck-conn" id="ck-conn" role="status" aria-live="polite">Connecting…</span>
-    <dl class="ck-totals" id="ck-totals" aria-label="Corpus totals"></dl>
-    <nav class="ck-views" aria-label="Views">
-      <a href="/dashboard/cockpit" aria-current="page">Cockpit</a>
-      <a href="/dashboard/explorer">Explorer</a>
-      <a href="/react/#cockpit">App view</a>
-    </nav>
+<div class="app" id="app">
+  <header class="top">
+    <div class="brand">
+      <svg width="22" height="22" viewBox="0 0 22 22" aria-hidden="true"><rect x="1" y="1" width="20" height="20" rx="4" fill="none" stroke="#8cbaff" stroke-width="1.5"/><path d="M5 15 L9 7 L13 13 L17 6" fill="none" stroke="#7fd6a4" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><circle cx="17" cy="6" r="1.8" fill="#f0c060"/></svg>
+      AgentDecompile
+    </div>
+    <div class="src" id="src" tabindex="0"><span class="dot"></span><b id="srcMode">…</b><span id="srcSub"></span></div>
+    <button class="iconbtn" id="freezeBtn" aria-pressed="false" hidden data-tip="Freeze or resume live updates in this view. Updates that arrive while frozen are applied on resume.">
+      <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true" id="freezeIco"><rect x="2" y="1" width="3" height="10" fill="currentColor"/><rect x="7" y="1" width="3" height="10" fill="currentColor"/></svg><span class="sr">Freeze live view</span>
+    </button>
+    <button class="iconbtn" id="palBtn" data-tip="Jump to anything: a program, a build, a product, a function name or an address."><svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><circle cx="5" cy="5" r="3.6" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 8l3 3" stroke="currentColor" stroke-width="1.5"/></svg><kbd>⌘K</kbd></button>
+    <div class="topstats" id="topstats"></div>
   </header>
-  <aside class="ck-programs" aria-labelledby="ck-programs-h">
-    <h2 id="ck-programs-h">Programs</h2>
-    <ul id="ck-program-list" role="listbox" aria-label="Choose a program"></ul>
+
+  <aside class="left" aria-label="Inputs">
+    <label class="drop" id="drop" data-tip="Drop anything: builds, installers, archives, whole folders, notes, Ghidra .gzf/.gpr, symbol maps. Each is taken apart into an LLM-readable tree right here in the page. Context pieces are shown slotting into the name-precedence tiers.">
+      <svg width="28" height="28" viewBox="0 0 28 28" aria-hidden="true"><rect x="3" y="3" width="22" height="22" rx="5" fill="none" stroke="currentColor" stroke-dasharray="3 3"/><path d="M14 8v10M9.5 13.5 14 18l4.5-4.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+      <span><b>Drop anything</b><small>exe · elf · xbe · apk · zip · erf · notes · gzf · gpr · map</small></span>
+      <input type="file" id="file" multiple hidden>
+    </label>
+    <div class="dropbtns"><button class="iconbtn" id="pickFolder" data-tip="Pick a whole folder (an installation, a Ghidra project, a notes folder)">folder…</button><button class="iconbtn" id="lastDrop" disabled data-tip="Reopen the last dropped tree">last drop</button><input type="file" id="folder" webkitdirectory multiple hidden></div>
+    <div class="section-h"><span>One command</span><span class="q" data-tip="Point it at a file or folder; it does the rest. Same pipeline as this page.">?</span></div>
+    <div class="cli"><code id="cliText"><span class="p">uvx</span> --from git+https://github.com/bolabaden/agentdecompile agentdecompile-cli <span class="a">&lt;path&gt;</span></code><button id="cliCopy" data-tip="Copy the command">copy</button></div>
+    <div class="section-h"><span>Every binary as one</span><span class="q" data-tip="Rows are programs, squares are their builds (variants). Fill = share of that build's functions bound to the program's shared identity. Green top edge = byte-matching C exists in that build. Click a row to open its map; click a square to scope to that build.">?</span></div>
+    <div class="mtx" id="matrix"></div>
+    <div class="mlegend"><span>0%</span><span class="ramp"></span><span>100% bound</span></div>
   </aside>
-  <main class="ck-map" aria-labelledby="ck-map-h">
-    <div class="ck-map-bar">
-      <h1 id="ck-map-h">Program map</h1>
-      <form id="ck-search" role="search">
-        <label class="sr-only" for="ck-q">Find a function by name</label>
-        <input id="ck-q" type="search" placeholder="Find a function…" autocomplete="off">
-      </form>
-      <label class="ck-filter"><span class="sr-only">Show</span>
-        <select id="ck-filter" aria-label="Show cells">
-          <option value="all">All functions</option>
-          <option value="0">Unbound only</option>
-          <option value="1">Bound across builds</option>
-          <option value="2">Recovered C</option>
-          <option value="named">Named only</option>
-        </select>
-      </label>
-      <button type="button" id="ck-fit">Fit map</button>
+
+  <main class="main" id="main">
+    <div class="mainhead">
+      <h1 id="progTitle">…</h1>
+      <span class="meta" id="progMeta"></span>
+      <span id="scopeSlot"></span>
+      <div class="search"><svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><circle cx="5" cy="5" r="3.6" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 8l3 3" stroke="currentColor" stroke-width="1.5"/></svg>
+        <input id="q" type="search" placeholder="Find function or 0xaddress" autocomplete="off" spellcheck="false" aria-label="Find a function by name or address" aria-controls="results">
+        <div class="results" id="results" role="listbox" hidden></div></div>
     </div>
-    <ul class="ck-legend" aria-label="Legend">
-      <li><i class="s0"></i>Unbound</li>
-      <li><i class="s1"></i>Bound to a shared identity</li>
-      <li><i class="s2"></i>C with a byte-exact receipt (this build or a sibling)</li>
-    </ul>
-    <div class="ck-canvas-wrap" id="ck-wrap">
-      <canvas id="ck-canvas" tabindex="0" role="application"
-        aria-label="Function map. Arrow keys move, Enter opens, plus and minus zoom."></canvas>
-      <p class="ck-empty" id="ck-empty" hidden></p>
+    <div class="filters" id="filters"></div>
+    <div class="mapwrap" id="mapwrap">
+      <canvas id="map" aria-hidden="true"></canvas>
+      <canvas id="fx" tabindex="0" aria-label="Program map. Arrow keys move the selection, plus and minus zoom, 0 resets."></canvas>
+      <div class="zoom"><button class="iconbtn" id="zin" data-tip="Zoom in (+)">+</button><button class="iconbtn" id="zout" data-tip="Zoom out (−)">−</button><button class="iconbtn" id="zreset" data-tip="Fit the whole program (0)"><svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M1 4V1h3M8 1h3v3M11 8v3H8M4 11H1V8" fill="none" stroke="currentColor" stroke-width="1.4"/></svg></button></div>
+      <div class="zl" id="zl"></div>
+      <div class="mini" id="mini" data-tip="Whole program. The box is what you are looking at; click or drag to move it."><canvas id="miniC"></canvas></div>
+      <div class="empty" id="mapEmpty" hidden></div>
     </div>
-    <p class="ck-hint">Drag to pan · wheel or <kbd>+</kbd>/<kbd>−</kbd> to zoom · arrows to move · <kbd>Enter</kbd> opens the function</p>
+    <aside class="lens" id="lens" hidden aria-label="Lens: the selected function" aria-live="polite">
+      <div class="lenshead"><div style="flex:1;min-width:0"><h2 id="lensTitle"></h2><div class="sub" id="lensSub"></div></div><button class="iconbtn" id="lensClose" data-tip="Close (Esc)"><svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M1 1l8 8M9 1L1 9" stroke="currentColor" stroke-width="1.5"/></svg></button></div>
+      <div class="lensbody" id="lensBody"></div>
+    </aside>
+    <section class="stage" id="stage" hidden aria-live="polite">
+      <div class="stagehead"><button class="iconbtn" id="backBtn" data-tip="Back to the map (Esc)"><svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M8 1L3 6l5 5" fill="none" stroke="currentColor" stroke-width="1.6"/></svg></button><span class="fam" id="stageFam"></span><h2 id="stageTitle"></h2><span id="stageExtra" style="margin-left:auto;display:flex;gap:8px;align-items:center;min-width:0"></span></div>
+      <div class="stagebody" id="stageBody"></div>
+    </section>
   </main>
-  <aside class="ck-lens" aria-labelledby="ck-lens-h">
-    <h2 id="ck-lens-h">Function</h2>
-    <div id="ck-lens" aria-live="polite"><p class="ck-muted">Select a cell to see where this function lives in every build.</p></div>
+
+  <aside class="right" aria-label="Products">
+    <div class="section-h" style="padding-top:12px"><span>What comes out</span><span class="q" data-tip="Every product falls out of understanding the program. Rings are real totals; an empty ring with a dashed chip means there is no data for it yet. Click one to see it.">?</span></div>
+    <div class="shelf" id="shelf"></div>
+    <div class="section-h"><span>Match ladder</span><span class="q" data-tip="How concrete functions were tied to a shared identity. Rungs are ordered by the method's confidence (left number); bars are how many bindings each method produced.">?</span></div>
+    <div class="ladder" id="ladder"></div>
   </aside>
-  <section class="ck-lanes" aria-labelledby="ck-lanes-h">
-    <h2 id="ck-lanes-h">Live work</h2>
-    <ol id="ck-activity" aria-live="polite"></ol>
-  </section>
+
+  <section class="lanes" id="lanes" aria-label="The machine at work"><canvas id="laneFx" aria-hidden="true"></canvas></section>
 </div>
+
+<div id="tip" role="tooltip"></div>
+<div class="toast" id="toast" role="status"></div>
+<div class="pal" id="pal" hidden><div class="palbox" role="dialog" aria-label="Jump to"><input id="palIn" placeholder="Jump to a program, build, product, function or 0xaddress…" autocomplete="off"><div class="pallist" id="palList" role="listbox"></div></div></div>
+
 <script src="/dashboard/cockpit/cockpit.js"></script>
 </body>
 </html>

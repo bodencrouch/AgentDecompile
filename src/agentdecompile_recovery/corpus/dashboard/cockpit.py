@@ -32,6 +32,7 @@ log = logging.getLogger(__name__)
 
 COCKPIT_STATIC = Path(__file__).parent / "static" / "cockpit"
 ENV_DB = "AGENTDECOMPILE_COCKPIT_DB"
+DB_SUFFIXES = (".sqlite", ".db")
 POLL_S = 2.0
 PING_S = 15.0
 MAX_EDGES = 30000
@@ -39,6 +40,12 @@ MAX_NEIGHBOURS = 64
 ACTIVITY_LIMIT = 50
 QUEUE_MAX = 512
 LANES = ("decompile", "pointers", "match", "name", "compile", "signature", "import", "other")
+# Job actions whose id/title keywords would pick the wrong lane, by what the action actually does.
+_LANE_BY_ACTION = {
+    "workbench.match-candidate": "compile",  # "Compile and verify candidate": builds C and checks bytes
+    "recover.verify-package": "compile",     # byte verification of a recovered package
+    "corpus.cross-place": "match",           # carries identities across builds
+}
 # Ordered: the first lane whose keyword occurs in the job's action id/title wins.
 _LANE_KEYWORDS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("decompile", ("decomp",)),
@@ -128,6 +135,8 @@ def resolve_db(explicit: str | None = None) -> Path:
     """``?db=`` -> env -> corpus root / databases scan -> dashboard corpus db."""
     if explicit:
         path = Path(explicit).expanduser()
+        if path.suffix.lower() not in DB_SUFFIXES:
+            raise CockpitError(f"db must be a {'/'.join(DB_SUFFIXES)} file: {explicit}", 400)
         if not path.is_file():
             raise CockpitError(f"db not found: {explicit}", 400)
         return path.resolve()
@@ -195,6 +204,18 @@ class _Schema:
     def col(self, table: str, column: str, fallback: str = "NULL") -> str:
         return column if self.has(table, column) else fallback
 
+    def unique_on(self, con: sqlite3.Connection, table: str, *columns: str) -> bool:
+        """True when a unique index (or key) of ``table`` covers exactly ``columns``."""
+        if table not in self.cols:
+            return False
+        want = list(columns)
+        for row in con.execute(f'PRAGMA index_list("{table}")'):
+            if not row[2]:
+                continue
+            if [r[2] for r in con.execute(f'PRAGMA index_info("{row[1]}")')] == want:
+                return True
+        return False
+
 
 # --------------------------------------------------------------------------- snapshot
 
@@ -210,6 +231,9 @@ class Snapshot:
         self._cells: dict[str, dict] = {}
         self._cells_json: dict[str, bytes] = {}
         self._bin_index: dict[int, dict] = {}
+        self._warming = False
+        self._load_lock = threading.Lock()  # lazy name map / build counts; never held with _lock
+        self._cell_locks: dict[str, threading.Lock] = {}
         con = _connect(path)
         try:
             self._build(con)
@@ -224,9 +248,10 @@ class Snapshot:
             funcs = {int(b): int(n) for b, n in con.execute(
                 "SELECT binary_id, COUNT(*) FROM func GROUP BY binary_id") if b is not None}
         bound: dict[int, int] = {}
-        if s.has("identity", "binary_id"):
+        if s.has("identity", "binary_id", "addr"):
+            count = "COUNT(addr)" if s.unique_on(con, "identity", "binary_id", "addr") else "COUNT(DISTINCT addr)"
             bound = {int(b): int(n) for b, n in con.execute(
-                "SELECT binary_id, COUNT(DISTINCT addr) FROM identity GROUP BY binary_id") if b is not None}
+                f"SELECT binary_id, {count} FROM identity GROUP BY binary_id") if b is not None}
         self.binaries: dict[int, dict] = {}
         if s.has("binary", "id"):
             sql = (f"SELECT id, {s.col('binary', 'slug', 'CAST(id AS TEXT)')}, {s.col('binary', 'game')}, "
@@ -238,30 +263,24 @@ class Snapshot:
                                            "platform": platform or "unknown", "format": fmt or "",
                                            "functions": funcs.get(int(bid), 0), "bound": bound.get(int(bid), 0),
                                            "real_c": 0}
-        # logical names, tiers, per-logical build counts
-        self.lname: dict[int, tuple] = {}
+        # tiers (the per-logical name map is loaded lazily, only cells/function need it)
+        self._lname: dict[int, tuple] | None = None
         tiers: Counter = Counter()
         tier_names: dict[int, str] = {}
         if s.has("logical_name", "logical_id", "name", "tier"):
-            sql = (f"SELECT logical_id, name, tier, {s.col('logical_name', 'tier_name')}, "
-                   f"{s.col('logical_name', 'signature')}, {s.col('logical_name', 'source_file')} FROM logical_name")
-            for lid, name, tier, tier_name, sig, src in con.execute(sql):
-                if lid is None:
-                    continue
+            sql = (f"SELECT tier, MAX({s.col('logical_name', 'tier_name')}), COUNT(*) FROM logical_name "
+                   "WHERE logical_id IS NOT NULL GROUP BY tier")
+            for tier, tier_name, n in con.execute(sql):
                 tier_i = _int(tier) or 0
-                self.lname[int(lid)] = (name, tier_i, tier_name or "", sig, src)
+                tiers[tier_i] += int(n)
                 if tier_name:
-                    tier_names.setdefault(tier_i, tier_name)
-                tiers[tier_i] += 1
+                    tier_names.setdefault(tier_i, str(tier_name))
         self.tiers = [[tier_names.get(t, str(t)), n] for t, n in sorted(tiers.items())]
-        self.nb: dict[int, int] = {}
+        # Per-logical build counts (nb) are loaded lazily with the name map; only cells need them.
+        self._nb: dict[int, int] | None = None
         methods: list[list] = []
         identity_total = 0
         if s.has("identity", "logical_id", "binary_id"):
-            # Covering-index scan + Python distinct: ~6x faster than COUNT(DISTINCT) GROUP BY logical_id.
-            pairs = {(l, b) for l, b in con.execute("SELECT logical_id, binary_id FROM identity") if l is not None}
-            self.nb = dict(Counter(int(l) for l, _ in pairs))
-            del pairs
             identity_total = sum(bound.values())
             if s.has("identity", "method"):
                 methods = [[m, n] for m, n in con.execute(
@@ -280,14 +299,23 @@ class Snapshot:
                    f"{s.col(rf, 'convention')}, {s.col(rf, 'real_c', '0')}, {s.col(rf, 'logical_id')} FROM {rf}")
             rows = con.execute(sql).fetchall()
             unique_names: dict[int, dict[str, int]] = {}
-            for bid in {r[1] for r in rows if r[2] is None and r[1] is not None}:
-                counts: Counter = Counter()
-                first: dict[str, int] = {}
-                if s.has("func", "binary_id", "addr", "name"):
-                    for addr, name in con.execute("SELECT addr, name FROM func WHERE binary_id=?", (bid,)):
-                        counts[name] += 1
-                        first[name] = addr
-                unique_names[int(bid)] = {n: first[n] for n, k in counts.items() if k == 1 and n}
+            wanted: dict[int, set[str]] = {}
+            for r in rows:
+                if r[2] is None and r[1] is not None and r[3]:
+                    wanted.setdefault(int(r[1]), set()).add(str(r[3]))
+            if s.has("func", "binary_id", "addr", "name"):
+                for bid, names in wanted.items():
+                    found: dict[str, int] = {}
+                    ordered = sorted(names)
+                    for start in range(0, len(ordered), 500):
+                        chunk = ordered[start:start + 500]
+                        marks = ",".join("?" * len(chunk))
+                        for name, addr, count in con.execute(
+                                f"SELECT name, MIN(addr), COUNT(*) FROM func WHERE binary_id=? AND name IN ({marks}) "
+                                "GROUP BY name", (bid, *chunk)):
+                            if count == 1:
+                                found[name] = addr
+                    unique_names[bid] = found
             lookup = s.has("identity", "logical_id", "binary_id", "addr")
             for program, bid, addr, name, size, conv, real_c, lid in rows:
                 bid_i = _int(bid)
@@ -347,6 +375,74 @@ class Snapshot:
             "named_of": logical_total,
         }
 
+    @property
+    def lname(self) -> dict[int, tuple]:
+        """logical_id -> (name, tier, tier_name, signature, source_file); loaded on first use."""
+        names = self._lname
+        if names is not None:
+            return names
+        with self._load_lock:
+            if self._lname is not None:
+                return self._lname
+            names = {}
+            s = self.schema
+            if s.has("logical_name", "logical_id", "name", "tier"):
+                sql = (f"SELECT logical_id, name, tier, {s.col('logical_name', 'tier_name')}, "
+                       f"{s.col('logical_name', 'signature')}, {s.col('logical_name', 'source_file')} FROM logical_name")
+                con = _connect(self.path)
+                try:
+                    for lid, name, tier, tier_name, sig, src in con.execute(sql):
+                        if lid is not None:
+                            names[int(lid)] = (name, _int(tier) or 0, tier_name or "", sig, src)
+                finally:
+                    con.close()
+            self._lname = names
+            return names
+
+    @property
+    def nb(self) -> dict[int, int]:
+        """logical_id -> number of distinct builds bound to it; loaded on first use."""
+        counts = self._nb
+        if counts is not None:
+            return counts
+        with self._load_lock:
+            if self._nb is not None:
+                return self._nb
+            counts = {}
+            if self.schema.has("identity", "logical_id", "binary_id"):
+                con = _connect(self.path)
+                try:
+                    counts = {int(l): int(n) for l, n in con.execute(
+                        "SELECT logical_id, COUNT(DISTINCT binary_id) FROM identity "
+                        "WHERE logical_id IS NOT NULL GROUP BY logical_id")}
+                finally:
+                    con.close()
+            self._nb = counts
+            return counts
+
+    def warm_in_background(self) -> None:
+        """Start (once) loading what a first ``cells`` request needs, so it is served from cache.
+
+        The summary is almost always followed by a cells request for the largest program; loading
+        the name map, build counts and that program's cells in a worker thread overlaps them with
+        the client's round trip instead of paying for them on the request.
+        """
+        with self._lock:
+            if self._warming:
+                return
+            self._warming = True
+
+        def run() -> None:
+            try:
+                self.lname
+                self.nb
+                if self.programs:
+                    self.cells_json(self.programs[0]["id"])
+            except Exception:
+                log.debug("cockpit warm-up failed", exc_info=True)
+
+        threading.Thread(target=run, name="cockpit-warm", daemon=True).start()
+
     # ---- summary ---------------------------------------------------------
     def summary(self) -> dict:
         try:
@@ -392,8 +488,9 @@ class Snapshot:
     def display_name(self, bid: int, i: int) -> str:
         index = self.binary_index(bid)
         lid = index["ident"].get(index["addrs"][i])
-        if lid and lid in self.lname and self.lname[lid][0]:
-            return str(self.lname[lid][0])
+        entry = self.lname.get(lid) if lid else None
+        if entry and entry[0]:
+            return str(entry[0])
         return index["names"][i]
 
     # ---- cells -----------------------------------------------------------
@@ -413,11 +510,21 @@ class Snapshot:
         key, program, bid = self._cell_key(program_id, ref)
         with self._lock:
             cached = self._cells.get(key)
+            build_lock = self._cell_locks.setdefault(key, threading.Lock())
         if cached is not None:
             return cached
+        with build_lock:  # one build per cell set; concurrent callers (warm-up, requests) wait for it
+            with self._lock:
+                cached = self._cells.get(key)
+            if cached is not None:
+                return cached
+            return self._build_cells(key, program_id, bid)
+
+    def _build_cells(self, key: str, program_id: str, bid: int) -> dict:
         index = self.binary_index(bid)
         addrs, ident = index["addrs"], index["ident"]
         realc = self.realc_addrs.get(bid, set())
+        lname, nb_of = self.lname, self.nb
         state = []
         tier = []
         nb: list[int] = []
@@ -429,10 +536,10 @@ class Snapshot:
                 state.append("2")
             else:
                 state.append("1" if lid else "0")
-            entry = self.lname.get(lid) if lid else None
+            entry = lname.get(lid) if lid else None
             t = entry[1] if entry else 0
             tier.append(str(t) if 0 <= t <= 9 else "0")
-            nb.append(self.nb.get(lid, 0) if lid else 0)
+            nb.append(nb_of.get(lid, 0) if lid else 0)
             logical.append(lid)
             if entry and 1 <= t <= 3 and entry[0]:
                 names[str(i)] = str(entry[0])
@@ -480,8 +587,17 @@ class Snapshot:
         finally:
             con.close()
         named = {int(k) for k in names}
-        ordered = sorted(seen, key=lambda e: (-((e[0] in named) + (e[1] in named)), e))
-        return [list(e) for e in ordered[:MAX_EDGES]]
+        # Named-first: both ends named, then one, then none; (i, j) order inside each bucket.
+        buckets: tuple[list, list, list] = ([], [], [])
+        for edge in seen:
+            buckets[2 - (edge[0] in named) - (edge[1] in named)].append(edge)
+        out: list[list[int]] = []
+        for bucket in buckets:
+            if len(out) >= MAX_EDGES:
+                break
+            bucket.sort()
+            out.extend([i, j] for i, j in bucket[:MAX_EDGES - len(out)])
+        return out
 
     # ---- function detail -------------------------------------------------
     def function(self, *, program_id: str | None = None, index: int | None = None,
@@ -609,7 +725,7 @@ class _Store:
         wal = Path(str(self.path) + "-wal")
         try:
             ws = wal.stat()
-            wal_id = (ws.st_mtime_ns, ws.st_size)
+            wal_id = (ws.st_mtime_ns, ws.st_size) if ws.st_size else None
         except OSError:
             wal_id = None
         with self._key_lock:
@@ -667,6 +783,9 @@ def _job_rows() -> list[dict]:
 
 
 def lane_for(action_id: str, title: str = "") -> str:
+    exact = _LANE_BY_ACTION.get(action_id.strip().lower())
+    if exact:
+        return exact
     text = f"{action_id} {title}".lower()
     for lane, words in _LANE_KEYWORDS:
         if any(word in text for word in words):
@@ -844,6 +963,7 @@ def create_cockpit_router() -> APIRouter:
     async def cockpit_summary(db: str | None = None) -> Response:
         try:
             snap = await _snapshot(db)
+            snap.warm_in_background()
             payload = snap.summary()
             payload["activity"] = await asyncio.to_thread(activity, snap)
             return JSONResponse(payload, headers={"Cache-Control": "no-store"})

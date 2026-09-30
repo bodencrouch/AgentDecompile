@@ -7,7 +7,7 @@ every value comes from the corpus identity database at request time. Generic by 
 no product, program or binary names in code; programs are groups of binaries by `binary.game`
 (fallback: variant group, then one program per binary).
 
-Corpus DB resolution (read-only, `?mode=ro`): `?db=` query param (must be an existing file) →
+Corpus DB resolution (read-only, `?mode=ro`): `?db=` query param (must be an existing `.sqlite`/`.db` file) →
 env `AGENTDECOMPILE_COCKPIT_DB` → first `*.sqlite` under the configured corpus root / AIO
 `databases/` that contains table `logical_function` → the dashboard's configured corpus db.
 Schema used: `binary, func, identity, logical_function, logical_name, recovered_function,
@@ -71,7 +71,7 @@ Static cockpit page (no build step) served from `dashboard/static/cockpit/`.
 
 Implemented in `src/agentdecompile_recovery/corpus/dashboard/cockpit.py` (`create_cockpit_router()`,
 included by `create_dashboard_router()` next to the React router); tests in
-`tests/test_dashboard_cockpit.py`. Additive details beyond the contract above:
+`tests/test_cockpit_api.py`. Additive details beyond the contract above:
 - Programs group by `binary.game`; a binary with no `game` is its own program (label = slug).
   Variant groups are not used (they depend on comparison receipts, not the corpus DB).
   Program `id` is the slugified label; `programs` are ordered by ref size, largest first.
@@ -82,13 +82,20 @@ included by `create_dashboard_router()` next to the React router); tests in
   function comes from its `logical_id` column and/or the identity at its resolved address.
 - `activity` events are mapped from the existing job store (`GET /api/v1/jobs` rows):
   `ts` is epoch seconds (finished → started → created), `kind` is the action id, `label` the job
-  title, plus `job_id`. Lane = first keyword match on action id + title, else `other`.
+  title, plus `job_id`. Lane = an explicit entry for actions whose name misleads
+  (`workbench.match-candidate` and `recover.verify-package` → `compile`, `corpus.cross-place` → `match`),
+  otherwise the first keyword match on action id + title, else `other`. The job store is also what the
+  poller diffs (status/finish changes) to emit live `activity` events.
 - SSE extras: a `cells` event carries `ref` when it is for a non-default build and
   `reload: true` (with empty `changes`) when the function layout itself changed (refetch cells);
   `event: resync` is sent to a client whose queue (512) overflowed (refetch everything).
   Only cell sets that some client has fetched are diffed.
-- Cache key: (path, db mtime/size, `-wal` mtime/size, `PRAGMA data_version` on a persistent
+- Cache key: (path, db mtime/size, non-empty `-wal` mtime/size, `PRAGMA data_version` on a persistent
   read-only connection). No indexes are created; everything else is in-memory dicts.
+- Summary work is aggregate-only (per-binary counts, tier counts, match-method counts, real-C rows).
+  The logical name map and per-logical build counts load lazily; the first summary for a database
+  state starts a background warm-up of those plus the largest program's cells, so the usual
+  summary → cells sequence is served from cache. Concurrent builds of one cell set are coalesced.
 
 ## Running it
 
@@ -100,10 +107,14 @@ To make the cockpit live the user must, deliberately and at a time they choose:
    `/home/brunner56/agentdecompile-nvme/src/agentdecompile_recovery/corpus/dashboard/`, and apply
    the two-line `router.py` change (the `create_cockpit_router` include after
    `create_react_router`) to that tree's `router.py` — merge it, do not overwrite, since the
-   trees may differ. Copy `dashboard/static/cockpit/` too once the page exists.
+   trees may differ. Copy `dashboard/static/cockpit/` (index.html, cockpit.js, cockpit.css) too.
 2. Restart the 8080 server process once (route registration happens only at app construction).
 3. Optionally set `AGENTDECOMPILE_COCKPIT_DB=/home/brunner56/biodecompwarehouse/kotorxid/db/kotorxid.sqlite`
    in the server environment (otherwise pass `?db=` or rely on the discovery order above).
 4. Verify: `GET /dashboard/api/cockpit/summary` returns `ok: true`, then open `/dashboard/cockpit`.
-Measured on the 1.1 GB corpus (cold/warm): summary 5–8 s / 0.01 s; largest program cells
-(74k functions) 1.5–2.2 s / 0.01 s; function detail 0.1–0.8 s.
+Measured on the 1.1 GB corpus (641k functions, 28 builds, 8 programs) from the review VM, whose CPU
+runs Python ~15-20x slower than a desktop and whose FUSE view of the corpus reads at ~15 MB/s:
+local copy (cold/warm) summary 0.6-3 s / 0.01-0.2 s; largest program cells (74k functions,
+2.3 MB JSON) 4-8 s cold incl. the lazy name/build-count load, 0.01-0.1 s warm; function detail
+0.1-0.6 s. Through the FUSE mount everything cold is IO-bound (summary 19-68 s). Expect the host's
+NVMe-backed server to be well inside the targets; re-measure there after installing.

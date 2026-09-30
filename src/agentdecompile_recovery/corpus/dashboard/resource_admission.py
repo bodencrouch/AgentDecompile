@@ -377,3 +377,81 @@ def dispatch_gate(action_id: str, running_action_ids: list[str], *, store: Profi
         return Decision("admit", "unmeasured action admitted as a lone profiling attempt",
                         basis={**decision.basis, "profiling_attempt": True})
     return decision
+
+
+# --------------------------------------------------------------------------- runtime admission in the job queue
+
+_HOST_CACHE: tuple[float, HostState] | None = None
+
+
+def _cached_host(max_age: float = 1.0) -> HostState:
+    global _HOST_CACHE
+    now = time.monotonic()
+    if _HOST_CACHE is None or now - _HOST_CACHE[0] > max_age:
+        _HOST_CACHE = (now, probe_host())
+    return _HOST_CACHE[1]
+
+
+def queue_policy() -> AdmissionPolicy:
+    def number(name: str, default: float) -> float:
+        try:
+            return float(os.environ.get(name, default))
+        except ValueError:
+            return default
+    return AdmissionPolicy(aging_interval_s=number("AGENTDECOMPILE_AGING_INTERVAL_S", 60.0),
+                           aging_cap=int(number("AGENTDECOMPILE_AGING_CAP", 10)))
+
+
+def never_feasible(action_id: str, *, store: ProfileStore | None = None, host: HostState | None = None,
+                   policy: AdmissionPolicy = AdmissionPolicy()) -> str | None:
+    """A reason when the action can never fit this worker; waiting would not help."""
+    store = store or default_profile_store()
+    host = host or _cached_host()
+    need = need_bytes(store.profile(action_id), policy)
+    if need is not None and need > host.mem_total - policy.headroom_bytes:
+        return (f"measured need {need // MIB} MiB exceeds this worker's memory "
+                f"({host.mem_total // MIB} MiB); a capacity prerequisite, not a wait")
+    return None
+
+
+def runtime_admit(job_id: str, action_id: str, *, running: list[str], queued: list[tuple[str, str, float]],
+                  now: float | None = None, store: ProfileStore | None = None, host: HostState | None = None,
+                  overrides: Iterable[Override] | None = None, policy: AdmissionPolicy | None = None) -> tuple[bool, str, str | None]:
+    """Whether one queued job may start now: ``(ok, reason, reservation_holder)``.
+
+    ``running`` lists running jobs' action ids; ``queued`` lists ``(job_id, action_id, created_at)``.
+    The oldest queued job past its age cap that can ever fit holds a reservation; another job may
+    start only if the reservation still fits after it. A recorded urgent override defers the
+    reservation without resetting the holder's age.
+    """
+    policy = policy or queue_policy()
+    store = store or default_profile_store()
+    host = host or _cached_host()
+    now = time.time() if now is None else now
+    if overrides is None:
+        ledger_path = os.environ.get("AGENTDECOMPILE_AGING_LEDGER", "").strip()
+        overrides = AgingLedger(ledger_path).overrides() if ledger_path and Path(ledger_path).is_file() else []
+    deferred = {o.reservation_task_id for o in overrides if o.expires_at > now}
+    reserved = sum(need_bytes(store.profile(a), policy) or 0 for a in running)
+    holder = None
+    for other_id, other_action, created in sorted(queued, key=lambda q: (q[2], q[0])):
+        waited = int(max(0.0, now - created) // policy.aging_interval_s)
+        need = need_bytes(store.profile(other_action), policy)
+        if waited >= policy.aging_cap and need is not None and need <= host.mem_total - policy.headroom_bytes \
+                and other_id not in deferred:
+            holder = (other_id, need)
+            break
+    extra = holder[1] if holder and holder[0] != job_id else 0
+    same = running.count(action_id)
+    decision = decide(store.profile(action_id), host, task_class=action_id, running_in_class=same,
+                      reserved_bytes=reserved + extra, policy=policy)
+    if decision.outcome == "profile_first":
+        if same:
+            return False, "waiting: a profiling attempt for this action is running", holder and holder[0]
+        if holder and holder[0] != job_id:
+            return False, f"waiting: reservation held by {holder[0]}; an unmeasured job could delay it", holder[0]
+        return True, "admitted as a lone profiling attempt", holder and holder[0]
+    if decision.outcome == "admit":
+        return True, decision.reason, holder and holder[0]
+    prefix = f"waiting behind reservation {holder[0]}: " if extra else "waiting: "
+    return False, prefix + decision.reason, holder and holder[0]

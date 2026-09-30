@@ -1,5 +1,6 @@
-# U9 wiring: real subprocess peak measurement through _default_executor, then the start_job gate.
-cd /home/brunner56/ad-wt/u9-admission/src && rm -rf /tmp/adplan/verify/u9/profiles && AGENTDECOMPILE_RESOURCE_PROFILES=/tmp/adplan/verify/u9/profiles/p.json timeout 300 /home/brunner56/agentdecompile-nvme/.venv/bin/python - <<'EOF'
+# U9 wiring: real subprocess peak measurement, then the submit gate. Capacity that may free up is waited for
+# in the job queue (a16_runtime.sh); submit refuses only a need larger than this worker.
+cd /home/brunner56/ad-wt/u13-reconcile/src && rm -rf /tmp/adplan/verify/u9/profiles && AGENTDECOMPILE_RESOURCE_PROFILES=/tmp/adplan/verify/u9/profiles/p.json timeout 300 /home/brunner56/agentdecompile-nvme/.venv/bin/python - <<'EOF'
 import sys, threading, pathlib, json, os
 from agentdecompile_recovery.corpus.dashboard.actions import jobs
 from agentdecompile_recovery.corpus.dashboard import resource_admission as ra
@@ -12,7 +13,7 @@ jobs._record_peak("demo.small")(peaks[0])
 store = ra.default_profile_store(); store.record("demo.huge", 200 * 2**30)
 print("stored profiles:", json.load(open(os.environ["AGENTDECOMPILE_RESOURCE_PROFILES"]))["peaks"].keys())
 print("gate small:", jobs._admission_refusal("demo.small"))
-r = jobs._admission_refusal("demo.huge"); print("gate huge:", r["error"], "| need GiB", round(r["admission"]["needBytes"]/2**30), "| swap role", r["admission"]["basis"]["swap_role"])
+r = jobs._admission_refusal("demo.huge"); print("gate huge (never fits this worker):", r["nextAction"], "|", r["error"])
 print("gate unmeasured:", jobs._admission_refusal("demo.never"))
 os.environ["AGENTDECOMPILE_RESOURCE_ADMISSION"] = "off"; print("gate off, huge:", jobs._admission_refusal("demo.huge"))
 EOF

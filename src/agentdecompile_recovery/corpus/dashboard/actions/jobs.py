@@ -118,6 +118,7 @@ class JobRecord:
     history_source: str = ''
     log_state: str = 'available'
     log_reason: str = ''
+    admission_wait: str = ''
     log_truncated: bool = False
     work_progress: dict[str, Any] | None = None
     trusted_preparation_facts_inventory: bool = False
@@ -149,6 +150,7 @@ class JobRecord:
                 if key not in {"candidateSource", "code", "script", "source"}
             }),
             "resourceDisposition": self.resource_disposition,
+            "admissionWait": self.admission_wait,
             "resourceKeys": _json_safe(self.resource_keys),
             "executionAttempt": self.execution_attempt,
             "executionRoot": self.execution_root,
@@ -1188,6 +1190,21 @@ class JobStore:
                 external_entries = tuple(tuple(claim) for claim in frozen_keys.get("external", []))
                 if can_run and any(owner != job_id and _paths_overlap(entry[1], held[1]) for entry in external_entries for held, owner in self._external_held.items()):
                     can_run = False
+                if can_run and not coordinator:
+                    # Resource admission with aging reservations (U9 A15/A16): wait, never refuse, here.
+                    from agentdecompile_recovery.corpus.dashboard import resource_admission as _ra
+                    if _ra.gate_enabled():
+                        admitted, why, _holder = _ra.runtime_admit(
+                            job_id, job.action_id,
+                            running=[j.action_id for j in self._jobs.values() if j.status == "running"],
+                            queued=[(j.id, j.action_id, j.created_at) for j in self._jobs.values() if j.status == "queued"])
+                        if not admitted:
+                            can_run = False
+                            if job.admission_wait != why:
+                                job.admission_wait = why
+                                self._persist_locked(job, force=True)
+                        else:
+                            job.admission_wait = ""
                 if can_run:
                     # Coordinators wait on and schedule child jobs; they do
                     # not themselves consume a worker slot. Counting them
@@ -1548,7 +1565,8 @@ def _copy_job(job: JobRecord) -> JobRecord:
         cross_place_generation=dict(job.cross_place_generation),
         history_only=job.history_only, owner_unavailable=job.owner_unavailable,
         history_source=job.history_source, log_state=job.log_state,
-        log_reason=job.log_reason, log_truncated=job.log_truncated,
+        log_reason=job.log_reason,
+        admission_wait=job.admission_wait, log_truncated=job.log_truncated,
         work_progress=dict(job.work_progress) if job.work_progress is not None else None,
         trusted_preparation_facts_inventory=job.trusted_preparation_facts_inventory,
         trusted_preparation_probe=job.trusted_preparation_probe,
@@ -2153,9 +2171,15 @@ def _admission_refusal(action_id: str) -> dict[str, Any] | None:
     from agentdecompile_recovery.corpus.dashboard import resource_admission as ra
     if not ra.gate_enabled():
         return None
+    # Capacity that may free up is waited for in the job queue (runtime_admit); refuse here
+    # only what waiting cannot fix: a blocked class or a need larger than this worker.
+    never = ra.never_feasible(action_id)
+    if never is not None:
+        return {"ok": False, "actionId": action_id, "error": never, "nextAction": "capacity_prerequisite",
+                "wakeCondition": "capable_worker_available", "admission": {"outcome": "refuse"}}
     running = [job.action_id for job in STORE.list(compact=True) if job.status in {"queued", "running"}]
     decision = ra.dispatch_gate(action_id, running)
-    if decision.outcome == "admit":
+    if decision.outcome in {"admit", "refuse", "profile_first"}:
         return None
     return {"ok": False, "actionId": action_id, "error": decision.reason, "nextAction": "wait",
             "wakeCondition": "capacity_available" if decision.outcome == "refuse" else "enforcement_available",

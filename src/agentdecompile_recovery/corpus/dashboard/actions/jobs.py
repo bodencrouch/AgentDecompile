@@ -558,10 +558,12 @@ class JobStore:
     def _persist_loop(self) -> None:
         from . import job_history
         while True:
-            self._persist_wake.wait()
+            # A failed flush retries on a timer; the receipt is never dropped.
+            self._persist_wake.wait(timeout=2.0 if getattr(self, '_store_failure', None) else None)
             self._persist_wake.clear()
             with self._persist_lock:
                 pending, self._persist_pending = self._persist_pending, {}
+            failure = None
             for job_id, payload in pending.items():
                 try:
                     with self._persist_lock:
@@ -569,10 +571,40 @@ class JobStore:
                             continue
                         job_history.write(payload)
                 except OSError as exc:
+                    failure = f'{type(exc).__name__}: {exc}'
+                    with self._persist_lock:
+                        # Keep the newest version queued for the next attempt.
+                        self._persist_pending.setdefault(job_id, payload)
                     with self._lock:
                         job = self._jobs.get(job_id)
                         if job is not None:
-                            job.log_reason = f'Durable job output could not be saved: {exc}'
+                            job.log_reason = f'Durable job output could not be saved yet (retrying): {exc}'
+            with self._persist_lock:
+                backlog = bool(self._persist_pending)
+            self._store_failure = (time.time(), failure) if failure else (
+                getattr(self, '_store_failure', None) if backlog else None)
+
+    def event_store_health(self) -> dict[str, Any]:
+        """Whether the sole durable job-event store can accept new unsafe work (FP-18).
+
+        Healthy means the receipt directory is writable now and no earlier receipt is still
+        waiting on a failed flush, so acceptance resumes only after continuity is restored.
+        """
+        from . import job_history
+        root = job_history.directory()
+        if root is None:
+            return {'ok': False, 'reason': 'no workbench receipt directory is configured'}
+        failure = getattr(self, '_store_failure', None)
+        if failure:
+            return {'ok': False, 'reason': f'earlier receipts are not yet durable: {failure[1]}', 'since': failure[0]}
+        try:
+            root.mkdir(parents=True, exist_ok=True, mode=0o700)
+            probe = root / f'.health.{os.getpid()}.{threading.get_ident()}'
+            probe.write_bytes(b'ok')
+            probe.unlink()
+        except OSError as exc:
+            return {'ok': False, 'reason': f'receipt directory is not writable: {exc}'}
+        return {'ok': True}
 
     def _restore_reservations_locked(self) -> None:
         """Read original receipts, never infer release from server/PID death."""
@@ -2201,6 +2233,12 @@ def start_job(
     argv = build_command(action, filled)
     if dry_run:
         return {"ok": True, "dryRun": True, "action": action.to_dict(), "argv": argv, "params": filled}, 200
+    if action.mutating or action.identity_scope or action.long_running:
+        health = STORE.event_store_health()
+        if not health['ok']:
+            return {"ok": False, "actionId": action.id, "nextAction": "wait",
+                    "wakeCondition": "event_store_available",
+                    "error": f"Job event store unavailable; unsafe dispatch refused: {health['reason']}"}, 503
     refusal = _admission_refusal(action.id)
     if refusal is not None:
         return refusal, 503

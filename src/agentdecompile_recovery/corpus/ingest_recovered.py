@@ -119,29 +119,57 @@ def _migrate_recovered_candidate_key(con: sqlite3.Connection) -> None:
         raise
 
 
-def load_coverage_index(coverage_dir: pathlib.Path) -> dict[tuple[str, str], dict]:
-    """Return historical positive observations; consumers must check source binding."""
+_FUNCTION_IN_DAMAGED = re.compile(r'"function"\s*:\s*"((?:[^"\\]|\\.)*)"')
+
+
+def load_coverage_index(coverage_dir: pathlib.Path,
+                        quarantine: dict[tuple[str, str], dict] | None = None) -> dict[tuple[str, str], dict]:
+    """Return historical positive observations; consumers must check source binding.
+
+    A damaged ledger line could be the negative observation that superseded an earlier
+    positive, so it never silently leaves that positive qualifying (FP-19). When the damaged
+    line still names its function, only that function's earlier positive is quarantined;
+    otherwise every positive recorded before it in that ledger is. Positives recorded after
+    it are unaffected. Quarantined keys are withheld and reported in *quarantine* (key ->
+    reason) until an exact restoration or a scoped re-verification replaces the receipt.
+    """
     verified: dict[tuple[str, str], dict] = {}
     coverage_dir = pathlib.Path(coverage_dir)
     if not coverage_dir.is_dir():
         return verified
+    held: dict[tuple[str, str], dict] = {}
     for ledger in sorted(coverage_dir.glob("*.jsonl")):
         program = ledger.stem
         with ledger.open(errors="replace") as fh:
-            for line in fh:
+            for number, line in enumerate(fh, 1):
+                if not line.strip():
+                    continue
                 try:
                     row = json.loads(line)
                 except (ValueError, TypeError):
-                    continue
+                    row = None
                 if not isinstance(row, dict):
+                    reason = {"ledger": str(ledger), "line": number, "reason": "damaged receipt line"}
+                    named = _FUNCTION_IN_DAMAGED.search(line)
+                    if named:
+                        key = (program, named.group(1))
+                        if verified.pop(key, None) is not None:
+                            held[key] = reason
+                    else:
+                        for key in [k for k in verified if k[0] == program]:
+                            verified.pop(key)
+                            held[key] = reason
                     continue
                 name = row.get("function")
                 if name:
                     key = (program, str(name))
-                    # Later negative observations supersede earlier positives.
+                    # Later observations supersede earlier ones, including a damage hold.
                     verified.pop(key, None)
+                    held.pop(key, None)
                     if row.get("byteExact") is True:
                         verified[key] = row
+    if quarantine is not None:
+        quarantine.update(held)
     return verified
 
 
@@ -182,7 +210,11 @@ def parse_recovered(
     recovered_dir = pathlib.Path(recovered_dir)
     if not recovered_dir.is_dir():
         return rows
-    verified = load_coverage_index(coverage_dir)
+    quarantine: dict[tuple[str, str], dict] = {}
+    verified = load_coverage_index(coverage_dir, quarantine)
+    if rejected is not None:
+        for (program, name), why in sorted(quarantine.items()):
+            rejected.append({"program": program, "function": name, "reason": "receipt_quarantined", **why})
     target_cache: dict = {}
     for pdir in sorted(recovered_dir.iterdir()):
         if not pdir.is_dir():

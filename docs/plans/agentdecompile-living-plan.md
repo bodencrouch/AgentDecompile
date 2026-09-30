@@ -3341,6 +3341,12 @@ Operator: an autonomous Claude session. The work is on branch `feat/u13-reconcil
 - A05/FP-08: the job-store health probe runs in one bounded background thread. Under a simulated hung device, the first check returns in 2 s, later checks return at once, and exactly one probe stays outstanding ([a05.sh](evidence/2026-09-30-u9/a05.sh)).
 - A20: the grid verifier capped and tie-broke proposals by arrival order. On the unfixed tree ten shuffles of five equal proposals verified four different producers first. The cap and tie-break now follow `(result_ref, producer_key)`, and all ten orders choose the same producer. The real `VerifierLoop._candidates` was driven ([a20.sh](evidence/2026-09-30-u9/a20.sh)). The FP-08 partial-bundle clause (a copy from a hanging source stays unlaunchable) was not assessed.
 
+**E-0930-9 · Live store identity and images (read-only).** An md5 search found images for 24 of the 49 builds ([image-manifest.json](evidence/2026-09-30-u13/image-manifest.json)).
+- **No image:** four builds with a recorded md5 have no image on disk: both Xbox XBEs, `DragonAge2.exe` and `daorigins.exe`. Earlier backfill receipts also recorded `no_raw_image` for them.
+- **No md5:** 21 rows have no recorded md5.
+- **Build 26 is mislabelled** (a U1/U3 identity issue). Row 26 is `nwserver.exe`, but its recorded md5 (`91c553f6…`) belongs to `nwn2server.exe`'s bytes; its own `imported_executable` hashes to `d4bba21c…`. Which bytes its 13,839 functions were analysed from is unknown, and the live store was not changed. This qualifies two earlier records that used row 26: E-0929-2's fixture and E-0930-3's stripped-relocations example. Both describe the `nwn2server.exe` bytes, not necessarily the build that row analysed.
+- Activation runbook: [ACTIVATION.md](evidence/2026-09-30-u13/ACTIVATION.md).
+
 **E-0930-4 · Host.** RAM 31 GB with 4–6 GB available; swap 42/42 GB used; root disk 96% full; PSI full avg10 about 0.1. No full-corpus run was admitted.
 
 ## Decisions and blockers

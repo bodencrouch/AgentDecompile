@@ -1437,6 +1437,7 @@ class JobStore:
                             argv, cwd, cancel, on_output=publish_log,
                             unlimited=unlimited_match, on_started=observe_owner,
                             on_peak=_record_peak(job.action_id),
+                            checkpointed=bool(action is not None and action.long_running),
                             on_clearance=observe_clearance if job.action_id in LOCAL_RECONCILIATION_ACTIONS | _EXTERNAL_ACTION_CONTRACTS.keys() else None,
                         )
                 if action is not None and action.backend == "bsim-cli":
@@ -1895,11 +1896,18 @@ def _default_executor(
     inherited_fds: tuple[int, ...] = (),
     on_not_started: Callable[[], None] | None = None,
     on_peak: Callable[[int], None] | None = None,
+    checkpointed: bool = False,
 ) -> tuple[int, str]:
     """Drain output without blocking cancellation when a child is silent.
 
     ``on_peak`` receives the job's measured process-tree peak resident memory
     (every process in its session, sampled about once a second) when it ends.
+
+    ``checkpointed`` makes the deadline follow the unit's declared lifecycle (FP-12):
+    each distinct completed checkpoint (a JSON ``*-progress`` event whose integer
+    ``completed`` exceeds every earlier one) restarts the idle window, up to
+    ``AGENT_DECOMPILE_JOB_MAX_SECONDS`` (default 24 h). A live PID or plain output never
+    extends it.
     """
     if not argv:
         return 2, "empty command"
@@ -1962,6 +1970,16 @@ def _default_executor(
             except ValueError:
                 configured_timeout = 1800.0
         deadline = None if unlimited else time.monotonic() + max(1.0, float(configured_timeout))
+        checkpoints = 0
+        best_completed = None
+        pending_text = ""
+        hard_deadline = None
+        if checkpointed and deadline is not None:
+            try:
+                max_seconds = float(os.environ.get("AGENT_DECOMPILE_JOB_MAX_SECONDS", "86400"))
+            except ValueError:
+                max_seconds = 86400.0
+            hard_deadline = time.monotonic() + max(float(configured_timeout), max_seconds)
         cancellation_at = None
         cancellation_forced = False
         exited_at = None
@@ -1977,7 +1995,14 @@ def _default_executor(
             if deadline is not None and now >= deadline and cancellation_at is None:
                 timed_out = True
                 cancellation_at = now
-                log += f"\n[timed out after {configured_timeout:g} seconds]\n"
+                if checkpointed and hard_deadline is not None and now >= hard_deadline:
+                    log += (f"\n[timed out: reached the job maximum (AGENT_DECOMPILE_JOB_MAX_SECONDS) "
+                            f"after {checkpoints} completed checkpoints]\n")
+                elif checkpointed:
+                    log += (f"\n[timed out: no new completed checkpoint within {configured_timeout:g} seconds "
+                            f"({checkpoints} completed checkpoints)]\n")
+                else:
+                    log += f"\n[timed out after {configured_timeout:g} seconds]\n"
             if cancel.is_set() and cancellation_at is None:
                 cancellation_at = now
                 log += "\n[cancelled]\n"
@@ -2017,6 +2042,22 @@ def _default_executor(
             if line is None:
                 break
             log = (log + line)[-MAX_LOG_BYTES:]
+            if checkpointed and deadline is not None:
+                pending_text += line
+                *complete, pending_text = pending_text.split("\n")
+                pending_text = pending_text[-65536:]
+                for text in complete:
+                    try:
+                        event = json.loads(text)
+                    except (ValueError, TypeError):
+                        continue
+                    done = event.get("completed") if isinstance(event, dict) else None
+                    if (isinstance(done, int) and not isinstance(done, bool)
+                            and str(event.get("event", "")).endswith("-progress")
+                            and (best_completed is None or done > best_completed)):
+                        best_completed = done
+                        checkpoints += 1
+                        deadline = min(hard_deadline, time.monotonic() + max(1.0, float(configured_timeout)))
             if on_output: on_output(log)
         returncode = proc.poll()
         if returncode is None:

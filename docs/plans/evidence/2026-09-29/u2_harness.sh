@@ -3,13 +3,14 @@
 set -e
 W=/tmp/adplan/verify/u2; SRC=/home/brunner56/biodecompwarehouse/kotorxid/db/kotorxid.sqlite
 rm -f $W/fixture*.sqlite
-/home/brunner56/agentdecompile-nvme/.venv/bin/python - "$SRC" "$W/fixture.sqlite" <<'EOF'
+REPO=$(git -C "$(dirname "$(readlink -f "$0")")" rev-parse --show-toplevel)
+/home/brunner56/agentdecompile-nvme/.venv/bin/python - "$SRC" "$W/fixture.sqlite" "$REPO/src" <<'EOF'
 import sqlite3, sys, hashlib
 IMAGES = {30: "/home/brunner56/biodecompwarehouse/repos/NWN2/nwloader.exe",
           26: "/home/brunner56/biodecompwarehouse/repos/NWN2/nwn2server.exe"}
 src = sqlite3.connect(f"file:{sys.argv[1]}?mode=ro", uri=True); dst = sqlite3.connect(sys.argv[2])
 ids = ",".join(map(str, IMAGES))
-sys.path.insert(0, "$(git -C "$(dirname "$(readlink -f "$0")")" rev-parse --show-toplevel)/src")
+sys.path.insert(0, sys.argv[3])
 from agentdecompile_recovery.corpus import store as git_store
 dst.close(); dst = git_store.connect(sys.argv[2])   # git-tree schema, not the live one
 for t in ("binary", "func", "calledge"):

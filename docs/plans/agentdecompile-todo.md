@@ -298,16 +298,16 @@ Contract: `2026-09-28-comprehensive-agentdecompile-plan.md`. Evidence: `agentdec
 - [ ] `session-contract-2026-09-22:D48` — U1: User many isle-like projects and universal-use matching; satisfy the full inherited acceptance, not just this label.
 - DISPOSED `session-contract-2026-09-22:D49` — superseded; owner U1; retain successor/evidence from master, do not count as implemented.
 - [ ] `session-contract-2026-09-22:D50` — U1: User collaborative grill/prove-the-effort completion; satisfy the full inherited acceptance, not just this label.
-- [ ] `session-contract-2026-09-22:RC-01` — U1: Unchanged region with external code+data fixups; corrupt one reconstructed addend; satisfy the full inherited acceptance, not just this label.
+- [ ] `session-contract-2026-09-22:RC-01` — U1: Unchanged region with external code+data fixups; corrupt one reconstructed addend; satisfy the full inherited acceptance, not just this label. Evidence 2026-09-30: E-0930-15 (source only).
 - [ ] `session-contract-2026-09-22:RC-02` — U1: Compiled replacement; deliberately discard it at link/selection; satisfy the full inherited acceptance, not just this label.
 - [ ] `session-contract-2026-09-22:RC-03` — U1: Held-out sibling with x+1→x+2 behavior change; satisfy the full inherited acceptance, not just this label.
-- [ ] `session-contract-2026-09-22:RC-04` — U1: Folded bodies, inline-only and split regions; satisfy the full inherited acceptance, not just this label.
-- [ ] `session-contract-2026-09-22:RC-05` — U1: Arithmetic, FP/NaN, methods, globals, indirect calls, exception metadata; satisfy the full inherited acceptance, not just this label.
+- [ ] `session-contract-2026-09-22:RC-04` — U1: Folded bodies, inline-only and split regions; satisfy the full inherited acceptance, not just this label. Evidence 2026-09-30: E-0930-15 (source only).
+- [ ] `session-contract-2026-09-22:RC-05` — U1: Arithmetic, FP/NaN, methods, globals, indirect calls, exception metadata; satisfy the full inherited acceptance, not just this label. Evidence 2026-09-30: E-0930-15 (source only).
 - [ ] `session-contract-2026-09-22:RC-06` — U1: Type dependency changes mid-attempt; unrelated build added; satisfy the full inherited acceptance, not just this label.
-- [ ] `session-contract-2026-09-22:RC-07` — U1: Same evidence/proposals, shuffled discovery/worker completion order; satisfy the full inherited acceptance, not just this label.
+- [ ] `session-contract-2026-09-22:RC-07` — U1: Same evidence/proposals, shuffled discovery/worker completion order; satisfy the full inherited acceptance, not just this label. Evidence 2026-09-30: E-0930-15 (source only).
 - [ ] `session-contract-2026-09-22:RC-08` — U1: Wrong target label with matching extracted bytes; satisfy the full inherited acceptance, not just this label.
 - [ ] `session-contract-2026-09-22:RC-09` — U1: Original binding has valid identity/ABI but source is floor; satisfy the full inherited acceptance, not just this label.
-- [ ] `session-contract-2026-09-22:RC-10` — U1: Genuine negative pair vs absent/inlined/unsupported/budget-limited; satisfy the full inherited acceptance, not just this label.
+- [ ] `session-contract-2026-09-22:RC-10` — U1: Genuine negative pair vs absent/inlined/unsupported/budget-limited; satisfy the full inherited acceptance, not just this label. Evidence 2026-09-30: E-0930-15 (source only).
 - [ ] `session-contract-2026-09-22:A01` — U9: Correct bytes with false function label; satisfy the full inherited acceptance, not just this label.
 - [ ] `session-contract-2026-09-22:A02` — U9: Withdraw shared donor root; satisfy the full inherited acceptance, not just this label.
 - [ ] `session-contract-2026-09-22:A03` — U9: Kill compiler after N durable units; satisfy the full inherited acceptance, not just this label. Evidence 2026-09-30: E-0930-13 (source only).

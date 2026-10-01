@@ -29,6 +29,7 @@ from .identical_image import short_circuit_match
 from .match_islands import island_evidence, leftover_inlines, unique_structural_pairs
 from .store import ensure_func_columns
 from .symbol_provenance import authentic_named_index
+from .match_engine import reverse_ties
 from .match_engine import (
     MAX_CONST_DF,
     MAX_STRING_DF,
@@ -845,8 +846,18 @@ def match_binaries(
         report(len(src_addrs), round_index=rnd)
 
         scored.sort(key=lambda t: (-t[0], -t[1], t[2], t[3]))
+        tied_destinations = reverse_ties(scored)
         for best, margin, a, b, ev, second, second_b in scored:
             if a in mapping or b in taken:
+                continue
+            if b in tied_destinations:
+                # Equal best scores from several sources: order must not choose (U1 RC-07).
+                results.setdefault(a, {
+                    "dst": b, "score": round(best, 4), "margin": round(margin, 4),
+                    "evidence": enrich_evidence(ev, status="ambiguous", identity_claim=False, stage="fuzzy_residue",
+                                                alternatives=[{"src": x} for x in sorted(tied_destinations[b])]),
+                    "round": rnd, "status": "review", "kind": "ambiguous", "ambiguity": "tied_sources",
+                })
                 continue
             if contract_features is not None:
                 veto_info = _contract_veto(a, b, best, second, second_b)

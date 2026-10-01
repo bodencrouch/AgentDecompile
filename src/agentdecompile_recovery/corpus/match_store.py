@@ -774,6 +774,7 @@ def match_binaries(
             },
         }
 
+    budget_limited = False
     for rnd in range(rounds):
         # Every earlier stage can claim destinations, including BSim and its
         # propagated neighbors. Exclude all of them before scoring residue.
@@ -941,6 +942,7 @@ def match_binaries(
             new += grown
         if new == 0:
             break
+        budget_limited = rnd == rounds - 1  # the last allowed round was still adding matches
 
     # Optional embeddings/BSim are deliberately last: they may corroborate
     # residue but never consume candidates before deterministic stages.
@@ -1014,10 +1016,16 @@ def match_binaries(
         }
     from .binexport import binexport_available
     from .emulate_verify import unicorn_available
+    from .match_outcomes import terminal_outcomes
 
     return {
         "mapping": mapping,
         "results": results,
+        "outcomes": terminal_outcomes(
+            sa.funcs, mapping, results,
+            scope=[a for a in sa.funcs if restrict_src is None or a in restrict_src],
+            budget_limited=budget_limited,
+        ),
         "src": sa,
         "dst": sb,
         "pair_class": pair_class,

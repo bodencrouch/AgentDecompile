@@ -1155,9 +1155,9 @@ def _render_execute_script(data: dict[str, Any]) -> str:
         executed_name = str(executed_program.get("name", ""))
         executed_path = str(executed_program.get("path", ""))
         if executed_name:
-            lines.append(_md_bold_kv("Executed Program", _md_code_inline(executed_name)))
+            lines.append(_md_bold_kv("Context Program", _md_code_inline(executed_name)))
         if executed_path and executed_path != executed_name:
-            lines.append(_md_bold_kv("Program Path", _md_code_inline(executed_path)))
+            lines.append(_md_bold_kv("Context Program Path", _md_code_inline(executed_path)))
 
     if stdout_text or stderr_text:
         lines.append("")

@@ -28,6 +28,7 @@ from __future__ import annotations
 import asyncio
 import copy
 import contextlib
+from contextvars import ContextVar
 import hashlib
 import inspect
 import json
@@ -1298,11 +1299,55 @@ async def _call(ctx: click.Context, tool: str | Tool, /, **kwargs: Any) -> None:
     click.echo(_render_result(ctx, result))
 
 
+_CLI_SESSION_OBSERVATION: ContextVar[bool] = ContextVar("cli_session_observation", default=False)
+
+
+async def _connection_session_status(
+    ctx: click.Context,
+    payload: dict[str, Any],
+    client_override: Any | None,
+) -> Any:
+    """CLI shorthand: observe the selected connection, never invent a workDir.
+
+    Use the same read-only tool and connection as an ordinary project listing.
+    The recovery MCP tool keeps its required workDir contract, including errors
+    for explicitly empty or misspelled arguments.
+    """
+    token = _CLI_SESSION_OBSERVATION.set(True)
+    try:
+        observed = await _call_raw(ctx, Tool.LIST_PROJECT_FILES.value, dict(payload), client_override)
+    finally:
+        _CLI_SESSION_OBSERVATION.reset(token)
+    if not _tool_seq_step_succeeded(observed):
+        # Direct commands inspect success/error; sequences also inspect MCP and
+        # markdown errors. Keep the original envelope and align their exit codes.
+        error = _get_error_result_message(observed) or _envelope_text(observed) or "The connection's project listing failed."
+        return {**(observed if isinstance(observed, dict) else {}), "success": False, "error": error}
+    hint = "For recovery-run status, pass an explicit workDir, for example: agentdecompile-cli status --work_dir /path/to/run."
+    data = {
+        "success": True,
+        "scope": "connection-session",
+        "observedUsing": Tool.LIST_PROJECT_FILES.value,
+        "recoveryWorkspaceInspected": False,
+        "projectFiles": _tool_data(observed),
+        "hint": hint,
+    }
+    response_format = next((value for key, value in payload.items() if normalize_identifier(key) == normalize_identifier(RESPONSE_FORMAT_PARAM)), None)
+    if _wants_tool_data(ctx) or response_format == "json":
+        text = json.dumps(data, ensure_ascii=False)
+    else:
+        observation = _envelope_text(observed) or format_output(_tool_data(observed), _fmt(ctx))
+        text = "## Connection / session status\n\nRead-only project listing succeeded for this connection. No recovery workspace was inspected.\n\n" + observation + "\n\n" + hint
+    return {"content": [{"type": "text", "text": text}], "isError": False}
+
+
 async def _call_raw(
     ctx: click.Context,
     tool: str,
     payload: dict[str, Any],
     client_override: Any | None = None,
+    *,
+    allow_connection_status: bool = True,
 ) -> Any:
     """Call tool and return raw result for programmatic CLI workflows.
 
@@ -1321,6 +1366,8 @@ async def _call_raw(
     """
     logger.debug("diag.enter %s", "cli.py:_call_raw")
     call_tool_name, safe_payload = _resolve_tool_call_target(tool, payload)
+    if allow_connection_status and call_tool_name == Tool.STATUS.value and all(normalize_identifier(key) == normalize_identifier(RESPONSE_FORMAT_PARAM) for key in safe_payload):
+        return await _connection_session_status(ctx, safe_payload, client_override)
 
     # Rendering travels as responseFormat (markdown, or json for -f json/xml/table).
     # `format` belongs to tools (get-data hex/ascii/both, export c/cpp/sarif,
@@ -1376,6 +1423,12 @@ async def _run_tool_with_connected_client(
     call_tool_name: str,
     payload: dict[str, Any],
 ) -> Any:
+    if _CLI_SESSION_OBSERVATION.get():
+        # Status observes the selected session; unlike ordinary listing it must
+        # not bootstrap another project, preopen a program, or retry with open.
+        result = await client.call_tool(call_tool_name, payload)
+        _persist_session_id(ctx, client)
+        return result
     bootstrap = await _maybe_bootstrap_shared_listing(ctx, client, call_tool_name, payload)
     if bootstrap is not None:
         return bootstrap
@@ -2429,6 +2482,12 @@ def _create_dynamic_commands(cli_group: click.Group) -> None:
         snake_params: list[str] = [to_snake_case(param) for param in tool_params]
         params_help: str = ", ".join(f"--{param}" for param in snake_params) if snake_params else "(none)"
         command_help: str = f"Call `{tool_name}`. Parameters: {params_help}"
+        if tool_name == Tool.STATUS.value:
+            command_help = (
+                "Inspect the current connection/session with no arguments (read-only project listing). "
+                "Pass --work_dir PATH for recovery-run status; this inspects that explicit workspace. "
+                "The MCP status tool itself requires workDir."
+            )
 
         # Create parameter options for this tool
         def tool_command(_tool_name: str = tool_name, **kwargs: Any) -> None:
@@ -2725,7 +2784,7 @@ def main(
                 source = getter(name)
             except Exception:
                 source = None
-            if str(source).endswith("COMMANDLINE"):
+            if getattr(source, "name", None) == "COMMANDLINE" or str(source).endswith("COMMANDLINE"):
                 return True
         return _argv_contains_any_option(option_flags)
 
@@ -5306,7 +5365,7 @@ def alias_cmd(name: str) -> None:
 
 @main.command(
     "tool",
-    help="Call any MCP tool by name with a JSON arguments object.",
+    help="Call any MCP tool by name with a JSON arguments object. Empty status arguments inspect the current connection/session; status with workDir inspects a recovery run.",
     epilog=TOOL_AGENT_EPILOG,
 )
 @click.argument("name", required=False, default=None)
@@ -5349,7 +5408,7 @@ def tool_cmd(
 
     async def _run() -> None:
         prepared_payload, inferred_program = _prepare_tool_payload_with_program_fallback(ctx, name, payload)
-        data = await _call_raw(ctx, name, prepared_payload)
+        data = await _call_raw(ctx, name, prepared_payload, allow_connection_status=not any(value is None for value in payload.values()))
         err_msg = _get_error_result_message(data)
         if err_msg is not None:
             click.echo(err_msg, err=True)
@@ -5565,7 +5624,7 @@ def _run_parsed_tool_sequence(
                             if not prepared_arguments.get("path"):
                                 prepared_arguments["path"] = str(v).strip()
 
-                data = await _call_raw(ctx, name, prepared_arguments, client_override=client_override)
+                data = await _call_raw(ctx, name, prepared_arguments, client_override=client_override, allow_connection_status=not any(value is None for value in arguments.values()))
                 step_ok = _tool_seq_step_succeeded(data)
                 step_result = {
                     "index": index,

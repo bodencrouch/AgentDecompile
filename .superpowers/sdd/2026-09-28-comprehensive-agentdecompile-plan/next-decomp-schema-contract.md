@@ -1,6 +1,6 @@
 # U2 next DDL ownership slice: decomp compatibility and canonical schema
 
-Status: **READY_FOR_CONTRACT_REVIEW**, 2026-10-02. Report-only proposal; no implementation, database operation, migration, fingerprint computation, test execution or runtime qualification. This report owns only this file. The adopted STABS source through `34b7287f` is the input; its source review passed, but SQLite and installed acceptance remain unverified.
+Status: **ADOPTED FOR BOUNDED SOURCE IMPLEMENTATION**, 2026-10-02. Report-only proposal; no implementation, database operation, migration, fingerprint computation, test execution or runtime qualification. This report owns only this file. The adopted STABS source through `34b7287f` is the input; its source review passed, but SQLite and installed acceptance remain unverified.
 
 ## Decision and scope
 
@@ -171,3 +171,7 @@ The complete preceding STABS contract's inventory remains binding. Type export/o
 Read AGENTS.md, repository entry references, complete adopted STABS contract/report/original review/fix review, unit2 requirements/extract, relevant source and named callers. Searched documented solutions by schema/decomp terms; the decomp-toolchain learning reinforces the already-authoritative separation of matching from byte proof, and supplies no decomp DDL contract. A bounded memory-registry search supplied no task-specific fact used in this proposal. All technical decisions above derive from inspected current text.
 
 Wrote only this report. Verification was text/source reasoning; no source edit, Git operation, subagent, test/collection/build/typecheck, project import, DB open/query/create/migration, cryptographic computation, runtime/live/process/catalog/provisioning/service/port or publication operation occurred. No historical SQLite equivalence, transaction/concurrency success, computed fingerprint, installed consumer or recovery acceptance is claimed. The report is ready for independent contract review and controller adoption; implementation and all execution acceptance remain future work.
+
+## Controller adoption and unaffected physical inventory
+
+Adopted after decomp-schema-contract-review.md: spec/quality pass, no Important/Critical. MinorM1 caller inventory clarification: dashboard/panels/stabs.py:595–617 enumerates physical tables and all decomp rows; retain it unchanged as physical schema inventory, distinct from logical successful-address witness semantics. No implementation ownership added for this unaffected panel. Caller transaction preservation assumes the outer transaction/savepoint survives; engine failure destroying it must propagate uncertainty/cleanup failure, never reconstruct lost work or claim rollback success. Source implementation only; no DB/migration/runtime/activation acceptance. preparation.py matcher-input projection changes land before any separately queued U9 authority implementation, preserving serialization.

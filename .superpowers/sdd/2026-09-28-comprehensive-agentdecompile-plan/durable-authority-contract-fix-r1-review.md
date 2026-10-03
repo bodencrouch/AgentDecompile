@@ -1,0 +1,45 @@
+# Durable authority contract — correction round 1 review
+
+Date: 2026-10-02. Scoped inputs: `durable-authority-contract-review.md`, `durable-authority-contract-r0.md`, `durable-authority-contract-fix-r1.diff`, and the corrected `next-durable-authority-contract.md`. Line references below name the corrected contract unless qualified otherwise.
+
+**Original DA-1–DA-4: addressed at contract level. Spec adoption: one narrow correction still required. Quality/feasibility adoption: one Important introduced gap; no Critical finding.** The revision supplies a concrete positive first-creation domain and removes the unverifiable dead-owner/legacy-resume exception. It remains a preparation authority slice rather than a new task engine. Implementation readiness is withheld only for R1-1 below; FYI-1 is advisory. No acceptance or live activation is established.
+
+## Disposition of the original findings
+
+| Finding | Disposition | Evidence and scope |
+|---|---|---|
+| DA-1: creation, migration and restart eligibility | Addressed | Lines 65–90 name the sole issuance producer, append-only issued-ID tombstones, private one-use birth witness, exact healthy committed snapshot, and explicit eligibility table. All established objectives after authority-session loss refuse mutation at lines 82–86, 168 and 186–188. The positive case is a never-issued objective in a qualified namespace followed by healthy same-session continuation. Historical migration is explicitly deferred, not claimed by bootstrap promotion. |
+| DA-2: escaped canonical mutations and receipt writer | Addressed | Lines 55 and 109–117 add minimal workflow ownership, detached snapshots, named short mutation operations, basis rechecks, no callback/wait recursion under the gate, and guarded comparison-reference publication. Inventory is explicitly independent desired state with its existing durability limitations. These provisions eliminate the proposed whole-workflow lock shortcut and classify the writers missed by r0. |
+| DA-3: refusal propagation and root seam | Addressed | Lines 129–154 specify the exception base, one bounded whitelisted projection, catalog/direct/open/control/root/private/maintenance/recovery consumers, omission of capabilities from copies/history, and pre-worker-start versus ambiguous-start disposition. Root tracking is separate from action/MCP spending and cannot justify replacement dispatch. |
+| DA-4: fault retention versus execution capacity | Addressed | Lines 170–182 separate physical lease/fault references from identity-bound execution slots, remove observation-driven cleanup, retire only the exact completed root, isolate per-entry read/refusal failures, suppress faulted retries, and bound displayed diagnostics. Four finished faulted roots may retain leases while an independent fifth uses released capacity. Hung roots and unavailable shared storage remain explicitly outside that positive case. |
+
+The new session restriction is a deliberate compatibility limitation, not a source-proven ability to reactivate current legacy workspaces. A preexisting `preparations/` directory without a qualified birth log remains read-only; even a clean previous process's row cannot resume in this slice. Implementation and activation reports must retain this limit. Releasing U2's ownership of `preparation.py` is still a sequencing prerequisite for later edits; this review changes no file ownership in the running workspace.
+
+## R1-1 — Important: ordinary birth-lock contention must not become a continuity fault
+
+**Confidence: 75.** The new creation witness is protected by “its own nonblocking OS lock” (line 69). Line 180 says, “A plain OSError in a known authority operation becomes the typed persistence refusal,” and lines 180–182 suspend refused entries until explicit continuity reconciliation. No separate birth-lock contention outcome is defined. The existing preparation lock helper raises `BlockingIOError` on acquisition contention (`preparation.py:190–205`); this is an `OSError` subtype.
+
+Concrete scenario: two valid, never-issued objectives in the same healthy namespace are opened concurrently. The first holds the namespace lock while validating/appending its issuance. The second cannot take the nonblocking lock and has not appended a record, initialized a budget, or dispatched anything. Applying the general conversion/suspension rules makes this ordinary lack of immediate capacity a persistence/continuity fault. The second healthy objective can then remain blocked indefinitely, because timer ticks, admission wakes and explicit resume cannot clear that suspension and the reconciliation adapter is deferred. This undermines the newly specified positive creation path without any storage ambiguity.
+
+**Required correction:** catch namespace-lock contention before the generic authority-I/O conversion. Define a bounded retryable, no-effect issuance wait, with a named wake and no birth record, capability, ledger initialization, fault latch or execution slot created. Retry only after reacquiring the namespace lock and rechecking the complete issuance/row predicate; a concurrently issued same ID becomes observation/refusal according to the table, never duplicate initialization. Specify that no preparation registry/authority/job-store lock is held while waiting and no tight acquisition loop is allowed. Keep partial append, failed flush/directory fsync and other uncertain writes latched exactly as the revision already requires. This distinction does not require a new public action or permission.
+
+**Later paired controls:** hold the birth lock for objective A; objective B returns the declared wait with zero writes/starts and later admits once after release. A second request for A never issues A twice. An append/fsync fault stays suspended after lock release. A previously healthy witnessed objective C continues its own row work while issuance is busy.
+
+## FYI-1 — Advisory: give complete birth-log validation an explicit bounded domain
+
+**Confidence: 50; nonblocking observation.** Line 71 requires the complete issued-ID set to be parsed before issuance and prohibits ordinary truncation/deletion; line 69 calls the witness “small.” No byte, record-count or record-size ceiling is stated. A long-lived namespace therefore has increasing memory/scan work for every new objective under a shared issuance lock. The 100-entry display cap at line 182 does not bound this log.
+
+A narrow local limit is sufficient; no indexed registry or compaction subsystem is requested. State implementation constants for maximum log bytes/record length/issued IDs, validate with bounded reads, and refuse further issuance at the boundary while preserving tombstones and allowing already witnessed healthy rows to operate. If unlimited namespace growth is intentionally outside this first slice, say so and carry an over-limit refusal case into its acceptance source. Actual scale and latency have not been measured, so this is advisory rather than a second Important finding.
+
+## Remaining implementation checks, not additional findings
+
+- Birth issuance must complete durably before either initial budget or work admission. An issued-but-uninitialized ID survives as a tombstone; session loss never rehydrates its private birth witness.
+- The exact immutable healthy snapshot must advance only after a successful durable write. Failed replacement or directory fsync invalidates it even if the newer JSON is visible. Allocation revisions preserve all prior reservations/attempts.
+- Workflow must consume returned detached snapshots after its own successful mutations. No canonical nested references may escape through result/aggregate objects or final cleanup.
+- Comparison artifacts become reusable only through a qualifying committed row reference. Faulted or uncommitted visible row bytes cannot be treated as a healthy publication merely because the artifact exists.
+- The universal eligibility table governs old legacy-supersession code. The retained generic sentence about a legacy row's own lease (line 103) does not override lines 85–86/186: an OS lease alone grants no historical-row mutation.
+- Every root completion path must execute expected-token retirement, including pre-body refusal and job-store early failure; observation remains unable to remove slots. A start-attempted-but-unproven root retains its slot until its declared completion/non-entry boundary.
+
+These checks follow the correction's stated contract. They do not reopen the whole U9 audit or require general restart/restore, provider circuits, durable wakes, acceptance-policy work, or broader resource admission in this slice.
+
+Only document/source-text reasoning and this owned Markdown write were performed. No source or Git changes, subagents, tests/collection/build/typechecks, project imports, DB/key/crypto operations, process/runtime/live inspection, or provisioning. No implementation, OS-lock behavior, crash persistence, live ownership, or acceptance result was executed or verified. Full U9, A01–A20/FP-01–FP-30, M0 and real-consumer qualification remain open.

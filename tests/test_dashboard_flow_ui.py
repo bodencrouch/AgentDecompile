@@ -90,14 +90,23 @@ def test_workbench_js_editor_shell() -> None:
     assert "wb-source-tree" in JS
     assert "function TabRoster" in JS
     assert "Close the project tab" in JS or "closes the project tab" in JS
-    assert "Run Cross-place" in JS
+    # af761fe6 ("remove pipeline triggers, add pause/resume/stop (U1)") removed
+    # every Run control that started pipeline-owned work, including the
+    # "Run Cross-place" command -- the workbench now only offers
+    # pause/stop/resume on already-running work.
+    assert 'control("pause")' in JS and 'control("stop")' in JS and 'control("resume")' in JS
+    assert "workbench.workflow-control" in JS
     assert 'placeholder="Filter functions…"' in JS
     assert "slugFromDiskPath" in JS
-    assert "startImportPipeline" in JS
+    # af761fe6 also removed startImportPipeline() itself, along with the
+    # "Analyze program" Run control that called it.
     # Browser-side analysis chaining was removed: the server owns follow-on work.
     assert "chainAfterAnalyze" not in JS
     assert "wb-prog-meter" in JS
-    assert "analyze.program" in JS
+    # af761fe6 renamed the "analyze.program" trigger id away along with the
+    # Run control that used it; "analyze-program" (the server-side next-step
+    # marker) and the action-id label "mcp.analyze-program" remain.
+    assert "analyze-program" in JS
     assert "mcp.analyze-program" in JS
 
 
@@ -163,7 +172,11 @@ def test_workbench_js_palette_surface_navigation() -> None:
     assert "View log in dock" in JS
     assert "MatchWorkbench" in JS
     assert "RecoverWorkbench" in JS
-    assert 'id="wb-analyze"' in JS
+    # af761fe6 removed the #wb-analyze button along with every other Run
+    # control that started pipeline-owned work (see
+    # test_workbench_js_editor_shell's workflow-control assertions for its
+    # pause/stop/resume replacement); there's no palette-navigation surface
+    # to assert in its place.
 
 
 def test_workbench_js_dump_source_uses_imports_pe() -> None:

@@ -26,7 +26,9 @@ export function ScratchWorkspace({ selection, revision, catalog, notify, onSelec
   const [library, setLibrary] = useState<Data[]>([]), [providerError, setProviderError] = useState("");
   const [attempt, setAttempt] = useState<{ id: string; revision: number; hash: string; previousJob: string } | null>(null);
   const [job, setJob] = useState<Data>({}), [hashing, setHashing] = useState(false);
+  const [autoCompile, setAutoCompile] = useState(false);
   const saveSequence = useRef(0), nonce = useRef(createNonce), importSequence = useRef(0);
+  const autoEdit = useRef({ id: "", source: "", context: "" });
   const active = scratches.find(s => s.id === selected);
   const current = useRef(active); current.current = active;
   const provider = matchingProvider(catalog);
@@ -147,6 +149,15 @@ export function ScratchWorkspace({ selection, revision, catalog, notify, onSelec
       notify("Review captured target, configured preset, and combined context/source to approve compilation.");
     } catch (e) { setError(message(e)); setAttempt(null); } finally { setHashing(false); }
   }
+  useEffect(() => {
+    const previous = autoEdit.current;
+    const editedThisScratch = Boolean(active) && previous.id === active!.id && (previous.source !== active!.source || previous.context !== active!.context);
+    autoEdit.current = active ? { id: active.id, source: active.source, context: active.context } : { id: "", source: "", context: "" };
+    if (!autoCompile || !editedThisScratch || !active?.binding || unavailable || busy) return;
+    const timer = window.setTimeout(() => { void compile(); }, 1200);
+    return () => window.clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoCompile, active?.id, active?.source, active?.context]);
   if (!ready) return <section className="scratch-workspace" aria-label="Scratch workspace"><p role="status">{saving}</p></section>;
   return <section className="scratch-workspace" aria-label="Scratch workspace" data-mobile-tab={tab} data-creating={creating}>
     <header className="scratch-toolbar">
@@ -188,7 +199,9 @@ export function ScratchWorkspace({ selection, revision, catalog, notify, onSelec
     </form> : active ? <>
       <div className="scratch-toolbar scratch-settings-bar"><label>Platform<input value={active.platform} onChange={e => edit({ platform: e.target.value })}/></label>
         <label>Compiler preset<select value={active.preset} onChange={e => edit({ preset: e.target.value })}><option value="">No configured preset</option>{[...new Set([active.preset, ...compatiblePresetIds])].filter(Boolean).map(id => <option key={id} disabled={!compatiblePresetIds.includes(id)}>{id}</option>)}</select></label>
-        <button disabled={!!unavailable || busy || !active.source.trim()} onClick={() => void compile()}>Compile &amp; compare</button><span role="status">{hashing ? "Preparing exact revision…" : sameDraft && !jobStarted ? "Awaiting approval / job submission" : phase}</span>
+        <button disabled={!!unavailable || busy || !active.source.trim()} onClick={() => void compile()}>Compile &amp; compare</button>
+        <label className="scratch-check" title="Recompiles automatically 1.2s after you stop editing this scratch's source or context."><input type="checkbox" checked={autoCompile} disabled={!!unavailable} onChange={e => setAutoCompile(e.target.checked)}/>Live recompile on edit</label>
+        <span role="status">{hashing ? "Preparing exact revision…" : sameDraft && !jobStarted ? "Awaiting approval / job submission" : phase}</span>
       </div>
       <p className="scratch-status" title={`${unavailable || "Configured preset advertised; the server validates compiler and target availability on submission. Compile success and similarity are not byte proof."} ${providerError}`}>{unavailable || "Configured preset advertised; the server validates compiler and target availability on submission. Compile success and similarity are not byte proof."} {providerError}</p>
       <div className="scratch-mobile-tabs" aria-label="Scratch views">{["source", "context", "options", "target", "output"].map(name => <button key={name} aria-pressed={tab === name} onClick={() => setTab(name)}>{name[0].toUpperCase() + name.slice(1)}</button>)}</div>

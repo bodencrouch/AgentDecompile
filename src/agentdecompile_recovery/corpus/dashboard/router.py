@@ -8,10 +8,31 @@ import os
 from urllib.parse import quote, urlencode
 from urllib.parse import urlsplit
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse, Response
 
 MAX_UPLOAD_BYTES = 512 * 1024 * 1024
+
+# Spectator sessions are read-only (R46/AE16): any write request carrying a
+# spectator token is rejected here, before it ever reaches the handler,
+# independent of whatever the spectator UI does or does not expose. A
+# legitimate operator session never sends this header, so its mere presence
+# on a write is enough to reject — a stale or forged token fails closed too.
+_SPECTATOR_WRITE_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
+
+
+def _reject_spectator_writes(request: Request) -> None:
+    if request.method not in _SPECTATOR_WRITE_METHODS:
+        return
+    if request.url.path == "/dashboard/api/workbench/spectator/touch":
+        # The spectator's own heartbeat is the one write-shaped request a
+        # spectator token is allowed to make; it only ever updates the
+        # spectator's own last-seen timestamp, never application data.
+        return
+    from agentdecompile_recovery.corpus.dashboard import spectator
+
+    if spectator.is_write_blocked(request.headers.get(spectator.HEADER)):
+        raise HTTPException(status_code=403, detail="Spectator sessions are read-only.")
 
 
 async def _read_upload_bytes(upload: object) -> tuple[bytes | None, str | None]:
@@ -94,12 +115,12 @@ def _static(name: str) -> Response:
 
 def create_dashboard_router() -> APIRouter:
     """Routes under /dashboard. Compatibility aliases stay in unified_pages."""
-    router = APIRouter(tags=["dashboard"])
+    router = APIRouter(tags=["dashboard"], dependencies=[Depends(_reject_spectator_writes)])
     from agentdecompile_recovery.corpus.dashboard.actions.openapi import create_actions_api_router
 
-    router.include_router(create_actions_api_router())
+    router.include_router(create_actions_api_router(), dependencies=[Depends(_reject_spectator_writes)])
     from agentdecompile_recovery.corpus.dashboard.react_api import create_react_router
-    router.include_router(create_react_router())
+    router.include_router(create_react_router(), dependencies=[Depends(_reject_spectator_writes)])
 
     @router.get("/dashboard", response_class=HTMLResponse)
     async def dashboard_home(request: Request) -> Response:
@@ -662,6 +683,63 @@ def create_dashboard_router() -> APIRouter:
             program=request.query_params.get("program") or "",
         )
         return JSONResponse(payload, status_code=200 if payload.get("ok") else 400)
+
+    @router.get("/dashboard/api/workbench/decompiler-runners")
+    async def workbench_decompiler_runners() -> JSONResponse:
+        from agentdecompile_recovery.corpus.dashboard.decompiler_runners import list_runners
+
+        payload = await asyncio.to_thread(list_runners)
+        return JSONResponse(payload)
+
+    @router.get("/dashboard/api/workbench/decompiler-output")
+    async def workbench_decompiler_output(request: Request) -> JSONResponse:
+        from agentdecompile_recovery.corpus.dashboard.decompiler_runners import fetch_output
+
+        payload = await asyncio.to_thread(
+            fetch_output,
+            request.query_params.get("runner") or "",
+            request.query_params.get("locator") or "",
+            request.query_params.get("program") or "",
+            request.query_params.get("addr") or "",
+        )
+        return JSONResponse(payload, status_code=200 if payload.get("ok") else 400)
+
+    @router.get("/dashboard/api/workbench/spectator/status")
+    async def workbench_spectator_status() -> JSONResponse:
+        from agentdecompile_recovery.corpus.dashboard import spectator
+
+        payload = await asyncio.to_thread(spectator.status)
+        return JSONResponse(payload)
+
+    @router.post("/dashboard/api/workbench/spectator/enable")
+    async def workbench_spectator_enable(request: Request) -> JSONResponse:
+        from agentdecompile_recovery.corpus.dashboard import spectator
+
+        body = await request.json()
+        payload = await asyncio.to_thread(spectator.enable, bool(body.get("enabled")))
+        return JSONResponse(payload)
+
+    @router.post("/dashboard/api/workbench/spectator/token")
+    async def workbench_spectator_token() -> JSONResponse:
+        from agentdecompile_recovery.corpus.dashboard import spectator
+
+        payload = await asyncio.to_thread(spectator.create_token)
+        return JSONResponse(payload, status_code=200 if payload.get("ok") else 400)
+
+    @router.post("/dashboard/api/workbench/spectator/revoke-all")
+    async def workbench_spectator_revoke_all() -> JSONResponse:
+        from agentdecompile_recovery.corpus.dashboard import spectator
+
+        payload = await asyncio.to_thread(spectator.revoke_all)
+        return JSONResponse(payload)
+
+    @router.post("/dashboard/api/workbench/spectator/touch")
+    async def workbench_spectator_touch(request: Request) -> JSONResponse:
+        from agentdecompile_recovery.corpus.dashboard import spectator
+
+        token = request.headers.get(spectator.HEADER) or ""
+        ok = await asyncio.to_thread(spectator.touch, token)
+        return JSONResponse({"ok": ok}, status_code=200 if ok else 403)
 
     @router.get("/dashboard/api/workbench/workspace")
     async def workbench_workspace(request: Request) -> JSONResponse:

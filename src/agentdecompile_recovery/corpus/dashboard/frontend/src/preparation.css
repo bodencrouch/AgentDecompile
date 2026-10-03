@@ -33,3 +33,7 @@
 .workflow-controls{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.workflow-controls details{margin:0;padding:0;border:0}.workflow-controls details[open]{flex-basis:100%}.workflow-controls input{width:80px;margin:0 8px}.workflow-controls p{font-size:12px}
 
 .preparation-live-work{display:grid;gap:6px;padding:10px 0;min-width:0}.preparation-live-work progress{width:100%;height:8px;accent-color:var(--explorer-focus,#60b8df)}.preparation-live-work code{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+.preparation-edge{display:block;color:var(--fg-muted);font-style:italic;margin:2px 0}
+.preparation-rail>li[data-root="true"]{border-top-style:double}
+.stage-retry{display:inline-flex;align-items:center;gap:6px;margin-top:6px}

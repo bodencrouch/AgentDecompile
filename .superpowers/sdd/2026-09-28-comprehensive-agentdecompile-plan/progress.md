@@ -410,3 +410,25 @@ Ruling: Preserve unavailable accepted-source counts until a complete independent
 Task 13.1: fix round 1/5 (1 addressed, 0 open — executor-slot retention; commits b871b845..d43a86fb).
 Task 13.1: complete (commits 527b847a..d43a86fb, review clean for bounded source reconciliation only). Full U13 remains open; no tests/builds/live acceptance.
 Task 1.1: next implementation; fresh implementer after this ledger commit.
+
+Task 1.1: implementation dispatched to /root/implement_target_binding from base860731e59e6cb1c20ec8f977d5486872b66dbaad; requirements task-1-brief.md; source-only checks; report task-1-report.md. Controller owns this pending ledger edit.
+
+Task 11.1: prepared — default CompileAttempt.verify trusts receipt masked hash without deriving it from the actual advertised object. Framework existence/CAS/envelope checks do not close the relation. next-compile-binding-slice.md confirms gap; task-11-brief.md owns compile.py and focused regression source only. Queue before target-producer/dashboard admission.
+
+Task42.1: prepared — current standard Vite build empties and writes served static/react directly; staged/additive asset publication and last atomic index replacement missing. task-42-brief.md and next-asset-rollout-slice.md retain existing reader/redirect paths and require old-chunk retention. Build/install/browser acceptance remains open.
+
+Task1.1: implemented 860731e5..612e1315, review /root/review_target_binding pending; review package task-1-review.diff; report task-1-report.md. Four ASTs and call-site keyword checks pass; tests unexecuted. Implementer reports inherited unreadable-whole-corpus/missing-func enumeration boundary in matching_status outside owned consumer scope; review evaluates scoped requirement before completion.
+Ready source queue after this gate: Task25.1 cave qualification, Task11.1 compile-output binding, Task29.1 call scope, Task8.1 faithful packaging, Task42.1 staged assets; target-object producer follows its prerequisite contract discovery.
+
+Catalog prerequisite check (retained live-actions.json, no submissions): corpus.mkobj exists but accepts caller offset/size/format and has no admitted-selection/independent target-object verification contract. No grid or mkobj-target action appeared in the 233-action snapshot. workbench.match-candidate exists for an operator-owned preset and source draft; it does not itself establish the missing persisted target-object edge. catalog-producer-prerequisites.json records exact fields; current live schema must be refreshed before any admission.
+
+Task1.1: fix round1/5 from612e1315 — C1 matching_status pre-enumeration and C2 source_revalidation count preflight bypass explicit refusal on unavailable/missing func schema. Original implementer owns narrow consumer correction and source regressions; zero qualified credit must retain unavailable inventory, not fabricate total zero.
+
+Task3.1: prepared — retained raw Mach-O STABS N_FUN producer can support a strictly snapshot-bound thin-image semantic witness; existing manifests/DB names do not qualify it. task-3-brief.md and next-identity-root-slice.md define strict extent/name/slice/architecture/candidate-byte binding and scoped package/report readers. Execute after existing refusal/trust/packaging queue; full U1/U3 stays open.
+
+U33–U39 prerequisite audit retained in game-baseline-prerequisites.md: scoped direct-build receipt is failed/timeout, compilerProducedWholeImage/wholeFileByteIdentical/verified false, no candidate/objdiff. Partial observed manifest counts are not current recovery proof. Current catalog discovery followed through read-only; exact source project + successful link/launch receipt remains unestablished. No new recovery job or build admitted.
+Task1.1: fix round1 implemented 612e1315..2a16c365, scoped re-review pending final report; source-only AST/diff checks pass.
+
+Task1.1: fix round1/5 (2 addressed, 0 open — C1/C2 explicit unavailable-inventory refusal; commits612e1315..2a16c365).
+Task1.1: complete (commits860731e5..2a16c365, review clean for bounded source slice). Full U1 and executable/installed/live acceptance remain open.
+Task25.1: next fresh implementation after this evidence checkpoint.

@@ -10,7 +10,7 @@ Contract: `2026-09-28-comprehensive-agentdecompile-plan.md`. Evidence: `agentdec
 
 ## Integration deliverables
 
-- [ ] U1. Scope, truth and evidence authority — prerequisites: none; close assigned child predicates; reconcile owned source coverage without gating unrelated predecessors.
+- [ ] U1. Scope, truth and evidence authority — prerequisites: none; close assigned child predicates; reconcile owned source coverage without gating unrelated predecessors. Task1.1 selected target-content binding and unavailable-inventory refusal source is reviewed through 2a16c365; regression execution, full evidence authority, independent producer/semantic roots and real acceptance remain open.
 - [ ] U2. Determinism, schema and generic data seams — prerequisites: U1; close assigned child predicates; reconcile owned source coverage without gating unrelated predecessors.
 - [ ] U3. Identity, field fusion and compatible cross-build reuse — prerequisites: U1, U2; close assigned child predicates; reconcile owned source coverage without gating unrelated predecessors.
 - [ ] U4. Recover, calibrate, reconstruct and compare — prerequisites: U1, U2; close assigned child predicates; reconcile owned source coverage without gating unrelated predecessors.
@@ -42,7 +42,7 @@ Contract: `2026-09-28-comprehensive-agentdecompile-plan.md`. Evidence: `agentdec
 - [ ] U30. Input and ownership simplification preservation — prerequisites: U13; close assigned child predicates; reconcile owned source coverage without gating unrelated predecessors.
 - [ ] U31. Browser rewrite contributor — prerequisites: U11; close assigned child predicates; reconcile owned source coverage without gating unrelated predecessors.
 - [ ] U32. Durable exchange proposal lifecycle — prerequisites: U9; close assigned child predicates; reconcile owned source coverage without gating unrelated predecessors.
-- [ ] U33. Source baseline and identity — prerequisites: U4; close assigned child predicates; reconcile owned source coverage without gating unrelated predecessors.
+- [ ] U33. Source baseline and identity — prerequisites: U4; close assigned child predicates; reconcile owned source coverage without gating unrelated predecessors. 2026-10-02 scoped audit found partial manifests and failed direct-build receipt; require an exact semantic source project plus successful compiled-contribution/link/original-launch receipt before dependent game claims.
 - [ ] U34. Local transport and dispatch — prerequisites: U33; close assigned child predicates; reconcile owned source coverage without gating unrelated predecessors.
 - [ ] U35. Remote gameplay — prerequisites: U34, U9; close assigned child predicates; reconcile owned source coverage without gating unrelated predecessors.
 - [ ] U36. Dedicated executable — prerequisites: U35; close assigned child predicates; reconcile owned source coverage without gating unrelated predecessors.

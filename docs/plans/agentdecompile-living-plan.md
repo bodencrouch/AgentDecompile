@@ -26,6 +26,18 @@ Independent scoped review found one integration defect: an exited exact child wi
 
 Next source sequence: U1 selected-corpus target-content binding; U25/U28 independent cave qualification and bounded canonical-input depth; U29 residual pure-control dispatch writes; U8 explicit input and faithful source-observation packaging. The U1/U21 accepted-source provider remains unavailable until raw-image-to-target-object, compile-output, parity and current policy/generation provenance form one independently accepted chain. These are scoped implementation tasks, not full-unit completion. Software execution, installed/browser acceptance and real recovery remain open.
 
+## Selected target-content contribution binding — 2026-10-02 (Task 1.1)
+
+Commits `612e1315` and `2a16c365` bind selected corpus contribution to the complete observed target SHA-256. A single read-only SQLite snapshot now checks exact singleton binary and function rows; production, publication and revalidation carry and recheck `binarySha256`. Unknown/malformed/mismatched target identity refuses credit; unrelated binary/function rows do not invalidate the retained local claim. Matching-status and recipe revalidation now handle unavailable or malformed inventory explicitly, reporting zero qualified credit with unknown/null totals. A legitimately empty inventory remains distinct; no selected compile producer runs after failed bounded inventory preflight.
+
+[Implementation and fix report](../../.superpowers/sdd/2026-09-28-comprehensive-agentdecompile-plan/task-1-report.md), [initial review](../../.superpowers/sdd/2026-09-28-comprehensive-agentdecompile-plan/task-1-review.md) and [approved scoped re-review](../../.superpowers/sdd/2026-09-28-comprehensive-agentdecompile-plan/task-1-fix-r1-review.md) record source-only verification. Changed Python files were AST-parsed and scoped diffs checked; regression specifications remain unexecuted. Raw equality, anonymous placement, semantic identity, selected-function contribution and whole-image compiler acceptance remain separate. This closes the bounded source slice only; U1, installed/live and fresh whole-image gates remain open.
+
+The ready source queue continues with independent cave qualification/depth safety (Task25.1), actual compiler-output binding (Task11.1), residual pure-control MCP dispatch state (Task29.1), faithful explicit-input packaging (Task8.1), staged React publication (Task42.1), and a bounded thin-Mach-O STABS identity witness (Task3.1). Accepted-source dashboard integration still requires a real target-object producer and complete independent compile/parity/current-policy chain; no permissive provider is connected.
+
+## Original-game baseline prerequisite — 2026-10-02
+
+The bounded [baseline audit](../../.superpowers/sdd/2026-09-28-comprehensive-agentdecompile-plan/game-baseline-prerequisites.md) found partial retained manifests and a direct compiler receipt recording timeout, no candidate/objdiff, and false compiler-produced/whole-file/verified flags. Their observed counts remain historical/partial assertions, not newly verified recovery. The scoped source contains original-byte emitters and unresolved dispatch placeholders; no inspected successful semantic engine source-project link and original-game launch bundle establishes U33. This blocks dependent game delivery claims, without asserting no receipt exists elsewhere. A fresh read-only 8080 catalog lists existing open/prepare/generate/build actions but does not establish the missing source project or successful receipt bundle. No action was submitted and no analysis was regenerated.
+
 ## Execution continuation — 2026-09-28
 
 Execution continues in `/home/brunner56/ad-wt/consolidation-20260928`, branch `codex/branch-consolidation-20260928`, starting at `24ef91c`. This branch carries the earlier frontend/export implementation. The eight pre-existing dirty paths recorded in the SDD progress ledger remain excluded from this execution's writes and commits.
@@ -60,7 +72,7 @@ Each row tracks source implementation, installed consumer, software validation, 
 
 | Unit | Deliverable | Prerequisites | Current acceptance | Next bounded action |
 |---|---|---|---|---|
-| U1 | Scope, truth and evidence authority | None | unassessed-current | Reconcile retained source/evidence, then close the first missing child predicate |
+| U1 | Scope, truth and evidence authority | None | Task1.1 selected-target binding and refusal source reviewed; executable/full-unit gates open | Qualify independent producer chain and other semantic roots; run permitted acceptance when authorized |
 | U2 | Determinism, schema and generic data seams | U1 | D6 source increment verified in memory and reviewed | Verify integrated canonical row-set including match.id before closing shared phase gate |
 | U3 | Identity, field fusion and compatible cross-build reuse | U1, U2 | unassessed-current | Reconcile retained source/evidence, then close the first missing child predicate |
 | U4 | Recover, calibrate, reconstruct and compare | U1, U2 | unassessed-current | Reconcile retained source/evidence, then close the first missing child predicate |
@@ -92,7 +104,7 @@ Each row tracks source implementation, installed consumer, software validation, 
 | U30 | Input and ownership simplification preservation | U13 | unassessed-current | Reconcile retained source/evidence, then close the first missing child predicate |
 | U31 | Browser rewrite contributor | U11 | unassessed-current | Reconcile retained source/evidence, then close the first missing child predicate |
 | U32 | Durable exchange proposal lifecycle | U9 | unassessed-current | Reconcile retained source/evidence, then close the first missing child predicate |
-| U33 | Source baseline and identity | U4 | unassessed-current | Reconcile retained source/evidence, then close the first missing child predicate |
+| U33 | Source baseline and identity | U4 | Scoped retained receipts remain partial or failed; complete source-built original-game baseline unestablished | Corroborate exact source project and successful compiled-contribution/link/launch bundle through existing catalog |
 | U34 | Local transport and dispatch | U33 | unassessed-current | Reconcile retained source/evidence, then close the first missing child predicate |
 | U35 | Remote gameplay | U34, U9 | unassessed-current | Reconcile retained source/evidence, then close the first missing child predicate |
 | U36 | Dedicated executable | U35 | unassessed-current | Reconcile retained source/evidence, then close the first missing child predicate |

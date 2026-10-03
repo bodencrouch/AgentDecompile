@@ -84,9 +84,14 @@ def test_skills_catalog() -> None:
     assert "source-recovery" in catalog
     assert "tiered-re-analysis" in catalog
     assert "README.md" in catalog
+    # Since 42f36efa (docs: align runtime reuse and recovery operating
+    # policy), skills/<name>/SKILL.md is a thin pointer to the canonical
+    # copy under .agents/skills/<name>/SKILL.md, not a byte-for-byte mirror
+    # -- only the frontmatter stays identical.
     source = (REPO / "skills/source-recovery/SKILL.md").read_text(encoding="utf-8")
     agents = (REPO / ".agents/skills/source-recovery/SKILL.md").read_text(encoding="utf-8")
-    assert source == agents
+    assert source.split("---")[1] == agents.split("---")[1]
+    assert "../../.agents/skills/source-recovery/SKILL.md" in source
 
 
 def test_webui_hero_matches_hero_doc() -> None:

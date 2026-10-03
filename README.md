@@ -15,7 +15,7 @@ flowchart TD
   B --> D[AgentDecompile runtime]
   C --> D
   D --> E[PyGhidra and Ghidra projects]
-  D --> F[75 canonical tools, 71 advertised, 4 GUI-only]
+  D --> F[77 canonical tools, 73 advertised, 4 GUI-only]
   D --> G[Corpus pipeline]
 ```
 

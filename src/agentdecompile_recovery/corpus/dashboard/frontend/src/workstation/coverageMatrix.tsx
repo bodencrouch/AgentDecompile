@@ -6,19 +6,27 @@ export type MatrixTierCell={status:'available'|'unavailable';reason:string;verif
 const unavailable=(reason:string):TierState=>({status:'unavailable',reason});
 const validCount=(value:unknown)=>Number.isSafeInteger(value)&&Number(value)>=0;
 const unique=(values:unknown):values is string[]=>Array.isArray(values)&&values.every(value=>typeof value==='string'&&value.length>0)&&new Set(values).size===values.length;
+const validHash=(value:unknown)=>typeof value==='string'&&value.length===64&&/^[0-9a-f]{64}$/.test(value);
 
 export function matrixTierCell(response:Data|undefined,expected:{logicalId:string;corpusIdentity:string;slug:string;contentSha256:string;expectedVersion:string}):MatrixTierCell {
   const fail=(reason:string):MatrixTierCell=>({status:'unavailable',reason,verified:unavailable(reason),advisory:unavailable(reason),unclassified:unavailable(reason)});
-  if(!expected.logicalId||!expected.corpusIdentity||!expected.slug||!/^[0-9a-f]{64}$/.test(expected.contentSha256)||expected.expectedVersion!==expected.contentSha256)return fail('Exact selection and content-hash version are required.');
+  if(!/^[1-9][0-9]*$/.test(expected.logicalId)||!Number.isSafeInteger(Number(expected.logicalId))||String(Number(expected.logicalId))!==expected.logicalId||!expected.corpusIdentity||!expected.slug||!validHash(expected.contentSha256)||expected.expectedVersion!==expected.contentSha256)return fail('Exact selection and content-hash version are required.');
   const projection=response?.matrix_projection,binary=projection?.binary;
   if(!projection)return fail(response?.error||'Per-entity tier report unavailable.');
+  if(response?.ok!==true||response?.status!=='available')return fail(response?.error||'Per-entity tier report failed.');
+  const scopeMatches=(scope:Data|undefined)=>scope?.kind==='logical_function'&&Number.isSafeInteger(scope.logical_id)&&scope.logical_id===Number(expected.logicalId)&&Object.keys(scope).length===2;
+  if(!scopeMatches(projection.selection_scope)||!scopeMatches(response?.report?.selection_scope))return fail('Report scope does not match the selected logical entity.');
+  if(projection.unbound!==null||projection.unbound_status!=='not_requested')return fail('Scoped report supplied global unbound counts.');
   if(projection.corpus_identity!==expected.corpusIdentity)return fail('Report belongs to another corpus selection.');
   if(projection.freshness?.status!=='current')return fail(projection.freshness?.reason||'Report is stale or failed.');
   if(binary?.slug!==expected.slug||binary?.content_sha256!==expected.contentSha256||binary?.version!==expected.expectedVersion)return fail('Report basis does not match this exact build and requested version.');
-  if(typeof binary?.report_sha256!=='string'||!/^[0-9a-f]{64}$/.test(binary.report_sha256))return fail('Report digest is missing or malformed.');
-  if(!Array.isArray(projection.rows))return fail('Logical tier rows are malformed.');
-  const row=projection.rows.find((item:Data)=>String(item.logical_id)===expected.logicalId);
-  if(!row)return fail('No authoritative tier row was returned for this logical entity.');
+  const reportBinary=response?.report?.binary;
+  if(reportBinary?.slug!==binary.slug||reportBinary?.content_sha256!==binary.content_sha256||reportBinary?.version!==binary.version)return fail('Report and projection build bases differ.');
+  if(!validHash(binary?.report_sha256))return fail('Report digest is missing or malformed.');
+  if(response?.report?.report_sha256!==binary.report_sha256)return fail('Report and projection digests differ.');
+  if(!Array.isArray(projection.rows)||projection.rows.length!==1)return fail('Scoped report must contain exactly one logical tier row.');
+  const row=projection.rows[0];
+  if(!Number.isSafeInteger(row?.logical_id)||row.logical_id!==Number(expected.logicalId))return fail('No authoritative tier row was returned for this logical entity.');
   if(!unique(row.member_keys)||!validCount(row.physical_members)||row.member_keys.length!==row.physical_members)return fail('Physical member count does not equal its member set.');
   const tierKeys:string[]=[];
   for(const name of ['verified','advisory','unclassified']){

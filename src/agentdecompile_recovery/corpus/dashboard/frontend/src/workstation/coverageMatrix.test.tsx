@@ -38,7 +38,7 @@ describe("coverage by build", () => {
   it("renders a read-only table and never claims a locator status", () => {
     const html = renderToStaticMarkup(createElement(CoverageMatrix, { members, binaries }));
     expect(html).toContain("3 of 4 builds return a member for this identity.");
-    expect(html).toContain("Locator status is not shown.");
+    expect(html).toContain("Unavailable · Exact selection and content-hash version are required.");
     expect(html).toContain("Not in the binary library");
     expect(html).not.toContain("<button");
     for (const status of ["resolved", "unresolved", "ambiguous", "contested", "pinned", "degraded"])

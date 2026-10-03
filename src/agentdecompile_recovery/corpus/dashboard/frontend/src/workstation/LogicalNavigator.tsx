@@ -29,7 +29,7 @@ export function LogicalNavigator({selection,binaries,corpus,revision,onSelect,on
     setTierReports({key:tierKey,reports:{},loading:true});
     const queue=(JSON.parse(binaryBasis) as [string,string][]).filter(([slug,hash])=>slug&&hash).map(([slug,hash])=>({slug,content_sha256:hash}));
     let next=0;const reports:Record<string,Data>={};
-    async function worker(){while(next<queue.length&&!controller.signal.aborted){const binary=queue[next++],hash=binary.content_sha256;const params=new URLSearchParams({slug:String(binary.slug),version:hash,corpusIdentity:expected});try{reports[binary.slug]=await request(`${API}/progress-report?${params}`,{signal:AbortSignal.any([controller.signal,AbortSignal.timeout(15000)])});}catch(error){if(!controller.signal.aborted)reports[binary.slug]={error:String(error)};}if(!controller.signal.aborted)setTierReports({key:tierKey,reports:{...reports},loading:true});}}
+    async function worker(){while(next<queue.length&&!controller.signal.aborted){const binary=queue[next++],hash=binary.content_sha256;const params=new URLSearchParams({slug:String(binary.slug),version:hash,corpusIdentity:expected,logicalId:selection.logicalId});try{reports[binary.slug]=await request(`${API}/progress-report?${params}`,{signal:AbortSignal.any([controller.signal,AbortSignal.timeout(15000)])});}catch(error){if(!controller.signal.aborted)reports[binary.slug]={error:String(error)};}if(!controller.signal.aborted)setTierReports({key:tierKey,reports:{...reports},loading:true});}}
     void Promise.all([worker(),worker()]).then(()=>{if(!controller.signal.aborted)setTierReports({key:tierKey,reports:{...reports},loading:false});});
     return()=>controller.abort();
   },[tierKey,binaryBasis,expected]);

@@ -3220,16 +3220,24 @@
   function staticMatrixCell(body, expected) {
     const p = body && body.matrix_projection, b = p && p.binary;
     const fail = function (reason) { return { verified: "Unavailable · " + reason, advisory: "Unavailable · " + reason, unclassified: "Unavailable · " + reason }; };
-    if (!expected.logicalId || !expected.corpusIdentity || !expected.slug || !/^[0-9a-f]{64}$/.test(expected.version)) return fail("Exact selection and content-hash version are required.");
+    const validHash = function (value) { return typeof value === "string" && value.length === 64 && /^[0-9a-f]{64}$/.test(value); };
+    if (!/^[1-9][0-9]*$/.test(expected.logicalId) || !Number.isSafeInteger(Number(expected.logicalId)) || String(Number(expected.logicalId)) !== expected.logicalId || !expected.corpusIdentity || !expected.slug || !validHash(expected.version)) return fail("Exact selection and content-hash version are required.");
     if (!p) return fail(body && body.error || "Tier report unavailable.");
+    if (body.ok !== true || body.status !== "available") return fail(body.error || "Tier report failed.");
+    const scopeMatches = function (scope) { return scope && scope.kind === "logical_function" && Number.isSafeInteger(scope.logical_id) && scope.logical_id === Number(expected.logicalId) && Object.keys(scope).length === 2; };
+    if (!scopeMatches(p.selection_scope) || !scopeMatches(body.report && body.report.selection_scope)) return fail("Report scope does not match the selected logical entity.");
+    if (p.unbound !== null || p.unbound_status !== "not_requested") return fail("Scoped report supplied global unbound counts.");
     if (p.corpus_identity !== expected.corpusIdentity || !p.freshness || p.freshness.status !== "current") return fail("Stale or different corpus report.");
-    if (!b || b.slug !== expected.slug || b.content_sha256 !== expected.version || b.version !== expected.version || !/^[0-9a-f]{64}$/.test(String(b.report_sha256 || ""))) return fail("Exact build/version basis mismatch.");
-    if (!Array.isArray(p.rows)) return fail("Logical tier rows are malformed.");
-    const row = p.rows.find(function (item) { return String(item.logical_id) === expected.logicalId; });
-    if (!row) return fail("No authoritative row for this identity.");
+    if (!b || b.slug !== expected.slug || b.content_sha256 !== expected.version || b.version !== expected.version || !validHash(b.report_sha256)) return fail("Exact build/version basis mismatch.");
+    const reportBinary = body.report && body.report.binary;
+    if (!reportBinary || reportBinary.slug !== b.slug || reportBinary.content_sha256 !== b.content_sha256 || reportBinary.version !== b.version) return fail("Report and projection build bases differ.");
+    if (!body.report || body.report.report_sha256 !== b.report_sha256) return fail("Report and projection digests differ.");
+    if (!Array.isArray(p.rows) || p.rows.length !== 1) return fail("Scoped report must contain exactly one logical tier row.");
+    const row = p.rows[0];
+    if (!row || !Number.isSafeInteger(row.logical_id) || row.logical_id !== Number(expected.logicalId)) return fail("No authoritative row for this identity.");
     const names = ["verified", "advisory", "unclassified"], all = [];
     const validKey = function (key) { return typeof key === "string" && key.length > 0; };
-    if (!Array.isArray(row.member_keys) || !row.member_keys.every(validKey) || new Set(row.member_keys).size !== row.member_keys.length || row.member_keys.length !== row.physical_members) return fail("Physical member set mismatch.");
+    if (!Array.isArray(row.member_keys) || !row.member_keys.every(validKey) || new Set(row.member_keys).size !== row.member_keys.length || !Number.isSafeInteger(row.physical_members) || row.physical_members < 0 || row.member_keys.length !== row.physical_members) return fail("Physical member set mismatch.");
     const rowKeys = new Set(row.member_keys);
     for (const name of names) {
       const tier = row[name];
@@ -3294,7 +3302,7 @@
         if(!body.corpus||body.corpus.identity!==corpus){setState(body.error||"Logical detail lacks the exact current corpus identity.");return;}
         setDetailState({ key: key, data: body });
         const queue=(binaries||[]).filter(function(b){return b.slug&&(b.content_sha256||b.contentSha256||b.sha256);}), found={};let next=0;
-        async function worker(){while(next<queue.length&&!c.signal.aborted){const b=queue[next++],version=String(b.content_sha256||b.contentSha256||b.sha256),q=new URLSearchParams({slug:String(b.slug),version:version,corpusIdentity:corpus});try{found[b.slug]=await fetch(API.progressReport+"?"+q,{cache:"no-store",signal:AbortSignal.any([c.signal,AbortSignal.timeout(15000)])}).then(function(r){return r.json();});}catch(err){if(!c.signal.aborted)found[b.slug]={error:String(err)};}if(!c.signal.aborted)setReportState({key:key,data:Object.assign({},found)});}}
+        async function worker(){while(next<queue.length&&!c.signal.aborted){const b=queue[next++],version=String(b.content_sha256||b.contentSha256||b.sha256),q=new URLSearchParams({slug:String(b.slug),version:version,corpusIdentity:corpus,logicalId:chosen});try{found[b.slug]=await fetch(API.progressReport+"?"+q,{cache:"no-store",signal:AbortSignal.any([c.signal,AbortSignal.timeout(15000)])}).then(function(r){return r.json();});}catch(err){if(!c.signal.aborted)found[b.slug]={error:String(err)};}if(!c.signal.aborted)setReportState({key:key,data:Object.assign({},found)});}}
         await Promise.all([worker(),worker()]);if(!c.signal.aborted){setReportState({ key: key, data: found });setState("");}
       }).catch(function(err){if(!c.signal.aborted)setState(String(err&&err.message||err));});
       return function(){c.abort();};

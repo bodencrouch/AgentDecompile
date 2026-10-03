@@ -685,12 +685,18 @@ def create_dashboard_router() -> APIRouter:
 
     @router.get("/dashboard/api/workbench/progress-report")
     async def workbench_progress_report(request: Request) -> JSONResponse:
-        from .progress_reports import progress_report
+        from .progress_reports import progress_report, parse_logical_id
+
+        try:
+            logical_id = parse_logical_id(request.query_params.getlist("logicalId"))
+        except ValueError as exc:
+            return JSONResponse({'ok': False, 'status': 'unavailable', 'error': str(exc)}, status_code=503)
 
         payload = await asyncio.to_thread(progress_report,
             slug=request.query_params.get("slug", ""),
             version=request.query_params.get("version", ""),
-            corpus_identity=request.query_params.get("corpusIdentity", ""))
+            corpus_identity=request.query_params.get("corpusIdentity", ""),
+            logical_id=logical_id)
         return JSONResponse(payload, status_code=200 if payload.get("ok") else 503)
 
     @router.get("/dashboard/api/workbench/exports")

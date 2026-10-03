@@ -530,19 +530,33 @@ def dispatch(args: argparse.Namespace) -> int | None:
 
     if cmd == "bind-identities":
         from . import propagate as prop
+        from .cli import _refusal_line
+        from .determinism_basis import BasisError
+        from .logical import ContentHashError
         from .store import connect
 
         con = connect(args.db)
-        bound = prop.bind_identities(con, args.run)
+        try:
+            bound = prop.bind_identities(con, args.run)
+        except (BasisError, ContentHashError) as exc:
+            print(_refusal_line(exc) or f"error: {exc}", file=sys.stderr)
+            return 2
         print(json.dumps({"bound": bound, "run": args.run}, indent=2))
         return 0
 
     if cmd == "reclassify-matches":
         from . import propagate as prop
+        from .cli import _refusal_line
+        from .determinism_basis import BasisError
+        from .logical import ContentHashError
         from .store import connect
 
         con = connect(args.db)
-        changed, bound, dropped = prop.reclassify_existing(con, args.run)
+        try:
+            changed, bound, dropped = prop.reclassify_existing(con, args.run)
+        except (BasisError, ContentHashError) as exc:
+            print(_refusal_line(exc) or f"error: {exc}", file=sys.stderr)
+            return 2
         print(json.dumps({"downgraded": changed, "bound": bound, "deduped": dropped}, indent=2))
         return 0
 

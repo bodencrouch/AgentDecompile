@@ -1,0 +1,7 @@
+# Independent next corpus DDL contract review
+
+QUEUED report-only review. Read complete next-corpus-ddl-contract.md (122 lines) against current reviewed5578ae9c Task2.4 source, U2 requirement/extract, previous schemas/contracts/reviews and actual convention/store/migration/deletion/helper consumers. Author was /root/review_decomp_production; independent reviewer must be another agent. Own ONLY W/corpus-ddl-contract-review.md.
+
+Evaluate one convention domain, migration12, pure complete current guard and preserved raw nonapplying read/computation compatibility; actual applying API/payload/ABI algorithms, caller successful-commit/private-savepoint ownership/uncertainty, unknownNULL historical values and absent-vs-empty inventory behavior, main/TEMP/canonicalcase checks, frozen mandatory deletion12+earlier9-11/future13, reader decomp12 compatibility, exact fixture impacts and necessary caller census. No declaration-only approval, generic framework or full-unit claim. Confirm no U9/native source ownership overlap; larger type/caller packet explicitly waits for U9 release. Spec and quality readiness with Critical/Important/Minor confidence/source lines and concrete paired controls, report only.
+
+No source/Git/subagents/tests/collection/build/typecheck/projectimports/DB/fingerprint/crypto/process/runtime/helper/capture/live/provisioning. Text/AST/diff only. Another controller makes adoption decision; no self-adoption. Full U2/U22/U82 and actual execution gates remain open.

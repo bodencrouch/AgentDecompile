@@ -11,3 +11,7 @@ Capture90s under admitted600s with preserved phase reservations; nonblocking met
 Author real-interface boundary regression definitions for every adopted paired control, including unexpected credentials/rights, uncertainty, cancellation/report-before-exit, lost identity and one-use handles. No fake process identity or copier success becomes qualification. Minor strictJSON specimens from11.6a remain deferred unless needed for split compatibility; no unrelated changes. Full stage/export/confined target/collection/seal/reader/physical cleanup/host proof remain mandatory later.
 
 SOURCE ONLY: no tests/collection/build/typechecks/project imports/DB/crypto/signing/keygen/fingerprint/compiler/checker/runtime/helper/capture/process/provisioning/live operations. AST/text/diff checks allowed. Code authoring may define future process APIs but never call them. No Git, restart/systemctl/activation, host installation or runtime admission. Return READY_TO_COMMIT exact paths/source checks and clear inherited versus actual limits.
+
+## Controller concurrent regression ownership
+
+NEW tests/test_grid_native_capture.py and W/task-11-native-helper-tests-report.md exclusively /root/author_native_capture_regressions. Production worker paused before creating that test file and retains all production, existing profile split assertions and production report. Coordinate stable interfaces directly; no operation execution. Final independent source review must include both authored reports and the coherent tests.

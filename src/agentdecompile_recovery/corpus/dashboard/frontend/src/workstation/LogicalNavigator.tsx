@@ -1,4 +1,5 @@
 import {TierProgress} from '../TierProgress';
+import {PublishApprove} from '../PublishApprove';
 import {ExportReadiness} from '../ExportReadiness';
 import {useEffect,useRef,useState} from 'react';
 import {API,request,type Data,type Selection} from '../contracts';
@@ -70,5 +71,6 @@ export function LogicalNavigator({selection,binaries,corpus,revision,onSelect,on
     </section>}
     <TierProgress selection={selection} revision={revision}/>
     <ExportReadiness selection={selection} revision={revision}/>
+    <PublishApprove selection={selection} revision={revision}/>
   </div>;
 }

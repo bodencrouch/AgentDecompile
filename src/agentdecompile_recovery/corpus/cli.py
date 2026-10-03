@@ -578,6 +578,31 @@ def build_parser(prog: str | None = None) -> argparse.ArgumentParser:
     export_rr.add_argument("--db", type=Path, required=True)
     export_rr.add_argument("--out", type=Path, required=True)
 
+    pub_status = sub.add_parser(
+        "publish-status",
+        help="Read the count-reconciliation gate and any recorded publish approval; never sends anything",
+    )
+    pub_status.add_argument("--db", type=Path, required=True)
+    pub_status.add_argument(
+        "--approval-file", type=Path,
+        help="Defaults to publish-approval.json next to --db",
+    )
+
+    pub_approve = sub.add_parser(
+        "publish-approve",
+        help="Record an explicit operator approval to publish once the gate passes; makes no outbound network call",
+    )
+    pub_approve.add_argument("--db", type=Path, required=True)
+    pub_approve.add_argument(
+        "--approval-file", type=Path,
+        help="Defaults to publish-approval.json next to --db",
+    )
+    pub_approve.add_argument(
+        "--confirm", action="store_true",
+        help="Required explicit operator confirmation; refused without it",
+    )
+    pub_approve.danger = pub_approve.mutating = True
+
     gurl = sub.add_parser("ghidra-url", help="Print the Ghidra URL for a repo path")
     gurl.add_argument("path")
 
@@ -1345,6 +1370,23 @@ def main(argv: list[str] | None = None, prog: str | None = None) -> int:
         report = write_report(args.db, args.out)
         print(json.dumps({"out": report["out"], "summary": report["summary"]}, indent=2))
         return 0
+    if args.cmd == "publish-status":
+        from .publish_gate import default_approval_path, publish_status
+        from .store import connect
+
+        con = connect(args.db)
+        approval_file = args.approval_file or default_approval_path(args.db)
+        print(json.dumps(publish_status(con, approval_file), indent=2))
+        return 0
+    if args.cmd == "publish-approve":
+        from .publish_gate import approve_publish, default_approval_path
+        from .store import connect
+
+        con = connect(args.db)
+        approval_file = args.approval_file or default_approval_path(args.db)
+        result = approve_publish(con, approval_file, confirm=args.confirm)
+        print(json.dumps(result, indent=2))
+        return 0 if result.get("ok") else 1
     if args.cmd == "ghidra-url":
         from .ghidra_url import ghidra_url
 

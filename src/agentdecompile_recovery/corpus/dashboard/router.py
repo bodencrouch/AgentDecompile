@@ -793,6 +793,25 @@ def create_dashboard_router() -> APIRouter:
             corpus_identity=request.query_params.get("corpusIdentity", ""))
         return JSONResponse(payload, status_code=200 if payload.get("ok") else 503)
 
+    @router.get("/dashboard/api/workbench/publish-status")
+    async def workbench_publish_status() -> JSONResponse:
+        from .publish_approval import publish_status
+
+        payload = await asyncio.to_thread(publish_status)
+        return JSONResponse(payload, status_code=200 if payload.get("ok") else 503)
+
+    @router.post("/dashboard/api/workbench/publish-approve")
+    async def workbench_publish_approve(request: Request) -> JSONResponse:
+        from .publish_approval import approve_publish
+
+        body: dict = {}
+        try:
+            body = await request.json()
+        except Exception:
+            body = {}
+        payload = await asyncio.to_thread(approve_publish, confirm=bool(body.get("confirm")))
+        return JSONResponse(payload, status_code=200 if payload.get("ok") else 400)
+
     @router.get("/dashboard/api/workbench/exports")
     async def workbench_exports(request: Request) -> JSONResponse:
         from .export_listing import list_export_bundles

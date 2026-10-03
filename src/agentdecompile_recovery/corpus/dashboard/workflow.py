@@ -97,6 +97,7 @@ def _extract_advisory_witnesses(
     context: dict[str, Any],
     action: Callable[..., dict[str, Any]],
     update: Callable[..., None],
+    mutate_state: Callable[..., dict[str, Any]],
 ) -> tuple[Path, bool, str | None]:
     """Fill the fingerprint-bound Ghidra C cache before compiler admission.
 
@@ -104,16 +105,23 @@ def _extract_advisory_witnesses(
     program even when no measured compiler profile exists yet.  Compilation,
     propagation, and byte proof remain downstream of profile admission.
     """
+    def save_knowledge(values=None, remove=()):
+        basis = {'program': program, 'fingerprint': checkpoint.get('programFingerprint'), 'recoveryFamily': checkpoint.get('recoveryFamily')}
+        updated = mutate_state(basis, {'name': 'knowledge', 'values': values or {}, 'remove': list(remove)})
+        checkpoint.clear()
+        checkpoint.update(updated)
+
     fingerprint = str(checkpoint.get('programFingerprint') or 'unknown')
     program_kb = work / ('knowledge-' + fingerprint + '.sqlite')
     progress_path = work / 'decompilation-progress.json'
     if (checkpoint.get('knowledgeFingerprint') != fingerprint or
             checkpoint.get('knowledgeDb') != str(program_kb) or not program_kb.is_file()):
-        for key in ('knowledgeCursor', 'knowledgeComplete', 'knowledgeAvailable'):
-            checkpoint.pop(key, None)
+        save_knowledge(remove=('knowledgeCursor', 'knowledgeComplete', 'knowledgeAvailable'))
     cursor = str(checkpoint.get('knowledgeCursor') or '')
     failure: str | None = None
-    row['functionProgressFile'] = str(progress_path)
+    mutate_state({'program': program, 'fingerprint': checkpoint.get('programFingerprint'), 'recoveryFamily': checkpoint.get('recoveryFamily')},
+                 {'name': 'progress-file', 'path': str(progress_path)})
+    completed_normally = False
     try:
         while not checkpoint.get('knowledgeComplete') or checkpoint.get('knowledgeFingerprint') != fingerprint:
             config = {'kb': str(program_kb), 'program': program, 'cursor': cursor, 'progress': str(progress_path)}
@@ -140,26 +148,29 @@ def _extract_advisory_witnesses(
                         program_kb.replace(bound_kb)
                     program_kb = bound_kb
                     fingerprint = observed_fingerprint
-                    checkpoint['programFingerprint'] = observed_fingerprint
+                    save_knowledge({'programFingerprint': observed_fingerprint})
                 else:
-                    checkpoint.pop('knowledgeCursor', None)
-                    checkpoint.pop('knowledgeComplete', None)
-                    checkpoint.pop('knowledgeAvailable', None)
-                    checkpoint['programFingerprint'] = observed_fingerprint
+                    save_knowledge({'programFingerprint': observed_fingerprint},
+                                   remove=('knowledgeCursor', 'knowledgeComplete', 'knowledgeAvailable'))
                     failure = 'The opened Ghidra program changed since the prior source receipt; a fresh fingerprint-bound extraction is queued.'
                     break
             cursor = str(payload['cursor'])
-            checkpoint.update(
+            save_knowledge(dict(
                 knowledgeCursor=cursor,
                 knowledgeComplete=not payload['more'],
                 knowledgeFingerprint=fingerprint,
                 knowledgeDb=str(program_kb),
                 knowledgeAvailable=payload['available'],
-            )
+            ))
             update('recover-source', 'running', f'{program}: {payload["attempted"]} of {payload["total"]} functions decompiled.',
                    workProgress={'completed': payload['attempted'], 'total': payload['total'], 'unit': 'functions'})
+        completed_normally = True
     finally:
-        row.pop('functionProgressFile', None)
+        # Preserve the original action/commit failure, including its typed
+        # persistence decision. A fault is not permission for another cleanup.
+        if completed_normally:
+            mutate_state({'program': program, 'fingerprint': checkpoint.get('programFingerprint'), 'recoveryFamily': checkpoint.get('recoveryFamily')},
+                         {'name': 'progress-file', 'path': str(progress_path), 'clear': True})
     return program_kb, _knowledge_has_program(program_kb, program), failure
 
 
@@ -167,7 +178,8 @@ def continue_recovery(row: dict[str, Any], root: Path, db: Path,
                       action: Callable[..., dict[str, Any]], update: Callable[..., None],
                       execution_routes: dict[str, tuple[str, str]] | None = None,
                       recovery_family: str = '', programs: list[str] | None = None,
-                      all_programs: list[str] | None = None) -> None:
+                      all_programs: list[str] | None = None, *,
+                      mutate_state: Callable[..., dict[str, Any]]) -> None:
     """Recover one explicit family while projecting stages across the project."""
     all_programs = list(all_programs or row.get('programs') or [])
     programs = list(programs or all_programs)
@@ -177,6 +189,13 @@ def continue_recovery(row: dict[str, Any], root: Path, db: Path,
         'family': recovery_family or 'legacy', 'programs': programs,
     })
     family_receipt.update(state='running', updatedAt=time.time())
+    def family_basis():
+        members = list(family_receipt.get('programs', programs))
+        return {'family': recovery_family or 'legacy', 'programs': members,
+                'fingerprints': {p: row['checkpoints'].get(p, {}).get('programFingerprint') for p in members}}
+    initial_family = mutate_state(family_basis(), {'name': 'family-init', 'values': dict(family_receipt)})
+    family_receipt.clear()
+    family_receipt.update(initial_family)
 
     def aggregate(key: str) -> tuple[int, str, list[str]]:
         outcomes = [row['checkpoints'].get(item, {}).get('workflow', {}).get(key, {}) for item in all_programs]
@@ -187,14 +206,19 @@ def continue_recovery(row: dict[str, Any], root: Path, db: Path,
 
     for program in programs:
         checkpoint = row['checkpoints'].setdefault(program, {})
-        states = checkpoint.setdefault('workflow', {})
+        def commit_checkpoint(operation):
+            observed = mutate_state({'program': program, 'fingerprint': checkpoint.get('programFingerprint'), 'recoveryFamily': checkpoint.get('recoveryFamily')}, operation)
+            checkpoint.clear()
+            checkpoint.update(observed)
+        commit_checkpoint({'name': 'workflow-init'})
         work = root / 'recovery' / row['id'] / family_key / str(checkpoint.get('binaryId') or 'unresolved')
         execution_locator, execution_program = execution_routes.get(program, (row['locator'], program))
         context = {'locator': execution_locator, 'program': execution_program,
                    'slug': checkpoint.get('slug') or '', 'repo': checkpoint.get('repoPath') or ''}
 
         def result(key: str, status: str, reason: str, **details: Any) -> None:
-            states[key] = {'status': status, 'reason': reason, 'updatedAt': time.time(), **details}
+            checkpoint.setdefault('workflow', {})[key] = {'status': status, 'reason': reason, 'updatedAt': time.time(), **details}
+            commit_checkpoint({'name': 'stage-outcome', 'stage': key, 'values': checkpoint['workflow'][key]})
             completed, _, _ = aggregate(key)
             update(key, 'running', f'{program}: {reason}', completed=completed, total=len(all_programs),
                    currentProgram=program, recoveryFamily=recovery_family,
@@ -203,7 +227,7 @@ def continue_recovery(row: dict[str, Any], root: Path, db: Path,
         def block_after(start: str, reason: str) -> None:
             keys = [key for key, _ in STAGES]
             for key in keys[keys.index(start):]:
-                if states.get(key, {}).get('status') in {'completed', 'partial'}:
+                if checkpoint.get('workflow', {}).get(key, {}).get('status') in {'completed', 'partial'}:
                     continue
                 result(key, 'blocked', reason, dependencies=[start])
 
@@ -243,7 +267,7 @@ def continue_recovery(row: dict[str, Any], root: Path, db: Path,
             protection=checkpoint.get('protection'),
             source_provenance=authority,
         )
-        checkpoint['targetImage'] = target_image
+        commit_checkpoint({'name': 'target-image', 'values': {'targetImage': target_image}})
         if target_image.get('ok'):
             original_target = Path(str(target_image['targetPath']))
             result('materialize-target', 'completed', 'Original executable bytes copied and hash-bound for independent comparison.',
@@ -299,7 +323,7 @@ def continue_recovery(row: dict[str, Any], root: Path, db: Path,
             continue
         program_kb, has_witnesses, extraction_failure = _extract_advisory_witnesses(
             row=row, checkpoint=checkpoint, work=work, program=program,
-            context=context, action=action, update=update,
+            context=context, action=action, update=update, mutate_state=mutate_state,
         )
         if has_witnesses:
             available = int(checkpoint.get('knowledgeAvailable') or 0)
@@ -350,7 +374,7 @@ def continue_recovery(row: dict[str, Any], root: Path, db: Path,
                    nextAction='Configure target compiler and layout evidence')
             block_after('assembly-floor', 'Waiting for target compiler and layout evidence.')
             continue
-        checkpoint['toolchain'] = compiler
+        commit_checkpoint({'name': 'toolchain', 'values': {'toolchain': compiler}})
         result('calibrate-global', 'completed', 'Compiler and layout inputs available; calibration receipt retained.', receipt=str(work / 'calibrate-global.json'))
         if original_target is None:
             block_after('assembly-floor', 'Waiting for an original-byte verification target.')
@@ -438,6 +462,9 @@ def continue_recovery(row: dict[str, Any], root: Path, db: Path,
         updatedAt=time.time(),
         outcomes={program: row['checkpoints'].get(program, {}).get('workflow', {}) for program in programs},
     )
+    final_family = mutate_state(family_basis(), {'name': 'family-finalize', 'values': dict(family_receipt)})
+    family_receipt.clear()
+    family_receipt.update(final_family)
     for key, _ in STAGES:
         completed, status, reasons = aggregate(key)
         update(key, status, '; '.join(reasons[:3]) or f'{completed} programs completed this stage.', completed=completed, total=len(all_programs), currentProgram='', currentAction='', recoveryFamily='')

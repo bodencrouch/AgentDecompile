@@ -189,10 +189,16 @@ def action_by_id(action_id: str) -> ActionSpec | None:
     return None
 
 
-def env_defaults() -> dict[str, str]:
-    db = live_db()
-    project_root = runtime_project_root()
-    work_dir = runtime_work_dir()
+def env_defaults(*, root: Path | None = None, db: Path | None = None) -> dict[str, str]:
+    if root is None:
+        db = live_db() if db is None else db
+        project_root = runtime_project_root()
+        work_dir = runtime_work_dir()
+    else:
+        project_root = root
+        if db is not None and db.parent.name == 'db' and (db.parent.parent / 'corpus_work').is_dir():
+            project_root = db.parent.parent
+        work_dir = project_root / 'corpus_work' if (project_root / 'corpus_work').is_dir() else project_root
     kb = KNOWLEDGE_DB
     if db is not None:
         sibling_knowledge = db.parent / "ghidra_knowledge.sqlite"
@@ -221,7 +227,7 @@ def env_defaults() -> dict[str, str]:
     }
 
 
-def apply_defaults(action: ActionSpec, params: dict[str, Any], context: dict[str, Any] | None = None) -> dict[str, Any]:
+def apply_defaults(action: ActionSpec, params: dict[str, Any], context: dict[str, Any] | None = None, *, defaults: dict[str, str] | None = None, db: Path | None = None) -> dict[str, Any]:
     """Fill empty fields from page context and corpus environment."""
     merged = dict(params)
     if action.backend == "mcp-cli":
@@ -233,7 +239,7 @@ def apply_defaults(action: ActionSpec, params: dict[str, Any], context: dict[str
                 merged.pop(key, None)
                 if target not in params:
                     merged[target] = value
-    ctx = dict(env_defaults())
+    ctx = dict(env_defaults() if defaults is None else defaults)
     if context:
         for key, value in context.items():
             if value not in (None, ""):
@@ -245,6 +251,7 @@ def apply_defaults(action: ActionSpec, params: dict[str, Any], context: dict[str
         rows, _ = query_db(
             "SELECT repo_path FROM binary WHERE slug=? LIMIT 1", (str(ctx["slug"]),),
             ignore_missing=True,
+            db=db,
         )
         if rows and rows[0][0]:
             ctx["program"] = str(rows[0][0])

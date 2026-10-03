@@ -123,6 +123,7 @@ class JobRecord:
     trusted_preparation_facts_inventory: bool = False
     trusted_preparation_probe: bool = False
     mcp_reserve: Callable[[str], Any] | None = field(default=None, repr=False, compare=False)
+    preparation_authority: Any = field(default=None, repr=False, compare=False)
     resource_disposition: str = "unreserved"
     resource_keys: dict[str, Any] = field(default_factory=dict)
     execution_attempt: str = field(default_factory=lambda: uuid.uuid4().hex)
@@ -1006,6 +1007,8 @@ class JobStore:
         trusted_preparation_facts_inventory: bool = False,
         trusted_preparation_probe: bool = False,
         mcp_reserve: Callable[[str], Any] | None = None,
+        preparation_authority: Any = None,
+        _execution_root: Path | None = None,
     ) -> JobRecord:
         job = JobRecord(
             id=uuid.uuid4().hex[:12],
@@ -1013,11 +1016,14 @@ class JobStore:
             title=action.title,
             argv=list(argv),
             params=dict(params),
-            execution_root=str((live_root() or Path.cwd()).resolve()),
+            execution_root=str(preparation_authority.root if preparation_authority is not None else _execution_root if _execution_root is not None else (live_root() or Path.cwd()).resolve()),
             trusted_preparation_facts_inventory=trusted_preparation_facts_inventory,
             trusted_preparation_probe=trusted_preparation_probe,
             mcp_reserve=mcp_reserve,
+            preparation_authority=preparation_authority,
         )
+        if preparation_authority is not None:
+            preparation_authority.root_start('allocated', job.id)
         cancel = threading.Event()
         with self._lock:
             _observe_native_no_dispatch(job)
@@ -1033,8 +1039,10 @@ class JobStore:
             name=f"dashboard-job-{job.id}",
             daemon=True,
         )
+        if preparation_authority is not None:
+            preparation_authority.root_start('attempted', job.id)
         thread.start()
-        return self.get(job.id) or job
+        return self.get(job.id) or _copy_job(job)
 
     def cancel(self, job_id: str) -> JobRecord | None:
         from .job_history import request_cancel
@@ -1062,6 +1070,17 @@ class JobStore:
             return _copy_job(job)
 
     def _run(self, job_id: str, cancel: threading.Event) -> None:
+        # Authority exists only on the internal live record; copies/history omit it.
+        authority = self._jobs[job_id].preparation_authority
+        try:
+            if authority is not None:
+                authority.root_start('entered', job_id)
+            self._run_body(job_id, cancel)
+        finally:
+            if authority is not None:
+                authority.root_start('finished', job_id)
+
+    def _run_body(self, job_id: str, cancel: threading.Event) -> None:
         identity_key = ""
         pair_entry: tuple[str, str] | None = None
         ghidra_key = ""
@@ -1198,8 +1217,15 @@ class JobStore:
                 self._wait_for_process_owner(job_id, proc, output)
 
             if action is not None and action.backend == "preparation":
-                from agentdecompile_recovery.corpus.dashboard.preparation import execute
-                code, log = execute(dict(job.params), cancel)
+                from agentdecompile_recovery.corpus.dashboard import preparation
+                try:
+                    code, log = preparation.execute(dict(job.params), cancel, authority=job.preparation_authority)
+                except preparation._PreparationIssuanceWait as exc:
+                    code, log = 1, json.dumps(preparation.authority_refusal(exc)[0])
+                except preparation._PreparationControlWait as exc:
+                    code, log = 1, json.dumps(preparation.authority_refusal(exc)[0])
+                except preparation._PreparationAuthorityRefused as exc:
+                    code, log = 1, json.dumps(preparation.authority_refusal(exc)[0])
             elif action is not None and action.backend == "match-review":
                 from .match_review import execute
                 code, log = execute(dict(job.params), cancel, decide=action.command == 'decide')
@@ -1207,8 +1233,15 @@ class JobStore:
                 from agentdecompile_recovery.corpus.dashboard.workflow import merge_evidence
                 code, log = 0, json.dumps(merge_evidence(str(job.params["db"]), str(job.params["run"])))
             elif action is not None and action.backend == "workflow-control":
-                from agentdecompile_recovery.corpus.dashboard.preparation import control
-                code, log = 0, json.dumps(control(dict(job.params)))
+                from agentdecompile_recovery.corpus.dashboard import preparation
+                try:
+                    code, log = 0, json.dumps(preparation.control(dict(job.params)))
+                except preparation._PreparationIssuanceWait as exc:
+                    code, log = 1, json.dumps(preparation.authority_refusal(exc)[0])
+                except preparation._PreparationControlWait as exc:
+                    code, log = 1, json.dumps(preparation.authority_refusal(exc)[0])
+                except preparation._PreparationAuthorityRefused as exc:
+                    code, log = 1, json.dumps(preparation.authority_refusal(exc)[0])
             elif action is not None and action.backend == "activity-snapshot":
                 from agentdecompile_recovery.corpus.dashboard.entity_activity import snapshot
                 code, log = 0, json.dumps(snapshot(locator=job.params.get("locator", ""), slug=job.params.get("slug", ""), program=job.params.get("program", "") or job.params.get("programPath", "")))
@@ -2209,11 +2242,32 @@ def start_job(
     dry_run: bool = False,
     _trusted_context: object | None = None,
     _mcp_reserve: Callable[[str], Any] | None = None,
+    _execution_context: Any = None,
 ) -> tuple[dict[str, Any], int]:
     action = action_by_id(action_id)
     if action is None:
         return {"error": f"unknown action {action_id}"}, 404
-    filled = apply_defaults(action, dict(params or {}), context)
+    if _execution_context is None:
+        filled = apply_defaults(action, dict(params or {}), context)
+    else:
+        # The private coordinator context is consumed here, never serialized or
+        # retained as the child's root preparation lifecycle capability.
+        captured_db = _execution_context.db
+        def require_captured_db(values):
+            raw = (values or {}).get('db')
+            if raw not in (None, ''):
+                selected = Path(str(raw)).expanduser()
+                if not selected.is_absolute():
+                    selected = _execution_context.root / selected
+                if selected.resolve() != captured_db:
+                    raise ValueError('Preparation child database conflicts with its captured workspace.')
+        require_captured_db(params)
+        require_captured_db(context)
+        filled = apply_defaults(action, dict(params or {}), context,
+                                defaults=_execution_context.execution_defaults, db=captured_db)
+        require_captured_db(filled)
+        if filled.get('db') not in (None, ''):
+            filled['db'] = str(captured_db)
     if action.backend == 'match-review':
         from .match_review import freeze
         from ...match_review import ReviewError
@@ -2242,9 +2296,15 @@ def start_job(
             return {"error": "identity writer needs --db", "actionId": action.id}, 400
         filled["db"] = key
     if action.backend == "preparation" and not dry_run:
-        from agentdecompile_recovery.corpus.dashboard.preparation import submit
+        from agentdecompile_recovery.corpus.dashboard import preparation
         try:
-            run = submit(filled, resume=bool(filled.get("resume", False)))
+            run = preparation.submit(filled, resume=bool(filled.get("resume", False)))
+        except preparation._PreparationIssuanceWait as exc:
+            return preparation.authority_refusal(exc)
+        except preparation._PreparationControlWait as exc:
+            return preparation.authority_refusal(exc)
+        except preparation._PreparationAuthorityRefused as exc:
+            return preparation.authority_refusal(exc)
         except (ValueError, OSError) as exc:
             return {"error": str(exc)}, 400
         job = get_job(run.get("jobId", ""))
@@ -2265,12 +2325,13 @@ def start_job(
             _trusted_context is _PREPARATION_PROBE
             and action.id == "mcp.execute-script"
         ),
+        _execution_root=_execution_context.root if _execution_context is not None else None,
     )
     return {"ok": True, "job": job.to_dict()}, 202
 
 
 def _start_preparation_facts_inventory(
-    params: dict[str, Any], context: dict[str, Any], *, _mcp_reserve=None
+    params: dict[str, Any], context: dict[str, Any], *, _mcp_reserve=None, _execution_context=None
 ) -> tuple[dict[str, Any], int]:
     """Submit the preparation-owned, read-only inventory script."""
     return start_job(
@@ -2280,11 +2341,12 @@ def _start_preparation_facts_inventory(
         confirm=True,
         _trusted_context=_PREPARATION_FACTS_INVENTORY,
         _mcp_reserve=_mcp_reserve,
+        _execution_context=_execution_context,
     )
 
 
 def _start_preparation_probe(
-    params: dict[str, Any], context: dict[str, Any], *, _mcp_reserve=None
+    params: dict[str, Any], context: dict[str, Any], *, _mcp_reserve=None, _execution_context=None
 ) -> tuple[dict[str, Any], int]:
     """Submit a preparation-owned, bounded read-only probe."""
     return start_job(
@@ -2294,6 +2356,7 @@ def _start_preparation_probe(
         confirm=True,
         _trusted_context=_PREPARATION_PROBE,
         _mcp_reserve=_mcp_reserve,
+        _execution_context=_execution_context,
     )
 
 

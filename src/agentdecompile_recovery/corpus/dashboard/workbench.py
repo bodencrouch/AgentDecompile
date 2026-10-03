@@ -388,10 +388,19 @@ def _admit_open_context(context: dict[str, Any]) -> dict[str, Any]:
     Non-resuming submit reuses current/completed receipts; opening a tab is not
     permission to reset budgets, unpause work or redo accepted analysis.
     """
-    from .preparation import submit
+    from . import preparation
 
     try:
-        row = submit(context, resume=False)
+        row = preparation.submit(context, resume=False)
+    except preparation._PreparationIssuanceWait as exc:
+        body, status = preparation.authority_refusal(exc)
+        return {**body, 'httpStatus': status}
+    except preparation._PreparationControlWait as exc:
+        body, status = preparation.authority_refusal(exc)
+        return {**body, 'httpStatus': status}
+    except preparation._PreparationAuthorityRefused as exc:
+        body, status = preparation.authority_refusal(exc)
+        return {**body, 'httpStatus': status}
     except (OSError, ValueError) as exc:
         return {"status": "blocked", "error": str(exc), "reason": str(exc)}
     return {

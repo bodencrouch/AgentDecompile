@@ -552,34 +552,38 @@ def test_part_destination_and_compatibility_dispatch_refuse_cross_domain(tmp_pat
 
 def test_matcher_input_v2_tracks_selector_and_selected_values_and_receipt_equality(tmp_path, monkeypatch):
     from agentdecompile_recovery.corpus.dashboard import preparation
-    path = tmp_path / 'cache.sqlite'
-    con = historical(path)
-    migrations.apply_pending(con)
-    monkeypatch.setattr(preparation, 'live_db', lambda: path)
-    monkeypatch.setattr(preparation, '_directory', lambda: tmp_path)
-    run = 'a' * 32
-    before = preparation._matching_input_digests({'/a', '/b'})
-    assert preparation._matching_input_digests({'/a', '/b'}) == before
-    assert before['/a']['schema'] == 'matcher-input-v2'
-    preparation.record_comparison_receipt(run, '/a', '/b', {'ok': True, 'jobId': 'job'}, before)
-    assert preparation.read_comparison_receipt(run, '/a', '/b', before)
-    decompile.ensure_decomp_columns(con)
-    transitioned = preparation._matching_input_digests({'/a', '/b'})
-    assert transitioned['/a']['digest'] != before['/a']['digest']
-    assert preparation.read_comparison_receipt(run, '/a', '/b', transitioned) is None
-    con.execute("UPDATE decomp SET ast_fingerprint='changed-ast' WHERE binary_id=1 AND addr=16")
-    con.commit()
-    changed = preparation._matching_input_digests({'/a', '/b'})
-    assert changed['/a'] != transitioned['/a']
-    assert changed['/b'] == transitioned['/b']
-    con.execute("UPDATE binary SET variant='unrelated' WHERE id=3")
-    con.commit()
-    assert preparation._matching_input_digests({'/a', '/b'}) == changed
-    old = {path: {**item, 'schema': 'matcher-input-v1'} for path, item in changed.items()}
-    preparation.record_comparison_receipt(run, '/a', '/b', {'ok': True, 'jobId': 'old'}, old)
-    assert preparation.read_comparison_receipt(run, '/a', '/b', changed) is None
-    con.close()
-
+    from test_preparation_authority import authority_environment
+    with authority_environment(tmp_path, monkeypatch) as factory:
+        path = tmp_path / 'cache.sqlite'
+        con = historical(path)
+        migrations.apply_pending(con)
+        monkeypatch.setattr(preparation, 'live_db', lambda: path)
+        run = 'a' * 32
+        before = preparation._matching_input_digests({'/a', '/b'})
+        assert preparation._matching_input_digests({'/a', '/b'}) == before
+        assert before['/a']['schema'] == 'matcher-input-v2'
+        authority = factory({'id': run, 'comparisonInputs': before}, db=path)
+        preparation.record_comparison_receipt(run, '/a', '/b', {'ok': True, 'jobId': 'job'}, before, authority=authority)
+        assert preparation.read_comparison_receipt(run, '/a', '/b', before, authority=authority)
+        decompile.ensure_decomp_columns(con)
+        transitioned = preparation._matching_input_digests({'/a', '/b'})
+        assert transitioned['/a']['digest'] != before['/a']['digest']
+        assert preparation.read_comparison_receipt(run, '/a', '/b', transitioned, authority=authority) is None
+        con.execute("UPDATE decomp SET ast_fingerprint='changed-ast' WHERE binary_id=1 AND addr=16")
+        con.commit()
+        changed = preparation._matching_input_digests({'/a', '/b'})
+        assert changed['/a'] != transitioned['/a']
+        assert changed['/b'] == transitioned['/b']
+        con.execute("UPDATE binary SET variant='unrelated' WHERE id=3")
+        con.commit()
+        assert preparation._matching_input_digests({'/a', '/b'}) == changed
+        old = {path: {**item, 'schema': 'matcher-input-v1'} for path, item in changed.items()}
+        with preparation._guard(authority):
+            authority.row['comparisonInputs'] = old
+            preparation._write(authority.row, authority=authority)
+        preparation.record_comparison_receipt(run, '/a', '/b', {'ok': True, 'jobId': 'old'}, old, authority=authority)
+        assert preparation.read_comparison_receipt(run, '/a', '/b', changed, authority=authority) is None
+        con.close()
 
 @pytest.mark.parametrize('shape', ['absent', 'legacy', 'ast-create'])
 def test_deletion_retains_global_state_even_after_last_binary(shape):

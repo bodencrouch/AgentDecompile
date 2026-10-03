@@ -5,6 +5,8 @@ from pathlib import Path
 
 import pytest
 
+from test_preparation_authority import authority_factory, resume
+
 from agentdecompile_recovery.corpus.dashboard import preparation
 from agentdecompile_recovery.corpus.dashboard.retry_policy import decide_retry, refusal_outcome
 from agentdecompile_recovery.corpus.dashboard.workflow import transient_failure
@@ -16,13 +18,13 @@ def failure(attempts: int, error: str = 'connection refused') -> dict:
     return {'status': 'failed', 'attempts': attempts, 'result': {'ok': False, 'error': error}}
 
 
-def test_resumed_failed_pair_never_resets_budget(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(preparation, '_directory', lambda: tmp_path)
+def test_resumed_failed_pair_never_resets_budget(authority_factory) -> None:
     run_id = 'a' * 32
     row = {'id': run_id, 'actions': {'basis-one': failure(3)}}
-    preparation._write(row)
+    authority = authority_factory(row)
     for _ in range(2):
-        resumed = preparation._read(run_id)
+        authority = resume(authority)
+        resumed = authority.row
         prior = preparation._action_prior_for_retry('corpus.match-pair', resumed['actions']['basis-one'])
         decision = decide_retry(prior, transient=transient_failure(prior['result']))
         assert decision['nextAction'] == 'budget_exhausted'
@@ -31,8 +33,9 @@ def test_resumed_failed_pair_never_resets_budget(tmp_path: Path, monkeypatch: py
         outcome = refusal_outcome(prior, decision)
         assert '3/3' in outcome['error']
         assert outcome['previousError'] == 'connection refused'
-        preparation._remember_retry_decision(resumed, 'basis-one', 'corpus.match-pair', decision)
-        preparation._write(resumed)
+        with preparation._guard(authority):
+            preparation._remember_retry_decision(resumed, 'basis-one', 'corpus.match-pair', decision)
+            preparation._write(resumed, authority=authority)
     assert preparation._read(run_id)['retryDecisions']['basis-one']['wakeCondition'] == 'changed_relevant_input_basis'
 
 
@@ -93,8 +96,9 @@ def test_public_projection_retains_blocked_decision_when_other_stage_runs() -> N
     assert public['stages'][0]['status'] == 'running'
 
 
+@pytest.mark.parametrize('switch_workspace', [False, True])
 @pytest.mark.parametrize('prior_status,spent,expected', [('failed', 3, 'budget_exhausted'), ('queued', 1, 'unknown_outcome'), ('interrupted', 1, 'unknown_outcome'), ('typed-reconciled', 1, 'unknown_outcome'), ('typed-terminal', 0, 'unknown_outcome')])
-def test_preparation_execute_preserves_refusal_and_keeps_independent_work_ready(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, prior_status: str, spent: int, expected: str) -> None:
+def test_preparation_execute_preserves_refusal_and_keeps_independent_work_ready(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, prior_status: str, spent: int, expected: str, authority_factory, switch_workspace) -> None:
     """Exercise the real nested action path; all external jobs are inert fakes."""
     import hashlib
     import threading
@@ -104,7 +108,6 @@ def test_preparation_execute_preserves_refusal_and_keeps_independent_work_ready(
     from agentdecompile_recovery.corpus.dashboard.actions import jobs
 
     directory = tmp_path / 'preparations'
-    directory.mkdir()
     locator, program, fingerprint = 'local-project', 'Demo.exe', 'image-one'
     run_id = 'b' * 32
     db = tmp_path / 'corpus.sqlite'
@@ -118,10 +121,14 @@ def test_preparation_execute_preserves_refusal_and_keeps_independent_work_ready(
             'binaryId': 1, 'recoveryFamily': 'demo-family',
         }},
     }
-    monkeypatch.setattr(preparation, '_directory', lambda: directory)
     monkeypatch.setattr(preparation, 'live_db', lambda: db)
-    monkeypatch.setattr(preparation, '_read_control', lambda _id: {})
-    monkeypatch.setattr(preparation, '_execution_program_bindings', lambda *_: {program: (locator, program)})
+    monkeypatch.setattr(preparation, '_read_control', lambda _id, **_: {})
+    route_calls = []
+    def bindings(*_, root=None, db=None):
+        route_calls.append((root, db))
+        assert root == tmp_path and db == tmp_path / 'corpus.sqlite'
+        return {program: (locator, program)}
+    monkeypatch.setattr(preparation, '_execution_program_bindings', bindings)
     monkeypatch.setattr(preparation, '_comparison_inventory', lambda src, dst, *_: [src, dst])
     monkeypatch.setattr(ghidra_project, 'inspect_locator', lambda _: {'ok': True, 'programs': [program]})
     monkeypatch.setattr(preparation, 'ghidra_program_path', lambda info, selected: selected)
@@ -133,7 +140,8 @@ def test_preparation_execute_preserves_refusal_and_keeps_independent_work_ready(
     receipt.parent.mkdir(parents=True)
     receipt.write_text(json.dumps({'status': 'committed', 'url': 'file:fixture', 'programFingerprint': fingerprint}))
 
-    def query(sql, *_):
+    def query(sql, *_, **kwargs):
+        assert kwargs.get('db') == db
         if 'b.func_count,b.recovery_family,p.locator' in sql:
             return [(1, 'demo', 'source', 1, 'demo-family', locator, program)], None
         return [(1, 'demo', 'source', 'demo-family', 1, 'x86', 32, locator, program)], None
@@ -144,7 +152,7 @@ def test_preparation_execute_preserves_refusal_and_keeps_independent_work_ready(
     exhausted_id = hashlib.sha256(json.dumps(identity_parts, sort_keys=True).encode()).hexdigest()
     if prior_status != 'typed-terminal':
         row['actions'][exhausted_id] = {**failure(spent), 'status': 'queued' if prior_status == 'typed-reconciled' else prior_status, 'jobId': 'lost-child'}
-    preparation._write(row)
+    authority = authority_factory(row)
     dispatched = []
     observed = []
 
@@ -167,8 +175,22 @@ def test_preparation_execute_preserves_refusal_and_keeps_independent_work_ready(
         observed.append((refused, healthy))
 
     monkeypatch.setattr(workflow, 'continue_recovery', continuation)
-    for _ in range(2):
-        preparation.execute({'preparation_id': run_id}, threading.Event())
+    other_root = tmp_path / 'other-workspace'
+    other_root.mkdir()
+    other_state = other_root / 'unrelated-control.json'
+    other_state.write_text('{"priority":17}')
+    other_before = other_state.read_bytes()
+    for iteration in range(2):
+        if iteration:
+            authority = resume(authority)
+        with monkeypatch.context() as patch:
+            if switch_workspace:
+                patch.setattr(preparation, 'live_root', lambda: other_root)
+                patch.setattr(preparation, 'live_db', lambda: other_root / 'corpus.sqlite')
+            preparation.execute({'preparation_id': run_id}, threading.Event(), authority=authority)
+    assert len(route_calls) == 2
+    assert other_state.read_bytes() == other_before
+    assert not (other_root / 'preparations').exists()
     assert len(observed) == 2, preparation._read(run_id)
     assert all(refused['nextAction'] == expected and healthy['ok'] for refused, healthy in observed)
     expected_dispatches = [('corpus.match-pair', {'src': 'other', 'dst': 'right', '_preparationUnlimited': True, 'progress_json': True})]

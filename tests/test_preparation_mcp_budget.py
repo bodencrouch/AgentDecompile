@@ -5,27 +5,25 @@ from types import SimpleNamespace
 
 import pytest
 
+from test_preparation_authority import authority_factory, resume, retire
+
 from agentdecompile_recovery.corpus.dashboard import preparation, mcp_budget, mcp_bridge
 from agentdecompile_recovery.corpus.dashboard.actions import jobs, job_history
 from agentdecompile_recovery.corpus.dashboard.actions.catalog import ActionSpec, FieldSpec
 
 
 @pytest.fixture
-def scope(tmp_path, monkeypatch):
-    monkeypatch.setattr(preparation, '_directory', lambda: tmp_path)
-    monkeypatch.setattr(preparation, '_read_control', lambda _: {})
+def scope(tmp_path, monkeypatch, authority_factory):
+    monkeypatch.setattr(preparation, '_read_control', lambda _, **_kwargs: {})
     monkeypatch.setattr(jobs, 'live_root', lambda: tmp_path)
     monkeypatch.setattr(job_history, 'directory', lambda: tmp_path / 'jobs')
     monkeypatch.setattr(threading.Thread, 'start', lambda _: None)
     monkeypatch.setattr(mcp_bridge, '_ensure_initialized', lambda **_: None)
     monkeypatch.setattr(mcp_bridge, '_ACTIVE_LOCATOR', '')
     monkeypatch.setattr(mcp_bridge, '_OPENED', {})
-    lease = (tmp_path / 'lease').open('w')
-    row = {'id': 'e' * 32, 'actions': {}, 'status': 'blocked'}
-    monkeypatch.setattr(preparation, '_LEASES', {row['id']: lease})
-    monkeypatch.setattr(preparation, '_ACTIVE', {row['id']})
-    mcp_budget.initialize(row, 2)
-    reserve = preparation._mcp_reservation_capability(row, lease, dispatch_id="root-attempt", action_id="root-action")
+    authority = authority_factory({'id': 'e' * 32, 'maxMcpToolCalls': 2})
+    row = authority.row
+    reserve = preparation._mcp_reservation_capability(authority, dispatch_id="root-attempt", action_id="root-action")
     calls = []
     def rpc(method, params, **_):
         persisted = preparation._read(row['id'])['providerBudget']
@@ -34,7 +32,6 @@ def scope(tmp_path, monkeypatch):
         return {'content': [{'type': 'text', 'text': '{"success":true}'}]}
     monkeypatch.setattr(mcp_bridge, '_rpc', rpc)
     yield row, reserve, calls
-    lease.close()
 
 
 def action(command='list-functions', mutating=False):
@@ -84,16 +81,16 @@ def test_prerequisite_retry_cap_and_context_reset(scope, monkeypatch):
     assert row['providerBudget']['consumed'] == 2
 
 
-def test_intent_failure_and_stale_generation_never_dispatch(scope, monkeypatch):
+def test_intent_failure_keeps_original_persistence_cause_without_dispatch(scope, monkeypatch):
     row, reserve, calls = scope
     with monkeypatch.context() as patch:
-        patch.setattr(preparation, '_write', lambda _: (_ for _ in ()).throw(OSError('disk failed')))
+        patch.setattr(preparation, '_atomic_json', lambda *_: (_ for _ in ()).throw(OSError('disk failed')))
         code, log = jobs._mcp_executor(action(), {}, threading.Event(), mcp_reserve=reserve)
     assert not calls and json.loads(log)['nextAction'] == 'provider_budget_persistence_failed'
     assert row['providerBudget']['consumed'] == 1  # conservative in-memory spent intent
-    monkeypatch.setattr(preparation, '_LEASES', {row['id']: object()})
     code, log = jobs._mcp_executor(action(), {}, threading.Event(), mcp_reserve=reserve)
-    assert not calls and json.loads(log)['nextAction'] == 'provider_authority_lost'
+    assert not calls and json.loads(log)['nextAction'] == 'provider_budget_persistence_failed'
+    assert json.loads(log)['preparationCause']['phase'] == 'intent'
     assert row['providerBudget']['consumed'] == 1
 
 
@@ -119,12 +116,11 @@ def test_controls_migration_projection_and_cached_noop(scope, monkeypatch):
         assert mcp_bridge.ensure_project('project')['reused']
     assert not calls and row['providerBudget']['consumed'] == 0
     reserve('first')
-    preparation._write(row)
+    authority = preparation._AUTHORITIES[row['id']]
     params={'preparation_id':row['id'], 'operation':'provider-budget', 'maxMcpToolCalls':3, 'expectedAllocationRevision':1}
-    with pytest.raises(ValueError, match='drain'):
+    with pytest.raises(preparation._PreparationAuthorityRefused, match='drain'):
         preparation.control(params)
-    preparation._release_lease(row['id'])
-    preparation._ACTIVE.discard(row['id'])
+    retire(authority)
     revised=preparation.control(params)['providerBudget']
     assert revised['remaining'] == 2 and revised['consumed'] == 1 and revised['allocationRevision'] == 2
     assert 'reservations' not in revised and 'allocationHistory' not in revised
@@ -140,15 +136,19 @@ def test_helpers_pass_private_capability_before_start(scope, monkeypatch):
     row, reserve, calls = scope
     received=[]
     monkeypatch.setattr(jobs, 'start_job', lambda *args, **kwargs: received.append(kwargs))
-    jobs._start_preparation_probe({}, {}, _mcp_reserve=reserve)
-    jobs._start_preparation_facts_inventory({}, {}, _mcp_reserve=reserve)
-    assert all(item['_mcp_reserve'] is reserve for item in received)
+    authority = preparation._AUTHORITIES[row['id']]
+    jobs._start_preparation_probe({}, {}, _mcp_reserve=reserve, _execution_context=authority)
+    jobs._start_preparation_facts_inventory({}, {}, _mcp_reserve=reserve, _execution_context=authority)
+    assert all(item['_mcp_reserve'] is reserve and item['_execution_context'] is authority for item in received)
 
 
 @pytest.mark.parametrize('maximum', [2, 5])
 def test_unknown_prior_effect_blocks_later_dispatch_without_spending(scope, monkeypatch, maximum):
     row, reserve, calls = scope
-    row['providerBudget']['maxMcpToolCalls'] = maximum
+    authority = preparation._AUTHORITIES[row['id']]
+    with preparation._guard(authority):
+        row['providerBudget']['maxMcpToolCalls'] = maximum
+        preparation._write(row, authority=authority)
     # Retain uncertainty even if a future adapter tries a subsequent dispatch.
     real_rpc=mcp_bridge._rpc
     def rpc(method, params, **kwargs):
@@ -170,7 +170,8 @@ def test_unknown_prior_effect_blocks_later_dispatch_without_spending(scope, monk
     assert len(calls) == 2
 
 
-def test_preparation_to_store_to_bridge_and_revision_resume(scope, tmp_path, monkeypatch):
+@pytest.mark.parametrize('provider_fault', [False, True])
+def test_preparation_to_store_to_bridge_and_revision_resume(scope, tmp_path, monkeypatch, provider_fault):
     import hashlib
     import threading
     from types import SimpleNamespace
@@ -179,7 +180,6 @@ def test_preparation_to_store_to_bridge_and_revision_resume(scope, tmp_path, mon
     from agentdecompile_recovery.corpus.dashboard.actions import jobs
 
     directory = tmp_path / 'preparations'
-    directory.mkdir()
     locator, program, fingerprint = 'local-project', 'Demo.exe', 'image-one'
     run_id = 'e' * 32
     db = tmp_path / 'corpus.sqlite'
@@ -193,10 +193,9 @@ def test_preparation_to_store_to_bridge_and_revision_resume(scope, tmp_path, mon
             'binaryId': 1, 'recoveryFamily': 'demo-family',
         }},
     }
-    monkeypatch.setattr(preparation, '_directory', lambda: directory)
     monkeypatch.setattr(preparation, 'live_db', lambda: db)
-    monkeypatch.setattr(preparation, '_read_control', lambda _id: {})
-    monkeypatch.setattr(preparation, '_execution_program_bindings', lambda *_: {program: (locator, program)})
+    monkeypatch.setattr(preparation, '_read_control', lambda _id, **_: {})
+    monkeypatch.setattr(preparation, '_execution_program_bindings', lambda *_, **_kwargs: {program: (locator, program)})
     monkeypatch.setattr(preparation, '_comparison_inventory', lambda src, dst, *_: [src, dst])
     monkeypatch.setattr(ghidra_project, 'inspect_locator', lambda _: {'ok': True, 'programs': [program]})
     monkeypatch.setattr(preparation, 'ghidra_program_path', lambda info, selected: selected)
@@ -208,14 +207,19 @@ def test_preparation_to_store_to_bridge_and_revision_resume(scope, tmp_path, mon
     receipt.parent.mkdir(parents=True)
     receipt.write_text(json.dumps({'status': 'committed', 'url': 'file:fixture', 'programFingerprint': fingerprint}))
 
-    def query(sql, *_):
+    def query(sql, *_, **kwargs):
+        assert kwargs.get('db') == db
         if 'b.func_count,b.recovery_family,p.locator' in sql:
             return [(1, 'demo', 'source', 1, 'demo-family', locator, program)], None
         return [(1, 'demo', 'source', 'demo-family', 1, 'x86', 32, locator, program)], None
 
     monkeypatch.setattr(preparation, 'query_db', query)
-    row['maxMcpToolCalls'] = 1
-    preparation._write(row)
+    authority = preparation._AUTHORITIES[run_id]
+    with preparation._guard(authority):
+        authority.row.update(row)
+        authority.row['providerBudget']['maxMcpToolCalls'] = 1
+        preparation._write(authority.row, authority=authority)
+    row = authority.row
     spec = action('custom-read')
     monkeypatch.setattr(jobs, 'action_by_id', lambda _: spec)
     store = jobs.JobStore()
@@ -232,7 +236,34 @@ def test_preparation_to_store_to_bridge_and_revision_resume(scope, tmp_path, mon
         changed = dispatch('matching', spec.id, {'changed': 'input'}, current)
         observed.append((first, changed))
     monkeypatch.setattr(workflow, 'continue_recovery', continuation)
-    preparation.execute({'preparation_id':run_id}, threading.Event())
+    failed_writes = []
+    original_atomic = preparation._atomic_json
+    def fail_provider_intent(path, value, suffix):
+        if value.get('providerBudget', {}).get('consumed', 0):
+            failed_writes.append(path)
+            raise OSError('nested provider intent persistence failed')
+        return original_atomic(path, value, suffix)
+    with monkeypatch.context() as patch:
+        if provider_fault:
+            patch.setattr(preparation, '_atomic_json', fail_provider_intent)
+        code, log = preparation.execute({'preparation_id':run_id}, threading.Event(), authority=authority)
+    if provider_fault:
+        result = json.loads(log)
+        assert code == 1 and result['nextAction'] == 'preparation_persistence_failed'
+        assert result['phase'] == 'intent' and result['durable'] is False
+        assert len(failed_writes) == 1 and scope[2] == []
+        saved = preparation._read(run_id)
+        assert saved['objectiveBudget']['consumed'] == 1
+        assert saved['providerBudget']['consumed'] == 0
+        assert authority.row['providerBudget']['consumed'] == 1
+        assert authority.run_id not in preparation._ACTIVE
+        assert not authority.lease.closed
+        before = (directory / (run_id + '.json')).read_bytes()
+        with pytest.raises(preparation._PreparationAuthorityRefused):
+            resume(authority)
+        assert (directory / (run_id + '.json')).read_bytes() == before
+        store._resource_owner_handle.close()
+        return
     saved = preparation._read(run_id)
     assert observed[0][0]['nextAction'] == 'provider_budget_exhausted'
     assert observed[0][1]['nextAction'] == 'provider_budget_exhausted'
@@ -244,12 +275,11 @@ def test_preparation_to_store_to_bridge_and_revision_resume(scope, tmp_path, mon
     assert intent['actionId'] in saved['actions']
     assert any(stage.get('nextAction') == 'provider_budget_exhausted' for stage in preparation._public_run(saved)['stages'])
     preparation.control({'preparation_id':run_id, 'operation':'provider-budget', 'expectedAllocationRevision':1,'maxMcpToolCalls':3})
-    with (tmp_path / 'second-lease').open('w') as lease:
-        preparation._LEASES[run_id] = lease
-        preparation._ACTIVE.add(run_id)
-        preparation.execute({'preparation_id':run_id}, threading.Event())
+    authority = resume(authority)
+    preparation.execute({'preparation_id':run_id}, threading.Event(), authority=authority)
     assert observed[1][0]['ok']
     assert preparation._read(run_id)['providerBudget']['consumed'] == 3
+    store._resource_owner_handle.close()
 
 
 def test_real_ensure_program_nested_checkout_denial(scope, monkeypatch):
@@ -257,7 +287,7 @@ def test_real_ensure_program_nested_checkout_denial(scope, monkeypatch):
     row, reserve, calls = scope
     monkeypatch.setattr(ghidra_project, 'inspect_locator', lambda _: {'ok':True, 'kind':'local-project'})
     monkeypatch.setattr(ghidra_project, 'ghidra_program_path', lambda _info, name: name)
-    monkeypatch.setattr(ghidra_project, 'ghidra_connect_args', lambda _: {})
+    monkeypatch.setattr(ghidra_project, 'ghidra_connect_args', lambda _, **_kwargs: {})
     code, log = jobs._mcp_executor(action('list-functions'), {'locator':'project','programPath':'Demo'}, threading.Event(), mcp_reserve=reserve)
     assert calls == ['open', 'open']
     assert code == 1 and json.loads(log)['nextAction'] == 'provider_budget_exhausted'
@@ -266,7 +296,10 @@ def test_real_ensure_program_nested_checkout_denial(scope, monkeypatch):
 
 def test_zero_budget_initializes_transport_but_never_dispatches(scope, monkeypatch):
     row, reserve, calls = scope
-    row['providerBudget']['maxMcpToolCalls'] = 0
+    authority = preparation._AUTHORITIES[row['id']]
+    with preparation._guard(authority):
+        row['providerBudget']['maxMcpToolCalls'] = 0
+        preparation._write(row, authority=authority)
     initialized=[]
     monkeypatch.setattr(mcp_bridge, '_ensure_initialized', lambda **_: initialized.append(True))
     code, log = jobs._mcp_executor(action(), {}, threading.Event(), mcp_reserve=reserve)
@@ -285,7 +318,7 @@ def test_unlimited_reservations_are_unique_and_remain_spent():
 
 def test_same_lease_without_active_coordinator_refuses(scope):
     row, reserve, calls = scope
-    preparation._ACTIVE.discard(row['id'])
+    preparation._retire_capacity(preparation._ACTIVE[row['id']])
     code, log = jobs._mcp_executor(action(), {}, threading.Event(), mcp_reserve=reserve)
     assert code == 1 and not calls and row['providerBudget']['consumed'] == 0
     assert json.loads(log)['nextAction'] == 'provider_authority_lost'
@@ -358,7 +391,10 @@ def test_normal_function_list_transport_wrappers_do_not_invent_uncertainty(scope
 
 def test_unresolved_primary_blocks_replay_even_with_budget_remaining(scope, monkeypatch):
     row, reserve, calls = scope
-    row['providerBudget']['maxMcpToolCalls'] = 5
+    authority = preparation._AUTHORITIES[row['id']]
+    with preparation._guard(authority):
+        row['providerBudget']['maxMcpToolCalls'] = 5
+        preparation._write(row, authority=authority)
     real_rpc = mcp_bridge._rpc
     def rpc(method, params, **kwargs):
         result = real_rpc(method, params, **kwargs)

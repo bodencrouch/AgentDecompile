@@ -428,15 +428,24 @@ def create_react_router() -> APIRouter:
 
     @router.post("/dashboard/api/workbench/prepare")
     async def prepare(request: Request):
-        from .preparation import submit
+        from . import preparation
         try:
             body = await request.json()
             if not isinstance(body, dict):
                 raise ValueError("JSON object required")
             if not isinstance(body.get("resume", False), bool):
                 raise ValueError("resume must be a boolean")
-            row = submit({key: str(body.get(key) or "") for key in ("locator", "program", "slug")}, resume=body.get("resume", False))
+            row = preparation.submit({key: str(body.get(key) or "") for key in ("locator", "program", "slug")}, resume=body.get("resume", False))
             return JSONResponse({"ok": row["status"] != "blocked", "run": row}, status_code=202)
+        except preparation._PreparationIssuanceWait as exc:
+            body, status = preparation.authority_refusal(exc)
+            return JSONResponse(body, status_code=status)
+        except preparation._PreparationControlWait as exc:
+            body, status = preparation.authority_refusal(exc)
+            return JSONResponse(body, status_code=status)
+        except preparation._PreparationAuthorityRefused as exc:
+            body, status = preparation.authority_refusal(exc)
+            return JSONResponse(body, status_code=status)
         except (ValueError, OSError) as exc:
             return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
 

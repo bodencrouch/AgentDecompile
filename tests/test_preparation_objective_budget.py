@@ -3,6 +3,8 @@ from pathlib import Path
 
 import pytest
 
+from test_preparation_authority import authority_factory, resume, retire
+
 from agentdecompile_recovery.corpus.dashboard import preparation, admission_budget as budget
 
 
@@ -32,7 +34,7 @@ def test_unlimited_still_accounts_and_corrupt_state_refuses():
 
 
 @pytest.mark.parametrize('fail_intent', [False, True, 'ack'])
-def test_real_dispatch_objective_limit_survives_changed_basis_and_resume(tmp_path, monkeypatch, fail_intent):
+def test_real_dispatch_objective_limit_survives_changed_basis_and_resume(tmp_path, monkeypatch, authority_factory, fail_intent):
     """Exercise the real nested action path; all external jobs are inert fakes."""
     import hashlib
     import threading
@@ -42,7 +44,6 @@ def test_real_dispatch_objective_limit_survives_changed_basis_and_resume(tmp_pat
     from agentdecompile_recovery.corpus.dashboard.actions import jobs
 
     directory = tmp_path / 'preparations'
-    directory.mkdir()
     locator, program, fingerprint = 'local-project', 'Demo.exe', 'image-one'
     run_id = 'b' * 32
     db = tmp_path / 'corpus.sqlite'
@@ -56,10 +57,9 @@ def test_real_dispatch_objective_limit_survives_changed_basis_and_resume(tmp_pat
             'binaryId': 1, 'recoveryFamily': 'demo-family',
         }},
     }
-    monkeypatch.setattr(preparation, '_directory', lambda: directory)
     monkeypatch.setattr(preparation, 'live_db', lambda: db)
-    monkeypatch.setattr(preparation, '_read_control', lambda _id: {})
-    monkeypatch.setattr(preparation, '_execution_program_bindings', lambda *_: {program: (locator, program)})
+    monkeypatch.setattr(preparation, '_read_control', lambda _id, **_: {})
+    monkeypatch.setattr(preparation, '_execution_program_bindings', lambda *_, **_kwargs: {program: (locator, program)})
     monkeypatch.setattr(preparation, '_comparison_inventory', lambda src, dst, *_: [src, dst])
     monkeypatch.setattr(ghidra_project, 'inspect_locator', lambda _: {'ok': True, 'programs': [program]})
     monkeypatch.setattr(preparation, 'ghidra_program_path', lambda info, selected: selected)
@@ -71,7 +71,8 @@ def test_real_dispatch_objective_limit_survives_changed_basis_and_resume(tmp_pat
     receipt.parent.mkdir(parents=True)
     receipt.write_text(json.dumps({'status': 'committed', 'url': 'file:fixture', 'programFingerprint': fingerprint}))
 
-    def query(sql, *_):
+    def query(sql, *_, **kwargs):
+        assert kwargs.get('db') == db
         if 'b.func_count,b.recovery_family,p.locator' in sql:
             return [(1, 'demo', 'source', 1, 'demo-family', locator, program)], None
         return [(1, 'demo', 'source', 'demo-family', 1, 'x86', 32, locator, program)], None
@@ -81,7 +82,8 @@ def test_real_dispatch_objective_limit_survives_changed_basis_and_resume(tmp_pat
     identity_parts = ['corpus.match-pair', pair_fields, ['left', 'right'], locator, program, 'demo', fingerprint, ['left', 'right']]
     exhausted_id = hashlib.sha256(json.dumps(identity_parts, sort_keys=True).encode()).hexdigest()
     row['maxActionAdmissions'] = 1
-    preparation._write(row)
+    authority = authority_factory(row)
+    row = authority.row
     dispatched = []
     observed = []
 
@@ -104,40 +106,35 @@ def test_real_dispatch_objective_limit_survives_changed_basis_and_resume(tmp_pat
         wrapper = action('matching', 'corpus.other-wrapper', {'src':'other'}, current)
         observed.append((first, changed, wrapper))
     monkeypatch.setattr(workflow, 'continue_recovery', continuation)
-    if fail_intent is True:
-        original_write = preparation._write
-        def fail_before_dispatch(value):
-            if value.get('objectiveBudget', {}).get('consumed', 0):
-                raise OSError('intent store unavailable')
-            original_write(value)
-        monkeypatch.setattr(preparation, '_write', fail_before_dispatch)
-        try:
-            preparation.execute({'preparation_id': run_id}, threading.Event())
-        except OSError:
-            pass
-        assert not dispatched
-        return
-    if fail_intent == 'ack':
-        original_write = preparation._write
-        def fail_after_dispatch(value):
-            if dispatched:
-                raise OSError('acknowledgment store unavailable')
-            original_write(value)
-        monkeypatch.setattr(preparation, '_write', fail_after_dispatch)
-        try:
-            preparation.execute({'preparation_id': run_id}, threading.Event())
-        except OSError:
-            pass
-        monkeypatch.setattr(preparation, '_write', original_write)
+    if fail_intent:
+        original_atomic = preparation._atomic_json
+        failed_writes = []
+        def fail_commit(path, value, suffix):
+            if (fail_intent is True and value.get('objectiveBudget', {}).get('consumed', 0)) or (fail_intent == 'ack' and dispatched):
+                failed_writes.append(path)
+                raise OSError('intent store unavailable' if fail_intent is True else 'acknowledgment store unavailable')
+            return original_atomic(path, value, suffix)
+        with monkeypatch.context() as patch:
+            patch.setattr(preparation, '_atomic_json', fail_commit)
+            code, log = preparation.execute({'preparation_id': run_id}, threading.Event(), authority=authority)
+        assert code == 1 and json.loads(log)['nextAction'] == 'preparation_persistence_failed'
+        assert len(failed_writes) == 1
+        assert len(dispatched) == (0 if fail_intent is True else 1)
         persisted = preparation._read(run_id)
-        assert persisted['objectiveBudget']['consumed'] == 1
-        assert next(iter(persisted['objectiveBudget']['reservations'].values()))['status'] == 'intent'
-        preparation.execute({'preparation_id': run_id}, threading.Event())
-        assert len(dispatched) == 1
-        assert preparation._read(run_id)['objectiveBudget']['consumed'] == 1
+        assert persisted['objectiveBudget']['consumed'] == (0 if fail_intent is True else 1)
+        if fail_intent == 'ack':
+            assert next(iter(persisted['objectiveBudget']['reservations'].values()))['status'] == 'intent'
+        assert authority.row['objectiveBudget']['consumed'] == 1
+        before = (directory / (run_id + '.json')).read_bytes()
+        with pytest.raises(preparation._PreparationAuthorityRefused):
+            resume(authority)
+        assert (directory / (run_id + '.json')).read_bytes() == before
+        assert len(dispatched) == (0 if fail_intent is True else 1)
         return
-    for _ in range(2):
-        preparation.execute({'preparation_id': run_id}, threading.Event())
+    for iteration in range(2):
+        if iteration:
+            authority = resume(authority)
+        preparation.execute({'preparation_id': run_id}, threading.Event(), authority=authority)
     assert len(dispatched) == 1
     assert all(first['ok'] and changed['nextAction']=='objective_budget_exhausted'
                and wrapper['nextAction']=='objective_budget_exhausted' for first,changed,wrapper in observed)
@@ -165,12 +162,13 @@ def test_competing_admissions_share_final_slot_and_independent_objective():
     assert budget.reserve(independent,'new','basis','action')['nextAction']=='dispatch'
 
 
-def test_allocation_control_cas_preserves_spending_and_bounds_public_receipt(tmp_path, monkeypatch):
-    monkeypatch.setattr(preparation, '_directory', lambda: tmp_path)
-    row = {'id':'a'*32, 'status':'blocked'}
-    budget.initialize(row, 1)
-    budget.reserve(row, 'intent', 'basis', 'action')
-    preparation._write(row)
+def test_allocation_control_cas_preserves_spending_and_bounds_public_receipt(authority_factory):
+    authority = authority_factory({'id': 'a' * 32, 'maxActionAdmissions': 1})
+    row = authority.row
+    with preparation._guard(authority):
+        budget.reserve(row, 'intent', 'basis', 'action')
+        preparation._write(row, authority=authority)
+    retire(authority)
     params = {'preparation_id':row['id'], 'operation':'admission-budget',
               'expectedAllocationRevision':1, 'maxActionAdmissions':3}
     result = preparation.control(params)
@@ -191,19 +189,18 @@ def test_allocation_control_cas_preserves_spending_and_bounds_public_receipt(tmp
     assert saved['objectiveBudget']['allocationRevision'] == 3
 
 
-def test_allocation_control_refuses_active_and_other_owner(tmp_path, monkeypatch):
-    monkeypatch.setattr(preparation, '_directory', lambda: tmp_path)
-    row = {'id':'c'*32, 'status':'blocked'}
-    budget.initialize(row, 1)
-    preparation._write(row)
-    params = {'preparation_id':row['id'], 'operation':'admission-budget',
-              'expectedAllocationRevision':1, 'maxActionAdmissions':2}
-    monkeypatch.setattr(preparation, '_ACTIVE', {row['id']})
-    with pytest.raises(ValueError, match='Pause and drain'):
+def test_allocation_control_refuses_active_and_other_owner(authority_factory):
+    authority = authority_factory({'id': 'c' * 32, 'maxActionAdmissions': 1})
+    row = authority.row
+    params = {'preparation_id': row['id'], 'operation': 'admission-budget',
+              'expectedAllocationRevision': 1, 'maxActionAdmissions': 2}
+    with pytest.raises(preparation._PreparationAuthorityRefused, match='Pause and drain'):
         preparation.control(params)
-    monkeypatch.setattr(preparation, '_ACTIVE', set())
-    with (tmp_path / (row['id']+'.lock')).open('a+') as owner:
+    retire(authority)
+    with (authority.directory / (row['id'] + '.lock')).open('a+') as owner:
         preparation._lock_lease(owner)
-        with pytest.raises(ValueError, match='active coordinator'):
+        with pytest.raises(preparation._PreparationAuthorityRefused, match='lease is busy'):
             preparation.control(params)
     assert preparation._read(row['id'])['objectiveBudget']['allocationRevision'] == 1
+    assert preparation._HEALTHY[(str(authority.root), row['id'])].valid
+    assert preparation.control(params)['objectiveBudget']['allocationRevision'] == 2

@@ -435,8 +435,8 @@ def test_malformed_sqlite_propagates_database_error_and_closes(tmp_path, monkeyp
     "DROP INDEX ix_stabs_type_src",
     "DROP TABLE stabs_type",
 ])
-def test_read_only_current_v11_requires_stabs_postcondition(tmp_path, monkeypatch, damage):
-    path = tmp_path / "incomplete-v11.sqlite"
+def test_read_only_current_v12_requires_stabs_postcondition(tmp_path, monkeypatch, damage):
+    path = tmp_path / "incomplete-v12.sqlite"
     con = store.connect(path)
     con.execute(damage)
     con.commit()
@@ -456,5 +456,24 @@ def test_actual_v9_read_only_refuses_without_upgrading(tmp_path, monkeypatch):
     opened, statements, migrate, backfill = _instrument_admission(monkeypatch)
     with pytest.raises(store.SchemaCompatibilityError, match="observed schema version 9"):
         store.connect(path, read_only=True)
+    _assert_reader_only(statements, migrate, backfill)
+    assert opened[0].close_count == 1
+
+
+@pytest.mark.parametrize("damage", [
+    "DROP TABLE func_convention_derived",
+    "ALTER TABLE func_convention_derived ADD COLUMN surprise TEXT",
+    "CREATE INDEX extra_convention ON func_convention_derived(addr)",
+])
+def test_read_only_current_v12_requires_convention_postcondition(tmp_path, monkeypatch, damage):
+    path = tmp_path / "incomplete-convention-v12.sqlite"
+    con = store.connect(path)
+    con.execute(damage)
+    con.commit()
+    con.close()
+    opened, statements, migrate, backfill = _instrument_admission(monkeypatch)
+    with pytest.raises(store.SchemaCompatibilityError, match="convention schema required") as failure:
+        store.connect(path, read_only=True)
+    assert str(path.resolve()) in str(failure.value)
     _assert_reader_only(statements, migrate, backfill)
     assert opened[0].close_count == 1

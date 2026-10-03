@@ -60,7 +60,7 @@ DDL and preserves stored values, including NULL. STABS writers now require the
 complete current ledger and schema; `ensure_columns` validates without repairing
 or committing caller work. Raw or outdated handles must pass through the owned
 migration path first. Current read-only admission also checks these postconditions.
-Binary deletion independently admits frozen v9/v10/v11 profiles; historical
+Binary deletion independently admits frozen v9/v10/v11/v12 profiles; historical
 optional fields stay optional only in their original profiles.
 Type, recovered-source and other persistent DDL owners remain separate
 unfinished work. These are source contracts, not a fresh migration or live receipt.
@@ -70,8 +70,8 @@ and singleton `decomp_schema_state`. Its observed pre-migration mode preserves
 logical absence versus installed-empty witnesses and table-wide skeleton versus
 AST selection, including historical NULL/empty AST values. It generates no
 fingerprints or source evidence. `decomp_read_state` inspects supported ledgered
-v9/v10/v11 stores; `require_decomp_schema` and canonical read-only connection
-admission require complete current v11. Missing/corrupt state refuses rather
+v9/v10/v11/v12 stores; `require_decomp_schema` and canonical read-only connection
+admission require complete current v12. Missing/corrupt state refuses rather
 than guessing. Skeleton-mode integrity checking may scan the AST column.
 
 Explicit `attach_store`/`persist_code` materialize AST mode. Compatibility
@@ -81,10 +81,29 @@ logical absence remains absent. It never commits an existing caller transaction.
 savepoint while SQLite retains the outer transaction. Transaction loss or an
 unacknowledged commit cannot be represented as successful rollback. Independent
 part stores remain separate. The matcher-input-v2 projection includes selector
-and selected values, invalidating older comparison inventories. Frozen v11
+and selected values, invalidating older comparison inventories. Frozen v11/v12
 deletion retains global state even after removing the last binary. No installed
 consumer, migration execution, fingerprint provenance upgrade or byte proof is
 established by these source changes.
+
+Migration 12 (`convention_schema_ownership`) owns `func_convention_derived`.
+It installs missing storage or admits the exact existing declaration, preserving
+all rows, rowids, unknown class/source strings and NULL numeric fields. It adds
+no donor lineage, ABI observation, decomp witness or matcher-input revision.
+Historical v9–v11 deletion keeps convention storage optional; frozen v12 requires
+it and retains the conservative refusal for surviving convention rows whose
+donor dependencies cannot be established.
+
+`derive_conventions(apply_rows=False)` retains raw-handle computation without
+schema installation or transaction changes. Applying requires complete v12 before
+computation and again inside its write scope, and writes only the selected keys.
+Success still commits caller pending work, even for zero derived rows. Failure
+rolls back only the operation while SQLite retains the caller transaction;
+transaction loss or a lost commit acknowledgement is explicitly uncertain.
+Canonical read-only opens validate convention shape and reserved input names.
+This closes one writer's DDL ownership; types, recovered/reuse rows, logical-name
+caches, registration/binding and helper DDL remain unfinished. Authored regression
+coverage is unrun; no installed/live or ABI/recovery acceptance follows.
 
 The deprecated [`corpus.db`](../src/agentdecompile_recovery/corpus/db.py) facade
 retains public symbols and the exact historical module-relative `DB_PATH`.

@@ -310,6 +310,27 @@ def _decomp_schema_ownership(con: sqlite3.Connection) -> None:
     _store._require_decomp_shape(con, complete=True)
 
 
+def _convention_schema_ownership(con: sqlite3.Connection) -> None:
+    """Version 12: own derived storage without changing rows or donor meaning."""
+    if not con.in_transaction:
+        raise ValueError("convention migration requires an owned transaction")
+    version = user_version(con)
+    _store._require_convention_shape(con, complete=version == 12)
+    if version == 12:
+        require_ledger(con, version=12)
+        _store._require_stabs_shape(con, complete=True)
+        _store._require_decomp_shape(con, complete=True)
+        return
+    require_ledger(con, version=11)
+    _store._require_stabs_shape(con, complete=True)
+    _store._require_decomp_shape(con, complete=True)
+    if con.execute(
+        "SELECT 1 FROM main.sqlite_schema WHERE name='func_convention_derived'"
+    ).fetchone() is None:
+        con.execute(_store.CONVENTION_TABLE_DDL)
+    _store._require_convention_shape(con, complete=True)
+
+
 MIGRATIONS: list[Migration] = [
     Migration(1, "baseline", _baseline),
     Migration(2, "analyzer_identity", _analyzer_identity),
@@ -322,6 +343,7 @@ MIGRATIONS: list[Migration] = [
     Migration(9, "match_metadata", _match_metadata),
     Migration(10, "stabs_schema_ownership", _stabs_schema_ownership),
     Migration(11, "decomp_schema_ownership", _decomp_schema_ownership),
+    Migration(12, "convention_schema_ownership", _convention_schema_ownership),
 ]
 
 SCHEMA_VERSION = MIGRATIONS[-1].version

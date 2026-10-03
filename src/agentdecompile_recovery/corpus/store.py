@@ -76,6 +76,19 @@ _DECOMP_COLUMNS = ("binary_id", "addr", "ok", "n_tokens", "n_lines", "max_nest",
                    "n_calls", "n_locals", "n_deref", "n_index", "n_field",
                    "ctrl", "ops", "skeleton_hash", "ast_fingerprint")
 
+CONVENTION_TABLE_DDL = """
+CREATE TABLE IF NOT EXISTS func_convention_derived (
+    binary_id     INTEGER NOT NULL,
+    addr          INTEGER NOT NULL,
+    deco_class    TEXT NOT NULL,
+    stack_bytes   INTEGER,
+    fastcall_n    INTEGER,
+    class_source  TEXT NOT NULL,
+    n_source      TEXT NOT NULL,
+    PRIMARY KEY (binary_id, addr)
+);
+"""
+
 SCHEMA = f"""
 PRAGMA journal_mode=WAL;
 
@@ -390,18 +403,18 @@ def _require_decomp_shape(con: sqlite3.Connection, *, complete: bool) -> str | N
 
 
 def decomp_read_state(con: sqlite3.Connection) -> str | None:
-    """Pure bounded v9/v10/v11 selector; NULL/empty ASTs never fall back."""
+    """Pure bounded v9/v10/v11/v12 selector; NULL/empty ASTs never fall back."""
     from . import migrations
 
     version = migrations.user_version(con)
     try:
         _decomp_objects(con)
-        if version not in {9, 10, 11}:
+        if version not in {9, 10, 11, 12}:
             raise ValueError("unsupported reader version")
         migrations.require_ledger(con, version=version)
-        return _require_decomp_shape(con, complete=version == 11)
+        return _require_decomp_shape(con, complete=version in {11, 12})
     except ValueError as exc:
-        raise ValueError(f"decomp schema required: observed version {version}, supported versions 9/10/11: {exc}") from exc
+        raise ValueError(f"decomp schema required: observed version {version}, supported versions 9/10/11/12: {exc}") from exc
 
 
 def require_decomp_schema(con: sqlite3.Connection) -> None:
@@ -418,6 +431,74 @@ def require_decomp_schema(con: sqlite3.Connection) -> None:
         raise ValueError(
             f"decomp schema required: observed version {version}, "
             f"supported version {migrations.SCHEMA_VERSION}: {exc}"
+        ) from exc
+
+
+def _require_convention_shape(con: sqlite3.Connection, *, complete: bool) -> None:
+    """Inspect the historical declaration and its unqualified derivation inputs.
+
+    Missing storage is admissible only before migration 12. No stored value is
+    interpreted as ABI evidence, and unrelated table extensions remain untouched.
+    """
+    reserved = {"binary", "func", "identity", "schema_migration", "func_convention_derived"}
+    marks = ",".join("?" for _ in reserved)
+    if con.execute(
+        f"SELECT 1 FROM temp.sqlite_schema WHERE name COLLATE NOCASE IN ({marks})"
+        " OR tbl_name COLLATE NOCASE = 'func_convention_derived'",
+        tuple(reserved),
+    ).fetchone():
+        raise ValueError("shadowing convention temp object")
+    rows = [tuple(row) for row in con.execute(
+        "SELECT type,name,tbl_name,sql FROM main.sqlite_schema"
+    )]
+    ascii_lower = str.maketrans("ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz")
+    for _, name, _, _ in rows:
+        if name.translate(ascii_lower) in reserved and name not in reserved:
+            raise ValueError(f"unsupported convention object spelling {name}")
+    for name in reserved:
+        if sum(row[1] == name for row in rows) > 1:
+            raise ValueError(f"occupied convention object name {name}")
+    objects = {row[1]: row for row in rows}
+    for name in reserved - {"func_convention_derived"}:
+        obj = objects.get(name)
+        if (obj is None or obj[0] != "table" or not obj[3]
+                or not obj[3].upper().startswith("CREATE TABLE")):
+            raise ValueError(f"missing or unsupported convention input table {name}")
+    obj = objects.get("func_convention_derived")
+    if obj is None:
+        if complete:
+            raise ValueError("missing convention table func_convention_derived")
+        return
+    if (obj[0] != "table" or not obj[3]
+            or _decomp_sql(obj[3]) != _decomp_sql(CONVENTION_TABLE_DDL)):
+        raise ValueError("unsupported convention table func_convention_derived")
+    columns = ("binary_id", "addr", "deco_class", "stack_bytes", "fastcall_n", "class_source", "n_source")
+    expected = [(i, name, "TEXT" if i in {2, 5, 6} else "INTEGER",
+                 int(i not in {3, 4}), None, i + 1 if i < 2 else 0, 0)
+                for i, name in enumerate(columns)]
+    if [tuple(row) for row in con.execute("PRAGMA main.table_xinfo(func_convention_derived)")] != expected:
+        raise ValueError("unsupported convention column shape")
+    for kind, name, owner, sql in rows:
+        if owner != "func_convention_derived" or kind == "table":
+            continue
+        if kind == "index" and name == "sqlite_autoindex_func_convention_derived_1" and sql is None:
+            continue
+        raise ValueError(f"undeclared convention object {name}")
+
+
+def require_convention_schema(con: sqlite3.Connection) -> None:
+    """Pure v12 applying admission; never migrate or commit caller work."""
+    from . import migrations
+
+    version = migrations.user_version(con)
+    try:
+        _require_convention_shape(con, complete=True)
+        migrations.require_ledger(con, version=12)
+        _require_stabs_shape(con, complete=True)
+        _require_decomp_shape(con, complete=True)
+    except ValueError as exc:
+        raise ValueError(
+            f"convention schema required: observed version {version}, supported version 12: {exc}"
         ) from exc
 
 
@@ -455,6 +536,7 @@ def connect(
             try:
                 require_stabs_schema(con)
                 require_decomp_schema(con)
+                require_convention_schema(con)
             except ValueError as exc:
                 raise SchemaCompatibilityError(dest, version, supported, str(exc)) from exc
         else:
@@ -481,7 +563,7 @@ def remove_binary(
     repo_path: str | None = None,
     slug: str | None = None,
 ) -> dict:
-    """Remove one binary using the bounded v9/v10/v11 registry; preserve logical rows.
+    """Remove one binary using the bounded v9/v10/v11/v12 registry; preserve logical rows.
 
     With a caller-owned transaction, the returned receipt is provisional until
     the caller commits. This operation releases only its own savepoint.

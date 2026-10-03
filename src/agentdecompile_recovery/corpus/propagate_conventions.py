@@ -13,7 +13,11 @@ from __future__ import annotations
 
 import collections
 import sqlite3
+from contextlib import contextmanager
+from itertools import count
 from pathlib import Path
+
+from .store import CONVENTION_TABLE_DDL, require_convention_schema
 
 DECORATION_CLASS = {
     "__thiscall": "ecx",
@@ -95,18 +99,35 @@ def binary_abis(con: sqlite3.Connection) -> dict[int, AbiKey]:
     }
 
 
-SCHEMA = """
-CREATE TABLE IF NOT EXISTS func_convention_derived (
-    binary_id     INTEGER NOT NULL,
-    addr          INTEGER NOT NULL,
-    deco_class    TEXT NOT NULL,
-    stack_bytes   INTEGER,
-    fastcall_n    INTEGER,
-    class_source  TEXT NOT NULL,
-    n_source      TEXT NOT NULL,
-    PRIMARY KEY (binary_id, addr)
-);
-"""
+# Import compatibility only; migration 12 owns installation.
+SCHEMA = CONVENTION_TABLE_DDL
+_SAVEPOINT_IDS = count()
+
+
+@contextmanager
+def _convention_write_scope(con: sqlite3.Connection):
+    """Commit success, including caller work; undo only our surviving scope."""
+    owns = not con.in_transaction
+    savepoint = f"convention_write_{next(_SAVEPOINT_IDS)}"
+    # A failed scope creation grants no cleanup ownership over caller work.
+    con.execute("BEGIN IMMEDIATE" if owns else f"SAVEPOINT {savepoint}")
+    try:
+        require_convention_schema(con)
+        yield
+        con.commit()
+    except BaseException as exc:
+        if not con.in_transaction:
+            raise RuntimeError(
+                "convention transaction ended before failure acknowledgement; "
+                "durability/rollback is uncertain and caller work cannot be reconstructed"
+            ) from exc
+        if owns:
+            con.rollback()
+        else:
+            con.execute(f"ROLLBACK TO SAVEPOINT {savepoint}")
+            con.execute(f"RELEASE SAVEPOINT {savepoint}")
+        raise
+
 
 
 def popped_bytes(body: bytes) -> tuple[int, str] | tuple[None, None]:
@@ -150,6 +171,8 @@ def derive_conventions(
     apply_rows: bool = False,
 ) -> dict:
     """Derive decoration class + stack bytes. *raw* and *mapper* are caller-supplied."""
+    if apply_rows:
+        require_convention_schema(con)
     donors, ident = donor_classes(con)
     abis = binary_abis(con)
     mine_abi = abis.get(binary_id)
@@ -211,14 +234,13 @@ def derive_conventions(
         rows.append((binary_id, addr, cls, n, 8 + n if cls == "ecx" else None, csrc, nsrc))
 
     if apply_rows:
-        con.executescript(SCHEMA)
-        con.executemany(
-            "INSERT OR REPLACE INTO func_convention_derived"
-            " (binary_id, addr, deco_class, stack_bytes, fastcall_n, class_source, n_source)"
-            " VALUES (?,?,?,?,?,?,?)",
-            rows,
-        )
-        con.commit()
+        with _convention_write_scope(con):
+            con.executemany(
+                "INSERT OR REPLACE INTO main.func_convention_derived"
+                " (binary_id, addr, deco_class, stack_bytes, fastcall_n, class_source, n_source)"
+                " VALUES (?,?,?,?,?,?,?)",
+                rows,
+            )
     return {"stats": dict(stats), "rows": rows, "applied": apply_rows}
 
 

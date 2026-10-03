@@ -37,9 +37,22 @@ CREATE TABLE IF NOT EXISTS decomp (
 CREATE INDEX IF NOT EXISTS ix_decomp_bin ON decomp(binary_id);
 """
 
+FROZEN_CONVENTION_DDL = """
+CREATE TABLE IF NOT EXISTS func_convention_derived (
+    binary_id     INTEGER NOT NULL,
+    addr          INTEGER NOT NULL,
+    deco_class    TEXT NOT NULL,
+    stack_bytes   INTEGER,
+    fastcall_n    INTEGER,
+    class_source  TEXT NOT NULL,
+    n_source      TEXT NOT NULL,
+    PRIMARY KEY (binary_id, addr)
+);
+"""
+
 OPTIONAL_DECLARATIONS = (
     ('export_types.py', 'SCHEMA'),
-    ('propagate_types.py', 'ORIGIN_DDL'), ('propagate_conventions.py', 'SCHEMA'),
+    ('propagate_types.py', 'ORIGIN_DDL'),
     ('ingest_recovered.py', 'RECOVERED_FUNCTION_DDL'),
     ('ingest_recovered.py', 'REUSE_CANDIDATE_DDL'), ('name_precedence.py', 'SCHEMA'),
 )
@@ -66,7 +79,7 @@ def _snapshot(con):
     return {name: _rows(con, name) for name in names}
 
 
-@pytest.fixture(params=[9, 10, 11], ids=["frozen-v9", "frozen-v10", "canonical-v11"])
+@pytest.fixture(params=[9, 10, 11, 12], ids=["frozen-v9", "frozen-v10", "frozen-v11", "canonical-v12"])
 def populated(tmp_path, request):
     path = tmp_path / 'corpus.sqlite'
     con = sqlite3.connect(path)
@@ -77,6 +90,8 @@ def populated(tmp_path, request):
         con.executescript(FROZEN_DECOMP_DDL)
     else:
         con.execute("UPDATE decomp_schema_state SET mode='ast_fingerprint'")
+    if request.param < 12:
+        con.execute(FROZEN_CONVENTION_DDL)
     for filename, variable in OPTIONAL_DECLARATIONS:
         con.executescript(_writer_ddl(filename, variable))
     con.execute('CREATE TABLE binary_source_alias (source_path TEXT PRIMARY KEY, binary_slug TEXT NOT NULL, sha256 TEXT NOT NULL)')
@@ -234,9 +249,12 @@ def test_every_optional_table_can_be_absent_without_creation(populated, table):
             con.execute(f'DROP TABLE {dependent}')
     con.execute(f'DROP TABLE {table}')
     con.commit()
-    if table == 'decomp' and con.execute('PRAGMA user_version').fetchone()[0] == 11:
+    if table == 'decomp' and con.execute('PRAGMA user_version').fetchone()[0] in {11, 12}:
         # The frozen v9/v10 optional set does not weaken v11 admission.
         _refuses_unchanged(con, 'binary_delete_schema_unsupported:ix_decomp_bin')
+        return
+    if table == 'func_convention_derived' and con.execute('PRAGMA user_version').fetchone()[0] == 12:
+        _refuses_unchanged(con, 'binary_delete_schema_unsupported:func_convention_derived')
         return
     before = list(con.execute('SELECT name FROM sqlite_master ORDER BY name'))
     result = store.remove_binary(con, slug='a')
@@ -245,7 +263,7 @@ def test_every_optional_table_can_be_absent_without_creation(populated, table):
         assert result['deleted'][table] == 0
 
 
-@pytest.mark.parametrize('version', [0, 8, 12])
+@pytest.mark.parametrize('version', [0, 8, 13])
 def test_other_versions_refuse_without_migration(populated, version):
     con, _ = populated
     con.execute(f'PRAGMA user_version={version}')
@@ -286,7 +304,7 @@ def test_legacy_keys_and_foreign_key_actions_refuse(populated, table, replacemen
     con, _ = populated
     con.execute(f'DROP TABLE {table}')
     con.execute(replacement)
-    expected = 'ix_decomp_bin' if table == 'decomp' and con.execute('PRAGMA user_version').fetchone()[0] == 11 else table
+    expected = 'ix_decomp_bin' if table == 'decomp' and con.execute('PRAGMA user_version').fetchone()[0] in {11, 12} else table
     _refuses_unchanged(con, 'binary_delete_schema_unsupported:' + expected)
 
 
@@ -526,7 +544,7 @@ def test_view_cannot_impersonate_optional_table(populated):
     con, _ = populated
     con.execute('DROP TABLE decomp')
     con.execute('CREATE VIEW decomp AS SELECT binary_id,addr FROM func')
-    expected = 'ix_decomp_bin' if con.execute('PRAGMA user_version').fetchone()[0] == 11 else 'decomp'
+    expected = 'ix_decomp_bin' if con.execute('PRAGMA user_version').fetchone()[0] in {11, 12} else 'decomp'
     _refuses_unchanged(con, 'binary_delete_schema_unsupported:' + expected)
 
 

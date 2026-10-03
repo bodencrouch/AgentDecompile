@@ -93,16 +93,16 @@ Each row tracks source implementation, installed consumer, software validation, 
 | Unit | Deliverable | Prerequisites | Current acceptance | Next bounded action |
 |---|---|---|---|---|
 | U1 | Scope, truth and evidence authority | None | Task1.1 selected-target binding and refusal source reviewed; executable/full-unit gates open | Qualify independent producer chain and other semantic roots; run permitted acceptance when authorized |
-| U2 | Determinism, schema and generic data seams | U1 | D6 source increment verified in memory and reviewed | Verify integrated canonical row-set including match.id before closing shared phase gate |
-| U3 | Identity, field fusion and compatible cross-build reuse | U1, U2 | unassessed-current | Reconcile retained source/evidence, then close the first missing child predicate |
-| U4 | Recover, calibrate, reconstruct and compare | U1, U2 | unassessed-current | Reconcile retained source/evidence, then close the first missing child predicate |
+| U2 | Determinism, schema and generic data seams | U1 | Task2.1 canonical schema/readers source reviewed; integrated DB/delete acceptance open | Complete frozen delete-registry slice and preserve the canonical row-set and migration gates |
+| U3 | Identity, field fusion and compatible cross-build reuse | U1, U2 | Task3.1 thin-Mach-O STABS witness source reviewed; full identity/reuse acceptance open | Qualify actual-image witness and remaining identity, field-fusion and compatible-reuse predicates |
+| U4 | Recover, calibrate, reconstruct and compare | U1, U2 | Task4.1 truthful terminal refusal source reviewed; positive linked contribution unavailable | Implement and qualify actual same-build linked contribution with safe catalog admission |
 | U5 | Portable entities, signatures, roots and layouts | U2, U3 | unassessed-current | Reconcile retained source/evidence, then close the first missing child predicate |
 | U6 | Runtime consumer, caves and safe mutation | U5, U9 | unassessed-current | Reconcile retained source/evidence, then close the first missing child predicate |
 | U7 | Exhaustive bounded fallback and learning | U5, U6 | unassessed-current | Reconcile retained source/evidence, then close the first missing child predicate |
 | U8 | Complete deterministic export bundle | U5, U7 | Task8.1 faithful explicit-input packaging source reviewed; full bundle/execution gates open | Qualify atomic portable bundle, source receipts and clean-host consumer |
 | U9 | One durable task authority, resource admission and failure continuation | U1 | unassessed-current | Reconcile retained source/evidence, then close the first missing child predicate |
 | U10 | External verification and portable recovered projects | U1, U4, U9 | unassessed-current | Reconcile retained source/evidence, then close the first missing child predicate |
-| U11 | Reusable donated compute foundation and adapters | U1, U9 | Task11.1 actual compile-object binding source reviewed; execution/full-unit gates open | Resolve target-object producer basis; qualify real independent compile/parity and grid cycle |
+| U11 | Reusable donated compute foundation and adapters | U1, U9 | Tasks11.1–11.3 compile-object, target-object and parity-observation source reviewed; P2 review and P3 implementation active | Finish complete-region review and current signed-observation admission, then actual execution closure and source join |
 | U12 | Autonomous capability product M1–M7 | U6, U9 | unassessed-current | Reconcile retained source/evidence, then close the first missing child predicate |
 | U13 | Source and package reconciliation | None | Task 13.1 source integrated and independently reviewed through d43a86fb; software/installed/live acceptance open | Execute permitted acceptance when authorized, then qualify redirects, atomic asset rollout and exact installed consumer |
 | U14 | Project lifecycle, admission and tab contexts | U13, U29, U9 | unassessed-current | Reconcile retained source/evidence, then close the first missing child predicate |
@@ -112,7 +112,7 @@ Each row tracks source implementation, installed consumer, software validation, 
 | U18 | Match evidence, availability and review | U15, U3 | unassessed-current | Reconcile retained source/evidence, then close the first missing child predicate |
 | U19 | Compare and recovery workspaces | U15, U4 | unassessed-current | Reconcile retained source/evidence, then close the first missing child predicate |
 | U20 | Actual work visualization, supervision and spectators | U15, U9 | unassessed-current | Reconcile retained source/evidence, then close the first missing child predicate |
-| U21 | Metric and publish contract | U17, U1 | exact matrix source verified in memory and task-reviewed; live acceptance open | Complete combined review and installed-consumer AE14 against an exact activated basis |
+| U21 | Metric and publish contract | U17, U1 | Task21.1 exact selected-function matrix source reviewed; runtime, performance and current acceptance open | Qualify fixed compatibility fixtures, accepted producer chain and both installed matrix consumers |
 | U22 | Optional AI and bounded context | U14, U9 | unassessed-current | Reconcile retained source/evidence, then close the first missing child predicate |
 | U23 | ABI and type data preservation | U5 | inspected source seams retained; runtime acceptance open | Capture actual bound record through collector, snapshot, store and export without repeating implemented changes |
 | U24 | Hook pack v2 and compatible readers | U23, U2 | unassessed-current | Reconcile retained source/evidence, then close the first missing child predicate |
@@ -133,7 +133,7 @@ Each row tracks source implementation, installed consumer, software validation, 
 | U39 | Release proof | U36, U38 | unassessed-current | Reconcile retained source/evidence, then close the first missing child predicate |
 | U40 | Semantic findings and extensibility | U16, U17 | unassessed-current | Reconcile retained source/evidence, then close the first missing child predicate |
 | U41 | Collaboration, CI and controlled reporting | U1, U13 | unassessed-current | Reconcile retained source/evidence, then close the first missing child predicate |
-| U42 | Packaging, standalone reload and final integration | U13 | unassessed-current | Reconcile retained source/evidence, then close the first missing child predicate |
+| U42 | Packaging, standalone reload and final integration | U13 | Task42.1 staged additive React publication source reviewed; build, installed/reload and full integration open | Qualify actual staged build and installed consumer without overwriting current serving work |
 
 ## Named obligation evidence ledger
 

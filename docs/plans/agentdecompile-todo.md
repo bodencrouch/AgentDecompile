@@ -3410,6 +3410,9 @@ These checks prevent non-ID requirements, risk mitigations, diagram cells, UI co
 
 ## Review follow-ups — CE review `20260928-121531-d9137508` (deferred from the static-matrix fix slice)
 
+Current source disposition: Task25.1 source review covers V5+R6 and Task21.1 source review covers V4. Their broader producer/runtime/performance acceptance remains open, so these historical follow-up boxes are retained. Authored regressions are unrun; historical in-memory receipts are not fresh evidence for this checkout. See the matching dated living-plan entries and SDD reviews.
+
+
 - [ ] `review-20260928:V5+R6` — U25/U28: gate `complete` cave-discovery receipts on an injected `verify_cave_evidence` producer check (default: discovery blocker `cave_evidence_producer_unverified`), and bound `_require_json_native` depth so over-deep evidence yields the structured `cave_evidence_canonical_json_required` refusal instead of RecursionError.
 - [ ] `review-20260928:V4` — U21/U43: batched or logical-filtered progress-tier endpoint so a logical selection no longer rebuilds every binary's full report (Vite LogicalNavigator and static LogicalMatrix).
 - [ ] `review-20260928:V7` — tracked regression tests for `logical_tier_projection`, `matrixTierCell`/`staticMatrixCell` parity (incl. foreign keys) and hookpack cave evidence; requires a separately authorized test slice.

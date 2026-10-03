@@ -602,3 +602,11 @@ P3.2 proposed contract review: architecture accepted in principle, three Importa
 
 Ruling: Adopt STABS-only migration10 as the first remaining corpus-DDL ledger slice, with explicit v9/v10 deletion profiles and nonmutating writer admission — decomp adoption changes existing fingerprint and absent-witness semantics while STABS has two additive nullable fields and known baseline objects — cost if wrong: strict readers require admitted migration and raw/unledgered public STABS handles now refuse; wider DDL ownership remains open. No actual migration/backfill admitted.
 Task2.3 implementation-ready task-2-stabs-brief.md from81d455517ddf9e25dcc7c3320cee00f3dee41709 adopts next-schema-ddl-contract.md; migration/store/STABS/delete ownership disjoint from static JS and runtime report.
+
+Ruling: Correct Task2.3 regression item4 to inject commit failure before durability and distinguish post-commit acknowledgement errors from rollback — SQLite cannot undo a successful committed step — cost if wrong: committed-but-unacknowledged work requires inspection/idempotent retry rather than a false restored-state assertion. No execution authorized.
+
+Task15.1: source committed ccd9b63af57d418cf26842584444e2a471d4348f; exact static script/one behavioral fixture/report review package fromcc452407. node --check passes, regression/effect/browser/installed behavior unrun; independent spec/quality review pending. All current target ingress and keyed consumer changes remain subject to review.
+
+Resume: preserved committed Task15.1 and active Task2.3. Runtime correction round1 report read; independent /root/review_runtime_contract_r1 now checks original three Important findings and corrected concrete protocol/lifecycle/signing boundaries before adoption. No completed work repeated or execution scope expanded.
+
+Task15.1 initial review: three Important ingress/refresh ownership regressions block acceptance; no Critical. Fix round1 targets exact reviewed ccd9b63a source, preserving stale-response guards. Minor M1 listing focus clamp deferred to final review. Original worker handle absent after interruption; fresh bounded fix worker required.

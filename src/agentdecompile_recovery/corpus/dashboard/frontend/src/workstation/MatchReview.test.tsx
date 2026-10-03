@@ -272,7 +272,11 @@ describe('MatchReview', () => {
     (H.findByTagAndText(tree, 'button', 'Stop waiting')[0].props!.onClick as () => void)();
     tree = H.render(MatchReview, props());
 
-    const selectAll = H.findAll(tree, n => n.type === 'input' && n.props?.['aria-label'] === 'Select all rows on this page')[0];
+    // R45 (lane E fleet roster, docs/plans/2026-09-28-0817-feat-static-codebrowser-project-tabs-plan.md)
+    // added the pair/score filters, and the select-all control was renamed to
+    // "Select all visible rows on this page" to reflect that it now covers the
+    // filtered subset rather than every row on the page.
+    const selectAll = H.findAll(tree, n => n.type === 'input' && n.props?.['aria-label'] === 'Select all visible rows on this page')[0];
     (selectAll.props!.onChange as (e: {target: {checked: boolean}}) => void)({target: {checked: true}});
     tree = H.render(MatchReview, props());
 

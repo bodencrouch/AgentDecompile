@@ -1,4 +1,4 @@
-import { createElement } from "react";
+import { createElement, useState } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { readFileSync } from "node:fs";
 import { runInNewContext } from "node:vm";
@@ -117,7 +117,12 @@ describe.each([["React", preparationProviderBudgetText], ["static", staticProvid
 const htmSource = readFileSync(new URL("../../static/htm.js", import.meta.url), "utf8");
 const htmContext: any = {};
 runInNewContext(htmSource, htmContext);
-const staticObservation = runInNewContext(source.slice(start, source.indexOf("  function selectPreparationRun(", end)) + "; PreparationObservation;", {html: htmContext.htm.bind(createElement)});
+// PreparationObservation calls useState directly (destructured from the global `React` in
+// workbench-app.js, outside this slice) for its pause/stop/resume busy + ctlError state
+// (af761fe, R4: pause/resume/stop are the only workflow controls). Provide the real `react`
+// useState so the sandboxed component renders through an actual React hook pass instead of
+// throwing ReferenceError.
+const staticObservation = runInNewContext(source.slice(start, source.indexOf("  function selectPreparationRun(", end)) + "; PreparationObservation;", {html: htmContext.htm.bind(createElement), useState});
 const selection = {slug: "", program: "", addr: "", logicalId: "", locator: ""};
 const renderBudget = (surface: string, run: any, feed = {receivedAt: 105000, error: ""}, now = 106000) => renderToStaticMarkup(
   surface === "static" ? createElement(staticObservation, {run, feed, now}) : createElement(PreparationProgress, {

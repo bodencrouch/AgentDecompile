@@ -36,6 +36,9 @@ jobs:
       - name: Ruff (src and tests)
         run: uv run ruff check --no-fix src/ tests/ native/python/gnsdk
 
+      - name: Install anonymization gate dependencies
+        run: sudo apt-get update && sudo apt-get install -y ripgrep
+
       - name: Anonymization gate
         env:
           NAME_DENYLIST_SECRET: ${{ secrets.AGENT_DECOMPILE_NAME_DENYLIST }}

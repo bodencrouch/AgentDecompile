@@ -583,19 +583,21 @@ def remove_registered_binary(slug: str, *, confirm: bool) -> dict[str, Any]:
     name = (slug or "").strip()
     if not name:
         return {"ok": False, "error": "slug is required"}
-    con, err = _open_store()
-    if err:
-        return err
+    from agentdecompile_recovery.corpus.delete_registry import open_for_delete
     from agentdecompile_recovery.corpus.store import remove_binary
 
+    con = None
     try:
+        path = live_db()
+        if path is None:
+            return {"ok": False, "error": "AGENT_DECOMPILE_CORPUS_DB is unset"}
+        con = open_for_delete(path)
         removed = remove_binary(con, slug=name)
-    except SystemExit as exc:
-        return {"ok": False, "error": str(exc)}
-    except Exception as exc:
+    except (SystemExit, Exception) as exc:
         return {"ok": False, "error": str(exc)}
     finally:
-        con.close()
+        if con is not None:
+            con.close()
     _CACHE.clear()
     return {"ok": True, "removed": removed}
 

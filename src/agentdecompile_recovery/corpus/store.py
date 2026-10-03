@@ -246,33 +246,14 @@ def remove_binary(
     repo_path: str | None = None,
     slug: str | None = None,
 ) -> dict:
-    """Delete one binary and its per-binary rows. Does not drop logical_function."""
-    if repo_path:
-        row = con.execute("SELECT id, slug, repo_path FROM binary WHERE repo_path=?", (repo_path,)).fetchone()
-    elif slug:
-        row = con.execute("SELECT id, slug, repo_path FROM binary WHERE slug=?", (slug,)).fetchone()
-    else:
-        raise ValueError("repo_path or slug is required")
-    if row is None:
-        raise SystemExit(f"no binary matching {repo_path or slug!r}")
-    bid = int(row["id"])
-    deleted: dict[str, int] = {}
-    for table in ("calledge", "identity", "func_param", "ghidra_field", "func", "stabs_type"):
-        cur = con.execute(f"DELETE FROM {table} WHERE binary_id=?", (bid,))
-        deleted[table] = cur.rowcount
-    for table in ("bsim_hit", "bsim_query"):
-        deleted[table] = con.execute(f"DELETE FROM {table} WHERE src_binary=? OR dst_binary=?", (bid, bid)).rowcount
-    deleted["match"] = con.execute(
-        "DELETE FROM match WHERE src_binary=? OR dst_binary=?", (bid, bid)
-    ).rowcount
-    deleted["binary"] = con.execute("DELETE FROM binary WHERE id=?", (bid,)).rowcount
-    con.commit()
-    return {
-        "id": bid,
-        "slug": row["slug"],
-        "repo_path": row["repo_path"],
-        "deleted": deleted,
-    }
+    """Remove one binary using the bounded v9 registry; preserve logical rows.
+
+    With a caller-owned transaction, the returned receipt is provisional until
+    the caller commits. This operation releases only its own savepoint.
+    """
+    from .delete_registry import remove_binary as remove_registered_rows
+
+    return remove_registered_rows(con, repo_path=repo_path, slug=slug)
 
 
 def ensure_func_columns(con: sqlite3.Connection) -> None:

@@ -922,12 +922,23 @@ def main(argv: list[str] | None = None, prog: str | None = None) -> int:
         print(args.out)
         return 0
     if args.cmd == "remove-binary":
-        from .store import connect, remove_binary
+        from .delete_registry import open_for_delete
+        from .store import remove_binary
 
         if not args.repo_path and not args.slug:
             print("error: --repo or --slug is required", file=sys.stderr)
             return 2
-        print(json.dumps(remove_binary(connect(args.db), repo_path=args.repo_path, slug=args.slug), indent=2))
+        con = None
+        try:
+            con = open_for_delete(args.db)
+            removed = remove_binary(con, repo_path=args.repo_path, slug=args.slug)
+        except (Exception, SystemExit) as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 2
+        finally:
+            if con is not None:
+                con.close()
+        print(json.dumps(removed, indent=2))
         return 0
     if args.cmd == "add-binary":
         corpus = load_corpus(args.corpus)

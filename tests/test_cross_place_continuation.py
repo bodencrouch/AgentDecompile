@@ -12,6 +12,11 @@ from agentdecompile_recovery.corpus import cross_place_admission as gate
 from agentdecompile_recovery.corpus import cross_place_checkpoint as checkpoint
 from test_cross_place_admission import fixture
 
+# See test_cross_place_admission.py: the shared ``fixture`` already skips
+# itself when the pinned /usr/bin/clang-22 compiler isn't installed, which
+# covers every test here that requests it (the module-level skip previously
+# tried here would have also skipped tests that don't use ``fixture``).
+
 
 def test_real_129_eligible_keys_across_guarded_generations_and_replay(fixture):
     f = fixture

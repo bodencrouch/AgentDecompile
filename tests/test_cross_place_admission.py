@@ -14,6 +14,15 @@ import pytest
 from agentdecompile_recovery.corpus import cross_place as cp, cross_place_admission as gate
 from agentdecompile_recovery.corpus import ghidra_bulk as bulk, store
 
+# The ``fixture`` fixture below compiles through the exact clang-22 -cc1
+# frontend ABI at a pinned absolute path (matching native_verify_contract's
+# own administrator-owned compiler contract). It is not resolved via PATH on
+# purpose, so an environment without that exact package installed at that
+# path cannot run these tests offline. Only tests that request ``fixture``
+# need this -- skip inside the fixture itself rather than module-wide so the
+# handful of tests here that don't touch a real compiler keep running.
+_CLANG22 = Path("/usr/bin/clang-22")
+
 
 def pe(value=7, *, plus=False, offset=0):
     raw = bytearray(0x240);raw[:2] = b'MZ'
@@ -32,6 +41,8 @@ def pe(value=7, *, plus=False, offset=0):
 
 @pytest.fixture
 def fixture(tmp_path, monkeypatch):
+    if not _CLANG22.exists():
+        pytest.skip("requires the pinned /usr/bin/clang-22 compiler (-cc1 ABI-matched frontend); not installed in this environment")
     monkeypatch.setattr(gate,'_CACHE',{})
     monkeypatch.setattr(gate,'_ATTEMPTS',{})
     root = tmp_path;out = root/'output';src = out/'donor';src.mkdir(parents=True)

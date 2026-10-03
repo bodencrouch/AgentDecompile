@@ -535,7 +535,9 @@ def native_local_checkout(source: str | Path, work_dir: Path) -> tuple[Path, dic
     with _NATIVE_CHECKOUT_LOCK, (directory / '.checkout.lock').open('a+') as lease:
         if os.name == 'nt':
             import msvcrt
-            lease.write('0'); lease.flush(); lease.seek(0)
+            lease.write('0')
+            lease.flush()
+            lease.seek(0)
             msvcrt.locking(lease.fileno(), msvcrt.LK_LOCK, 1)
         else:
             import fcntl

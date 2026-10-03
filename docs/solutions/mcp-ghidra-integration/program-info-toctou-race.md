@@ -77,6 +77,21 @@ was scoped and then ruled out by two independent, verified findings:
 Both are structural (base-class and manager-wide), not confined to one
 provider that could be carved out of the fix.
 
+## Fix alternatives considered
+
+Threading `program_info` as an explicit call-scoped parameter through provider
+dispatch lets handlers read a passed-in value instead of shared mutable state,
+eliminating the TOCTOU at its root. This touches every provider class and its
+handler methods (for example, the pattern at
+`tool_providers.py:1355,1408,1491,1510,1524,1538,1552` and equivalents across
+the provider modules). It is an architectural refactor, not a contained patch.
+
+A narrower alternative is a manager-wide, reentrancy-safe lock (tracking the
+owning asyncio task, since asyncio has no built-in reentrant lock) covering both
+the fan-out write and dispatch. That closes the race but reintroduces full
+server-layer serialization: the same shape as today's `CONTEXT_LOCK`, only
+relocated. It is a correctness improvement, but provides no concurrency gain.
+
 ## Implemented fix (2026-09-10)
 
 The manager passes its resolved `effective_program_info` explicitly to provider

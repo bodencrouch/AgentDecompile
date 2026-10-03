@@ -135,6 +135,29 @@ def _log_block(path: Path, lines: list[str]) -> str:
             f'<div class="log">{body}</div>')
 
 
+def _receipt_verdict(r: dict) -> str:
+    """One rebuild record's verdict. The HTML table and the payload both read it."""
+    if r.get("identical") is True:
+        return "proven"
+    if r.get("error"):
+        return "unproven"  # no image to reassemble (known upstream limitation)
+    return "failed"
+
+
+_RECEIPT_TAGS = {"proven": ("identical", "ok"), "unproven": ("no image", "warn"),
+                 "failed": ("mismatch", "dead")}
+
+
+def _coverage_verdict(fn: int, ex: int, bad: int) -> str:
+    if not fn:
+        return "unproven"
+    if ex == fn and not bad:
+        return "proven"
+    if not ex and bad:
+        return "failed"
+    return "partial"
+
+
 def _section_roundtrip(g: dict) -> str:
     data, err = g["roundtrip"]["data"], g["roundtrip"]["err"]
     if err:
@@ -143,23 +166,17 @@ def _section_roundtrip(g: dict) -> str:
     if not rows:
         return panel(missing(f"{rel(ROUNDTRIP_JSON)} holds no records"), "Whole-file roundtrip")
 
-    ok = [r for r in rows if r.get("identical") is True]
-    bad = [r for r in rows if r.get("identical") is not True]
+    ok = [r for r in rows if _receipt_verdict(r) == "proven"]
+    bad = [r for r in rows if _receipt_verdict(r) != "proven"]
     rebuilt_bytes = _total(ok, "rebuilt_size")
 
     slugs = g["slugs"]
     body = []
     for r in sorted(rows, key=lambda r: str(r.get("binary", ""))):
-        if r.get("identical") is True:
-            verdict = tag("identical", "ok")
-        elif r.get("error"):
-            verdict = tag("no image", "warn")
-        else:
-            verdict = tag("mismatch", "dead")
         note = r.get("error") or ""
         body.append([
             _bin_cell(r.get("binary"), slugs),
-            verdict,
+            tag(*_RECEIPT_TAGS[_receipt_verdict(r)]),
             esc(r.get("container") or note or "-"),
             fnum(r.get("size")),
             fnum(r.get("rebuilt_size")),
@@ -180,8 +197,8 @@ def _section_roundtrip(g: dict) -> str:
     # "no image" (Xbox databases have no FileBytes to reassemble) is a known
     # upstream limitation, not an emitter failure, so it earns its own state
     # rather than being merged into "mismatch" — see the limitation box below.
-    no_image = [r for r in bad if r.get("error")]
-    mismatch = [r for r in bad if not r.get("error")]
+    no_image = [r for r in bad if _receipt_verdict(r) == "unproven"]
+    mismatch = [r for r in bad if _receipt_verdict(r) == "failed"]
     head += stacked_bar([
         ("byte-identical", len(ok), "proven"),
         ("no image (known limitation)", len(no_image), "partial"),
@@ -540,6 +557,12 @@ def _excluded(repo) -> bool:
     return str(repo) in {str(x) for x in (DRM_EXCLUDED or ())}
 
 
+def _with_exclusion(repo, verdict: str) -> str:
+    # The payload marks a configured exclusion. The HTML tables keep showing
+    # that row's verdict on purpose, as they did before the payload existed.
+    return "excluded" if _excluded(repo) else verdict
+
+
 def _block(src: dict, path: Path, errors: list[str], label: str):
     """Common block head and the (rows, state-if-unreadable) decision."""
     block = {**_meta(src, path), "state": "missing", "note": None, "rows": []}
@@ -560,14 +583,7 @@ def _receipts(g: dict, slugs: dict, errors: list[str]) -> dict:
     out, states = [], []
     for r in sorted(rows, key=lambda r: str(r.get("binary", ""))):
         repo = r.get("binary")
-        if _excluded(repo):
-            state = "excluded"
-        elif r.get("identical") is True:
-            state = "proven"
-        elif r.get("error"):
-            state = "unproven"
-        else:
-            state = "failed"
+        state = _with_exclusion(repo, _receipt_verdict(r))
         states.append(state)
         out.append({
             "slug": slugs.get(str(repo)),
@@ -583,7 +599,7 @@ def _receipts(g: dict, slugs: dict, errors: list[str]) -> dict:
             "pct_attributed": _num(r.get("pct_attributed")),
         })
     if rows:
-        ok = [r for r in rows if r.get("identical") is True]
+        ok = [r for r in rows if _receipt_verdict(r) == "proven"]
         mt = src["mtime"]
         block["state"] = _agg(states)
         block["figures"] = {
@@ -605,16 +621,7 @@ def _coverage(g: dict, slugs: dict, errors: list[str]) -> dict:
     out, states = [], []
     for r in sorted(rows, key=lambda r: -(_num(r.get("functions")) or 0)):
         fn, ex, bad = _num(r.get("functions")) or 0, _num(r.get("byte_exact")) or 0, _num(r.get("failed")) or 0
-        if _excluded(r.get("repo_path")):
-            state = "excluded"
-        elif not fn:
-            state = "unproven"
-        elif ex == fn and not bad:
-            state = "proven"
-        elif not ex and bad:
-            state = "failed"
-        else:
-            state = "partial"
+        state = _with_exclusion(r.get("repo_path"), _coverage_verdict(fn, ex, bad))
         states.append(state)
         out.append({
             "slug": slugs.get(str(r.get("repo_path"))),

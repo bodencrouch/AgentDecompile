@@ -124,6 +124,11 @@ def _game_key(game):
     return (game is None, str(game or ""))
 
 
+def _count(value):
+    """NULL means never measured; keep it so the cell reads "not attempted", not 0."""
+    return int(value) if value is not None else None
+
+
 def _load_rows():
     """Return (rows, error). The binary table is small, so a full select is cheap."""
     sql = f"SELECT {', '.join(COLUMNS)} FROM binary"
@@ -241,8 +246,8 @@ def _collect() -> dict:
             "slug": r.get("slug"), "repo_path": r["repo_path"], "game": r.get("game"),
             "platform": r.get("platform"), "arch": r.get("arch"), "bits": r.get("bits"),
             "format": r.get("format"), "md5": r.get("md5"),
-            "func_count": int(r.get("func_count") or 0),
-            "named_count": int(r.get("named_count") or 0),
+            "func_count": _count(r.get("func_count")),
+            "named_count": _count(r.get("named_count")),
             "is_x86": r["is_x86"], "exclusion": why,
             "duplicate_of": dups.get(r["repo_path"]),
             "state": "excluded" if why else "unproven",
@@ -250,8 +255,8 @@ def _collect() -> dict:
         })
 
     live = [r for r in out["rows"] if not r["exclusion"]]
-    total_funcs = sum(r["func_count"] for r in out["rows"])
-    live_funcs = sum(r["func_count"] for r in live)
+    total_funcs = sum(r["func_count"] or 0 for r in out["rows"])
+    live_funcs = sum(r["func_count"] or 0 for r in live)
     games: dict = {}
     for r in out["rows"]:
         g = games.setdefault(r["game"], {"game": r["game"], "builds": 0, "platforms": set()})
@@ -263,8 +268,11 @@ def _collect() -> dict:
         "functions_all": total_funcs,
         "functions_matchable": live_funcs,
         "functions_excluded": total_funcs - live_funcs,
-        "named_matchable": sum(r["named_count"] for r in live),
-        "x86_priority": len([r for r in live if r["is_x86"]]),
+        "named_matchable": sum(r["named_count"] or 0 for r in live),
+        # Duplicates still count here; only the configured list is off the
+        # priority list. The x86 section heading in render() uses the same rule.
+        "x86_priority": len([r for r in out["rows"]
+                             if r["is_x86"] and r["exclusion"] != "configured"]),
         "x86_rows": len([r for r in out["rows"] if r["is_x86"]]),
         "other_arch_rows": len([r for r in out["rows"] if not r["is_x86"]]),
         "coverage_ratio": (live_funcs / total_funcs) if total_funcs else None,
@@ -284,7 +292,7 @@ def _collect() -> dict:
     for path, canonical in sorted(dups.items()):
         r, other = by_path.get(path), by_path.get(canonical)
         entry = {"slug": r.get("slug") if r else None, "repo_path": path,
-                 "func_count": int(r.get("func_count") or 0) if r else None,
+                 "func_count": _count(r.get("func_count")) if r else None,
                  "duplicate_of": canonical,
                  "duplicate_of_slug": other.get("slug") if other else None,
                  "md5": r.get("md5") if r else None, "source": "binary.md5",
@@ -325,7 +333,7 @@ def _funcs_bars(rows) -> str:
     State carries only the "counts in no denominator" fact (excluded). href_fn
     opens the same /binary/<slug> route the table row's link uses.
     """
-    data = [(r.get("slug") or r["repo_path"], r["func_count"], r["state"]) for r in rows]
+    data = [(r.get("slug") or r["repo_path"], r["func_count"] or 0, r["state"]) for r in rows]
     return bars(data, href_fn=lambda slug, *_: _bin_href(slug))
 
 

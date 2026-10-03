@@ -912,47 +912,47 @@ These checks prevent non-ID requirements, risk mitigations, diagram cells, UI co
 - [ ] `S042-C0004` — Deviations; coverage owner U42; source `docs/plans/wb-control-briefs/dialogs-report.md`:49–52.
 - [ ] `S042-C0005` — Findings / risks; coverage owner U42; source `docs/plans/wb-control-briefs/dialogs-report.md`:53–55.
 - [ ] `S043-C0001` — Task: Dialogs (open, save-as, confirm); coverage owner U15; source `docs/plans/wb-control-briefs/dialogs.md`:1–17.
-- [ ] `S044-C0001` — KotOR multiplayer recovery investigation; coverage owner U39; source `docs/research/swkotor-multiplayer/README.md`:1–13.
-- [ ] `S044-C0002` — Request and binding requirements; coverage owner U39; source `docs/research/swkotor-multiplayer/README.md`:14–26.
-- [ ] `S044-C0003` — Evidence collected in this investigation; coverage owner U39; source `docs/research/swkotor-multiplayer/README.md`:27–63.
-- [ ] `S044-C0004` — Findings that determine implementation; coverage owner U39; source `docs/research/swkotor-multiplayer/README.md`:64–89.
-- [ ] `S044-C0005` — Gameplay scope confirmed by the user; coverage owner U35; source `docs/research/swkotor-multiplayer/README.md`:90–99.
-- [ ] `S044-C0006` — Required implementation sequence; coverage owner U39; source `docs/research/swkotor-multiplayer/README.md`:100–140.
-- [ ] `S044-C0007` — Directory metadata contract; coverage owner U37; source `docs/research/swkotor-multiplayer/README.md`:141–153.
-- [ ] `S044-C0008` — Acceptance ledger; coverage owner U39; source `docs/research/swkotor-multiplayer/README.md`:154–178.
-- [ ] `S045-C0001` — swkotor engine evidence (read-only inspection, 2026-09-15); coverage owner U33; source `docs/research/swkotor-multiplayer/engine-evidence.md`:1–2.
-- [ ] `S045-C0002` — Outcome; coverage owner U33; source `docs/research/swkotor-multiplayer/engine-evidence.md`:3–8.
-- [ ] `S045-C0003` — Binary identity: two different inputs; coverage owner U33; source `docs/research/swkotor-multiplayer/engine-evidence.md`:9–21.
-- [ ] `S045-C0004` — Recovered source truth; coverage owner U33; source `docs/research/swkotor-multiplayer/engine-evidence.md`:22–39.
-- [ ] `S045-C0005` — Actual internal transport evidence; coverage owner U33; source `docs/research/swkotor-multiplayer/engine-evidence.md`:40–73.
-- [ ] `S045-C0006` — Smallest justified next slice; coverage owner U33; source `docs/research/swkotor-multiplayer/engine-evidence.md`:74–83.
-- [ ] `S045-C0007` — Memory provenance used only to locate the artifacts; coverage owner U33; source `docs/research/swkotor-multiplayer/engine-evidence.md`:84–87.
-- [ ] `S045-C0008` — Follow-up: exact native ABI and remote-boundary blockers; coverage owner U33; source `docs/research/swkotor-multiplayer/engine-evidence.md`:88–91.
-- [ ] `S045-C0009` — SendMessageToPlayer has FOUR explicit stack arguments; coverage owner U33; source `docs/research/swkotor-multiplayer/engine-evidence.md`:92–119.
-- [ ] `S045-C0010` — ProcessReceivedFrames callback is recoverable, not an unknown magic function; coverage owner U33; source `docs/research/swkotor-multiplayer/engine-evidence.md`:120–137.
-- [ ] `S045-C0011` — Concrete assumptions that break when crossing a remote boundary; coverage owner U33; source `docs/research/swkotor-multiplayer/engine-evidence.md`:138–148.
-- [ ] `S046-C0001` — Scoped evidence re-review; coverage owner U39; source `docs/research/swkotor-multiplayer/evidence-review.md`:1–10.
-- [ ] `S047-C0001` — /* Fresh Ghidra pseudocode, not buildable or byte-verified source.; coverage owner U34; source `docs/research/swkotor-multiplayer/evidence/005d4cb0_SendMessageToPlayer.cpp.txt`:1–166.
-- [ ] `S048-C0001` — {; coverage owner U33; source `docs/research/swkotor-multiplayer/evidence/binary-binding.json`:1–10.
-- [ ] `S049-C0001` — Input SHA256: 9c10e0450a6eeca417e036e3cde7474fed1f0a92aab018446d156944dea91435; coverage owner U34; source `docs/research/swkotor-multiplayer/evidence/client-handle-message-disassembly.txt`:1–12.
-- [ ] `S050-C0001` — {; coverage owner U34; source `docs/research/swkotor-multiplayer/evidence/netlayer-inventory.json`:1–9.
-- [ ] `S051-C0001` — Input SHA256: 9c10e0450a6eeca417e036e3cde7474fed1f0a92aab018446d156944dea91435; coverage owner U34; source `docs/research/swkotor-multiplayer/evidence/player-info-disassembly.txt`:1–12.
-- [ ] `S052-C0001` — Input SHA256: 9c10e0450a6eeca417e036e3cde7474fed1f0a92aab018446d156944dea91435; coverage owner U34; source `docs/research/swkotor-multiplayer/evidence/receive-disassembly.txt`:1–62.
-- [ ] `S053-C0001` — 567e97:	c2 14 00             	ret    $0x14; coverage owner U34; source `docs/research/swkotor-multiplayer/evidence/send-callers.txt`:1–519.
-- [ ] `S054-C0001` — /home/brunner56/agentdecompile-nvme/agentdecompile_projects/extract/raw/K1__k1_win_gog_swkotor.exe:     file format pei-i386; coverage owner U34; source `docs/research/swkotor-multiplayer/evidence/send-disassembly.txt`:1–260.
-- [ ] `S055-C0001` — {; coverage owner U34; source `docs/research/swkotor-multiplayer/evidence/send-message-to-player.json`:1–9.
-- [ ] `S056-C0001` — Input SHA256: 9c10e0450a6eeca417e036e3cde7474fed1f0a92aab018446d156944dea91435; coverage owner U34; source `docs/research/swkotor-multiplayer/evidence/server-handle-message-disassembly.txt`:1–12.
-- [ ] `S057-C0001` — Input SHA256: 9c10e0450a6eeca417e036e3cde7474fed1f0a92aab018446d156944dea91435; coverage owner U34; source `docs/research/swkotor-multiplayer/evidence/server-internal-handle-message-disassembly.txt`:1–54.
-- [ ] `S058-C0001` — Public lobby/master-server research for a new KotOR multiplayer implementation; coverage owner U37; source `docs/research/swkotor-multiplayer/lobby-research.md`:1–4.
-- [ ] `S058-C0002` — Recommendation; coverage owner U37; source `docs/research/swkotor-multiplayer/lobby-research.md`:5–16.
-- [ ] `S058-C0003` — What the browser should advertise; coverage owner U37; source `docs/research/swkotor-multiplayer/lobby-research.md`:17–28.
-- [ ] `S058-C0004` — NWN/NWN2 relevance; coverage owner U37; source `docs/research/swkotor-multiplayer/lobby-research.md`:29–36.
-- [ ] `S058-C0005` — Realistic decision; coverage owner U37; source `docs/research/swkotor-multiplayer/lobby-research.md`:37–41.
-- [ ] `S059-C0001` — NWN/NWN2 dedicated-server evidence (bounded MCP inspection); coverage owner U34; source `docs/research/swkotor-multiplayer/nwn-evidence.md`:1–4.
-- [ ] `S059-C0002` — What is currently established; coverage owner U34; source `docs/research/swkotor-multiplayer/nwn-evidence.md`:5–13.
-- [ ] `S059-C0003` — Import/function inspection boundary; coverage owner U34; source `docs/research/swkotor-multiplayer/nwn-evidence.md`:14–19.
-- [ ] `S059-C0004` — Architectural contrast that the binaries could test once analysis is ready; coverage owner U34; source `docs/research/swkotor-multiplayer/nwn-evidence.md`:20–25.
-- [ ] `S059-C0005` — Smallest follow-up; coverage owner U34; source `docs/research/swkotor-multiplayer/nwn-evidence.md`:26–34.
+- [ ] `S044-C0001` — The target game multiplayer recovery investigation; coverage owner U39; source `docs/research/multiplayer-corpus/README.md`:1–13.
+- [ ] `S044-C0002` — Request and binding requirements; coverage owner U39; source `docs/research/multiplayer-corpus/README.md`:14–26.
+- [ ] `S044-C0003` — Evidence collected in this investigation; coverage owner U39; source `docs/research/multiplayer-corpus/README.md`:27–63.
+- [ ] `S044-C0004` — Findings that determine implementation; coverage owner U39; source `docs/research/multiplayer-corpus/README.md`:64–89.
+- [ ] `S044-C0005` — Gameplay scope confirmed by the user; coverage owner U35; source `docs/research/multiplayer-corpus/README.md`:90–99.
+- [ ] `S044-C0006` — Required implementation sequence; coverage owner U39; source `docs/research/multiplayer-corpus/README.md`:100–140.
+- [ ] `S044-C0007` — Directory metadata contract; coverage owner U37; source `docs/research/multiplayer-corpus/README.md`:141–153.
+- [ ] `S044-C0008` — Acceptance ledger; coverage owner U39; source `docs/research/multiplayer-corpus/README.md`:154–178.
+- [ ] `S045-C0001` — the corpus engine evidence (read-only inspection, 2026-09-15); coverage owner U33; source `docs/research/multiplayer-corpus/engine-evidence.md`:1–2.
+- [ ] `S045-C0002` — Outcome; coverage owner U33; source `docs/research/multiplayer-corpus/engine-evidence.md`:3–8.
+- [ ] `S045-C0003` — Binary identity: two different inputs; coverage owner U33; source `docs/research/multiplayer-corpus/engine-evidence.md`:9–21.
+- [ ] `S045-C0004` — Recovered source truth; coverage owner U33; source `docs/research/multiplayer-corpus/engine-evidence.md`:22–39.
+- [ ] `S045-C0005` — Actual internal transport evidence; coverage owner U33; source `docs/research/multiplayer-corpus/engine-evidence.md`:40–73.
+- [ ] `S045-C0006` — Smallest justified next slice; coverage owner U33; source `docs/research/multiplayer-corpus/engine-evidence.md`:74–83.
+- [ ] `S045-C0007` — Memory provenance used only to locate the artifacts; coverage owner U33; source `docs/research/multiplayer-corpus/engine-evidence.md`:84–87.
+- [ ] `S045-C0008` — Follow-up: exact native ABI and remote-boundary blockers; coverage owner U33; source `docs/research/multiplayer-corpus/engine-evidence.md`:88–91.
+- [ ] `S045-C0009` — SendMessageToPlayer has FOUR explicit stack arguments; coverage owner U33; source `docs/research/multiplayer-corpus/engine-evidence.md`:92–119.
+- [ ] `S045-C0010` — ProcessReceivedFrames callback is recoverable, not an unknown magic function; coverage owner U33; source `docs/research/multiplayer-corpus/engine-evidence.md`:120–137.
+- [ ] `S045-C0011` — Concrete assumptions that break when crossing a remote boundary; coverage owner U33; source `docs/research/multiplayer-corpus/engine-evidence.md`:138–148.
+- [ ] `S046-C0001` — Scoped evidence re-review; coverage owner U39; source `docs/research/multiplayer-corpus/evidence-review.md`:1–10.
+- [ ] `S047-C0001` — /* Fresh Ghidra pseudocode, not buildable or byte-verified source.; coverage owner U34; source `docs/research/multiplayer-corpus/evidence/005d4cb0_SendMessageToPlayer.cpp.txt`:1–166.
+- [ ] `S048-C0001` — {; coverage owner U33; source `docs/research/multiplayer-corpus/evidence/binary-binding.json`:1–10.
+- [ ] `S049-C0001` — Input SHA256: 9c10e0450a6eeca417e036e3cde7474fed1f0a92aab018446d156944dea91435; coverage owner U34; source `docs/research/multiplayer-corpus/evidence/client-handle-message-disassembly.txt`:1–12.
+- [ ] `S050-C0001` — {; coverage owner U34; source `docs/research/multiplayer-corpus/evidence/netlayer-inventory.json`:1–9.
+- [ ] `S051-C0001` — Input SHA256: 9c10e0450a6eeca417e036e3cde7474fed1f0a92aab018446d156944dea91435; coverage owner U34; source `docs/research/multiplayer-corpus/evidence/player-info-disassembly.txt`:1–12.
+- [ ] `S052-C0001` — Input SHA256: 9c10e0450a6eeca417e036e3cde7474fed1f0a92aab018446d156944dea91435; coverage owner U34; source `docs/research/multiplayer-corpus/evidence/receive-disassembly.txt`:1–62.
+- [ ] `S053-C0001` — 567e97:	c2 14 00             	ret    $0x14; coverage owner U34; source `docs/research/multiplayer-corpus/evidence/send-callers.txt`:1–519.
+- [ ] `S054-C0001` — /home/brunner56/agentdecompile-nvme/agentdecompile_projects/extract/raw/build_a__build_a_win_gog.exe:     file format pei-i386; coverage owner U34; source `docs/research/multiplayer-corpus/evidence/send-disassembly.txt`:1–260.
+- [ ] `S055-C0001` — {; coverage owner U34; source `docs/research/multiplayer-corpus/evidence/send-message-to-player.json`:1–9.
+- [ ] `S056-C0001` — Input SHA256: 9c10e0450a6eeca417e036e3cde7474fed1f0a92aab018446d156944dea91435; coverage owner U34; source `docs/research/multiplayer-corpus/evidence/server-handle-message-disassembly.txt`:1–12.
+- [ ] `S057-C0001` — Input SHA256: 9c10e0450a6eeca417e036e3cde7474fed1f0a92aab018446d156944dea91435; coverage owner U34; source `docs/research/multiplayer-corpus/evidence/server-internal-handle-message-disassembly.txt`:1–54.
+- [ ] `S058-C0001` — Public lobby/master-server research for a new The target game multiplayer implementation; coverage owner U37; source `docs/research/multiplayer-corpus/lobby-research.md`:1–4.
+- [ ] `S058-C0002` — Recommendation; coverage owner U37; source `docs/research/multiplayer-corpus/lobby-research.md`:5–16.
+- [ ] `S058-C0003` — What the browser should advertise; coverage owner U37; source `docs/research/multiplayer-corpus/lobby-research.md`:17–28.
+- [ ] `S058-C0004` — comparison-engine relevance; coverage owner U37; source `docs/research/multiplayer-corpus/lobby-research.md`:29–36.
+- [ ] `S058-C0005` — Realistic decision; coverage owner U37; source `docs/research/multiplayer-corpus/lobby-research.md`:37–41.
+- [ ] `S059-C0001` — comparison-engine dedicated-server evidence (bounded MCP inspection); coverage owner U34; source `docs/research/multiplayer-corpus/comparison-engine-evidence.md`:1–4.
+- [ ] `S059-C0002` — What is currently established; coverage owner U34; source `docs/research/multiplayer-corpus/comparison-engine-evidence.md`:5–13.
+- [ ] `S059-C0003` — Import/function inspection boundary; coverage owner U34; source `docs/research/multiplayer-corpus/comparison-engine-evidence.md`:14–19.
+- [ ] `S059-C0004` — Architectural contrast that the binaries could test once analysis is ready; coverage owner U34; source `docs/research/multiplayer-corpus/comparison-engine-evidence.md`:20–25.
+- [ ] `S059-C0005` — Smallest follow-up; coverage owner U34; source `docs/research/multiplayer-corpus/comparison-engine-evidence.md`:26–34.
 - [ ] `S060-C0001` — Recovery pipeline diagram (local, editable); coverage owner U1; source `docs/dashboard-design/pipeline-diagram/README.md`:1–33.
 - [ ] `S060-C0002` — Contract revision — 2026-09-22; coverage owner U1; source `docs/dashboard-design/pipeline-diagram/README.md`:34–51.
 - [ ] `S060-C0003` — Execution and evidence companion — 2026-09-22; coverage owner U1; source `docs/dashboard-design/pipeline-diagram/README.md`:52–78.

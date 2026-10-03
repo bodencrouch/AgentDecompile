@@ -74,7 +74,7 @@ state. Missing prerequisites produce a structured refusal and a next step.
 
 ### What the multiplayer report establishes
 
-The user reports that original BioWare code can now create a server, host a lobby,
+The user reports that the original studio's unmodified code can now create a server, host a lobby,
 view the lobby and let players join. This is a user-reported original-code
 capability, a concrete motivation for runtime reuse. This guide has not observed
 that scenario or inspected a matching live receipt. It does not establish full

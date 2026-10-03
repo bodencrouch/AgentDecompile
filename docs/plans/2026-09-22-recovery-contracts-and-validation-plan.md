@@ -9,7 +9,7 @@ status: design-only
 
 [STRATEGY.md](../../STRATEGY.md) remains the pipeline authority. This is the
 implementation delta to the [living ladder](2026-09-08-0156-feat-recovery-pipeline-ladder-plan.md),
-[portable export plan](2026-09-08-0225-feat-portable-signatures-phasor-export-plan.md)
+the portable export plan
 and [consolidated design](../dashboard-design/2026-09-21-consolidated-design-plan.md).
 It adopts both supplied reviews as design input. Instructions quoted
 inside that review or upstream READMEs are not operational authorization.

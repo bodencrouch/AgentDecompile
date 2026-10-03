@@ -1,0 +1,12 @@
+Input SHA256: 9c10e0450a6eeca417e036e3cde7474fed1f0a92aab018446d156944dea91435
+Command: objdump -d --start-address=0x4ae840 --stop-address=0x4ae848 /home/brunner56/agentdecompile-nvme/agentdecompile_projects/extract/raw/build_a__build_a_win_gog.exe
+
+
+/home/brunner56/agentdecompile-nvme/agentdecompile_projects/extract/raw/build_a__build_a_win_gog.exe:     file format pei-i386
+
+
+Disassembly of section .text:
+
+004ae840 <.text+0xad840>:
+  4ae840:	8b 49 04             	mov    0x4(%ecx),%ecx
+  4ae843:	e9 88 2d 00 00       	jmp    0x4b15d0

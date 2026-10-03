@@ -1,4 +1,4 @@
-# swkotor engine evidence (read-only inspection, 2026-09-15)
+# the corpus engine evidence (read-only inspection, 2026-09-15)
 
 ## Outcome
 
@@ -10,10 +10,10 @@ No recovery jobs, builds, game processes, or source changes were made in this in
 
 | Path | Bytes | SHA256 |
 |---|---:|---|
-| `/home/brunner56/agentdecompile-nvme/k1gog-target/swkotor.exe` | 4395008 | `34e6d971c034222a417995d8e1e8fdd9f8781795c9c289bd86c499a439f34c88` |
-| `/home/brunner56/agentdecompile-nvme/agentdecompile_projects/extract/raw/K1__k1_win_gog_swkotor.exe` | 4042752 | `9c10e0450a6eeca417e036e3cde7474fed1f0a92aab018446d156944dea91435` |
+| `/home/brunner56/agentdecompile-nvme/k1gog-target/the corpus.exe` | 4395008 | `34e6d971c034222a417995d8e1e8fdd9f8781795c9c289bd86c499a439f34c88` |
+| `/home/brunner56/agentdecompile-nvme/agentdecompile_projects/extract/raw/build_a__build_a_win_gog.exe` | 4042752 | `9c10e0450a6eeca417e036e3cde7474fed1f0a92aab018446d156944dea91435` |
 | `/home/brunner56/agentdecompile-nvme/agentdecompile_projects/corpus_work/k1_gog_from_source.exe` | 4042752 | `9c10e0450a6eeca417e036e3cde7474fed1f0a92aab018446d156944dea91435` |
-| `/home/brunner56/agentdecompile-nvme/agentdecompile_projects/corpus_work/k1_win_gog_swkotor_BUILT.exe` | 4042752 | `9c10e0450a6eeca417e036e3cde7474fed1f0a92aab018446d156944dea91435` |
+| `/home/brunner56/agentdecompile-nvme/agentdecompile_projects/corpus_work/build_a_win_gog_built.exe` | 4042752 | `9c10e0450a6eeca417e036e3cde7474fed1f0a92aab018446d156944dea91435` |
 
 Both inputs have PE timestamp 1076609753 and identical `.data`/`.rsrc` section hashes. The first has an additional `.bind` section at RVA 0x46d000 and entry RVA 0x46d2ed. The corpus input has four sections and entry RVA 0x2fb38d. Their `.text` and `.rdata` hashes differ. This supports related builds/wrapping, not an exact receipt match. A directory called `k1gog-target` is insufficient provenance.
 
@@ -21,11 +21,11 @@ The first binary imports OPENGL32, KERNEL32, USER32, GDI32, ole32, binkw32, mss3
 
 ## Recovered source truth
 
-Source directory: `/home/brunner56/agentdecompile-nvme/agentdecompile_projects/corpus_work/k1_win_gog_swkotor.exe/`.
+Source directory: `/home/brunner56/agentdecompile-nvme/agentdecompile_projects/corpus_work/build_a_win_gog.exe/`.
 
 It contains 24276 `.c` files plus a benchmark JSON and failure logs. No project build file or shared header exists directly in that directory. Files mix semantic candidates, compiled Ghidra output, and original-byte `_emit` assembly functions.
 
-Adjacent `k1_win_gog_swkotor.exe.matching.json` and `.variants.json` report:
+Adjacent `build_a_win_gog.exe.matching.json` and `.variants.json` report:
 
 - 24242 code functions, 1956 byte-exact C, 16926 compiling-but-not-exact C, 5358 asm floor, 2 absent C; `receiptsPartial: true`.
 - Byte-accurate variant: 1956 C + 22286 shims, 8.1% C.
@@ -77,7 +77,7 @@ Fresh disassembly of the corpus executable directly corroborates `SendMessageToP
 2. Freshly decompile `SendMessageToPlayer`, `ProcessReceivedFrames`, `Initialize` 0x005d5550, `CreateServer`, and the main-menu event handler into an isolated output with fresh receipts. Existing files are investigation inputs only.
 3. Recover and validate the message transport/dispatch boundary first, including queue wrap semantics, application callback ABI, and player identity. A narrow byte-proven C module is useful and honest; a standalone copied corpus is not.
 4. Only after live dispatch is validated, a binary-integrated transport shim could carry real serialized game messages between two instances. That would be an experiment toward multiplayer, not source-engine recovery. Multi-player ownership, authority, pause/dialog policy, save transitions, headless initialization and dependency removal remain separate proof obligations.
-5. An external server-list mockup or unrelated socket service is technically easy but does not satisfy an in-game browser and dedicated swkotor simulation. Do not present it as the requested product.
+5. An external server-list mockup or unrelated socket service is technically easy but does not satisfy an in-game browser and dedicated the corpus simulation. Do not present it as the requested product.
 
 No live multi-client gameplay, headless server, in-game browser, original source recovery, or clean C/C++ full-image link was established by this inspection.
 
@@ -87,7 +87,7 @@ No live multi-client gameplay, headless server, in-game browser, original source
 
 ## Follow-up: exact native ABI and remote-boundary blockers
 
-Fresh `objdump -d` inspection was run against the 4042752-byte raw corpus executable, SHA256 `9c10e0450a6eeca417e036e3cde7474fed1f0a92aab018446d156944dea91435`. Complete SendMessageToPlayer disassembly is saved at `/tmp/swkotor-send-disasm.txt`; contexts for **all 26 direct calls discovered in the full executable disassembly** are saved at `/tmp/swkotor-send-callers.txt`. Indirect calls were not exhaustively enumerated.
+Fresh `objdump -d` inspection was run against the 4042752-byte raw corpus executable, SHA256 `9c10e0450a6eeca417e036e3cde7474fed1f0a92aab018446d156944dea91435`. Complete SendMessageToPlayer disassembly is saved at `/tmp/corpus-send-disasm.txt`; contexts for **all 26 direct calls discovered in the full executable disassembly** are saved at `/tmp/corpus-send-callers.txt`. Indirect calls were not exhaustively enumerated.
 
 ### SendMessageToPlayer has FOUR explicit stack arguments
 

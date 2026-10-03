@@ -32,7 +32,7 @@ SHA-256 and each site's `adapter_key`/aliases. `find_adapter()` returns no site
 when an adapter role is absent or ambiguous, and a generated operation is kept
 only when its target, role/site mapping, address and bytes match the selected
 pack entries. Model/animation binding moved behind hook-pack admission. It now
-requires the exact `kotor.k1.model-scale.v1` operation, matching loaded image
+requires the exact `target.a.model-scale.v1` operation, matching loaded image
 digest and all five resolved adapter roles; the generated role addresses are
 what the model adapter uses. Missing or stale generated evidence leaves the
 optional model/animation API unavailable without failing ordinary hook startup.

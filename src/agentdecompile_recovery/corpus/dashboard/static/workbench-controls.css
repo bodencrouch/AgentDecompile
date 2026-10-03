@@ -144,6 +144,12 @@
   cursor: not-allowed;
 }
 
+.workbench-page .wb-dialog-error {
+  margin: var(--wb-space-2) 0;
+  color: var(--danger);
+  font-size: var(--wb-type-ui);
+}
+
 .workbench-page .wb-empty {
   display: flex;
   align-items: center;

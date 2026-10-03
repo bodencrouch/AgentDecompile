@@ -319,6 +319,9 @@ def main(argv: list[str] | None = None) -> int:
     except ValueError as exc:
         print(str(exc), file=sys.stderr)
         return 2
+    except OSError as exc:
+        print(f"mkobj: {exc}", file=sys.stderr)
+        return 2
     return 0
 
 

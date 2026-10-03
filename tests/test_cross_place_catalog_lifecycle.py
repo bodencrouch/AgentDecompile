@@ -379,3 +379,103 @@ def test_restored_explicit_source_root_never_falls_back(scope, monkeypatch, chan
                    'fallback-scan': 'exact_checkpoint_source_path'}
         assert not result['eligible'] and reasons[change] in result['missingEvidence'], result
         assert scope[3]._external_held and receipt_path.read_bytes() == before
+
+
+@pytest.mark.parametrize('interrupt_monitor', [False, True])
+def test_returned_runner_keeps_generation_until_fresh_session_clearance(scope, monkeypatch, interrupt_monitor):
+    """Child-monitor completion is capacity release, never session clearance."""
+    from types import SimpleNamespace
+
+    root, receipts, params, store = scope
+    template, initial = retained(scope)
+    # Reuse the qualified scan/generation fixture, then exercise real catalog
+    # admission and terminal persistence instead of fabricating a terminal row.
+    (receipts / (template.id + '.json')).unlink()
+    job = jobs.JobRecord(id=template.id, action_id='corpus.cross-place', title='fixture',
+                         params=params, argv=[], execution_root=str(root))
+    store._jobs[job.id] = job
+    store._order.append(job.id)
+    store._running = 1  # Another worker must survive both release paths.
+    monkeypatch.setattr(jobs, 'MAX_CONCURRENT', 3)
+    owner = {'pid': 123456, 'start_ticks': 'fixture', 'boot_id': 'fixture'}
+    observed_exit = []
+    proc = SimpleNamespace(pid=owner['pid'])
+
+    def poll():
+        assert store._running == 2
+        assert job.status == 'cancelling' and job.finished_at is None
+        assert job.resource_disposition == 'quarantined'
+        assert job.id in store._external_held.values()
+        if interrupt_monitor:
+            return None
+        observed_exit.append(proc)
+        return -9
+
+    proc.poll = poll
+    monkeypatch.setattr(supervision, 'session_clearance', lambda _: 'occupied')
+
+    def interrupted_sleep(_):
+        raise RuntimeError('synthetic exact-child monitor interruption')
+
+    if interrupt_monitor:
+        monkeypatch.setattr(jobs, 'time', SimpleNamespace(
+            time=jobs.time.time, monotonic=jobs.time.monotonic, sleep=interrupted_sleep))
+
+    def execute_child(command, cwd, cancel, *, on_started, on_unresolved, **kwargs):
+        on_started(owner)
+        on_unresolved(proc, 'termination attempts exhausted')
+        assert observed_exit == [proc]
+        assert supervision.session_clearance(owner) == 'occupied'
+        return 124, '[process did not reach a terminal state; ownership remains unresolved]'
+
+    def supervise(parameters, *, execute, transition, cancel):
+        envelope = {**initial['crossPlaceGeneration']['envelope'],
+                    'lease': gate.lease_envelope(parameters['out-dir'])}
+        command = cp.guarded_command(parameters, envelope)
+        transition('intent', command, envelope)
+        transition('dispatch', command, envelope)
+        return execute(command, gate.lease_fds(), cancel)
+
+    monkeypatch.setattr(jobs, '_default_executor', execute_child)
+    monkeypatch.setattr(cp, 'supervise', supervise)
+    store._run(job.id, threading.Event())
+
+    assert job.status == 'failed' and job.finished_at
+    assert store._running == 1
+    assert job.id not in store._cross_active
+    assert job.resource_disposition == 'quarantined'
+    assert job.execution_owner == owner
+    assert job.cross_place_generation['phase'] == 'dispatch-possible'
+    descriptor = store._cross_leases[job.id]
+    assert os.fstat(descriptor)
+    assert job.id in store._external_held.values()
+    if interrupt_monitor:
+        assert not observed_exit
+        assert 'resource reconciliation required' in job.log_reason
+    saved = json.loads((receipts / (job.id + '.json')).read_text())
+    assert saved['status'] == 'failed' and saved['finishedAt']
+    assert saved['executionOwner'] == owner
+    assert saved['resourceDisposition'] == 'quarantined'
+
+    refused = store.reconcile_resources(job.id)
+    assert not refused['eligible']
+    assert 'fresh_whole_session_clearance' in refused['missingEvidence']
+    assert 'live_executor_terminal' not in refused['missingEvidence']
+    assert store._running == 1 and os.fstat(descriptor)
+    assert job.id in store._external_held.values()
+
+    # The independent session observer now sees no exact child or descendants.
+    # The same retained generation/lease can be terminalized; no worker remains
+    # to release a second time and no successor generation is admitted.
+    monkeypatch.setattr(supervision, 'session_clearance', lambda observed: (
+        'clear' if observed == owner else pytest.fail('changed execution owner')))
+    result = store.reconcile_resources(job.id)
+    assert result['released'], result
+    assert store._running == 1
+    assert job.resource_disposition == 'released'
+    assert job.cross_place_generation['phase'] == 'cleared'
+    assert job.execution_owner == owner
+    assert not store._external_held and job.id not in store._cross_leases
+    assert jobs._bound_clearance(job.to_dict())
+    with pytest.raises(OSError):
+        os.fstat(descriptor)

@@ -1427,11 +1427,9 @@ class JobStore:
                 job.log = log[-MAX_LOG_BYTES:]
                 job.returncode = code
                 job.finished_at = time.time()
-                if job.status == "cancelling" and _ownership_unresolved(log):
-                    # An interrupted exact-child monitor is not a terminal
-                    # observation; keep its worker and durable claims occupied.
-                    job.finished_at = None
-                elif cancel.is_set() and job.status != "cancelled" and not (job.action_id == "review.decide" and code == 0):
+                # This executor is returning. A quarantined session may still
+                # own resources, but it is no longer an active catalog worker.
+                if cancel.is_set() and job.status != "cancelled" and not (job.action_id == "review.decide" and code == 0):
                     job.status = "cancelled"
                 elif code == 0:
                     job.status = "ok"
@@ -1444,26 +1442,40 @@ class JobStore:
                 job.error = str(exc)
                 if job.resource_keys:
                     job.resource_disposition = "released" if _cross_place_not_dispatched(job.to_dict()) else "quarantined"
-                if job.status != "cancelling" or job.resource_disposition != "quarantined":
-                    job.status = "cancelled" if cancel.is_set() else "failed"
-                    job.finished_at = time.time()
+                job.status = "cancelled" if cancel.is_set() else "failed"
+                job.finished_at = time.time()
         finally:
             # Always unwind the borrow on its originating thread. The duplicate
             # remains held until the terminal receipt commits or reconciliation.
-            if cross_owner is not None:
-                cross_owner.__exit__(None, None, None)
-            with self._lock:
-                self._cross_active.discard(job_id)
-                job = self._jobs[job_id]
-                try:
-                    self._persist_locked(job, force=True)
-                except OSError as exc:
-                    job.resource_disposition = "quarantined" if job.resource_keys else "unreserved"
-                    job.log_reason = f"Terminal receipt not committed; reservation retained: {exc}"
-                if job.resource_disposition not in {'held', 'quarantined'}:
-                    self._close_cross_lease_locked(job_id)
-                if job.status != "cancelling" or job.resource_disposition != "quarantined":
-                    self._release_admission_locked(job_id, identity_key, pair_entry, ghidra_key, external_entries, worker_acquired)
+            try:
+                if cross_owner is not None:
+                    cross_owner.__exit__(None, None, None)
+            finally:
+                with self._lock:
+                    self._cross_active.discard(job_id)
+                    job = self._jobs[job_id]
+                    if job.status in {"queued", "running", "cancelling"}:
+                        # BaseException may bypass the normal terminal projection.
+                        # Hand ownership to reconciliation, never leave a dead
+                        # runner represented as an active executor.
+                        job.status = "cancelled" if cancel.is_set() else "failed"
+                        job.finished_at = time.time()
+                        job.resource_disposition = "quarantined" if job.resource_keys else "unreserved"
+                        job.log_reason = "Executor interrupted; ownership requires resource reconciliation."
+                    try:
+                        self._persist_locked(job, force=True)
+                        if job.resource_disposition not in {'held', 'quarantined'}:
+                            self._close_cross_lease_locked(job_id)
+                    except BaseException as exc:
+                        job.resource_disposition = "quarantined" if job.resource_keys else "unreserved"
+                        job.log_reason = f"Terminal receipt not committed; reservation retained: {exc}"
+                        if not isinstance(exc, OSError):
+                            raise
+                    finally:
+                        # Capacity tracks this runner's lifetime. The release
+                        # helper retains resource maps while held/quarantined;
+                        # later reconciliation must not decrement capacity again.
+                        self._release_admission_locked(job_id, identity_key, pair_entry, ghidra_key, external_entries, worker_acquired)
 
     def _close_cross_lease_locked(self, job_id: str) -> None:
         descriptor = self._cross_leases.get(job_id)
@@ -1485,14 +1497,23 @@ class JobStore:
         # Reuse the job thread as a monitor. Retain its worker slot as well as
         # target locks; unrelated jobs can still use the remaining capacity.
         # Popen.poll observes this child lifetime, never a newly looked-up PID.
-        while True:
-            try:
-                if proc.poll() is not None:
-                    break
-            except OSError:
-                # A failed observation cannot authorize another writer.
-                pass
-            time.sleep(POLL_S)
+        try:
+            while True:
+                try:
+                    if proc.poll() is not None:
+                        break
+                except OSError:
+                    # A failed observation cannot authorize another writer.
+                    pass
+                time.sleep(POLL_S)
+        except BaseException:
+            with self._lock:
+                # The executor records a terminal failure on return/unwind.
+                # Keep the exact owner and quarantined claims for the existing
+                # qualified resource-reconciliation observer; do not adopt a
+                # replacement PID or claim that this monitor is still running.
+                job.log_reason = "Exact-child monitor interrupted before observed exit; resource reconciliation required."
+            raise
         with self._lock:
             # Exact-child exit is necessary, but the executor must still
             # corroborate session clearance before releasing this reservation.

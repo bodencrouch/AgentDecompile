@@ -84,12 +84,13 @@ def test_early_stdout_eof_keeps_cancellation_and_deadline_active(monkeypatch, tr
     assert ("[timed out after 2 seconds]" if trigger == "deadline" else "[cancelled]") in log
 
 
-@pytest.mark.parametrize("interrupt_monitor", [False, True])
-def test_unresolved_child_retains_admission_until_exact_handle_exit(monkeypatch, interrupt_monitor):
+@pytest.mark.parametrize("outcome", ["clear", "occupied", "interrupted"])
+def test_monitor_exit_releases_capacity_but_not_unresolved_resources(monkeypatch, outcome):
     # Construct only the in-memory runner state: no receipt writer thread or disk.
     store = jobs.JobStore.__new__(jobs.JobStore)
     store._lock = threading.Lock()
-    store._running = 0
+    store._running = 1  # Unrelated worker must remain counted.
+    monkeypatch.setattr(jobs, "MAX_CONCURRENT", 3)
     store._identity_held = {}
     store._pair_held = {}
     store._ghidra_held = {}
@@ -100,7 +101,8 @@ def test_unresolved_child_retains_admission_until_exact_handle_exit(monkeypatch,
     store.executor = None
     job = jobs.JobRecord(id="owner", action_id="synthetic.writer", title="Writer", argv=["fake-child"])
     store._jobs = {job.id: job}
-    store._persist_locked = lambda *args, **kwargs: None
+    receipts = []
+    store._persist_locked = lambda *args, **kwargs: receipts.append(job.to_dict())
     action = SimpleNamespace(id=job.action_id, identity_scope="database", ghidra_exclusive=True, backend="cli", mutating=True)
     monkeypatch.setattr(jobs, "action_by_id", lambda _: action)
     monkeypatch.setattr(jobs, "identity_lock_key", lambda _: "same-db")
@@ -111,7 +113,7 @@ def test_unresolved_child_retains_admission_until_exact_handle_exit(monkeypatch,
     proc = SimpleNamespace(pid=12345)
 
     def assert_held():
-        assert store._running == 1
+        assert store._running == 2
         assert store._identity_held == {"same-db": job.id}
         assert store._ghidra_held == {"same-project": job.id}
         assert job.to_dict()["ownershipUnresolved"]
@@ -131,11 +133,17 @@ def test_unresolved_child_retains_admission_until_exact_handle_exit(monkeypatch,
     def sleep(_):
         assert_held()
         sleeps.append(True)
-        if interrupt_monitor:
+        if outcome == "interrupted":
             raise RuntimeError("monitor interrupted without observed child exit")
 
-    def unresolved_executor(*args, on_unresolved, **kwargs):
+    owner = {"pid": proc.pid, "start_ticks": "synthetic", "boot_id": "synthetic"}
+    monkeypatch.setattr(supervision, "session_clearance", lambda _: outcome)
+
+    def unresolved_executor(*args, on_unresolved, on_started, **kwargs):
+        on_started(owner)
         on_unresolved(proc, "termination attempts exhausted")
+        if supervision.session_clearance(owner) != "clear":
+            return 124, "[process did not reach a terminal state; ownership remains unresolved]"
         return 124, "process termination observed"
 
     monkeypatch.setattr(jobs, "time", SimpleNamespace(time=lambda: 100.0, sleep=sleep))
@@ -143,15 +151,24 @@ def test_unresolved_child_retains_admission_until_exact_handle_exit(monkeypatch,
     store._run(job.id, threading.Event())
 
     assert polls and all(handle is proc for handle in polls)
-    if interrupt_monitor:
-        assert_held()
+    assert job.finished_at == 100.0
+    assert job.status == "failed"
+    assert store._running == 1
+    assert job.execution_owner == owner
+    assert receipts[-1]["status"] == "failed"
+    assert receipts[-1]["finishedAt"] == 100.0
+    if outcome == "interrupted":
         assert len(polls) == 1
+        assert "resource reconciliation required" in job.log_reason
     else:
         assert len(polls) == 3
         assert len(sleeps) == 2
+    if outcome == "clear":
         assert not job.to_dict()["ownershipUnresolved"]
-        assert job.finished_at == 100.0
-        assert job.status == "failed"
-        assert store._running == 0
         assert store._identity_held == {}
         assert store._ghidra_held == {}
+    else:
+        assert job.to_dict()["ownershipUnresolved"]
+        assert store._identity_held == {"same-db": job.id}
+        assert store._ghidra_held == {"same-project": job.id}
+        assert receipts[-1]["resourceDisposition"] == "quarantined"

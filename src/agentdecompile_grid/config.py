@@ -328,6 +328,17 @@ class KeyringConfig:
 
 
 @dataclass(frozen=True)
+class AdmissionConfig:
+    """Owner pin for read-only current observations; unset does not admit anything."""
+
+    snapshot_path: str = field(default="", metadata=_doc(
+        "Absolute public snapshot file, selected only by owner configuration; no writer or default pin."))
+    snapshot_sha256: str = field(default="", metadata=_doc("Exact lowercase SHA-256 of the canonical public snapshot bytes."))
+    policy_id: str = field(default="", metadata=_doc("Exact nonempty owner policy ID in the pinned snapshot."))
+    generation: int = field(default=-1, metadata=_doc("Exact nonnegative owner generation; -1 means unset."))
+
+
+@dataclass(frozen=True)
 class FrontierConfig:
     """``log.frontier.FrontierPolicy`` as data (design 2.6)."""
 
@@ -452,6 +463,7 @@ class GridConfig:
     heads: HeadsConfig = field(default_factory=HeadsConfig, metadata=_doc("heads"))
     signing: SigningConfig = field(default_factory=SigningConfig, metadata=_doc("signing"))
     keyring: KeyringConfig = field(default_factory=KeyringConfig, metadata=_doc("keyring"))
+    admission: AdmissionConfig = field(default_factory=AdmissionConfig, metadata=_doc("current observation admission"))
     frontier: FrontierConfig = field(default_factory=FrontierConfig, metadata=_doc("frontier"))
     outbox: OutboxConfig = field(default_factory=OutboxConfig, metadata=_doc("outbox"))
     backoff: BackoffConfig = field(default_factory=BackoffConfig, metadata=_doc("backoff"))
@@ -567,6 +579,15 @@ class GridConfig:
 
     def validate(self) -> "GridConfig":
         """Raise ``ConfigError`` naming the first unusable field; return self when everything is usable."""
+        a = self.admission
+        _require(type(a.generation) is int and a.generation >= -1, "admission.generation", "must be an int >= -1")
+        for name in ("snapshot_path", "snapshot_sha256", "policy_id"):
+            _require(type(getattr(a, name)) is str, f"admission.{name}", "must be a string")
+        if a.snapshot_path or a.snapshot_sha256 or a.policy_id or a.generation != -1:
+            _require(os.path.isabs(a.snapshot_path), "admission.snapshot_path", "must be an absolute path")
+            _require(len(a.snapshot_sha256) == 64 and all(c in "0123456789abcdef" for c in a.snapshot_sha256),
+                     "admission.snapshot_sha256", "must be a lowercase SHA-256 digest")
+            _require(bool(a.policy_id.strip()) and a.generation >= 0, "admission", "policy_id and generation must both be set")
         o, b, t, lg, w = self.objects, self.budgets, self.tasks, self.log, self.worker
         _require(o.hash_algorithm == HASH_ALGORITHM, "objects.hash_algorithm",
                  f"core pins {HASH_ALGORITHM!r}; got {o.hash_algorithm!r}")
@@ -927,7 +948,7 @@ __all__ = [
     "FLOAT_POLICIES", "PORTABILITY_POLICIES", "CAPTURE_POLICIES",
     "ConfigError", "PathsConfig", "AdaptersConfig", "LocalStoreConfig", "S3StoreConfig",
     "MirrorStoreConfig", "PeerStoreConfig", "LayeredStoreConfig", "ObjectsConfig", "BudgetsConfig",
-    "TasksConfig", "S3LogConfig", "HttpLogConfig", "LogConfig", "HeadsConfig", "SigningConfig", "KeyringConfig",
+    "TasksConfig", "S3LogConfig", "HttpLogConfig", "LogConfig", "HeadsConfig", "SigningConfig", "KeyringConfig", "AdmissionConfig",
     "FrontierConfig", "BackoffConfig", "OutboxConfig", "IntentsConfig", "PartitionsConfig", "RetentionConfig",
     "CompactionConfig", "WorkerConfig", "VerifierConfig", "FleetConfig", "GridConfig", "ROLES",
     "to_dict", "from_dict", "load", "default", "describe", "to_toml", "config_file_path", "budgets_with_overrides",

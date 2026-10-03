@@ -8,7 +8,7 @@ from pathlib import Path
 from .coverage_evidence import source_binding
 from .package_readable import map_source_path, package_readable
 from .source_claims import is_real_c, is_recovered_source
-from .semantic_identity import recorded_export_name
+from .semantic_identity import CLAIM_SCOPE, STABS_CLAIM_SCOPE, recorded_target_name
 
 _SAFE_NAME = re.compile(r"[^A-Za-z0-9_.+-]")
 
@@ -59,7 +59,7 @@ def package_from_store(con, out_dir: Path) -> dict:
         semantic_columns = ", ".join(column if column in columns else f"NULL AS {column}" for column in
                                      ("target_sha256", "semantic_status", "semantic_reason", "semantic_evidence"))
         rows = list(con.execute(
-            "SELECT program, name, path, addr, binary_id, " + digest_column + ", " + semantic_columns
+            "SELECT program, name, path, addr, size, binary_id, " + digest_column + ", " + semantic_columns
             + " FROM recovered_function WHERE real_c=1"
         ))
     except Exception as exc:
@@ -83,7 +83,7 @@ def package_from_store(con, out_dir: Path) -> dict:
         if not is_real_c(text):
             rejected.append({**rejection, "reason": "source_not_readable_c"})
             continue
-        witnessed_name = recorded_export_name(dict(row))
+        witnessed_name = recorded_target_name(dict(row))
         if witnessed_name is None and (type(row["addr"]) is not int or row["addr"] < 0):
             rejected.append({**rejection, "reason": "target_address_unavailable"})
             continue
@@ -104,7 +104,7 @@ def package_from_store(con, out_dir: Path) -> dict:
         named_files += witnessed_name is not None
         target_local_files += witnessed_name is None
     return {"files": written, "named_files": named_files, "target_local_files": target_local_files,
-            "named_claim": "recorded ingestion-time target-pe-export-name-at-va-v1; target not rechecked during packaging",
+            "named_claim": f"recorded ingestion-time {CLAIM_SCOPE} or {STABS_CLAIM_SCOPE}; target not rechecked during packaging",
             "source_binding_rejections": rejected}
 
 

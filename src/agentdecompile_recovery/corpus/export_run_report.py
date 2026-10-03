@@ -12,7 +12,7 @@ from pathlib import Path
 
 from .ingest_recovered import RECOVERED_FUNCTION_DDL, ensure_recovered_function  # noqa: F401
 from .store import connect
-from .semantic_identity import CLAIM_SCOPE, recorded_export_name
+from .semantic_identity import recorded_name_witness
 
 
 def _iso(ts: float) -> str:
@@ -39,9 +39,10 @@ def build(con) -> dict:
     results = []
     for row in rows:
         real_c = bool(row["real_c"])
-        named = recorded_export_name(dict(row)) is not None
-        identity_note = (f"Recorded ingestion-time {CLAIM_SCOPE}; target was not rechecked by this report."
-                         if named else f"No accepted target export witness: {row['semantic_reason'] or 'historical_unverified'}.")
+        witness = recorded_name_witness(dict(row))
+        named = witness is not None
+        identity_note = (f"Recorded ingestion-time {witness['claimScope']}; target was not rechecked by this report."
+                         if named else f"No accepted target name witness: {row['semantic_reason'] or 'historical_unverified'}.")
         if row["logical_id"] is not None:
             identity_note += f" Logical function {row['logical_id']} is advisory cross-build correlation."
         note = "Byte comparison was not performed by this report. Stored source classification does not establish byte identity."
@@ -106,7 +107,7 @@ def build(con) -> dict:
                     "pluginResults": [
                         {
                             "pluginId": "identity",
-                            "pluginName": "Recorded Target PE Export Identity",
+                            "pluginName": f"Recorded Target {witness['kind']} Identity" if named else "Recorded Target Name Identity",
                             "status": "success" if named else "skipped",
                             "durationMs": 0,
                             "output": identity_note,

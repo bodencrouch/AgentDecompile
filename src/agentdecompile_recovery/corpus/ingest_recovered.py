@@ -682,8 +682,9 @@ def print_summary(con, out_dir: pathlib.Path) -> dict:
         "recovered_real_c": real,
         "recovered_asm_shim": total - real,
         "recovered_bound_to_logical": boundn,
-        "recovered_without_identity": one("SELECT COUNT(*) FROM recovered_function WHERE semantic_status IS NULL OR semantic_status!='accepted-target-pe-export'"),
+        "recovered_without_identity": one("SELECT COUNT(*) FROM recovered_function WHERE semantic_status IS NULL OR semantic_status NOT IN ('accepted-target-pe-export','accepted-target-macho-stabs-n-fun')"),
         "recovered_named_target_exports": one("SELECT COUNT(*) FROM recovered_function WHERE semantic_status='accepted-target-pe-export'"),
+        "recovered_named_target_stabs": one("SELECT COUNT(*) FROM recovered_function WHERE semantic_status='accepted-target-macho-stabs-n-fun'"),
         "recovered_target_local_only": one("SELECT COUNT(*) FROM recovered_function WHERE semantic_status='target-local-only'"),
         "recovered_identity_unverified": one("SELECT COUNT(*) FROM recovered_function WHERE semantic_status IS NULL"),
         "real_c_bound_to_logical": one(
@@ -693,7 +694,7 @@ def print_summary(con, out_dir: pathlib.Path) -> dict:
         "reuse_rows_real_c": one("SELECT COUNT(*) FROM reuse_candidate WHERE real_c=1"),
         "reuse_target_binaries": one("SELECT COUNT(DISTINCT dst_binary_id) FROM reuse_candidate"),
         "identity_rule": (
-            "named acceptance requires target-pe-export-name-at-va-v1; "
+            "named acceptance requires target-pe-export-name-at-va-v1 or target-macho-stabs-n-fun-name-at-va-v1; "
             "logical_id is advisory cross-build correlation"
         ),
     }

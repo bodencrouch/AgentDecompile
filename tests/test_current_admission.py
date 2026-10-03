@@ -453,6 +453,77 @@ def test_same_producer_verifier_key_never_counts_independent(tmp_path):
     assert (read(f).status, read(f).reason) == ("stale", "lineage_disallowed")
 
 
+@pytest.mark.parametrize("referenced", [False, True])
+@pytest.mark.parametrize("reverse_keys", [False, True])
+def test_raw_operator_and_node_aliases_cannot_verify_each_other(tmp_path, referenced, reverse_keys):
+    f = fixture_at(tmp_path, referenced=referenced)
+    assert read(f).status == "authenticated"
+    # One deterministic seed supplies the node producer and raw operator verifier.
+    alias = Ed25519Signer(bytes([4]) * 32)
+    assert alias.public_bytes == f.producer.key.public
+    assert alias.key_id != f.producer.key_id
+    name = "alias-verifier.pub"
+    (f.keys / name).write_bytes(alias.public_bytes)
+    f.policy["public_keys"][-1] = {
+        "filename": name, "sha256": sha(alias.public_bytes), "key_id": alias.key_id,
+        "algorithm": "ed25519", "role": "operator", "lineage": [],
+    }
+    f.policy["observations"][0]["verifier_keys"] = [alias.key_id]
+    kind, body, _, basis = f.statements[2]
+    body["verifier_key"], body["verifier_lineage"] = alias.key_id, []
+    f.statements[2] = kind, body, alias, basis
+    if reverse_keys:
+        f.policy["public_keys"].reverse()
+    pinned(f)
+    seal(f)
+    policy = admission.load_current_admission(f.cfg)
+    result = read(f)
+    assert (policy.status, policy.reason) == ("failed", "duplicate_public_key_material")
+    assert (result.status, result.reason) == ("failed", "duplicate_public_key_material")
+    assert policy.admission_identity is None
+    assert result.admission_identity is None and result.observation_identity is None
+
+
+@pytest.mark.parametrize("referenced", [False, True])
+@pytest.mark.parametrize("reverse_keys", [False, True])
+def test_alias_ancestors_cannot_split_distinct_leaf_lineages(tmp_path, referenced, reverse_keys):
+    f = fixture_at(tmp_path, referenced=referenced)
+    assert read(f).status == "authenticated"
+    assert f.producer.key.public != f.verifier.key.public
+    # Distinct leaves cite distinct ancestor IDs backed by one deterministic seed.
+    seed = bytes([2]) * 32
+    public = Ed25519Signer(seed).public_bytes
+    ancestor = NodeKey("ed25519", key_id_for("ed25519", public), seed, public, 0.0, 1e20)
+    assert ancestor.public == f.parents[0].public_bytes
+    assert ancestor.key_id != f.parents[0].key_id
+    raw = canonical_json(dict(ancestor.public_record(), role="operator", lineage=[]))
+    name = "alias-ancestor.json"
+    (f.keys / name).write_bytes(raw)
+    f.policy["public_keys"][2] = {
+        "filename": name, "sha256": sha(raw), "key_id": ancestor.key_id,
+        "algorithm": "ed25519", "role": "operator", "lineage": [],
+    }
+    entry = f.policy["public_keys"][-1]
+    entry["lineage"] = [ancestor.key_id]
+    path = f.keys / entry["filename"]
+    metadata = admission._json(path.read_bytes())
+    metadata["lineage"] = entry["lineage"]
+    raw = canonical_json(metadata)
+    path.write_bytes(raw)
+    entry["sha256"] = sha(raw)
+    f.statements[2][1]["verifier_lineage"] = list(entry["lineage"])
+    if reverse_keys:
+        f.policy["public_keys"].reverse()
+    pinned(f)
+    seal(f)
+    policy = admission.load_current_admission(f.cfg)
+    result = read(f)
+    assert (policy.status, policy.reason) == ("failed", "duplicate_public_key_material")
+    assert (result.status, result.reason) == ("failed", "duplicate_public_key_material")
+    assert policy.admission_identity is None
+    assert result.admission_identity is None and result.observation_identity is None
+
+
 def test_new_generation_changes_identity_and_missing_pin_never_reuses_it(tmp_path):
     f = fixture_at(tmp_path)
     before = read(f)

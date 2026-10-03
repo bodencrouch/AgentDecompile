@@ -266,6 +266,7 @@ def _policy(cfg: GridConfig, reader: _Reader):
     entries = policy["public_keys"]
     _need(type(entries) is list and 0 < len(entries) <= 64, "invalid_public_keys")
     filenames = set()
+    public_materials: set[bytes] = set()
     for entry in entries:
         reader.tick()
         _fields(entry, "filename sha256 key_id algorithm role lineage", "invalid_public_key")
@@ -282,6 +283,7 @@ def _policy(cfg: GridConfig, reader: _Reader):
         if name.endswith(".pub"):
             _need(entry["role"] == "operator" and entry["lineage"] == [], "invalid_public_key")
             actual = ring.add_ed25519_public(public, role="operator")
+            material = public
         else:
             data = _json(public, canonical=False)
             required = {"key_id", "algorithm", "public", "role", "lineage"}
@@ -295,9 +297,14 @@ def _policy(cfg: GridConfig, reader: _Reader):
             _need("previous_key_ids" not in data or _strings(data["previous_key_ids"], empty=True), "invalid_public_key")
             _need(all(data[k] == entry[k] for k in ("key_id", "algorithm", "role", "lineage"))
                   and type(data["public"]) is str and _hex(data["public"]), "public_key_metadata_mismatch")
-            actual = ring.add_node_public(key, "ed25519", bytes.fromhex(data["public"]),
+            material = bytes.fromhex(data["public"])
+            actual = ring.add_node_public(key, "ed25519", material,
                                           role=entry["role"], lineage=entry["lineage"])
         _need(actual == key, "public_key_identity_mismatch")
+        # The raw operator and node formats assign different IDs to the same key.
+        # Include every selected entry so aliases of ancestors cannot split lineage.
+        _need(material not in public_materials, "duplicate_public_key_material")
+        public_materials.add(material)
         keys[key] = entry
     for key, entry in keys.items():
         lineage = entry["lineage"]

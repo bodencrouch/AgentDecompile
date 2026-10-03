@@ -61,3 +61,44 @@ Performed only source inspection, read-only Git diff checks, and stdlib AST pars
 **Not performed:** tests or collection, project imports, typechecking, builds, proof scripts, actual signing/key generation, actual owner configuration loading/provisioning, database reads/creation, compiler/checker/Ghidra execution, process/service/catalog operations, hot reload, server activation, live installed-consumer validation or publication. No live claim follows from the authored regressions.
 
 P3.2 measured implementation/runtime closure, compile closure, exact source/candidate/corpus join, current corpus read validation, final dashboard connection, fresh whole-image acceptance and runtime readiness remain open. Existing dashboard provider state remains disconnected and verified counts remain null because no consumer was changed.
+
+## Task11.5 fix round1 — canonical Ed25519 independence
+
+Date: 2026-10-02. Fix base supplied by controller: `689f6dd1e8b45d1f4a20e7e48d7dd49cb623108b`.
+Status: **READY_TO_COMMIT (source-only; regression execution unqualified).**
+
+Read the exact fix brief, original task brief, adopted admission contract, durable implementation report, and review Important issue 1 in full. Read the SDD implementer prompt; this dispatch's explicit source-only/no-commit constraints govern its generic execution and commit recipes.
+
+### Exact owned paths and change
+
+- `src/agentdecompile_recovery/corpus/current_admission.py`
+- `tests/test_current_admission.py`
+- `.superpowers/sdd/2026-09-28-comprehensive-agentdecompile-plan/task-11-admission-report.md` (appended section only)
+
+The pinned public-key loader now maintains an invocation-local set of exact normalized Ed25519 public bytes across **every** selected trust entry. Raw operator files supply their existing 32-byte material after the existing raw-key validity guard. Node records supply `bytes.fromhex` only after the existing exact lowercase 64-character hex/type/metadata guards. Existing Keyring population and key-ID validation remain in place. Repeated material returns `failed:duplicate_public_key_material` before the policy can grant an admission identity or authenticate any observation. No ID, role, lineage, JSON encoding, filename or insertion order can make identical public material independent. Ancestors are subject to the same check even when leaf producer/verifier keys differ.
+
+Existing `Keyring` signature verification, `refusal_reason` role authorization and `Keyring.independent` calls remain intact. No generic Keyring change, trust callback, ID rewrite, producer/log/record/public-result interface change, source/runtime closure, config provisioning or consumer connection was added. Authority still comes from the explicit owner pin; role and lineage metadata cannot confer independence on aliases.
+
+### Authored regression sources (unrun)
+
+Added two actual-crypto regression functions, each parameterized over both selected-public-key insertion orders and inline/referenced evidence (eight authored alias cases total):
+
+- `test_raw_operator_and_node_aliases_cannot_verify_each_other`: one deterministic test seed (`bytes([4]) * 32`) backs the existing node producer and an operator-format verifier. The fixture asserts identical public bytes and distinct valid IDs, adjusts the exact policy/verdict signer associations, and signs the real tuple through existing signers/builders.
+- `test_alias_ancestors_cannot_split_distinct_leaf_lineages`: producer/verifier leaf material is explicitly distinct, while raw and node ancestor IDs share the deterministic seed (`bytes([2]) * 32`). The selected public metadata and signed verifier lineage agree with their respective distinct ancestor IDs.
+
+Both functions first author a genuine distinct-key positive read, then require both admission loading and observation reading to refuse the aliased snapshot with the exact reason. Refusal asserts no admission/observation identities. Existing positive regressions for all three grades and both evidence forms are retained. The source file now contains 31 test functions, counted by AST only; no tests were collected or executed and no signing seeds were evaluated by this worker.
+
+### Self-review and source-check evidence
+
+Reviewed the complete owned Python diff. The dedupe runs only after existing validity/identity guards, compares exact public bytes without coercion or ring-private-field inspection, is bounded by the existing 64-entry public-key cap, and rejects globally selected ancestor aliases before lineage validation can admit them. Both format orders encounter the same byte set. The distinct-key fixture continues through the same existing authorization/independence path by source reasoning. Each regression rebuilds the actual signed log tuple after changing relevant signer/lineage metadata; referenced evidence remains in its original signed storage form. Unselected old fixture public files are irrelevant because the loader reads only selected pinned files.
+
+Checks performed:
+
+- `git diff -- src/agentdecompile_recovery/corpus/current_admission.py tests/test_current_admission.py`: read the complete scoped source diff.
+- `git diff --check -- src/agentdecompile_recovery/corpus/current_admission.py tests/test_current_admission.py`: exit 0, no output.
+- `python -` with stdlib `ast`/`pathlib` only, reading the two owned Python files and calling `ast.parse`: both reported `AST syntax PASS`; test-function count was 31. No project import or fixture execution occurred.
+- Final report/source whitespace check uses `git diff --check` scoped to all three owned paths.
+
+**Not performed:** tests/collection/builds/typechecks/proof scripts/project imports, actual crypto signing or key generation, DB reads/creation, owner key/config/revocation operations, runtime/process/catalog/checker/compiler/Ghidra/service/systemctl/restart/port operations, hot reload/consumer activation, staging/commits or publication. Other agents' tracked edits were preserved.
+
+The fix closes the reviewed alias bypass at the source gate. Actual Ed25519 regression execution, installed-consumer behavior and live qualification remain unverified. P3.2 implementation/runtime and compile closure, exact source/corpus join, dashboard connection, whole-image acceptance and runtime readiness remain open.

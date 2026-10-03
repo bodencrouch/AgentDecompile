@@ -230,3 +230,58 @@ def test_selected_target_content_preflight_refuses_before_producer(tmp_path, mon
     assert result.diagnostic['matchingStatus']['contribution']['compilerProducedWholeImage'] is False
     assert not list((tmp_path / 'fresh').rglob('unit.obj'))
     assert all(Path(row['source']).is_file() for row in doc['candidates'])
+
+
+@pytest.mark.parametrize('case', ['missing_func', 'malformed', 'unreadable', 'function_limit'])
+def test_revalidate_public_inventory_failure_reports_refusal_without_producer(tmp_path, monkeypatch, case):
+    doc = setup_recipe(tmp_path)
+    db = tmp_path / 'fixture.sqlite'
+    if case == 'missing_func':
+        with sqlite3.connect(db) as con: con.execute('DROP TABLE func')
+    elif case == 'malformed': db.write_bytes(b'not a SQLite database')
+    elif case == 'unreadable': db.unlink()
+    else:
+        monkeypatch.setattr(sr, 'MAX_FUNCTIONS', 0)
+
+    def forbidden_producer(**kwargs):
+        pytest.fail('unavailable selected inventory must refuse before producer invocation')
+
+    monkeypatch.setattr(sc, 'compile_observation', forbidden_producer)
+    before = set(sc._COMPILES)
+    if case == 'function_limit':
+        # Existing function-count resource refusal must remain a hard refusal
+        # before any workspace, distinct from database availability diagnostics.
+        with pytest.raises(ValueError, match='selected_database_too_many_functions'):
+            run_recipe(tmp_path, doc)
+        assert not (tmp_path / 'fresh').exists()
+        assert set(sc._COMPILES) == before
+        return
+    result = run_recipe(tmp_path, doc)
+    state = result.diagnostic['matchingStatus']
+    assert result.diagnostic['evidenceState'] == 'refused-selected-database-inventory'
+    assert state['selectedCorpusInventory']['state'] == 'unavailable'
+    assert state['selectedCorpusInventory']['complete'] is False
+    assert state['selectedCorpusInventory']['functionCount'] is None
+    assert state['code_total'] is None and state['functions'] is None
+    assert state['counts']['byte_exact'] == state['placedCompiledRegions'] == state['placedCompiledBytes'] == 0
+    assert state['wholeFileByteIdentical'] is True
+    assert state['contribution']['compilerProducedWholeImage'] is False
+    assert all(row['reason'] == 'selected_database_inventory_unavailable' and 'invocation' not in row
+               for row in result.diagnostic['candidates'])
+    assert not list((tmp_path / 'fresh').rglob('unit.obj'))
+    assert set(sc._COMPILES) == before
+    assert all(Path(row['source']).is_file() for row in doc['candidates'])
+    assert json.loads((tmp_path / 'fresh' / 'matching-status.json').read_text()) == state
+
+
+def test_database_size_bound_still_refuses_before_workspace_or_producer(tmp_path, monkeypatch):
+    doc = setup_recipe(tmp_path)
+    monkeypatch.setattr(sr, 'MAX_DATABASE_BYTES', 0)
+
+    def forbidden_producer(**kwargs):
+        pytest.fail('database resource limit must refuse before producer invocation')
+
+    monkeypatch.setattr(sc, 'compile_observation', forbidden_producer)
+    with pytest.raises(ValueError, match='input_not_regular_or_too_large'):
+        run_recipe(tmp_path, doc)
+    assert not (tmp_path / 'fresh').exists()

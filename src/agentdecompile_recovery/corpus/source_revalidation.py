@@ -6,6 +6,7 @@ can enter acceptance. A fresh private workspace contains all generated outputs.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from contextlib import closing
 import hashlib
 import json
 import os
@@ -126,17 +127,21 @@ def revalidate(*, recipe: bytes, target, db, binary_id: int, workspace) -> Reval
     are supported. Selected candidates execute sequentially in stable ID order.
     """
     doc = _recipe(recipe)
-    target_path, db_path = Path(target).resolve(strict=True), Path(db).resolve(strict=True)
+    target_path, db_path = Path(target).resolve(strict=True), Path(db).resolve()
     if (str(target_path) != doc["target"]["path"] or str(db_path) != doc["db"]
             or type(binary_id) is not int or binary_id != doc["binaryId"]):
         raise ValueError("required_target_database_or_binary_mismatch")
     _bound(target_path, doc["target"]["sha256"], MAX_TARGET_BYTES)
-    _bounded_file(db_path, MAX_DATABASE_BYTES)
-    with sqlite3.connect(db_path.as_uri() + "?mode=ro", uri=True) as connection:
-        connection.set_progress_handler(lambda: 1, 1_000_000)
-        count = connection.execute("SELECT count(*) FROM func WHERE binary_id=?", (binary_id,)).fetchone()[0]
-        if count > MAX_FUNCTIONS:
-            raise ValueError("selected_database_too_many_functions")
+    inventory_failure = None
+    try:
+        _bounded_file(db_path, MAX_DATABASE_BYTES)
+        with closing(sqlite3.connect(db_path.as_uri() + "?mode=ro", uri=True)) as connection:
+            connection.set_progress_handler(lambda: 1, 1_000_000)
+            count = connection.execute("SELECT count(*) FROM func WHERE binary_id=?", (binary_id,)).fetchone()[0]
+            if count > MAX_FUNCTIONS:
+                raise ValueError("selected_database_too_many_functions")
+    except (OSError, sqlite3.Error) as exc:
+        inventory_failure = str(exc)
     root = Path(workspace)
     if not root.is_absolute() or root.parent.resolve(strict=True) != root.parent:
         raise ValueError("workspace_must_have_canonical_existing_parent")
@@ -151,6 +156,9 @@ def revalidate(*, recipe: bytes, target, db, binary_id: int, workspace) -> Reval
         attempts.append(attempt)
         if not row["selected"]:
             attempt["reason"] = "intentionally_discarded"
+            continue
+        if inventory_failure is not None:
+            attempt["reason"] = "selected_database_inventory_unavailable"
             continue
         try:
             _bound(target_path, doc["target"]["sha256"], MAX_TARGET_BYTES)
@@ -177,10 +185,18 @@ def revalidate(*, recipe: bytes, target, db, binary_id: int, workspace) -> Reval
     output = root / "revalidated.exe"
     image = sc.reconstruct(target=target_path, output=output, observations=observations)
     manifest = root / "matching-status.json"
-    matching_status.main(["--target", str(target_path), "--db", str(db_path),
-        "--binary-id", str(binary_id), "--src-dir", str(source_index),
-        "--out-manifest", str(manifest)], reconstruction_observation=image)
-    diagnostic = {"schema": SCHEMA, "evidenceState": "fresh-process-local-observation",
+    if inventory_failure is None:
+        matching_status.main(["--target", str(target_path), "--db", str(db_path),
+            "--binary-id", str(binary_id), "--src-dir", str(source_index),
+            "--out-manifest", str(manifest)], reconstruction_observation=image)
+    else:
+        # Do not retry a failed/bounded inventory outside the preflight budget.
+        contribution = sc.evaluate_reconstruction(image, target_path=target_path)
+        report = matching_status._unavailable_inventory_report(contribution,
+            db=db_path, binary_id=binary_id, detail=inventory_failure)
+        manifest.write_text(json.dumps({**report, "functions": None}, indent=1))
+    diagnostic = {"schema": SCHEMA, "evidenceState": ("fresh-process-local-observation"
+        if inventory_failure is None else "refused-selected-database-inventory"),
         "recipeSha256": hashlib.sha256(recipe).hexdigest(), "workspace": str(root),
         "output": str(output), "candidates": attempts,
         "matchingStatus": json.loads(manifest.read_bytes()), "reconstruction": image.record}

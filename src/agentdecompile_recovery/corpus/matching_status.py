@@ -7,6 +7,7 @@ flags, filename classifications and historical floors never supply that count.
 from __future__ import annotations
 
 import argparse
+from contextlib import closing
 import json
 import re
 import sqlite3
@@ -64,6 +65,30 @@ def index_disk(src_dir: Path) -> dict[int, str]:
     return idx
 
 
+def _unavailable_inventory_report(contribution, *, db, binary_id, detail):
+    """A failed inventory proves no selected credit, not an empty corpus."""
+    reason = "selected_database_inventory_unavailable"
+    contribution = {**contribution, "placedCompiledRegions": 0, "placedCompiledBytes": 0,
+                    "linkedSourceContributionVerified": False, "reason": reason,
+                    "candidates": [{**row, "accepted": False, "contributedBytes": 0,
+                                    "reason": reason} for row in contribution["candidates"]]}
+    variants = {key: {"c": 0, "shim": None, "c_pct": None, "byte_identical": False,
+                     "exact_placement_hash_equal": contribution["wholeFileByteIdentical"],
+                     "note": reason} for key in ("byte_accurate", "max_c")}
+    variants["max_c"].update(c=None, byte_exact_c=0, readable_only_c=None)
+    return {"binary_id": binary_id, "code_total": None,
+            "selectedCorpusInventory": {"state": "unavailable", "complete": False,
+                "functionCount": None, "db": str(db), "binaryId": binary_id,
+                "reason": reason, "detail": detail},
+            "counts": {"byte_exact": 0, "verified_reloc_free": 0,
+                       "compiles_not_exact": None, "asm_floor": None,
+                       "absent_c": None, "out_of_text": None},
+            "variants": variants, "receiptsPartial": None, "rawLocalObservedC": None,
+            "localReceiptRejections": [], "historicalFloorDiagnostic": 0,
+            "contribution": contribution, "placedCompiledRegions": 0,
+            "placedCompiledBytes": 0, "wholeFileByteIdentical": contribution["wholeFileByteIdentical"]}
+
+
 def main(argv: list[str] | None = None, *, reconstruction_observation=None) -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--target", required=True, help="shipped PE (raw image)")
@@ -89,11 +114,24 @@ def main(argv: list[str] | None = None, *, reconstruction_observation=None) -> i
         except (ValueError, TypeError, json.JSONDecodeError):
             pass
 
-    con = sqlite3.connect(f"file:{args.db}?mode=ro", uri=True)
-    con.row_factory = sqlite3.Row
-    funcs = [(int(r["addr"]), int(r["size"] or 0)) for r in con.execute(
-        "SELECT addr, size FROM func WHERE binary_id=? AND size>0", (args.binary_id,))]
-    con.close()
+    try:
+        with closing(sqlite3.connect(Path(args.db).resolve().as_uri() + "?mode=ro", uri=True)) as con:
+            funcs = [(int(addr), int(size or 0)) for addr, size in con.execute(
+                "SELECT addr, size FROM func WHERE binary_id=? AND size>0", (args.binary_id,))]
+    except (OSError, sqlite3.Error, ValueError, TypeError) as exc:
+        contribution = evaluate_reconstruction(reconstruction_observation, target_path=args.target,
+                                                db=args.db, binary_id=args.binary_id)
+        report = _unavailable_inventory_report(contribution, db=args.db,
+                                              binary_id=args.binary_id, detail=str(exc))
+        report["historicalFloorDiagnostic"] = len(floor)
+        if args.out_exe:
+            report["outputRefusal"] = "selected_database_inventory_unavailable"
+        if args.out_manifest:
+            Path(args.out_manifest).write_text(json.dumps({**report, "functions": None}, indent=1))
+        if args.out_report:
+            Path(args.out_report).write_text(json.dumps(report, indent=1))
+        print(f"binary_id={args.binary_id} selected database inventory unavailable: {exc}; qualified credit=0")
+        return 0
 
     local_rejections = []
     local = load_byte_exact([args.receipts] if args.receipts else [], target_path=args.target,
@@ -184,6 +222,8 @@ def main(argv: list[str] | None = None, *, reconstruction_observation=None) -> i
         print(f"  exact-placement hash equal: {same} (not compiler-produced) -> {args.out_exe}")
 
     report = {"binary_id": args.binary_id, "code_total": code_total,
+              "selectedCorpusInventory": {"state": "available", "complete": True,
+                  "functionCount": len(funcs), "db": args.db, "binaryId": args.binary_id},
               "counts": counts, "variants": variants,
               "receiptsPartial": bool(args.receipts and len(receipts) < code_total),
               "rawLocalObservedC": len(local), "localReceiptRejections": local_rejections,

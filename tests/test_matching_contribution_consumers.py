@@ -309,3 +309,52 @@ def test_correct_physical_binding_preserves_existing_contribution_gates(tmp_path
     assert sc.evaluate_reconstruction(image.record, db=db, binary_id=1)['placedCompiledRegions'] == 0
     forged = sc.ReconstructionObservation(image.record_json, image.candidates)
     assert sc.evaluate_reconstruction(forged, db=db, binary_id=1)['placedCompiledRegions'] == 0
+
+
+@pytest.mark.parametrize('case', ['missing_func', 'malformed', 'unreadable'])
+def test_matching_status_public_inventory_failure_reports_unknown_and_zero_credit(tmp_path, case):
+    db = tmp_path / 'corpus.sqlite'
+    corpus_fixture(db)
+    target, observations = compiled_pair(tmp_path)
+    output = tmp_path / 'out.exe'
+    image = sc.reconstruct(target=target, output=output, observations=observations)
+    if case == 'missing_func':
+        with sqlite3.connect(db) as con: con.execute('DROP TABLE func')
+    elif case == 'malformed': db.write_bytes(b'not a SQLite database')
+    else: db.unlink()  # A selected database that cannot be opened read-only.
+    report, manifest = tmp_path / 'report.json', tmp_path / 'manifest.json'
+    requested_output = tmp_path / 'preserved.exe'; requested_output.write_bytes(b'user artifact')
+    assert matching_status.main(['--target', str(target), '--db', str(db), '--binary-id', '1',
+        '--src-dir', str(tmp_path), '--out-report', str(report), '--out-manifest', str(manifest),
+        '--out-exe', str(requested_output)], reconstruction_observation=image) == 0
+    state, functions = json.loads(report.read_text()), json.loads(manifest.read_text())
+    inventory = state['selectedCorpusInventory']
+    assert inventory['state'] == 'unavailable' and inventory['complete'] is False
+    assert inventory['functionCount'] is None and state['code_total'] is None
+    assert inventory['reason'] == 'selected_database_inventory_unavailable' and inventory['detail']
+    assert functions['functions'] is None  # Unknown inventory, distinct from a complete empty list.
+    assert state['counts']['byte_exact'] == state['placedCompiledRegions'] == state['placedCompiledBytes'] == 0
+    assert state['counts']['absent_c'] is None
+    assert state['variants']['byte_accurate']['shim'] is None
+    assert state['variants']['byte_accurate']['c_pct'] is None
+    assert state['contribution']['linkedSourceContributionVerified'] is False
+    assert all(not row['accepted'] for row in state['contribution']['candidates'])
+    assert state['wholeFileByteIdentical'] is True
+    assert state['contribution']['compilerProducedWholeImage'] is False
+    assert requested_output.read_bytes() == b'user artifact'
+    assert sc.evaluate_reconstruction(image)['placedCompiledRegions'] == 2
+    assert all(Path(obs.record['object']['path']).is_file() for obs in observations)
+
+
+def test_matching_status_complete_empty_inventory_remains_distinct(tmp_path):
+    db = tmp_path / 'corpus.sqlite'; corpus_fixture(db)
+    with sqlite3.connect(db) as con: con.execute('DELETE FROM func')
+    target = tmp_path / 'target.exe'; target.write_bytes(pe_fixture()[0])
+    manifest = tmp_path / 'manifest.json'
+    assert matching_status.main(['--target', str(target), '--db', str(db), '--binary-id', '1',
+        '--src-dir', str(tmp_path), '--out-manifest', str(manifest)]) == 0
+    state = json.loads(manifest.read_text())
+    assert state['selectedCorpusInventory']['state'] == 'available'
+    assert state['selectedCorpusInventory']['complete'] is True
+    assert state['selectedCorpusInventory']['functionCount'] == state['code_total'] == 0
+    assert state['functions'] == []

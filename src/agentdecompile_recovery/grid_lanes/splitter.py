@@ -61,7 +61,7 @@ from agentdecompile_grid.core import (
     TaskSpec,
 )
 
-from . import analysis, cascade, compile as compile_lane, parity, verbs
+from . import analysis, cascade, compile as compile_lane, parity, target, verbs
 from ._common import Locked, hashed_slug, put_file, translate_refusal
 
 PLANNERS = Registry("task planner")
@@ -406,6 +406,12 @@ def plan_parity_checks(objects, snapshot, basis_hash, shard_size, **options):
             params=params, basis_hash=basis_hash, capabilities=(verifier_id,), budget=parity.ParityCheck.budget,
         ))
     return specs
+
+
+# --------------------------------------------------------------------------- planners: bounded target object
+@planner(target.MkobjTarget.name)
+def plan_mkobj_target(objects, snapshot, basis_hash, shard_size, **options):
+    return target.plan_mkobj_target(objects, snapshot, basis_hash, shard_size, **options)
 
 
 # --------------------------------------------------------------------------- planners: cascade

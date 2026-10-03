@@ -10,12 +10,13 @@ Importing this package registers, in ``agentdecompile_grid.core.TASK_KINDS``:
 
 * working kinds -- ``corpus-export-hookpack``, ``corpus-backfill-pass``,
   ``corpus-verify-determinism``, ``corpus-logical-build`` (``verbs``), ``compile-attempt``
-  (``compile``), ``parity-check`` (``parity``), ``match-score-shard`` (``cascade``);
+  (``compile``), ``parity-check`` (``parity``), ``mkobj-target`` (``target``),
+  ``match-score-shard`` (``cascade``);
 * declared kinds -- ``corpus-attest`` (``verbs``; U28x), ``analysis-slice``,
   ``decompile-chunk``, ``bsim-sigs`` (``analysis``; U137/U139/U141);
 
 plus one planner per kind in ``splitter.PLANNERS`` (reached by ``Kind.plan``) and one view hook
-per working kind in ``agentdecompile_grid.view.applier.VIEW_HOOKS`` (receipt tables only; the
+per materialized kind in ``agentdecompile_grid.view.applier.VIEW_HOOKS`` (receipt tables only; the
 applier never writes identity tables and neither do these hooks -- U143/U150 bind deltas).
 
 ``describe_lanes()`` returns every kind's ``describe()`` plus the planner catalogue.
@@ -30,11 +31,12 @@ from typing import Any
 
 from agentdecompile_grid.core import TASK_KINDS
 
-from . import analysis, cascade, compile, parity, splitter, verbs  # noqa: F401  (registration on import)
+from . import analysis, cascade, compile, parity, splitter, target, verbs  # noqa: F401  (registration on import)
 from ._common import BasisRefused, ContentHashRefused, Infra, Locked, PlannableKind, hashed_slug
 
 LANE_KINDS: tuple[type, ...] = (
-    *verbs.VERB_KINDS, compile.CompileAttempt, parity.ParityCheck, cascade.MatchScoreShard, *analysis.ANALYSIS_KINDS,
+    *verbs.VERB_KINDS, compile.CompileAttempt, parity.ParityCheck, target.MkobjTarget,
+    cascade.MatchScoreShard, *analysis.ANALYSIS_KINDS,
 )
 
 
@@ -52,5 +54,5 @@ def describe_lanes() -> dict[str, Any]:
 
 __all__ = [
     "BasisRefused", "ContentHashRefused", "Infra", "LANE_KINDS", "Locked", "PlannableKind", "analysis", "cascade",
-    "compile", "describe_lanes", "hashed_slug", "parity", "splitter", "verbs",
+    "compile", "describe_lanes", "hashed_slug", "parity", "splitter", "target", "verbs",
 ]

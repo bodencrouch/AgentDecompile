@@ -45,7 +45,8 @@ OBJDUMP_ARCH = {
 # Opcode bytes that start a direct branch: jcc rel8, loop/jcxz, call/jmp rel32,
 # jmp rel8, and the 0F escape of jcc rel32. A region containing none of them
 # has no direct branch at all.
-_BRANCH_BYTES = frozenset([*range(0x70, 0x80), 0xE0, 0xE1, 0xE2, 0xE3, 0xE8, 0xE9, 0xEB, 0x0F])
+# C7 F8 is XBEGIN with a relative abort target; conservatively screen every C7.
+_BRANCH_BYTES = frozenset([*range(0x70, 0x80), 0xE0, 0xE1, 0xE2, 0xE3, 0xE8, 0xE9, 0xEB, 0x0F, 0xC7])
 
 _INSN = re.compile(r"^\s*([0-9a-f]+):\t([0-9a-f]{2}(?: [0-9a-f]{2})*)[ \t]*(.*)$")
 _BRANCH_MNEMONIC = re.compile(r"(?:call|jmp|j[a-z]+|loop[a-z]*|xbegin)[lqw]?")
@@ -98,7 +99,7 @@ def _outside(target: int, size: int) -> bool:
     return not 0 <= target < size
 
 
-def find_call_targets(code: bytes, machine: int) -> dict[int, int]:
+def find_call_targets(code: bytes, machine: int, *, reference_free_only: bool = False) -> dict[int, int]:
     """{byte offset of the displacement field: target offset (may be outside code)}.
 
     Every direct branch whose target lands outside this region must be a
@@ -111,12 +112,17 @@ def find_call_targets(code: bytes, machine: int) -> dict[int, int]:
     the whole region, and an unsupported machine.
 
     Returns {} without running objdump only when the region contains no byte
-    that could begin such a reference.
+    that could begin such a reference. ``reference_free_only=True`` refuses
+    every other region before decoder discovery or execution.
     """
+    if type(reference_free_only) is not bool:
+        raise MkobjRefusal("invalid_reference_free_only")
     if machine not in REL32_TYPE:
         raise MkobjRefusal("unsupported_machine", f"0x{machine:04x}")
     if _pc_relative_impossible(code, machine):
         return {}
+    if reference_free_only:
+        raise MkobjRefusal("decoder_required")
     size = len(code)
     out: dict[int, int] = {}
     covered = 0
@@ -262,12 +268,15 @@ def write_object(
     output: pathlib.Path | str,
     symbol_prefix: str = "_",
     format: str = "coff-i386",
+    reference_free_only: bool = False,
 ) -> pathlib.Path:
     """Slice *binary* and write a COFF object to *output*. All paths required.
 
     Raises ``MkobjRefusal`` (a ValueError) and writes nothing when the
     region's external references cannot all be found and relocated.
     """
+    if type(reference_free_only) is not bool:
+        raise MkobjRefusal("invalid_reference_free_only")
     if size <= 0:
         raise ValueError(f"mkobj: refusing zero/negative size {size}")
     if format not in MACHINE:
@@ -280,7 +289,7 @@ def write_object(
 
     code = raw[offset:end]
     machine = MACHINE[format]
-    call_targets = find_call_targets(code, machine)
+    call_targets = find_call_targets(code, machine, reference_free_only=reference_free_only)
     if call_targets:
         code = bytearray(code)
         for disp_off in call_targets:

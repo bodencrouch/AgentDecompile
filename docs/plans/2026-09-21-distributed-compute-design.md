@@ -1,13 +1,13 @@
 ---
 title: Distributed compute design — agentdecompile_grid (one-command donated and free-cloud compute)
 date: 2026-09-21
-status: design synthesized by the design workflow (4 architectures × 3 judge lenses, 9 stage analyses); grill round 5 applied and the licensing reasoning removed (audit 4, 2026-09-22); Phase 15 joined the plan in walking-skeleton order; this file is the detailed specification behind the plan's Phase 15 bullets
+status: design synthesized by the design workflow (4 architectures × 3 judge lenses, 9 stage analyses); grill round 5 applied (audit 4, 2026-09-22); Phase 15 joined the plan in walking-skeleton order; this file is the detailed specification behind the plan's Phase 15 bullets
 applies-to: 2026-09-21-portable-signatures-codecaves-generic-plan.md (program thesis 2–5)
 ---
 
 # Distributed compute design: `agentdecompile_grid`
 
-Status: design input to convergence (plan, design, diagrams); amended 2026-09-22 by audit 4 (round 5 amendments A2/A3/A5/A6; licensing reasoning removed per the user directive; §7.5 and §8 restated for the walking skeleton).
+Status: design input to convergence (plan, design, diagrams); amended 2026-09-22 by audit 4 (round 5 amendments A2/A3/A5/A6; §7.5 and §8 restated for the walking skeleton).
 Date: 2026-09-21. Repo head observed: `a501e9d` on `feat/portable-signatures-codecaves-generic` (the tasking text names `f6f008c`, an ancestor three commits back; every `path:line` below is against `a501e9d`; the skeleton commits cited in 7.5 and 8 are at `a4e4aca`).
 
 ## Scope note (governing set)

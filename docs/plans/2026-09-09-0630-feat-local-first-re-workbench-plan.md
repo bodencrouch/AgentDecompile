@@ -126,7 +126,7 @@ The current product splits the 8080 workbench, Atlas Vite application, static pa
 - AE11. A bookmarked legacy deep link preserves project, binary, address, filters, and evidence context when redirected to the canonical workstation URL.
 - AE12. A capability finding, APK method, alternate decompiler result, collaboration event, or runtime symbol can navigate through the same address/selection bus without inventing a second entity identity.
 - AE13. At 1440, 1024, 768, and 390 CSS pixels, every shell region remains reachable, proof state stays visible, and collapse/restore preserves selection and keyboard focus.
-- AE14. A provider that lacks its runtime, license approval, authentication, or isolation policy renders unavailable with remediation; it never produces sample data or a false empty result.
+- AE14. A provider that lacks its runtime, authentication, or isolation policy renders unavailable with remediation; it never produces sample data or a false empty result.
 - AE15. Collaboration, hosted AI, plugin loading, and live-device connection show destination and payload scope before transmission or activation, and cancellation/disconnect leaves an auditable record.
 
 ### Scope Boundaries
@@ -135,7 +135,7 @@ The current product splits the 8080 workbench, Atlas Vite application, static pa
 
 #### Deferred to Follow-Up Work
 
-- Production deployment and licensing of proprietary or mixed-license decompilers after their adapters and unavailable states are proven.
+- Production deployment of proprietary or mixed-license decompilers after their adapters and unavailable states are proven.
 - Internet-scale multi-tenant scheduling, enterprise SSO/RBAC, and hosted binary object storage beyond the local/trusted-team deployment model.
 - Arbitrary in-process third-party code; the plugin SDK remains declarative or isolated until a separate execution-sandbox review approves more authority.
 
@@ -158,7 +158,7 @@ The current product splits the 8080 workbench, Atlas Vite application, static pa
 - Current implementation gap: normalized TypeScript contracts, an IndexedDB store, a disposable metadata worker, provider-unavailable matching/AI surfaces, and route changes exist in the working tree, but `frontend/src/main.tsx` still renders `AtlasApp` while the local artifact panel is mounted only in `App`. No Rizin or objdiff runtime dependency currently supplies functions, instructions, xrefs, CFG, or byte-diff results.
 - Institutional learnings: `docs/solutions/architecture-patterns/agent-native-mcp-patterns.md`, `agent-native-discovery-arc.md`, `decomp-matching-toolchain.md`, `program-analysis-coordinator.md`, `capabilities-mcp-resource.md`, `vision-substrate-expand-islands-not-funnel.md`, and `docs/plans/2026-08-31-2100-feat-workbench-ux-overhaul-plan.md`.
 - External landscape: RzWeb (`github.com/indalok/rzweb`) for browser-local Rizin workers and IndexedDB; objdiff-web (`github.com/encounter/objdiff-web`) for typed Rust/WASM diffing; decomp.me for compile/diff iteration; Decompiler Explorer for isolated runner jobs; Rev·Deck (`github.com/biniamf/ai-reverse-engineering`) for bounded evidence-first AI; radare2/Rizin for analysis breadth; Grapefruit for an isolated Frida provider; decomp.dev for progress indexing; rev.ng for optional declarative heavy analysis.
-- License boundary: audit LGPL Rizin/radare2 components and plugin licenses before bundling; keep unclear-license Rev·Deck architecture conceptual until verified. Do not copy code or assets from external projects.
+- Boundary: audit Rizin/radare2 components before bundling; keep Rev·Deck architecture conceptual until verified. Do not copy code or assets from external projects.
 
 ---
 
@@ -349,7 +349,7 @@ U9 owns a component-state matrix for every primary pane and shared component. Ea
 |---|---|---|
 | Dirty in-flight frontend, job, route, and generated-asset changes | Parallel work can overwrite or falsely claim existing work | Establish an exact commit/handoff inventory before U1; never use destructive cleanup |
 | Two React composition roots | Local runtime and proof UX remain unreachable or divergent | KTD16 and U5 select one root before adding more screens |
-| Rizin/radare2 LGPL and binary provenance | Redistribution or update path may be unacceptable | License review, pinned artifact, attribution, integrity, and bundle audit before U10 activation |
+| Rizin/radare2 binary provenance | Redistribution or update path may be unacceptable | Pinned artifact, attribution, integrity, and bundle audit before U10 activation |
 | WASM performance and browser memory limits | Large or hostile binaries freeze or crash the workspace | Disposable workers, quotas, progress, cancellation, restart, bounded fixtures, and degraded states |
 | Separate batch/job owners | Reconnect, retry, and proof receipts can diverge | Consolidate lifecycle ownership in U4 before service-backed providers |
 | Compiler, Ghidra, capa, rev.ng, and Frida execution | Native tooling widens command, filesystem, device, and data exposure | Cataloged jobs, isolated directories, no-network default, authentication, authorization, audit, and explicit activation |
@@ -504,7 +504,7 @@ Implementation uses a controller-owned ledger and fresh agents per unit under KT
 - **Requirements:** R2-R6, R8, R15-R18, AE1, AE2, AE12, AE14.
 - **Dependencies:** U3, U5.
 - **Files:** new provider modules under `src/agentdecompile_recovery/corpus/dashboard/frontend/src/providers/rizin/`, view modules under `frontend/src/views/`, `frontend/src/index/projectIndex.ts`, worker configuration, `package.json`, lockfile, and focused provider/view tests with small PE and ELF fixtures.
-- **Approach:** First adapt existing Ghidra-backed data into the normalized selection model so linked views are useful while local analysis is integrated. Vendor or pin an audited Rizin/radare2 WASM artifact only after license, provenance, bundle-size, and packaging review. Run one engine context per artifact in a disposable worker with progress, cancellation, artifact-byte/WASM-linear-memory/output-count/wall-clock caps, revision checks, and kill/restart. When an artifact exceeds that safe browser envelope, report local analysis unavailable and offer only an approved quota-enforced gateway provider. Convert engine output at the adapter boundary; React views consume only normalized records.
+- **Approach:** First adapt existing Ghidra-backed data into the normalized selection model so linked views are useful while local analysis is integrated. Vendor or pin an audited Rizin/radare2 WASM artifact only after provenance, bundle-size, and packaging review. Run one engine context per artifact in a disposable worker with progress, cancellation, artifact-byte/WASM-linear-memory/output-count/wall-clock caps, revision checks, and kill/restart. When an artifact exceeds that safe browser envelope, report local analysis unavailable and offer only an approved quota-enforced gateway provider. Convert engine output at the adapter boundary; React views consume only normalized records.
 - **Execution note:** Prove each provider result against deterministic binary fixtures before expanding format coverage.
 - **Patterns to follow:** current worker protocol and project index; RzWeb/r2web worker isolation; existing Ghidra evidence surfaces.
 - **Test scenarios:** a PE and ELF expose stable function and instruction identities; selecting an address synchronizes listing, hex, CFG, xrefs, inspector, and URL; malformed input and worker timeout terminate without freezing the shell; a stale worker result cannot overwrite a newer revision; unsupported architecture renders unavailable; local results survive reload with freshness metadata.
@@ -517,9 +517,9 @@ Implementation uses a controller-owned ledger and fresh agents per unit under KT
 - **Requirements:** R7-R9, R12, R18-R20, AE3, AE9, AE12, AE14.
 - **Dependencies:** U4, U5, U10.
 - **Files:** new modules under `frontend/src/providers/decompilers/` and `frontend/src/views/decompiler/`, dashboard provider/job adapters, action catalog metadata, and focused provider-result tests.
-- **Approach:** Keep Ghidra as the first real service-backed adapter. Add alternate engines only through the same asynchronous result envelope with engine/version, artifact revision, retention, warnings, limits, partial output, and structured failure. Present comparable outputs as linked tabs or panes without implying consensus or correctness. Proprietary engines require separately configured licensed providers.
-- **Patterns to follow:** existing catalog jobs and Ghidra surfaces; Dogbolt job/result separation; Rev·Deck typed gateway concept without copying unclear-license code.
-- **Test scenarios:** two engine results retain distinct provenance; one provider can fail while another remains usable; switching results preserves selection and scroll; stale output is marked after artifact revision; unavailable licensing or runtime produces remediation; reconnect restores the same attempt IDs and partial results.
+- **Approach:** Keep Ghidra as the first real service-backed adapter. Add alternate engines only through the same asynchronous result envelope with engine/version, artifact revision, retention, warnings, limits, partial output, and structured failure. Present comparable outputs as linked tabs or panes without implying consensus or correctness. Proprietary engines require separately configured providers.
+- **Patterns to follow:** existing catalog jobs and Ghidra surfaces; Dogbolt job/result separation; Rev·Deck typed gateway concept without copying code.
+- **Test scenarios:** two engine results retain distinct provenance; one provider can fail while another remains usable; switching results preserves selection and scroll; stale output is marked after artifact revision; unavailable runtime produces remediation; reconnect restores the same attempt IDs and partial results.
 - **Verification:** One function can be requested from Ghidra and one alternate adapter, compared, deep-linked, and reopened with exact provider provenance.
 
 ### U12. Add capability findings and optional similarity intelligence
@@ -614,7 +614,7 @@ Implementation uses a controller-owned ledger and fresh agents per unit under KT
 - **Requirements:** R8, R9, R11, R13, R18-R20, AE5, AE12, AE15.
 - **Dependencies:** U4-U6, U14, U19.
 - **Files:** new `frontend/src/progress/` modules, dashboard repository/CI adapters, action catalog entries, provider configuration docs, and focused progress/webhook tests.
-- **Approach:** Derive progress from versioned objdiff and project receipts rather than editable percentages. Support authenticated polling first and webhooks only after signature validation, replay protection, and project mapping are proven. Make repository publication and PR actions explicit, separately approved mutations. Treat decomp.dev as interaction inspiration only until its license is clarified.
+- **Approach:** Derive progress from versioned objdiff and project receipts rather than editable percentages. Support authenticated polling first and webhooks only after signature validation, replay protection, and project mapping are proven. Make repository publication and PR actions explicit, separately approved mutations. Treat decomp.dev as interaction inspiration only.
 - **Patterns to follow:** existing job history and proof receipts; Git provider abstractions; decomp.dev progress concepts without copying source.
 - **Test scenarios:** a new objdiff receipt updates function and project history; revoked credentials degrade to read-only local history; duplicate webhook delivery is idempotent; invalid signatures are denied; branch/project mismatch does not update the wrong corpus; publication and PR mutations require approval; UI and MCP report identical progress provenance.
 - **Verification:** A real matching project can trace each progress change to a commit, job, and objdiff receipt without treating CI success as byte proof.

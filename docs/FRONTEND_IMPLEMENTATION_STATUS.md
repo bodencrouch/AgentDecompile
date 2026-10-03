@@ -73,7 +73,7 @@ that limitation and does not promote recorded source to byte-exact acceptance.
 ## Remaining scope
 
 The source batch does not complete all 43 units. Full provider/project-tab/map
-integration (U6–U8), licensed local multi-decompiler comparison (U20), spectator
+integration (U6–U8), local multi-decompiler comparison (U20), spectator
 permissions and mirrored selection (U25), explicit publish approval (U29),
 owner-locked test authoring (U30), and installed/live acceptance of report-backed matrix cells (U43) remain. Unit labels in this paragraph use the earlier frontend-plan namespace, not the consolidated master numbering.
 The partial rows above retain their additional prerequisites. The original

@@ -15,9 +15,8 @@ status: implementation-ready plan, audits 2, 3 and 4 applied; Step 0, Phase 0 (D
   docs/plans/2026-09-21-plan-audit-2.md
 - 2026-09-21 — audit 3 (design vs plan, grill 6): surface ownership, Phase 14 surfaces,
   U28x attestation, no-Start supersession; see docs/plans/2026-09-21-plan-audit-3.md
-- 2026-09-22 — audit 4 (round 5, distributed design) + licensing strip + Phase 15
-  walking-skeleton order: round-5 amendments A2/A3/A5/A6 applied to the design, every
-  licensing passage removed (capability-only access), Phase 15 (`agentdecompile_grid`)
+- 2026-09-22 — audit 4 (round 5, distributed design) + Phase 15
+  walking-skeleton order: round-5 amendments A2/A3/A5/A6 applied to the design, capability-only access adopted throughout, Phase 15 (`agentdecompile_grid`)
   inserted in the order it was built, register "Distributed compute" section, diagram
   Lane E; see docs/plans/2026-09-21-plan-audit-4.md
 
@@ -41,7 +40,7 @@ project name appears anywhere in this design; targets are described only by clas
   `c575411`), U122 `95e8428` (`515fd47`), U123 `eecfcaf`/`85784cc`, U124 `8eb5202`/`a4e4aca`; hotfixes
   A1/A2/A3/A5 `a501e9d` (`fc638c4`, `be7ff81`, `79c2420`); R3 `40d50ce` (`6d95a40`); D8/D9 + harness (o)
   `24b3050`/`a4095ba` (observed on the branch; the previous delta had them in flight). Docs: the distributed
-  design amended (round 5 A2/A3/A5/A6; licensing reasoning removed; §7.5/§8 restated for the walking
+  design amended (round 5 A2/A3/A5/A6; §7.5/§8 restated for the walking
   skeleton), Phase 15 in this plan, the register's "Distributed compute" section, Lane E on the diagram.
   Earlier waves: Step 0 `0256ca0`; Phase 0 D1–D7 + U5c; U7/U7b `f935db7`; U22 `f5f6a88`; U1–U3 + U1b
   `b271ba6`; U21c `0191303`; 3b `5bf8a11`.

@@ -124,8 +124,6 @@ store (the user's explicit instrument), which is not a test suite.
   abstractions and extension points (Protocols/ABCs, registries, interchangeable adapters,
   configuration) with at least one working implementation and named slots for the others; a
   packet that "keeps it minimal" is in breach.
-- **Licensing does not exist** in this program: no unit, gate, role or object policy reasons
-  about it.
 - **Walking skeleton first.** The default delivery shape is a thin end-to-end path through
   every layer in hours (agents in parallel worktrees), with the full capability arriving as
   adapters behind the declared interfaces — never a 170-day serial build.

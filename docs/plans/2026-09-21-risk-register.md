@@ -102,7 +102,7 @@ record why it is accepted. New speculative rows are added whenever one is forese
 | S11 | Corpus DB and analysis projects have no backup and sit on a USB drive; WAL under several writers already reports "database is locked". | data loss / SPOF | hours of analysis at stake | Snapshot verb (`VACUUM INTO` to the other disk, content-addressed); single-writer acceptance service for identity/receipt writes. |
 | S12 | Review-lane starvation: thousands of `review` matches nobody triages → nothing promotes → coverage stalls. | throughput / UX | any real corpus | Auto-triage order, batch accept above evidence thresholds with receipts, keyboard-driven review in the 5174 design. |
 | S13 | Synthetic fixtures do not exercise real compiler idioms; green on synthetic, wrong on real. | verification | every unit so far | Reference corpus: an open-source program built at O0/O1/O2/Os with two compilers; legal, generic, deterministic; used by ladders, divergence, struct and ABI tests. |
-| S14 | Packs carry original byte windows / cave `original_bytes`; packs plus Lua inject code. | legal / security | — | **Deprioritized by the user 2026-09-21: copyright and trust are assumed.** Keep short windows; no unit. |
+| S14 | Packs carry original byte windows / cave `original_bytes`; packs plus Lua inject code. | legal / security | — | **Deprioritized by the user 2026-09-21.** Keep short windows; no unit. |
 | S15 | Anti-cheat bans for detours in multiplayer titles. | user harm | — | **Deprioritized by the user 2026-09-21: niche; not now.** |
 | S16 | String-anchored locators break on localized builds. | correctness | localized releases | Anchor only to ID-stable strings (resource ids, script names); U85 classifies. |
 | S17 | Ambiguity of "byte-accurate" when sibling builds used different compilers: parity receipts cannot be shared across toolchains. | ambiguity | mixed corpora | Parity receipts keyed by toolchain identity; never borrowed across it (extends U62). |
@@ -110,8 +110,7 @@ record why it is accepted. New speculative rows are added whenever one is forese
 ## Resume point
 
 - Branch `feat/portable-signatures-codecaves-generic` at `a4e4aca`; audit 4 (round 5 on the
-  distributed design, 2026-09-22) applied to the design (A2/A3/A5/A6; licensing reasoning
-  removed; walking-skeleton §7.5/§8), the plan (Phase 15 U120–U170 in build order; Delta
+  distributed design, 2026-09-22) applied to the design (A2/A3/A5/A6; walking-skeleton §7.5/§8), the plan (Phase 15 U120–U170 in build order; Delta
   Update; Recommended order step 10; U66 projection sentence), the goal (done (8)), this
   register (H7–H13, R12, R13, T1, T3, T6, P1) and the diagram (Lane E). Landed: Step 0,
   Phase 0 D1–D7, U5c, U7/U7b, U22, U1–U3/U1b, U21c, 3b, D8/D9 + harness (o), hotfixes

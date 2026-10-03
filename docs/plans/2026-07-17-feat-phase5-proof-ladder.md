@@ -278,7 +278,7 @@ Recommended first `/ce-work` slice: **5a (U1+U2)**.
 
 - **Byte-% of `.text` as primary KPI** — Rejected as default (kept optional later): easier to game with padding; STRATEGY emphasizes function parity.
 - **New `agentdecompile proof-ladder` peer CLI** — Rejected: violates reconstruct-primary UX contract; status/claim embedding is enough.
-- **Require live swkotor in CI** — Rejected: binary size/licensing/host deps; fixtures prove math; local smoke optional.
+- **Require live swkotor in CI** — Rejected: binary size/host deps; fixtures prove math; local smoke optional.
 
 ---
 

@@ -120,7 +120,7 @@ The exports contract below incorporates `/tmp/exports-spec.md` (20 requirements 
 
 - R39. The Vite workstation's main view is objdiff-web-first: an instruction-aligned two-column diff with register highlighting, navigable mismatches and a symbol tree.
 - R40. A decomp.me-style scratch view lets the operator iterate a candidate against the catalog's compile and objdiff actions, extending the existing scratch workflow.
-- R41. A Dogbolt-style compare view shows multiple decompiler outputs side by side, using only optional licensed local runners; it never uploads to the public Dogbolt service.
+- R41. A Dogbolt-style compare view shows multiple decompiler outputs side by side, using only optional local runners; it never uploads to the public Dogbolt service.
 - R42. RzWeb/r2web-style expert views sit behind the workstation's one normalized selection, never a second selection store.
 - R43. An APKMan-style container tree generalizes to any supported container or format, reusing the existing format-provider pattern.
 - R44. A pipeline stage graph shows stage dependencies as a DAG with edges, and retries a stage only after that stage fails — never as a manual re-run control.
@@ -315,7 +315,7 @@ The exports contract below incorporates `/tmp/exports-spec.md` (20 requirements 
 **Deferred to Follow-Up Work**
 
 - WASM-consumable pack/bindings/harness target design and execution remain unscoped (R64/R65, U40). This plan delivers an explicit scope receipt, not a WASM implementation. Original-byte runtime calls and recovered-source variants remain governed by their separate recovery/runtime acceptance contracts.
-- Publishing statistics to decomp.dev itself (R50 covers the gate and the approval step; the publishing integration's own delivery, and resolving decomp.dev's license, are follow-up work once R47-R49 land).
+- Publishing statistics to decomp.dev itself (R50 covers the gate and the approval step; the publishing integration's own delivery is follow-up work once R47-R49 land).
 - Distributed-compute lane E scheduling beyond the fleet roster's display (`grid_lanes/cascade.py` already exists; scaling it across workers is a separate track).
 - Native decompiler tier (JVM-free replay) — tracked separately in `STRATEGY.md`'s own track, not part of this plan.
 
@@ -494,7 +494,7 @@ from the entity exports above and must not be conflated with them:
 - The **local-first workbench's own analysis tooling** (a separate, optional disassembly
   provider) may run as WASM inside a browser worker for its own UI purposes. This has
   nothing to do with the hook pack, Lua bindings, or codecave plans — it is the
-  workbench's local analysis path, gated on its own license/provenance/size review.
+  workbench's local analysis path, gated on its own provenance/size review.
 - A **distributed-compute browser lane** accepts a narrow, low-trust task set from
   volunteer browser tabs (parity-checking two compiled objects via a WASM parity
   checker, proposing rewrites, permuter search) — never a toolchain or analyzer task,
@@ -1291,7 +1291,7 @@ U30 remains the last test-authoring unit and covers U1–U29, U31–U42 and U43.
 
 ### U20. Dogbolt compare view
 
-**Goal:** Add a Dogbolt-style multi-decompiler compare view, licensed-local-only (R41).
+**Goal:** Add a Dogbolt-style multi-decompiler compare view, local-only (R41).
 
 **Requirements:** R41
 
@@ -1302,9 +1302,9 @@ U30 remains the last test-authoring unit and covers U1–U29, U31–U42 and U43.
 **Approach:**
 0. Embedding the reference tools is rejected because they cannot join the shared ProgramLocation/job store (R12/R42) and would add a second backend data path. Reimplement against their data shapes and reuse the existing objdiff integration where present.
 1. Research found no existing component for this — it is net new.
-2. Build a side-by-side multi-decompiler output view, sourcing each decompiler's output from optional licensed local runners configured by the operator; never call or upload to the public Dogbolt service (R41, Scope Boundaries).
+2. Build a side-by-side multi-decompiler output view, sourcing each decompiler's output from optional local runners configured by the operator; never call or upload to the public Dogbolt service (R41, Scope Boundaries).
 3. Reuse U18's diff rendering primitives for aligning outputs where useful, but this view compares *decompiler outputs* to each other, not to a ground truth — keep it a distinct component from `CompareView`.
-4. Gate the view entirely on whether at least one licensed local runner is configured; render an explicit "no local decompiler runner configured" state otherwise, never a silent empty panel.
+4. Gate the view entirely on whether at least one local runner is configured; render an explicit "no local decompiler runner configured" state otherwise, never a silent empty panel.
 
 **Test scenarios:**
 - Happy path: two configured local runners produce side-by-side output for the same function.
@@ -1329,12 +1329,12 @@ U30 remains the last test-authoring unit and covers U1–U29, U31–U42 and U43.
 0. Embedding the reference tools is rejected because they cannot join the shared ProgramLocation/job store (R12/R42) and would add a second backend data path. Reimplement against their data shapes and reuse the existing objdiff integration where present.
 1. Research found no existing component for this — net new.
 2. Build the expert view(s) as consumers of the workstation's existing selection state (the same one `CompareView`, `ScratchWorkspace` and U6's providers read) — never introduce a second selection store, per R42 and the FRONTEND_INTENT §8 constraint research cited.
-3. RzWeb is LGPL-3.0 licensed; if any RzWeb code or assets are reused rather than reimplemented against its data shapes, review the license obligation before merging (flag explicitly in this unit's PR description, not silently).
+3. Reimplement against RzWeb's data shapes; reuse no RzWeb code or assets (flag explicitly in this unit's PR description if that changes, not silently).
 
 **Test scenarios:**
 - Happy path: selecting a function in the Listing (or any other provider) updates the expert view to the same function, with no separate selection action needed.
 - Edge case: a function with no disassembly data available (for example, a stripped region) shows an explicit empty state.
-- License check: if any RzWeb source is reused, the license review is documented before merge; if none is reused, this scenario is not applicable.
+- Reuse check: this view reimplements against RzWeb's data shapes without reusing its source; if that changes, document it before merge.
 
 **Verification:** Select a function in the Listing; confirm the expert view follows without a separate click, using the shared selection state.
 
@@ -1526,7 +1526,7 @@ U30 remains the last test-authoring unit and covers U1–U29, U31–U42 and U43.
 **Approach:**
 1. Add a publish action that only runs after U28's gate passes for the target binary/version; the action itself requires an explicit operator confirmation (mirroring the existing dangerous-action confirm pattern research found in `catalog.py`'s `DANGEROUS_CORPUS`/`DANGEROUS_ARGV_FLAGS` handling, without editing that owner-locked file — call its confirm contract, don't duplicate its logic).
 2. The action is disabled (not hidden) when the gate has not passed, with the gate's failure reason shown inline.
-3. decomp.dev's own license is unestablished per `FRONTEND_INTENT.md`; this unit implements the gate-and-approve mechanism only — it does not implement the actual outbound network call to decomp.dev (Scope Boundaries: "Deferred to Follow-Up Work").
+3. this unit implements the gate-and-approve mechanism only — it does not implement the actual outbound network call to decomp.dev (Scope Boundaries: "Deferred to Follow-Up Work").
 
 4. A confirmed but unsent approval is labeled "Approved. Publishing is not connected yet." Never present approval as a completed publish.
 

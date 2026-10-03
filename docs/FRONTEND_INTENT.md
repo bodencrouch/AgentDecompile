@@ -362,19 +362,19 @@ below is documented upstream, not independently runtime-validated here.
 
 | Reference | Design/capability to carry into AgentDecompile | Boundary |
 |---|---|---|
-| [RzWeb](https://github.com/IndAlok/rzweb) | Connected disassembly/decompiler/CFG/hex/xref views, command palette, persistent artifact contexts, snapshots; browser worker isolation for local analysis | Current README explicitly notes unavailable decompiler plugins and non-interruptible commands. Rizin WASM is a requested local-provider direction, not a reason to replace working Ghidra state. LICENSE file identifies LGPL-3.0-only; review before code reuse. |
+| [RzWeb](https://github.com/IndAlok/rzweb) | Connected disassembly/decompiler/CFG/hex/xref views, command palette, persistent artifact contexts, snapshots; browser worker isolation for local analysis | Current README explicitly notes unavailable decompiler plugins and non-interruptible commands. Rizin WASM is a requested local-provider direction, not a reason to replace working Ghidra state. |
 | [Mizuchi / Decomp Atlas](https://github.com/macabeus/mizuchi) | Function discovery, similarity exploration, context/prompt building, source/assembly correlation, compiler/objdiff/plugin iteration and reports | Reuse native AgentDecompile capabilities already assimilated. Respect deterministic-first policy; don't route every function to AI. |
 | [decomp.me](https://github.com/decompme/decomp.me) | A focused source/target-assembly scratch with compiler settings, compile/diff iteration and linkable collaboration | Workflow inspiration against our catalog, not a second Django application. Remote submission requires explicit consent. |
-| [Dogbolt](https://github.com/decompiler-explorer/decompiler-explorer) | Side-by-side named decompiler witnesses for the same target | Optional supported/licensed runners; no automatic upload to its public service or assumption a public API exists. |
+| [Dogbolt](https://github.com/decompiler-explorer/decompiler-explorer) | Side-by-side named decompiler witnesses for the same target | Optional supported runners; no automatic upload to its public service or assumption a public API exists. |
 | [r2web](https://github.com/radareorg/r2web) | Lightweight expert terminal, search/goto, graph navigation and browser analysis | Commands remain provider-specific expert tools behind normalized selection; do not make users learn r2 syntax for ordinary work. |
 | [objdiff](https://github.com/encounter/objdiff) / [objdiff-web](https://github.com/encounter/objdiff-web) | Actual symbol/instruction/data diff, register/value highlighting, navigable mismatch details; optional WASM comparison | Object-level comparison is not whole-image proof. Reuse existing integration before adding another engine or renderer. |
-| [decomp.dev](https://github.com/encounter/decomp.dev) | Revision-aware project history, build/report and Git/CI integration | Secondary to actual-work visualization. Root license not established in this pass; no source copying on assumption. |
+| [decomp.dev](https://github.com/encounter/decomp.dev) | Revision-aware project history, build/report and Git/CI integration | Secondary to actual-work visualization. No source copying on assumption. |
 | [APKMan](https://github.com/jiusanzhou/apkman) | Container/resource tree, format-specific inspectors, grouped search, worker parsing, hash-keyed reuse, export and optional offline use | Generalize format-provider behavior. Its README distinguishes Smali export from future Java-source export; do not promise parity with headline claims alone. |
 | [capa / Explorer](https://github.com/mandiant/capa) | Hierarchical capabilities/rules with supporting feature locations and drill-through into code | A semantic witness, not recovered-source or runtime proof. Reports can be browsed without rerunning analysis. |
-| [idarem](https://github.com/xsslize/idarem) | Synchronized address/view navigation, optional follow/drive semantics, responsive virtualized panes and event-driven updates | IDA/Hex-Rays are optional licensed dependencies. Never force native application navigation or enable write-back implicitly. |
-| [Rev·Deck](https://github.com/biniamf/ai-reverse-engineering) | Evidence-linked questions, bounded sub-investigations, checked citations and explicit provider boundaries | Model output cannot authorize writes or execution. License not established here; use concepts until source reuse is cleared. |
+| [idarem](https://github.com/xsslize/idarem) | Synchronized address/view navigation, optional follow/drive semantics, responsive virtualized panes and event-driven updates | IDA/Hex-Rays are optional dependencies. Never force native application navigation or enable write-back implicitly. |
+| [Rev·Deck](https://github.com/biniamf/ai-reverse-engineering) | Evidence-linked questions, bounded sub-investigations, checked citations and explicit provider boundaries | Model output cannot authorize writes or execution. Use concepts only; do not copy source. |
 | [Grapefruit](https://github.com/ChiChou/grapefruit) | Runtime module/symbol/memory browsing; inspectable calls/events, structured arguments/returns, crash/backtrace and file/database views | Optional isolated dynamic provider with explicit target/permission state. Do not import its mobile-only assumptions into the BioWare workflow. |
-| [rev.ng](https://github.com/revng/revng) | Coherent editable analysis model; type edits reflected in dependent code; connected artifact/analysis views and graph/code navigation | Primary docs describe model/type round trips. Do not claim its complete commercial/browser UI is reusable from the core repository; core/components have distinct licenses. |
+| [rev.ng](https://github.com/revng/revng) | Coherent editable analysis model; type edits reflected in dependent code; connected artifact/analysis views and graph/code navigation | Primary docs describe model/type round trips. Do not claim its complete commercial/browser UI is reusable from the core repository. |
 | [PyKotor Ghidra guide](https://github.com/OpenKotOR/PyKotor/wiki/Ghidra-Reversing-Guide) | Complete supported code-browser/type/storage/C++ workflows on the static 8080 dashboard, which follows this arrangement; the Vite surface is a different real-time workstation. Both share one backend with field parity. | Guide examples are illustrative, not universal architecture/ABI rules. |
 
 Relevant rev.ng primary details:
@@ -588,9 +588,9 @@ migrated sessions may retain import timestamps rather than original send times.
   no mass transcript copy is included in this repository document.
 - **External references:** primary documentation for all13 named project families
   plus the Ghidra guide was consulted; selected APIs/docs were checked through gh.
-  No claim of a full source/license audit, runtime benchmark or pixel-level inspection
+  No claim of a full source audit, runtime benchmark or pixel-level inspection
   of every reference interface. Follow-up implementation must verify specific donor
-  code, licensing, backend support and real browser behavior.
+  code, backend support and real browser behavior.
 
 Remaining historical gaps do not erase known requirements. Add newly recovered
 requirements here with sources and explicit supersession; do not create another

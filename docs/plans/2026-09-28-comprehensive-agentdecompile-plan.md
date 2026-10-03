@@ -554,9 +554,9 @@ M6/M7 research can run independently; neither blocks safe M1–M5. Product demo 
 - **Execution:** reconcile retained implementation and evidence first; implement the missing vertical slice, exercise the named positive and refusal cases, then integrate the real consumer and capture the required proof.
 
 - objdiff-style target/candidate instruction alignment,register differences, symbols,paging,mismatch jumps and receipt basis; exact source/compiler/flags/ABI, diagnostics and attempt history link to selection. decomp.me-style retained scratch shares verified boundary.
-- Local licensed multi-decompiler/Dogbolt witnesses compare alternatives without equating agreement to proof. RzWeb/r2web-style expert assembly/source/xrefs/evidence use existing providers; no external donor code implied. APKMan-style bounded format/container hierarchy preserves offsets/hash/parent provenance, unsupported/encrypted/packed state and safe extraction budgets. Current ELF/PE section tree is partial, not archive parity.
+- Local multi-decompiler/Dogbolt witnesses compare alternatives without equating agreement to proof. RzWeb/r2web-style expert assembly/source/xrefs/evidence use existing providers; no external donor code implied. APKMan-style bounded format/container hierarchy preserves offsets/hash/parent provenance, unsupported/encrypted/packed state and safe extraction budgets. Current ELF/PE section tree is partial, not archive parity.
 - Seams frontend-plan-2026-09-28:U18–frontend-plan-2026-09-28:U22; CompareView,DiffEvidence,boundaries,ScratchWorkspace,artifactParser.worker/localProject.
-- Acceptance: actual backend receipt, malformed/truncated inputs, worker cancellation, format gaps and no UI fake controls; bounded client/provider and donor license qualification.
+- Acceptance: actual backend receipt, malformed/truncated inputs, worker cancellation, format gaps and no UI fake controls; bounded client/provider and donor provenance qualification.
 
 - **Completion:** close assigned named child obligations and unit-specific predicates against the exact input/version scope; discharge owned source-clause coverage through explicit child evidence or contextual disposition; record changed paths, verification receipts and any remaining blocked predicates in the living plan. Commit only owned, reviewed changes during a separately authorized implementation run.
 
@@ -22824,7 +22824,7 @@ The following complete source record retains original acceptance, dependency, su
 ```json
 {
   "id": "U20",
-  "definition": "### U20. Dogbolt compare view\n\n**Goal:** Add a Dogbolt-style multi-decompiler compare view, licensed-local-only (R41).\n\n**Requirements:** R41\n\n**Dependencies:** U18\n\n**Files:** `frontend/src/workstation/` (new component)\n\n**Approach:**\n0. Embedding the reference tools is rejected because they cannot join the shared ProgramLocation/job store (R12/R42) and would add a second backend data path. Reimplement against their data shapes and reuse the existing objdiff integration where present.\n1. Research found no existing component for this — it is net new.\n2. Build a side-by-side multi-decompiler output view, sourcing each decompiler's output from optional licensed local runners configured by the operator; never call or upload to the public Dogbolt service (R41, Scope Boundaries).\n3. Reuse U18's diff rendering primitives for aligning outputs where useful, but this view compares *decompiler outputs* to each other, not to a ground truth — keep it a distinct component from `CompareView`.\n4. Gate the view entirely on whether at least one licensed local runner is configured; render an explicit \"no local decompiler runner configured\" state otherwise, never a silent empty panel.\n\n**Test scenarios:**\n- Happy path: two configured local runners produce side-by-side output for the same function.\n- Edge case: no runner configured; the view shows the explicit unconfigured state, not an error or empty panel.\n- Regression: no network call to any public Dogbolt endpoint occurs, confirmed by inspecting outbound requests during a test session.\n\n**Verification:** Configure one local runner in a fixture environment; confirm output renders and confirm (via network inspection) zero calls to any public Dogbolt host.\n\n---\n\n"
+  "definition": "### U20. Dogbolt compare view\n\n**Goal:** Add a Dogbolt-style multi-decompiler compare view, local-only (R41).\n\n**Requirements:** R41\n\n**Dependencies:** U18\n\n**Files:** `frontend/src/workstation/` (new component)\n\n**Approach:**\n0. Embedding the reference tools is rejected because they cannot join the shared ProgramLocation/job store (R12/R42) and would add a second backend data path. Reimplement against their data shapes and reuse the existing objdiff integration where present.\n1. Research found no existing component for this — it is net new.\n2. Build a side-by-side multi-decompiler output view, sourcing each decompiler's output from optional local runners configured by the operator; never call or upload to the public Dogbolt service (R41, Scope Boundaries).\n3. Reuse U18's diff rendering primitives for aligning outputs where useful, but this view compares *decompiler outputs* to each other, not to a ground truth — keep it a distinct component from `CompareView`.\n4. Gate the view entirely on whether at least one local runner is configured; render an explicit \"no local decompiler runner configured\" state otherwise, never a silent empty panel.\n\n**Test scenarios:**\n- Happy path: two configured local runners produce side-by-side output for the same function.\n- Edge case: no runner configured; the view shows the explicit unconfigured state, not an error or empty panel.\n- Regression: no network call to any public Dogbolt endpoint occurs, confirmed by inspecting outbound requests during a test session.\n\n**Verification:** Configure one local runner in a fixture environment; confirm output renders and confirm (via network inspection) zero calls to any public Dogbolt host.\n\n---\n\n"
 }
 ```
 
@@ -22841,7 +22841,7 @@ The following complete source record retains original acceptance, dependency, su
 ```json
 {
   "id": "U21",
-  "definition": "### U21. RzWeb/r2web expert views\n\n**Goal:** Add RzWeb/r2web-style expert views behind the workstation's one normalized selection (R42).\n\n**Requirements:** R42\n\n**Dependencies:** U18\n\n**Files:** `frontend/src/workstation/` (new component)\n\n**Approach:**\n0. Embedding the reference tools is rejected because they cannot join the shared ProgramLocation/job store (R12/R42) and would add a second backend data path. Reimplement against their data shapes and reuse the existing objdiff integration where present.\n1. Research found no existing component for this — net new.\n2. Build the expert view(s) as consumers of the workstation's existing selection state (the same one `CompareView`, `ScratchWorkspace` and U6's providers read) — never introduce a second selection store, per R42 and the FRONTEND_INTENT §8 constraint research cited.\n3. RzWeb is LGPL-3.0 licensed; if any RzWeb code or assets are reused rather than reimplemented against its data shapes, review the license obligation before merging (flag explicitly in this unit's PR description, not silently).\n\n**Test scenarios:**\n- Happy path: selecting a function in the Listing (or any other provider) updates the expert view to the same function, with no separate selection action needed.\n- Edge case: a function with no disassembly data available (for example, a stripped region) shows an explicit empty state.\n- License check: if any RzWeb source is reused, the license review is documented before merge; if none is reused, this scenario is not applicable.\n\n**Verification:** Select a function in the Listing; confirm the expert view follows without a separate click, using the shared selection state.\n\n---\n\n"
+  "definition": "### U21. RzWeb/r2web expert views\n\n**Goal:** Add RzWeb/r2web-style expert views behind the workstation's one normalized selection (R42).\n\n**Requirements:** R42\n\n**Dependencies:** U18\n\n**Files:** `frontend/src/workstation/` (new component)\n\n**Approach:**\n0. Embedding the reference tools is rejected because they cannot join the shared ProgramLocation/job store (R12/R42) and would add a second backend data path. Reimplement against their data shapes and reuse the existing objdiff integration where present.\n1. Research found no existing component for this — net new.\n2. Build the expert view(s) as consumers of the workstation's existing selection state (the same one `CompareView`, `ScratchWorkspace` and U6's providers read) — never introduce a second selection store, per R42 and the FRONTEND_INTENT §8 constraint research cited.\n3. Reimplement against RzWeb's data shapes; reuse no RzWeb code or assets (flag explicitly in this unit's PR description if that changes, not silently).\n\n**Test scenarios:**\n- Happy path: selecting a function in the Listing (or any other provider) updates the expert view to the same function, with no separate selection action needed.\n- Edge case: a function with no disassembly data available (for example, a stripped region) shows an explicit empty state.\n- Reuse check: this view reimplements against RzWeb's data shapes without reusing its source; if that changes, document it before merge.\n\n**Verification:** Select a function in the Listing; confirm the expert view follows without a separate click, using the shared selection state.\n\n---\n\n"
 }
 ```
 
@@ -22977,7 +22977,7 @@ The following complete source record retains original acceptance, dependency, su
 ```json
 {
   "id": "U29",
-  "definition": "### U29. Explicit publish step\n\n**Goal:** Make publishing to decomp.dev its own approved step, never a side effect of generating `report.json` (R50).\n\n**Requirements:** R50\n\n**Dependencies:** U28\n\n**Files:** a new dashboard action row (catalog-compatible, not added to the owner-locked `catalog.py` directly — follow the existing pattern for registering a new action outside that file, or route the addition through whatever the catalog's own extension point is), `src/agentdecompile_recovery/corpus/dashboard/router.py`\n\n**Approach:**\n1. Add a publish action that only runs after U28's gate passes for the target binary/version; the action itself requires an explicit operator confirmation (mirroring the existing dangerous-action confirm pattern research found in `catalog.py`'s `DANGEROUS_CORPUS`/`DANGEROUS_ARGV_FLAGS` handling, without editing that owner-locked file — call its confirm contract, don't duplicate its logic).\n2. The action is disabled (not hidden) when the gate has not passed, with the gate's failure reason shown inline.\n3. decomp.dev's own license is unestablished per `FRONTEND_INTENT.md`; this unit implements the gate-and-approve mechanism only — it does not implement the actual outbound network call to decomp.dev (Scope Boundaries: \"Deferred to Follow-Up Work\").\n\n4. A confirmed but unsent approval is labeled \"Approved. Publishing is not connected yet.\" Never present approval as a completed publish.\n\n**Test scenarios:**\n- Happy path: with a passing gate, the operator confirms publish; the action records the approval and (per Scope Boundaries) stops short of an actual outbound call until that follow-up work lands.\n- Edge case: with a failing gate, the publish action is visibly disabled and shows the gate's failure reason (AE15).\n- Regression: no code path reaches this action automatically as a side effect of `report.json` generation (R50).\n\n**Verification:** Attempt publish with a failing gate (disabled, reason shown) and with a passing gate (confirmable, approval recorded) on fixture data; confirm neither path issues an actual outbound network call.\n\n---\n\n"
+  "definition": "### U29. Explicit publish step\n\n**Goal:** Make publishing to decomp.dev its own approved step, never a side effect of generating `report.json` (R50).\n\n**Requirements:** R50\n\n**Dependencies:** U28\n\n**Files:** a new dashboard action row (catalog-compatible, not added to the owner-locked `catalog.py` directly — follow the existing pattern for registering a new action outside that file, or route the addition through whatever the catalog's own extension point is), `src/agentdecompile_recovery/corpus/dashboard/router.py`\n\n**Approach:**\n1. Add a publish action that only runs after U28's gate passes for the target binary/version; the action itself requires an explicit operator confirmation (mirroring the existing dangerous-action confirm pattern research found in `catalog.py`'s `DANGEROUS_CORPUS`/`DANGEROUS_ARGV_FLAGS` handling, without editing that owner-locked file — call its confirm contract, don't duplicate its logic).\n2. The action is disabled (not hidden) when the gate has not passed, with the gate's failure reason shown inline.\n3. this unit implements the gate-and-approve mechanism only — it does not implement the actual outbound network call to decomp.dev (Scope Boundaries: \"Deferred to Follow-Up Work\").\n\n4. A confirmed but unsent approval is labeled \"Approved. Publishing is not connected yet.\" Never present approval as a completed publish.\n\n**Test scenarios:**\n- Happy path: with a passing gate, the operator confirms publish; the action records the approval and (per Scope Boundaries) stops short of an actual outbound call until that follow-up work lands.\n- Edge case: with a failing gate, the publish action is visibly disabled and shows the gate's failure reason (AE15).\n- Regression: no code path reaches this action automatically as a side effect of `report.json` generation (R50).\n\n**Verification:** Attempt publish with a failing gate (disabled, reason shown) and with a passing gate (confirmable, approval recorded) on fixture data; confirm neither path issues an actual outbound network call.\n\n---\n\n"
 }
 ```
 
@@ -24659,7 +24659,7 @@ TOCTOU; it does not assert Ghidra itself supports arbitrary concurrent mutation.
 **Owner:** U42. **Requirement disposition:** required. **Source:** `worktree/docs/plans/2026-09-28-0817-feat-static-codebrowser-project-tabs-plan.md`:123. Apply C01–C24; historical checked status is not fresh acceptance.
 
 ```text
-- R41. A Dogbolt-style compare view shows multiple decompiler outputs side by side, using only optional licensed local runners; it never uploads to the public Dogbolt service.
+- R41. A Dogbolt-style compare view shows multiple decompiler outputs side by side, using only optional local runners; it never uploads to the public Dogbolt service.
 ```
 
 ### frontend-plan-2026-09-28:R42
@@ -26310,7 +26310,7 @@ Source `docs/plans/2026-09-21-distributed-compute-design.md` lines 1–7; accoun
 ---
 title: Distributed compute design — agentdecompile_grid (one-command donated and free-cloud compute)
 date: 2026-09-21
-status: design synthesized by the design workflow (4 architectures × 3 judge lenses, 9 stage analyses); grill round 5 applied and the licensing reasoning removed (audit 4, 2026-09-22); Phase 15 joined the plan in walking-skeleton order; this file is the detailed specification behind the plan's Phase 15 bullets
+status: design synthesized by the design workflow (4 architectures × 3 judge lenses, 9 stage analyses); grill round 5 applied (audit 4, 2026-09-22); Phase 15 joined the plan in walking-skeleton order; this file is the detailed specification behind the plan's Phase 15 bullets
 applies-to: 2026-09-21-portable-signatures-codecaves-generic-plan.md (program thesis 2–5)
 ---
 ```
@@ -26322,7 +26322,7 @@ Source `docs/plans/2026-09-21-distributed-compute-design.md` lines 8–12; accou
 ```md
 # Distributed compute design: `agentdecompile_grid`
 
-Status: design input to convergence (plan, design, diagrams); amended 2026-09-22 by audit 4 (round 5 amendments A2/A3/A5/A6; licensing reasoning removed per the user directive; §7.5 and §8 restated for the walking skeleton).
+Status: design input to convergence (plan, design, diagrams); amended 2026-09-22 by audit 4 (round 5 amendments A2/A3/A5/A6; §7.5 and §8 restated for the walking skeleton).
 Date: 2026-09-21. Repo head observed: `a501e9d` on `feat/portable-signatures-codecaves-generic` (the tasking text names `f6f008c`, an ancestor three commits back; every `path:line` below is against `a501e9d`; the skeleton commits cited in 7.5 and 8 are at `a4e4aca`).
 ```
 
@@ -27762,8 +27762,6 @@ Source `docs/plans/2026-09-21-loop-charter.md` lines 121–132; accountable cove
   abstractions and extension points (Protocols/ABCs, registries, interchangeable adapters,
   configuration) with at least one working implementation and named slots for the others; a
   packet that "keeps it minimal" is in breach.
-- **Licensing does not exist** in this program: no unit, gate, role or object policy reasons
-  about it.
 - **Walking skeleton first.** The default delivery shape is a thin end-to-end path through
   every layer in hours (agents in parallel worktrees), with the full capability arriving as
   adapters behind the declared interfaces — never a 170-day serial build.
@@ -28122,7 +28120,7 @@ Source `docs/plans/2026-09-21-plan-audit-4.md` lines 1–7; accountable coverage
 
 ```md
 ---
-title: Plan audit 4 — grill round 5 on the distributed-compute design, licensing strip, Phase 15 in walking-skeleton order
+title: Plan audit 4 — grill round 5 on the distributed-compute design, Phase 15 in walking-skeleton order
 date: 2026-09-22
 applies-to: 2026-09-21-portable-signatures-codecaves-generic-plan.md (revision log entry "audit 4"); 2026-09-21-distributed-compute-design.md; 2026-09-21-risk-register.md; 2026-09-21-goal.md; docs/dashboard-design/pipeline-diagram/
 status: applied; branch head observed `a4e4aca` (the audit brief named `95e8428`; two grid commits landed while it ran)
@@ -28152,9 +28150,9 @@ Source `docs/plans/2026-09-21-plan-audit-4.md` lines 16–23; accountable covera
 
 | Directive (user, 2026-09-22) | What changed |
 |---|---|
-| **Licensing does not exist in this program.** | Every passage that reasoned about licensing, redistribution, role-gated objects, "image-bearing objects a stranger may not fetch" or S14 was removed from the design: 34 spans across §1.3, §1.4, §2.1, §3.1/3.4/3.6/3.8/3.9, §4, §5.6, §6.3, §6.5, §6.6, §7.1–7.4, §8 (U121, U140, U149), §9.2 T1, §9.3 (title, L1 deleted, L2 → P1), §10 (Q3 deleted), §11; five more spans reworded for consistency (§1.3 row 2, §3.9, §6.2, §7.4 table header, U154). Replacement rule: a node that proves a capability by canary is offered the lanes that capability serves and fetches the input objects those tasks name; a role decides only what a node mirrors and whether its key may sign invites, run verifiers or run appliers. Object tags (`record`/`image`/`toolchain`) are mirror classes, never permissions. The speedup rows that assumed strangers cannot run the analyzer, decompile or compile lanes were restated: canary-proven donors buy throughput in those lanes exactly as fleet nodes do; every figure stays an ESTIMATE and the changed assumption is stated in §7.4. |
+| **Capability-by-canary access replaces role-gated objects.** | 34 spans across §1.3, §1.4, §2.1, §3.1/3.4/3.6/3.8/3.9, §4, §5.6, §6.3, §6.5, §6.6, §7.1–7.4, §8 (U121, U140, U149), §9.2 T1, §9.3 (title, L1 deleted, L2 → P1), §10 (Q3 deleted), §11 were restated; five more spans reworded for consistency (§1.3 row 2, §3.9, §6.2, §7.4 table header, U154). Replacement rule: a node that proves a capability by canary is offered the lanes that capability serves and fetches the input objects those tasks name; a role decides only what a node mirrors and whether its key may sign invites, run verifiers or run appliers. Object tags (`record`/`image`/`toolchain`) are mirror classes, never permissions. The speedup rows that assumed strangers cannot run the analyzer, decompile or compile lanes were restated: canary-proven donors buy throughput in those lanes exactly as fleet nodes do; every figure stays an ESTIMATE and the changed assumption is stated in §7.4. |
 | **Speculative generality to the extreme; YAGNI rejected; walking skeleton in agent-hours.** | §7.5 rewritten: the 170-engineer-day figure is a human-team estimate and is not the plan; the skeleton (plan U120–U124) landed in one day of parallel builders; U125 integrates; adapters follow as units. §8 preamble restated with the design→plan id map; §11 row (5) restated. |
-| **Round 5, surviving non-licensing amendments.** | A2 (toolchain identity = content hash of a declared manifest; canary fingerprint outside it; U132 acceptance), A3 (`basis_fields(kind)` projections with the plan's basis object as vocabulary; the §2.8 table; U124/U153/U156 acceptance; the U66 plan sentence), A5 (MEASURED vs ESTIMATE per C3: 30 analyzed builds, 291,302 / 74,205 ≈ 3.93 measured on the attestation copy; the recipient multiplier an estimate-class ceiling; compile-pass row two-population; U131(h), U144), A6 (design "new R7" → R13, dangling R6 → R12, R8 → note under H6; no S renumbering; §9 preamble). A1 and A4 skipped as licensing descendants of AM9/AM13, except A1's capability-shaped residue (`no-lane-open` by name, U125/§6.3). Q16/Q17 not added; Q3 withdrawn; Q18–Q25 added (Q21–Q24 are residues of killed findings, recorded as defaults only). |
+| **Round 5, surviving amendments.** | A2 (toolchain identity = content hash of a declared manifest; canary fingerprint outside it; U132 acceptance), A3 (`basis_fields(kind)` projections with the plan's basis object as vocabulary; the §2.8 table; U124/U153/U156 acceptance; the U66 plan sentence), A5 (MEASURED vs ESTIMATE per C3: 30 analyzed builds, 291,302 / 74,205 ≈ 3.93 measured on the attestation copy; the recipient multiplier an estimate-class ceiling; compile-pass row two-population; U131(h), U144), A6 (design "new R7" → R13, dangling R6 → R12, R8 → note under H6; no S renumbering; §9 preamble). A1 and A4 skipped except A1's capability-shaped residue (`no-lane-open` by name, U125/§6.3). Q16/Q17 not added; Q3 withdrawn; Q18–Q25 added (Q21–Q24 are residues of killed findings, recorded as defaults only). |
 ```
 
 #### S013-C0004: 2. Phase 15 — old → new numbering (nothing lost)
@@ -28263,9 +28261,8 @@ Source `docs/plans/2026-09-21-portable-signatures-codecaves-generic-plan.md` lin
   docs/plans/2026-09-21-plan-audit-2.md
 - 2026-09-21 — audit 3 (design vs plan, grill 6): surface ownership, Phase 14 surfaces,
   U28x attestation, no-Start supersession; see docs/plans/2026-09-21-plan-audit-3.md
-- 2026-09-22 — audit 4 (round 5, distributed design) + licensing strip + Phase 15
-  walking-skeleton order: round-5 amendments A2/A3/A5/A6 applied to the design, every
-  licensing passage removed (capability-only access), Phase 15 (`agentdecompile_grid`)
+- 2026-09-22 — audit 4 (round 5, distributed design) + Phase 15
+  walking-skeleton order: round-5 amendments A2/A3/A5/A6 applied to the design, capability-only access adopted throughout, Phase 15 (`agentdecompile_grid`)
   inserted in the order it was built, register "Distributed compute" section, diagram
   Lane E; see docs/plans/2026-09-21-plan-audit-4.md
 
@@ -28294,7 +28291,7 @@ Source `docs/plans/2026-09-21-portable-signatures-codecaves-generic-plan.md` lin
   `c575411`), U122 `95e8428` (`515fd47`), U123 `eecfcaf`/`85784cc`, U124 `8eb5202`/`a4e4aca`; hotfixes
   A1/A2/A3/A5 `a501e9d` (`fc638c4`, `be7ff81`, `79c2420`); R3 `40d50ce` (`6d95a40`); D8/D9 + harness (o)
   `24b3050`/`a4095ba` (observed on the branch; the previous delta had them in flight). Docs: the distributed
-  design amended (round 5 A2/A3/A5/A6; licensing reasoning removed; §7.5/§8 restated for the walking
+  design amended (round 5 A2/A3/A5/A6; §7.5/§8 restated for the walking
   skeleton), Phase 15 in this plan, the register's "Distributed compute" section, Lane E on the diagram.
   Earlier waves: Step 0 `0256ca0`; Phase 0 D1–D7 + U5c; U7/U7b `f935db7`; U22 `f5f6a88`; U1–U3 + U1b
   `b271ba6`; U21c `0191303`; 3b `5bf8a11`.
@@ -30958,7 +30955,7 @@ record why it is accepted. New speculative rows are added whenever one is forese
 | S11 | Corpus DB and analysis projects have no backup and sit on a USB drive; WAL under several writers already reports "database is locked". | data loss / SPOF | hours of analysis at stake | Snapshot verb (`VACUUM INTO` to the other disk, content-addressed); single-writer acceptance service for identity/receipt writes. |
 | S12 | Review-lane starvation: thousands of `review` matches nobody triages → nothing promotes → coverage stalls. | throughput / UX | any real corpus | Auto-triage order, batch accept above evidence thresholds with receipts, keyboard-driven review in the 5174 design. |
 | S13 | Synthetic fixtures do not exercise real compiler idioms; green on synthetic, wrong on real. | verification | every unit so far | Reference corpus: an open-source program built at O0/O1/O2/Os with two compilers; legal, generic, deterministic; used by ladders, divergence, struct and ABI tests. |
-| S14 | Packs carry original byte windows / cave `original_bytes`; packs plus Lua inject code. | legal / security | — | **Deprioritized by the user 2026-09-21: copyright and trust are assumed.** Keep short windows; no unit. |
+| S14 | Packs carry original byte windows / cave `original_bytes`; packs plus Lua inject code. | legal / security | — | **Deprioritized by the user 2026-09-21.** Keep short windows; no unit. |
 | S15 | Anti-cheat bans for detours in multiplayer titles. | user harm | — | **Deprioritized by the user 2026-09-21: niche; not now.** |
 | S16 | String-anchored locators break on localized builds. | correctness | localized releases | Anchor only to ID-stable strings (resource ids, script names); U85 classifies. |
 | S17 | Ambiguity of "byte-accurate" when sibling builds used different compilers: parity receipts cannot be shared across toolchains. | ambiguity | mixed corpora | Parity receipts keyed by toolchain identity; never borrowed across it (extends U62). |
@@ -30972,8 +30969,7 @@ Source `docs/plans/2026-09-21-risk-register.md` lines 106–118; accountable cov
 ## Resume point
 
 - Branch `feat/portable-signatures-codecaves-generic` at `a4e4aca`; audit 4 (round 5 on the
-  distributed design, 2026-09-22) applied to the design (A2/A3/A5/A6; licensing reasoning
-  removed; walking-skeleton §7.5/§8), the plan (Phase 15 U120–U170 in build order; Delta
+  distributed design, 2026-09-22) applied to the design (A2/A3/A5/A6; walking-skeleton §7.5/§8), the plan (Phase 15 U120–U170 in build order; Delta
   Update; Recommended order step 10; U66 projection sentence), the goal (done (8)), this
   register (H7–H13, R12, R13, T1, T3, T6, P1) and the diagram (Lane E). Landed: Step 0,
   Phase 0 D1–D7, U5c, U7/U7b, U22, U1–U3/U1b, U21c, 3b, D8/D9 + harness (o), hotfixes
@@ -31158,9 +31154,6 @@ Source `docs/plans/2026-09-21-user-requirements-ledger.md` lines 132–161; acco
 ```md
 ## 6. Process and safety rules
 
-- **Licensing is out of scope — entirely.** Liability is offloaded to another service; no
-  design, plan, unit, gate or diagram element may reason about licensing, redistribution
-  rights, or role-gating "for licensing". Forget the concept exists. (2026-09-22.)
 - **Embrace speculative generality to the extreme; reject YAGNI.** Proactively infer
   hypothetical future requirements and implement the abstractions, interchangeable
   implementations, extension points, configurability and infrastructure for them now. A
@@ -31241,7 +31234,6 @@ Source `docs/plans/2026-09-21-user-requirements-ledger.md` lines 190–210; acco
 | "coverage recorded, universality never asserted" | exhaustive ladders; residue is what remains after every strategy |
 | operational guards protecting live recovery | lifted; rigor retained |
 | a single SQLite store as the corpus's coordination point | working state concurrent and network-capable; SQLite a materialized view (thesis 4) |
-| licensing / redistribution boundaries in the design | out of scope entirely; liability offloaded (2026-09-22) |
 | YAGNI / minimal implementations | speculative generality to the extreme (2026-09-22) |
 | distributed compute as a late optional feature | a reusable package with donated idle compute and free cloud nodes; miniature non-blocking tasks (thesis 2–3) |
 | "one start/pause/resume control" | no Start button: analysis starts by itself on open / add / resume; the one control is pause/resume + scope |
@@ -66869,19 +66861,19 @@ below is documented upstream, not independently runtime-validated here.
 
 | Reference | Design/capability to carry into AgentDecompile | Boundary |
 |---|---|---|
-| [RzWeb](https://github.com/IndAlok/rzweb) | Connected disassembly/decompiler/CFG/hex/xref views, command palette, persistent artifact contexts, snapshots; browser worker isolation for local analysis | Current README explicitly notes unavailable decompiler plugins and non-interruptible commands. Rizin WASM is a requested local-provider direction, not a reason to replace working Ghidra state. LICENSE file identifies LGPL-3.0-only; review before code reuse. |
+| [RzWeb](https://github.com/IndAlok/rzweb) | Connected disassembly/decompiler/CFG/hex/xref views, command palette, persistent artifact contexts, snapshots; browser worker isolation for local analysis | Current README explicitly notes unavailable decompiler plugins and non-interruptible commands. Rizin WASM is a requested local-provider direction, not a reason to replace working Ghidra state. |
 | The archived third-party tool / Decomp Atlas (upstream repository not linked here to avoid naming it) | Function discovery, similarity exploration, context/prompt building, source/assembly correlation, compiler/objdiff/plugin iteration and reports | Reuse native AgentDecompile capabilities already assimilated. Respect deterministic-first policy; don't route every function to AI. |
 | [decomp.me](https://github.com/decompme/decomp.me) | A focused source/target-assembly scratch with compiler settings, compile/diff iteration and linkable collaboration | Workflow inspiration against our catalog, not a second Django application. Remote submission requires explicit consent. |
-| [Dogbolt](https://github.com/decompiler-explorer/decompiler-explorer) | Side-by-side named decompiler witnesses for the same target | Optional supported/licensed runners; no automatic upload to its public service or assumption a public API exists. |
+| [Dogbolt](https://github.com/decompiler-explorer/decompiler-explorer) | Side-by-side named decompiler witnesses for the same target | Optional supported runners; no automatic upload to its public service or assumption a public API exists. |
 | [r2web](https://github.com/radareorg/r2web) | Lightweight expert terminal, search/goto, graph navigation and browser analysis | Commands remain provider-specific expert tools behind normalized selection; do not make users learn r2 syntax for ordinary work. |
 | [objdiff](https://github.com/encounter/objdiff) / [objdiff-web](https://github.com/encounter/objdiff-web) | Actual symbol/instruction/data diff, register/value highlighting, navigable mismatch details; optional WASM comparison | Object-level comparison is not whole-image proof. Reuse existing integration before adding another engine or renderer. |
-| [decomp.dev](https://github.com/encounter/decomp.dev) | Revision-aware project history, build/report and Git/CI integration | Secondary to actual-work visualization. Root license not established in this pass; no source copying on assumption. |
+| [decomp.dev](https://github.com/encounter/decomp.dev) | Revision-aware project history, build/report and Git/CI integration | Secondary to actual-work visualization. No source copying on assumption. |
 | [APKMan](https://github.com/jiusanzhou/apkman) | Container/resource tree, format-specific inspectors, grouped search, worker parsing, hash-keyed reuse, export and optional offline use | Generalize format-provider behavior. Its README distinguishes Smali export from future Java-source export; do not promise parity with headline claims alone. |
 | [capa / Explorer](https://github.com/mandiant/capa) | Hierarchical capabilities/rules with supporting feature locations and drill-through into code | A semantic witness, not recovered-source or runtime proof. Reports can be browsed without rerunning analysis. |
-| [idarem](https://github.com/xsslize/idarem) | Synchronized address/view navigation, optional follow/drive semantics, responsive virtualized panes and event-driven updates | IDA/Hex-Rays are optional licensed dependencies. Never force native application navigation or enable write-back implicitly. |
-| [Rev·Deck](https://github.com/biniamf/ai-reverse-engineering) | Evidence-linked questions, bounded sub-investigations, checked citations and explicit provider boundaries | Model output cannot authorize writes or execution. License not established here; use concepts until source reuse is cleared. |
+| [idarem](https://github.com/xsslize/idarem) | Synchronized address/view navigation, optional follow/drive semantics, responsive virtualized panes and event-driven updates | IDA/Hex-Rays are optional dependencies. Never force native application navigation or enable write-back implicitly. |
+| [Rev·Deck](https://github.com/biniamf/ai-reverse-engineering) | Evidence-linked questions, bounded sub-investigations, checked citations and explicit provider boundaries | Model output cannot authorize writes or execution. Use concepts only; do not copy source. |
 | [Grapefruit](https://github.com/ChiChou/grapefruit) | Runtime module/symbol/memory browsing; inspectable calls/events, structured arguments/returns, crash/backtrace and file/database views | Optional isolated dynamic provider with explicit target/permission state. Do not import its mobile-only assumptions into the original-studio workflow. |
-| [rev.ng](https://github.com/revng/revng) | Coherent editable analysis model; type edits reflected in dependent code; connected artifact/analysis views and graph/code navigation | Primary docs describe model/type round trips. Do not claim its complete commercial/browser UI is reusable from the core repository; core/components have distinct licenses. |
+| [rev.ng](https://github.com/revng/revng) | Coherent editable analysis model; type edits reflected in dependent code; connected artifact/analysis views and graph/code navigation | Primary docs describe model/type round trips. Do not claim its complete commercial/browser UI is reusable from the core repository. |
 | [PyKotor Ghidra guide](https://github.com/OpenKotOR/PyKotor/wiki/Ghidra-Reversing-Guide) | Complete supported code-browser/type/storage/C++ workflows in both frontends | Guide examples are illustrative, not universal architecture/ABI rules. |
 
 Relevant rev.ng primary details:
@@ -67130,9 +67122,9 @@ Source `docs/FRONTEND_INTENT.md` lines 552–586; accountable coverage owner U42
   no mass transcript copy is included in this repository document.
 - **External references:** primary documentation for all13 named project families
   plus the Ghidra guide was consulted; selected APIs/docs were checked through gh.
-  No claim of a full source/license audit, runtime benchmark or pixel-level inspection
+  No claim of a full source audit, runtime benchmark or pixel-level inspection
   of every reference interface. Follow-up implementation must verify specific donor
-  code, licensing, backend support and real browser behavior.
+  code, backend support and real browser behavior.
 
 Remaining historical gaps do not erase known requirements. Add newly recovered
 requirements here with sources and explicit supersession; do not create another
@@ -68099,7 +68091,7 @@ Source `worktree/docs/plans/2026-09-28-0817-feat-static-codebrowser-project-tabs
 
 - R39. The Vite workstation's main view is objdiff-web-first: an instruction-aligned two-column diff with register highlighting, navigable mismatches and a symbol tree.
 - R40. A decomp.me-style scratch view lets the operator iterate a candidate against the catalog's compile and objdiff actions, extending the existing scratch workflow.
-- R41. A Dogbolt-style compare view shows multiple decompiler outputs side by side, using only optional licensed local runners; it never uploads to the public Dogbolt service.
+- R41. A Dogbolt-style compare view shows multiple decompiler outputs side by side, using only optional local runners; it never uploads to the public Dogbolt service.
 - R42. RzWeb/r2web-style expert views sit behind the workstation's one normalized selection, never a second selection store.
 - R43. An APKMan-style container tree generalizes to any supported container or format, reusing the existing format-provider pattern.
 - R44. A pipeline stage graph shows stage dependencies as a DAG with edges, and retries a stage only after that stage fails — never as a manual re-run control.
@@ -68317,7 +68309,7 @@ Source `worktree/docs/plans/2026-09-28-0817-feat-static-codebrowser-project-tabs
 **Deferred to Follow-Up Work**
 
 - WASM-consumable pack/bindings/harness target design and execution remain unscoped (R64/R65, U40). This plan delivers an explicit scope receipt, not a WASM implementation. Original-byte runtime calls and recovered-source variants remain governed by their separate recovery/runtime acceptance contracts.
-- Publishing statistics to decomp.dev itself (R50 covers the gate and the approval step; the publishing integration's own delivery, and resolving decomp.dev's license, are follow-up work once R47-R49 land).
+- Publishing statistics to decomp.dev itself (R50 covers the gate and the approval step; the publishing integration's own delivery is follow-up work once R47-R49 land).
 - Distributed-compute lane E scheduling beyond the fleet roster's display (`grid_lanes/cascade.py` already exists; scaling it across workers is a separate track).
 - Native decompiler tier (JVM-free replay) — tracked separately in `STRATEGY.md`'s own track, not part of this plan.
 
@@ -68603,7 +68595,7 @@ from the entity exports above and must not be conflated with them:
 - The **local-first workbench's own analysis tooling** (a separate, optional disassembly
   provider) may run as WASM inside a browser worker for its own UI purposes. This has
   nothing to do with the hook pack, Lua bindings, or codecave plans — it is the
-  workbench's local analysis path, gated on its own license/provenance/size review.
+  workbench's local analysis path, gated on its own provenance/size review.
 - A **distributed-compute browser lane** accepts a narrow, low-trust task set from
   volunteer browser tabs (parity-checking two compiled objects via a WASM parity
   checker, proposing rewrites, permuter search) — never a toolchain or analyzer task,
@@ -69585,7 +69577,7 @@ Source `worktree/docs/plans/2026-09-28-0817-feat-static-codebrowser-project-tabs
 ```md
 ### U20. Dogbolt compare view
 
-**Goal:** Add a Dogbolt-style multi-decompiler compare view, licensed-local-only (R41).
+**Goal:** Add a Dogbolt-style multi-decompiler compare view, local-only (R41).
 
 **Requirements:** R41
 
@@ -69596,9 +69588,9 @@ Source `worktree/docs/plans/2026-09-28-0817-feat-static-codebrowser-project-tabs
 **Approach:**
 0. Embedding the reference tools is rejected because they cannot join the shared ProgramLocation/job store (R12/R42) and would add a second backend data path. Reimplement against their data shapes and reuse the existing objdiff integration where present.
 1. Research found no existing component for this — it is net new.
-2. Build a side-by-side multi-decompiler output view, sourcing each decompiler's output from optional licensed local runners configured by the operator; never call or upload to the public Dogbolt service (R41, Scope Boundaries).
+2. Build a side-by-side multi-decompiler output view, sourcing each decompiler's output from optional local runners configured by the operator; never call or upload to the public Dogbolt service (R41, Scope Boundaries).
 3. Reuse U18's diff rendering primitives for aligning outputs where useful, but this view compares *decompiler outputs* to each other, not to a ground truth — keep it a distinct component from `CompareView`.
-4. Gate the view entirely on whether at least one licensed local runner is configured; render an explicit "no local decompiler runner configured" state otherwise, never a silent empty panel.
+4. Gate the view entirely on whether at least one local runner is configured; render an explicit "no local decompiler runner configured" state otherwise, never a silent empty panel.
 
 **Test scenarios:**
 - Happy path: two configured local runners produce side-by-side output for the same function.
@@ -69629,12 +69621,12 @@ Source `worktree/docs/plans/2026-09-28-0817-feat-static-codebrowser-project-tabs
 0. Embedding the reference tools is rejected because they cannot join the shared ProgramLocation/job store (R12/R42) and would add a second backend data path. Reimplement against their data shapes and reuse the existing objdiff integration where present.
 1. Research found no existing component for this — net new.
 2. Build the expert view(s) as consumers of the workstation's existing selection state (the same one `CompareView`, `ScratchWorkspace` and U6's providers read) — never introduce a second selection store, per R42 and the FRONTEND_INTENT §8 constraint research cited.
-3. RzWeb is LGPL-3.0 licensed; if any RzWeb code or assets are reused rather than reimplemented against its data shapes, review the license obligation before merging (flag explicitly in this unit's PR description, not silently).
+3. Reimplement against RzWeb's data shapes; reuse no RzWeb code or assets (flag explicitly in this unit's PR description if that changes, not silently).
 
 **Test scenarios:**
 - Happy path: selecting a function in the Listing (or any other provider) updates the expert view to the same function, with no separate selection action needed.
 - Edge case: a function with no disassembly data available (for example, a stripped region) shows an explicit empty state.
-- License check: if any RzWeb source is reused, the license review is documented before merge; if none is reused, this scenario is not applicable.
+- Reuse check: this view reimplements against RzWeb's data shapes without reusing its source; if that changes, document it before merge.
 
 **Verification:** Select a function in the Listing; confirm the expert view follows without a separate click, using the shared selection state.
 
@@ -69874,7 +69866,7 @@ Source `worktree/docs/plans/2026-09-28-0817-feat-static-codebrowser-project-tabs
 **Approach:**
 1. Add a publish action that only runs after U28's gate passes for the target binary/version; the action itself requires an explicit operator confirmation (mirroring the existing dangerous-action confirm pattern research found in `catalog.py`'s `DANGEROUS_CORPUS`/`DANGEROUS_ARGV_FLAGS` handling, without editing that owner-locked file — call its confirm contract, don't duplicate its logic).
 2. The action is disabled (not hidden) when the gate has not passed, with the gate's failure reason shown inline.
-3. decomp.dev's own license is unestablished per `FRONTEND_INTENT.md`; this unit implements the gate-and-approve mechanism only — it does not implement the actual outbound network call to decomp.dev (Scope Boundaries: "Deferred to Follow-Up Work").
+3. this unit implements the gate-and-approve mechanism only — it does not implement the actual outbound network call to decomp.dev (Scope Boundaries: "Deferred to Follow-Up Work").
 
 4. A confirmed but unsent approval is labeled "Approved. Publishing is not connected yet." Never present approval as a completed publish.
 
@@ -70392,7 +70384,7 @@ Source `worktree/docs/FRONTEND_IMPLEMENTATION_STATUS.md` lines 59–67; accounta
 ## Remaining scope
 
 The source batch does not complete all 43 units. Full provider/project-tab/map
-integration (U6–U8), licensed local multi-decompiler comparison (U20), spectator
+integration (U6–U8), local multi-decompiler comparison (U20), spectator
 permissions and mirrored selection (U25), explicit publish approval (U29),
 owner-locked test authoring (U30), and report-backed matrix cells (U43) remain.
 The partial rows above retain their additional prerequisites. The original

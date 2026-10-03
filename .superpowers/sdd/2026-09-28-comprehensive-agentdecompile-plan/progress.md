@@ -623,3 +623,11 @@ Ruling: Adopt reviewed captured-native P2 runtime source contract with owner-pro
 Task15.1 correction committed7eb844b374ce254fe9214bad1b589e5e530fb057; exact scoped ccd9b63a..7eb844b3 review package; /root/review_stabs_schema_v1 performs independent re-review. STABS /root/implement_stabs_schema_ownership fixes its original source finding concurrently.
 
 Task11.6a dispatched fresh /root/implement_native_profile_capture from7eb844b3: exact canonical profile/complete inventory/private copy-capture source primitives, one module+one focused regression source. No launch/lifecycle/signing/reader/host provisioning; synchronous IO limits explicit until owned-helper integration. Other reviewed runtime obligations remain open.
+
+Task15.1 fixround1 review: I1 and I3 addressed; remaining Important originalI2 variant unpinned bootstrap uses stale initial inventory callback and retires its own inspected preview. Exactround2 brief targets latest identity and metadata-admission regression, no broad rework; MinorM1 still deferred.
+
+Task2.3 fixround1 committed34b7287f123cff90c36eeac08f287db8833aeea0; scoped325ec899..34b7287f package, ASCII NOCASE TEMP-name checks and explicit unsupported reserved spelling refusal. Original /root/review_stabs_schema_v1 re-reviews exact fix; authored migration/writer cases unrun. Static original fix worker resumes round2.
+
+Task2.3: bounded source slice complete through34b7287f; approved scoped fix review ImportantP1 addressed with no introduced findings/specqualityPASS.17 source slices complete, full units/SQLite/installed/live gates open. Paired living/todo records v10 STABS ownership and v9/v10 deletion distinction. Task15.1 round2 source d2e0ccc2 committed; exact7eb844b3..d2e0ccc2 review now /root/review_stabs_schema_v1.
+
+Task15.1: bounded source complete throughd2e0ccc2 after2fixrounds; originalI1/I2/I3 addressed, no introduced Important/Critical, specqualityPASS. MinorM1focusclamp deferred.18source slices complete; actual React/browser/installed/fullU15 remains open. Paired living/todo updated. Fresh report-only U9 authority continuity and U2 decomp semantic/DDL investigations fill remaining slots concurrently with Task11.6a source.

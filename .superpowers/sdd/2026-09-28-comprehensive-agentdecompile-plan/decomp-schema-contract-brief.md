@@ -1,0 +1,9 @@
+# U2 remaining decomp DDL — report-only semantic reconciliation
+
+STABS Task2.3 reviewed source through34b7287f; new current schema10, frozen deletion9/10; actual migrations/SQLite unrun. Read complete next-schema-ddl-contract.md, task-2-stabs-report.md and reviews for retained remaining-DDL inventory/decision. Read unit-2-requirements.md/unit-2-schema-extract.md and documented solutions by schema/decomp tags.
+
+Investigate exactly next additive decomp schema ownership from current actual decomp.py/helper/match_store.py/store.py/migrations.py/delete_registry.py and named direct writer/reader callers. Prior reason STABS selected: merely adding nullable ast_fingerprint changes match_store.py legacy skeleton_hash fallback, absent source witness None vs empty0 metric semantics. Preserve exact historical ASTv1 semantics; do not relabel Pcode/weak hashes or backfill unavailable values. Source existence is not evidence source-observed.
+
+Own ONLY W/next-decomp-schema-contract.md. Produce bounded implementation-ready contract or concrete sourced reason a smaller prerequisite must land: canonical declarations/migration/version admission/rollback/reader/writer guards and explicit deletion profile delta, old row/value/NULL/fingerprint fallback behavior and actual metrics, strict shape supported/future refusal, no binary hardcoding. Pin affected public callers and complete ownership list; meaningful positive/paired-negative/unaffected fixtures including actual previous registry schema not relabelled version. Wider DDL owners remain open. No code/schema/DB operation or migration admitted by this research. Routine semantic choices infer from existing source/plan, raise only true policy gap, continue report.
+
+Not alone preserve edits; no Git/source changes/subagents/test/collection/build/typecheck/project imports/DB/crypto/runtime/live/process/provisioning. Text/AST reasoning only. Return READY_FOR_CONTRACT_REVIEW.

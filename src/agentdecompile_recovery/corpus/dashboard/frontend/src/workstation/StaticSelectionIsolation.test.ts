@@ -37,16 +37,17 @@ type AppProbe = {
   setProgram: (value: string) => void; setActiveSession: (value: string) => void;
   setActions: (value: unknown[]) => void; liveToolContext: () => any;
   setSessions: (value: unknown[]) => void; sessions: any[]; activeSession: string; rows: any[];
+  binaries: any[]; dossier: any; preview: any;
   openLocator: (locator: string, title?: string) => Promise<any>;
   executeAction: (id: string, params?: unknown, options?: unknown) => Promise<unknown>;
   selectFunctionLeaf: (name: string, addr: string, scope: string) => void;
 };
-function harness(fetchImpl: (url: string, init?: RequestInit) => Promise<Response>, options: {bootstrap?: boolean; seedProject?: boolean} = {}) {
+function harness(fetchImpl: (url: string, init?: RequestInit) => Promise<Response>, options: {bootstrap?: boolean; seedProject?: boolean; search?: string} = {}) {
   const htmContext: {htm?: unknown} = {};
   runInNewContext(htmSource, htmContext);
   const attrs = new Map<string, string>();
   const page = {setAttribute: (key: string, value: string) => attrs.set(key, value)};
-  const window: any = {location: {search: '?slug=project-slug&program=game.exe', href: 'http://example.test/dashboard',
+  const window: any = {location: {search: options.search ?? '?slug=project-slug&program=game.exe', href: 'http://example.test/dashboard',
     hostname: 'example.test'}, setTimeout, clearTimeout, setInterval, clearInterval,
     addEventListener: () => undefined, removeEventListener: () => undefined};
   const context: any = {React: {createElement, useState: H.useState, useRef: H.useRef,
@@ -65,7 +66,7 @@ function harness(fetchImpl: (url: string, init?: RequestInit) => Promise<Respons
   const code = source.replace(returnMarker, `    return { selected, detail, graph, overview, lastDecompile,
     selectionKey, targetKey, decompileDockBody, selectRow, selectProgram, resetTabState, reloadProject,
     setDossier, setSlug, setProgram, setActiveSession, setActions, liveToolContext, executeAction,
-    selectFunctionLeaf, setSessions, sessions, activeSession, rows, openLocator };\n${returnMarker}`).replace(exportMarker, `  window.TestApp = App;\n${exportMarker}`);
+    selectFunctionLeaf, setSessions, sessions, activeSession, rows, openLocator, binaries, dossier, preview };\n${returnMarker}`).replace(exportMarker, `  window.TestApp = App;\n${exportMarker}`);
   runInNewContext(code, context);
   function render(): AppProbe {
     H.beginRender();
@@ -177,8 +178,58 @@ describe('static App captured selection and actual consumers (unrun source fixtu
     expect(app.liveToolContext()).toMatchObject({locator: '/project-a', slug: 'project-slug', program: 'game.exe'});
     preview.resolve(json({ok: true, locator: '/project-a', kind: 'ghidra-project', programs: ['game.exe']}));
     await settleMicrotasks();
-    expect(h.render().liveToolContext().locator).toBe('/project-a');
+    app = h.render();
+    expect(app.liveToolContext().locator).toBe('/project-a');
+    expect(app.dossier).toMatchObject({ok: true, kind: 'ghidra-project', programs: ['game.exe']});
     expect(sessionReads).toBe(1);
+  });
+
+  it.each([false, true])('uses discovered inventory for unpinned restored preview (later selection: %s)', async superseded => {
+    const inventory = deferred<Response>(), sessions = deferred<Response>(), inspection = deferred<Response>(), selectedRead = deferred<Response>();
+    let sessionReads = 0; let inspectionReads = 0;
+    const knownBinary = {slug: 'project-slug', content_sha256: 'known-saved-project-content', repo: 'saved-repo'};
+    const inspected = {ok: true, locator: '/project-a', kind: 'ghidra-project',
+      programs: ['game.exe', 'tools.exe'], program_count: 2};
+    const h = harness(async url => {
+      if (url.endsWith('/binaries')) return inventory.promise;
+      if (url.endsWith('/corpus-db')) return json({corpus: {identity: 'corpus-discovered'}});
+      if (url.endsWith('/sessions')) { sessionReads++; return sessions.promise; }
+      if (url.endsWith('inspect?locator=%2Fproject-a')) { inspectionReads++; return inspection.promise; }
+      if (url.includes('/workspace?')) return selectedRead.promise;
+      return bootstrapAuxiliary(url);
+    }, {bootstrap: true, seedProject: false, search: ''});
+    expect(h.app.liveToolContext()).toMatchObject({slug: '', program: ''});
+    inventory.resolve(json({binaries: [knownBinary]}));
+    await settleMicrotasks();
+    let app = h.render(); // Known inventory is rendered before saved sessions arrive.
+    expect(app.binaries).toEqual([knownBinary]);
+    expect(app.targetKey).toContain('corpus-discovered');
+    expect(app.activeSession).toBe('');
+    sessions.resolve(json({sessions: [sessionA], active: sessionA.id, revision: 3}));
+    await settleMicrotasks();
+    app = h.render(); // Reconcile restored hash before the deferred inspection settles.
+    expect(app.targetKey).toContain(knownBinary.content_sha256);
+    expect(app.liveToolContext()).toMatchObject({slug: 'project-slug', program: 'game.exe', locator: '/project-a', repo: 'saved-repo'});
+    expect(app.dossier).toEqual({locator: '/project-a'});
+    expect(app.preview).toBeNull();
+    const selection = superseded ? app.selectRow(B) : null;
+    h.render();
+    inspection.resolve(json(inspected));
+    await settleMicrotasks();
+    app = h.render();
+    if (superseded) {
+      expect(app.dossier).toEqual({locator: '/project-a'});
+      expect(app.preview).toBeNull();
+      expect(app.selected?.addr).toBe(B.addr);
+      selectedRead.resolve(json(workspace(B)));
+      await selection;
+      expect(h.render().selected?.addr).toBe(B.addr);
+    } else {
+      expect(app.dossier).toEqual(inspected);
+      expect(app.preview).toEqual(inspected);
+    }
+    expect(sessionReads).toBe(1);
+    expect(inspectionReads).toBe(1);
   });
 
   it.each(['selection', 'open'])('keeps a later user %s ahead of delayed bootstrap sessions', async kind => {

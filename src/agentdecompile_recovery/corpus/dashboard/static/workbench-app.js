@@ -3343,6 +3343,7 @@
   function App() {
     const start = params();
     const [binaries, setBinaries] = useState([]);
+    const binaryInventoryRef = useRef(binaries);
     const [slug, setSlugState] = useState(start.get("slug") || start.get("binary") || "");
     const [rowPacket, setRowPacket] = useState(null);
     const [total, setTotal] = useState(0);
@@ -3531,10 +3532,12 @@
     }
     const setSlug = useCallback(function (value) {
       const next = typeof value === "function" ? value(targetRef.current.slug) : value;
-      const binary = binaries.find(function (item) { return item.slug === next; }) || {};
+      // Bootstrap retains this callback across inventory discovery. Capture the
+      // latest admitted inventory identity before creating its preview intent.
+      const binary = binaryInventoryRef.current.find(function (item) { return item.slug === next; }) || {};
       changeTarget({ slug: next || "", content: binary.content_sha256 || binary.contentSha256 || binary.sha256 || binary.binary_hash || binary.hash || "", repo: binary.repo || "" });
       setSlugState(next);
-    }, [binaries]);
+    }, []);
     const setProgram = useCallback(function (value) {
       changeTarget({ program: canonicalProgram(value) });
       setProgramState(value);
@@ -3592,6 +3595,7 @@
       const res = await fetch(API.binaries, { cache: "no-store" });
       const data = await res.json();
       const list = data.binaries || [];
+      binaryInventoryRef.current = list;
       setBinaries(list);
       setRecoveredRoot(data.recovered || "");
     }, []);

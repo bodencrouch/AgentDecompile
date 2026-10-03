@@ -10,14 +10,24 @@ from __future__ import annotations
 
 import pytest
 
+import agentdecompile_recovery.rewrite_provider as rewrite_provider
 from agentdecompile_recovery.rewrite_context import build_context_pack
 from agentdecompile_recovery.rewrite_provider import (
     CliResult,
     build_cli_command,
     fulfill_rewrite,
 )
+from agentdecompile_recovery.targeted_ai import TargetedAIState
 
 pytestmark = pytest.mark.unit
+
+
+@pytest.fixture(autouse=True)
+def _targeted_ai_enabled(monkeypatch):
+    # KTD5/R35-R38: targeted AI now defaults off (CLI > env > dashboard >
+    # compiled-default off). These tests exercise fulfill_rewrite's own
+    # rewrite-quality gating, not the operator on/off toggle, so force it on.
+    monkeypatch.setattr(rewrite_provider, "resolve_targeted_ai", lambda: TargetedAIState(True, "test"))
 
 
 def _pack(candidate: str = "void f(void){ gCounter += 1; }"):

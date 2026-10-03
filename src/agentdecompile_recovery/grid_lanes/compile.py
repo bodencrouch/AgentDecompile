@@ -38,6 +38,7 @@ from __future__ import annotations
 
 import dataclasses
 import hashlib
+import json
 import os
 import re
 import time
@@ -58,6 +59,7 @@ from agentdecompile_grid.core import (
     digest,
     task_kind,
 )
+from agentdecompile_grid.objects.base import IntegrityError, InvalidRef, validate_ref
 from agentdecompile_grid.view.applier import ensure_tables, view_hook
 
 from ._common import (
@@ -207,6 +209,87 @@ def diagnostic_codes(text: str) -> list[str]:
     return sorted(set(_DIAG_CODE.findall(text)))
 
 
+class _CompileBindingFailure(Exception):
+    """A named contradiction or unavailable piece of verification evidence."""
+
+    def __init__(self, reason: str, outcome: VerificationOutcome = VerificationOutcome.REFUTED):
+        self.reason = reason
+        self.outcome = outcome
+        super().__init__(reason)
+
+
+def _read_compile_evidence(objects: ObjectStore, ref: ObjectRef, role: str) -> bytes:
+    try:
+        validate_ref(ref)
+    except InvalidRef as exc:
+        raise _CompileBindingFailure(f"{role}-ref-invalid") from exc
+    try:
+        data = objects.get(ref)
+    except IntegrityError as exc:
+        raise _CompileBindingFailure(f"{role}-cas-integrity") from exc
+    except (KeyError, OSError) as exc:
+        raise _CompileBindingFailure(f"{role}-unavailable", VerificationOutcome.UNVERIFIABLE) from exc
+    # Enforce the address even for stores whose get() does not check integrity itself.
+    if ObjectRef.of_bytes(data) != ref:
+        raise _CompileBindingFailure(f"{role}-cas-integrity")
+    return data
+
+
+def _bound_compile_receipt(
+    spec: TaskSpec, result: TaskResult, objects: ObjectStore, expected: Mapping[str, Any],
+) -> tuple[dict[str, Any], str | None]:
+    """Authenticate the receipt/spec and actual object pair; this is not a full COFF parser."""
+    if result.task_id != spec.task_id:
+        raise _CompileBindingFailure("task-id-mismatch")
+    if result.basis_hash != spec.basis_hash:
+        raise _CompileBindingFailure("result-basis-mismatch")
+    if result.status != ResultStatus.OK:
+        raise _CompileBindingFailure("result-not-claim")
+    receipt_ref = result.outputs.get("receipt")
+    if receipt_ref is None:
+        raise _CompileBindingFailure("receipt-missing")
+    data = _read_compile_evidence(objects, receipt_ref, "receipt")
+    try:
+        receipt = json.loads(data.decode("utf-8"))
+    except (ValueError, UnicodeError) as exc:
+        raise _CompileBindingFailure("receipt-malformed") from exc
+    if not isinstance(receipt, dict):
+        raise _CompileBindingFailure("receipt-malformed")
+    if receipt.get("schema") != RECEIPT_SCHEMA:
+        raise _CompileBindingFailure("receipt-schema-mismatch")
+    if receipt.get("kind") != CompileAttempt.name:
+        raise _CompileBindingFailure("receipt-kind-mismatch")
+    if type(receipt.get("kind_version")) is not int or receipt["kind_version"] != CompileAttempt.version:
+        raise _CompileBindingFailure("receipt-kind-version-mismatch")
+    for field, value in expected.items():
+        if receipt.get(field) != value:
+            raise _CompileBindingFailure(f"receipt-{field}-mismatch")
+    outcome = receipt.get("outcome")
+    if outcome == "diag":
+        codes = receipt.get("diagnostic_codes")
+        if not isinstance(codes, list) or any(not isinstance(code, str) for code in codes):
+            raise _CompileBindingFailure("receipt-diagnostic-codes-malformed")
+        return receipt, None
+    if outcome != "obj":
+        raise _CompileBindingFailure("receipt-outcome-invalid")
+    obj_ref = result.outputs.get("obj")
+    if obj_ref is None:
+        raise _CompileBindingFailure("obj-missing")
+    obj = _read_compile_evidence(objects, obj_ref, "obj")
+    if receipt.get("obj_sha256") != digest(obj):
+        raise _CompileBindingFailure("obj-sha256-mismatch")
+    size = receipt.get("obj_bytes")
+    if type(size) is not int or size < 0 or size != len(obj):
+        raise _CompileBindingFailure("obj-bytes-mismatch")
+    try:
+        masked = masked_coff_sha256(obj)
+    except Refused as exc:
+        raise _CompileBindingFailure(exc.reason) from exc
+    if receipt.get("masked_coff_sha256") != masked:
+        raise _CompileBindingFailure("obj-masked-coff-mismatch")
+    return receipt, masked
+
+
 # --------------------------------------------------------------------------- the kind
 @task_kind
 class CompileAttempt(PlannableKind):
@@ -294,23 +377,41 @@ class CompileAttempt(PlannableKind):
         )
 
     def verify(self, spec: TaskSpec, result: TaskResult, objects: ObjectStore, scratch: str) -> Verification:
-        """Recompute and compare masked-COFF hashes (or diagnostic codes for a ``diag`` outcome)."""
+        """Bind actual outputs to spec/receipt, then compare independently derived masked hashes."""
         result_ref = ObjectRef.of_value(result.to_record())
-        receipt_ref = result.outputs.get("receipt")
-        if receipt_ref is None or not objects.exists(receipt_ref):
+        try:
+            check_kind(spec, self.name, self.version)
+            try:
+                tu_ref = validate_ref(require_input(spec, "tu", kind=self.name))
+            except InvalidRef as exc:
+                raise _CompileBindingFailure("tu-ref-invalid") from exc
+            expected = {
+                "tu_sha256": tu_ref.hex,
+                "toolchain_identity_hash": str(require_param(spec, "toolchain_identity_hash", kind=self.name)),
+                "profile": str(spec.params.get("profile") or "default"),
+                "opt": str(spec.params.get("opt") or DEFAULT_OPT),
+                "flags": self.flags_of(spec), "basis_hash": spec.basis_hash,
+            }
+            proposal, proposal_masked = _bound_compile_receipt(spec, result, objects, expected)
+        except Refused as exc:
             return Verification(spec.task_id, result_ref, VerificationOutcome.REFUTED, "", "recompute",
-                                {"reason": "receipt-missing"})
-        proposal = get_json(objects, receipt_ref)
+                                {"reason": exc.reason})
+        except _CompileBindingFailure as exc:
+            return Verification(spec.task_id, result_ref, exc.outcome, "", "recompute", {"reason": exc.reason})
         try:
             recomputed = self.run(spec, objects, scratch)
         except Refused as exc:
             return Verification(spec.task_id, result_ref, VerificationOutcome.UNVERIFIABLE, "", "recompute",
                                 {"reason": exc.reason})
-        mine = get_json(objects, recomputed.outputs["receipt"])
+        try:
+            mine, recomputed_masked = _bound_compile_receipt(spec, recomputed, objects, expected)
+        except _CompileBindingFailure as exc:
+            return Verification(spec.task_id, result_ref, exc.outcome, "", "recompute",
+                                {"reason": "recomputed-" + exc.reason})
         if proposal.get("outcome") != mine.get("outcome"):
             outcome, why = VerificationOutcome.REFUTED, "outcome-differs"
         elif mine.get("outcome") == "obj":
-            same = proposal.get("masked_coff_sha256") == mine.get("masked_coff_sha256")
+            same = proposal_masked == recomputed_masked
             outcome, why = (VerificationOutcome.VERIFIED, "masked-coff-equal") if same else (VerificationOutcome.REFUTED, "masked-coff-differs")
         else:
             same = proposal.get("diagnostic_codes") == mine.get("diagnostic_codes")
@@ -319,7 +420,7 @@ class CompileAttempt(PlannableKind):
             spec.task_id, result_ref, outcome, "", "recompute",
             {
                 "why": why,
-                "masked_coff_sha256": {"proposal": proposal.get("masked_coff_sha256"), "recomputed": mine.get("masked_coff_sha256")},
+                "masked_coff_sha256": {"proposal": proposal_masked, "recomputed": recomputed_masked},
                 "obj_sha256_equal": proposal.get("obj_sha256") == mine.get("obj_sha256"),
             },
         )

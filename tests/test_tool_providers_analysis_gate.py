@@ -129,11 +129,18 @@ async def test_call_scoped_program_survives_two_program_interleaving(
     )
     a_waiting = asyncio.Event()
     release_a = asyncio.Event()
+    gated_infos: list[object] = []
 
-    async def gate_wait(_func, _program, info, **_kwargs):
-        if info is info_a:
+    def record_gate(_program, info, **_kwargs):
+        gated_infos.append(info)
+
+    async def gate_wait(func, *args, **kwargs):
+        # The gate hands to_thread a zero-arg closure; run it inline to learn
+        # which program it gated, then hold call A open.
+        func(*args, **kwargs)
+        if gated_infos.pop() is info_a:
             a_waiting.set()
-            await release_a.wait()
+            await asyncio.wait_for(release_a.wait(), timeout=5)
 
     def get_program_info(_session_id: str, key: str | None):
         return {"/repo/a.exe": info_a, "/repo/b.exe": info_b}.get(key)
@@ -149,6 +156,14 @@ async def test_call_scoped_program_survives_two_program_interleaving(
         ),
         patch("agentdecompile_cli.mcp_server.tool_providers.SESSION_CONTEXTS.add_tool_history"),
         patch(
+            "agentdecompile_cli.mcp_utils.program_analysis.wait_for_program_analysis_ready",
+            side_effect=record_gate,
+        ),
+        patch(
+            "agentdecompile_cli.mcp_server.tool_providers.analysis_skipped_warning",
+            return_value=None,
+        ),
+        patch(
             "agentdecompile_cli.mcp_server.tool_providers.asyncio.to_thread",
             side_effect=gate_wait,
         ),
@@ -159,13 +174,17 @@ async def test_call_scoped_program_survives_two_program_interleaving(
                 {"programPath": "/repo/a.exe", "responseFormat": "json"},
             )
         )
-        await a_waiting.wait()
+        try:
+            await asyncio.wait_for(a_waiting.wait(), timeout=5)
+        except TimeoutError:
+            call_a.cancel()
+            pytest.fail("call A never reached the analysis gate for /repo/a.exe")
         result_b = await gate_manager.call_tool(
             "list-functions",
             {"programPath": "/repo/b.exe", "responseFormat": "json"},
         )
         release_a.set()
-        result_a = await call_a
+        result_a = await asyncio.wait_for(call_a, timeout=5)
 
     assert json.loads(result_a[0].text)["programPath"] == "/repo/a.exe"
     assert json.loads(result_b[0].text)["programPath"] == "/repo/b.exe"
@@ -268,6 +287,7 @@ async def test_analysis_gate_invoked_for_non_exempt_tool(
     program_info: SimpleNamespace,
 ) -> None:
     to_thread_mock = AsyncMock(return_value=None)
+    wait_mock = MagicMock(return_value=None)
     with (
         patch(
             "agentdecompile_cli.mcp_server.tool_providers.SESSION_CONTEXTS.get_program_info",
@@ -282,11 +302,22 @@ async def test_analysis_gate_invoked_for_non_exempt_tool(
             "agentdecompile_cli.mcp_server.tool_providers.asyncio.to_thread",
             to_thread_mock,
         ),
+        patch(
+            "agentdecompile_cli.mcp_utils.program_analysis.wait_for_program_analysis_ready",
+            wait_mock,
+        ),
+        patch(
+            "agentdecompile_cli.mcp_server.tool_providers.analysis_skipped_warning",
+            return_value=None,
+        ),
     ):
         await gate_manager.call_tool("list-functions", {"programPath": "/repo/other.exe"})
+        assert to_thread_mock.await_count == 1
+        # to_thread gets a zero-arg closure that wraps wait_for_program_analysis_ready.
+        to_thread_mock.await_args.args[0]()
 
-    assert to_thread_mock.await_count == 1
-    assert to_thread_mock.await_args.args[0].__name__ == "wait_for_program_analysis_ready"
+    wait_mock.assert_called_once()
+    assert wait_mock.call_args.args == (program_info.program, program_info)
 
 
 @pytest.mark.unit

@@ -73,6 +73,7 @@
      table and the rest stay in More — they are not a second row of chrome. */
   const EDITOR_PRIMARY = [
     { id: "decompile", title: "Listing" },
+    { id: "wb-peers", title: "Peers" },
     { id: "wb-fnbrowse", title: "Functions" },
     { id: "graph", title: "Call trees" },
     { id: "wb-match", title: "Match" },
@@ -799,6 +800,63 @@
           })}
         </tbody>
       </table>` : html`<p className="wb-hint">No Ghidra programs listed on this project.</p>`}
+    </div>`;
+  }
+
+  /* U7: a project tab holds every binary as a peer lane on one shared cursor
+     (R15-R18), replacing the old "one active program drives the cursor" model
+     for the peers list itself (the rest of the editor still switches by
+     centerTab -- see PeerLanes' own "Focus" action). A light row is corpus-only:
+     build name, readiness/stage read from the already-loaded corpus ladder
+     (no live Ghidra read), and the shared-cursor identity binding for the
+     currently selected function (from function_detail's existing `siblings`
+     join). Click or Enter focuses one peer at a time; the row for the
+     currently focused peer renders full (U6 providers load for it elsewhere
+     in renderEditorBody), every other peer stays light. */
+  function peerStageInfo(steps) {
+    const list = steps || [];
+    if (!list.length) return { state: "unknown", label: "no ladder facts yet", next: "" };
+    const blocked = list.find(function (step) { return (step.state || step.status) === "blocked"; });
+    const active = blocked || list.find(function (step) {
+      const st = step.state || step.status;
+      return st && st !== "done" && st !== "complete" && st !== "unmeasured";
+    }) || list[list.length - 1];
+    const st = (active && (active.state || active.status)) || "unmeasured";
+    return { state: st, label: (active && (active.title || active.key)) || "", next: (active && active.next) || "" };
+  }
+
+  function PeerLanes({ binaries, activeSlug, selected, siblings, onFocusPeer }) {
+    const peers = binaries || [];
+    const boundBySlug = {};
+    (siblings || []).forEach(function (sib) { if (sib && sib.slug) boundBySlug[sib.slug] = sib; });
+    if (!peers.length) {
+      return html`<div className="wb-empty wb-empty-surface"><p>No binaries in this project yet. File → Open, then Add to project…</p></div>`;
+    }
+    return html`<div className="wb-peer-lanes" id="wb-peer-lanes" role="list" aria-label="Project peers">
+      ${peers.map(function (peer) {
+        const slug = peer.slug || peer.name || "";
+        const focused = slug === activeSlug;
+        const stage = peerStageInfo(peer.steps);
+        const bound = focused ? { addr: selected && selected.addr, name: selected && selected.name } : boundBySlug[slug];
+        return html`<div key=${slug} role="listitem" tabIndex="0"
+          className=${"wb-peer-lane" + (focused ? " focused" : " light") + (stage.state === "blocked" ? " st-blocked" : "")}
+          onClick=${function () { if (!focused) onFocusPeer(slug); }}
+          onKeyDown=${function (ev) { if ((ev.key === "Enter" || ev.key === " ") && !focused) { ev.preventDefault(); onFocusPeer(slug); } }}>
+          <div className="wb-peer-lane-head">
+            <span className="wb-peer-name">${peer.name || slug}</span>
+            <span className=${"wb-peer-readiness st-" + stage.state}>${stage.state}</span>
+            ${stage.label ? html`<span className="wb-peer-stage">${stage.label}</span>` : null}
+          </div>
+          ${stage.state === "blocked" && stage.next ? html`<p className="wb-hint wb-peer-next">Next: ${stage.next}</p>` : null}
+          <p className="wb-hint wb-peer-binding">
+            ${bound && (bound.addr || bound.name)
+              ? html`Bound: ${bound.name || bound.addr} ${bound.addr ? html`<code>${bound.addr}</code>` : null}`
+              : (selected && selected.addr ? "no identity binding" : "Pick a function to see its binding across peers.")}
+          </p>
+          ${!focused ? html`<button type="button" className="wb-btn wb-btn-mini wb-peer-focus"
+              onClick=${function (ev) { ev.stopPropagation(); onFocusPeer(slug); }}>Focus</button>` : null}
+        </div>`;
+      })}
     </div>`;
   }
 
@@ -6030,6 +6088,20 @@
           <${BinaryCompareTable} binaries=${ladder.binaries} onOpen=${function (b) {
             if (b && b.slug) { setSlug(b.slug); setCenterTab("wb-pipeline"); }
           }} />
+        </${Surface}>`;
+      }
+      if (tab === "wb-peers") {
+        const ladder = (corpusStatus && corpusStatus.ladder) || {};
+        return html`<${Surface} id="wb-peers" title="Peers" actions=${panelActions(
+          html`<button type="button" className="wb-btn wb-btn-mini" onClick=${function () { loadCorpusStatus(); }}>Refresh facts</button>`
+        )}>
+          <p className="wb-hint">Every binary in this project as a peer lane on one shared cursor. Focus loads Listing/U6 providers for that peer; the rest stay light.</p>
+          <${PeerLanes} binaries=${ladder.binaries} activeSlug=${slug}
+            selected=${selected} siblings=${detail && detail.siblings}
+            onFocusPeer=${function (peerSlug) {
+              setSlug(peerSlug);
+              setCenterTab("decompile");
+            }} />
         </${Surface}>`;
       }
       if (tab === "wb-atlas") {

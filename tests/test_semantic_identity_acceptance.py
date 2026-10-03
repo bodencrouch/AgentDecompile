@@ -89,7 +89,8 @@ def prepared(tmp_path, *, plus=False, names=None, mutation=None, corpus_digest=T
     con.executescript('''CREATE TABLE binary(id INTEGER,repo_path TEXT,slug TEXT,content_sha256 TEXT);
     CREATE TABLE identity(logical_id INTEGER,binary_id INTEGER,addr INTEGER,method TEXT);
     CREATE TABLE logical_function(id INTEGER,canon_key TEXT);
-    CREATE TABLE func(binary_id INTEGER,addr INTEGER,name TEXT,canon_key TEXT);''')
+    CREATE TABLE func(binary_id INTEGER,addr INTEGER,name TEXT,canon_key TEXT,
+        size INTEGER,is_thunk INTEGER,source TEXT,canon_class TEXT,n_instr INTEGER);''')
     con.execute('INSERT INTO binary VALUES (1,?,?,?)',('/fixture','fixture',digest if corpus_digest else None))
     con.execute("INSERT INTO logical_function VALUES (9,'untrusted-logical')")
     for addr in [base+0x1000,base+0x1020,base+0x2180]:

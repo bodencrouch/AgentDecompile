@@ -81,21 +81,37 @@ def blocks_contained(small: Fn, large: Fn) -> bool:
 
 
 def _range_end(fn: Fn) -> int | None:
-    addr = int(fn.get("addr") or 0)
-    size = int(fn.get("size") or 0)
+    # A range end needs both ends of the range: a real address and a size.
+    # Stored ``func`` rows carry both (``size`` is a real INTEGER column in
+    # store.py), but callers that only have a logical id/label -- including
+    # synthetic fixtures that reuse ``addr`` as a human-readable id -- may
+    # supply neither. Without an explicit ``size`` there's no range to
+    # report; treat that as absence of evidence, not a crash.
+    if fn.get("size") is None:
+        return None
+    try:
+        addr = int(fn.get("addr") or 0)
+        size = int(fn["size"])
+    except (TypeError, ValueError):
+        return None
     return (addr + size) or None
 
 
 def _hit(vanished: Fn, host: Fn, *, kind: str, needles: frozenset[str], evidence: dict[str, Any] | None = None) -> dict[str, Any]:
-    return {
+    result = {
         "missing_id": _fn_id(vanished),
         "host_id": _fn_id(host),
         "kind": kind,
         "block_count": len(needles),
-        "src_end": _range_end(vanished),
-        "dst_end": _range_end(host),
-        **(evidence or {}),
     }
+    src_end = _range_end(vanished)
+    dst_end = _range_end(host)
+    if src_end is not None:
+        result["src_end"] = src_end
+    if dst_end is not None:
+        result["dst_end"] = dst_end
+    result.update(evidence or {})
+    return result
 
 
 def inline_hits(missing: list[Fn], survivors: list[Fn]) -> list[dict[str, Any]]:
@@ -151,12 +167,24 @@ def inline_hits(missing: list[Fn], survivors: list[Fn]) -> list[dict[str, Any]]:
             candidates = set(bucket) if candidates is None else candidates & bucket
             if not candidates:
                 break
-        hosts = [
+        contained = [
             indexed_survivors[index][0]
             for index in (candidates or ())
             if _fn_id(indexed_survivors[index][0]) != missing_id
-            and int(indexed_survivors[index][0].get("n_instr") or indexed_survivors[index][0].get("size") or 0) > missing_size
         ]
+        if len(contained) == 1:
+            # A single host containing every needle is unambiguous on its
+            # own -- report it even when neither side carries size/n_instr
+            # (e.g. a caller that only has block hashes). The "host must be
+            # larger" rule below exists to pick a winner / plausible growth
+            # target when there's more than one containing host, not to
+            # withhold the only candidate there is.
+            hosts = contained
+        else:
+            hosts = [
+                host for host in contained
+                if int(host.get("n_instr") or host.get("size") or 0) > missing_size
+            ]
         candidates_by_missing[missing_id] = [(host, block_hash_set(host)) for host in hosts]
         for host in hosts:
             exact_by_host[_fn_id(host)].append(missing_id)
@@ -196,7 +224,11 @@ def inline_hits(missing: list[Fn], survivors: list[Fn]) -> list[dict[str, Any]]:
                 },
             ))
         else:
-            hits.append(_hit(vanished, host, kind="inline", needles=needles, evidence={"host_unique": True}))
+            # Unique containment in exactly one host -- the strongest, least
+            # ambiguous signal this module produces, so no extra evidence
+            # qualifier is needed (unlike "clone"/"fold", there's no
+            # alternative candidate to distinguish it from).
+            hits.append(_hit(vanished, host, kind="inline", needles=needles))
         handled.add(missing_id)
 
     # Fragmented bodies: choose a small deterministic set of survivors whose
@@ -219,6 +251,13 @@ def inline_hits(missing: list[Fn], survivors: list[Fn]) -> list[dict[str, Any]]:
             if overlap and _fn_id(host) != missing_id:
                 fragments.append((len(overlap), host, overlap))
         fragments.sort(key=lambda item: (-item[0], str(_fn_id(item[1]))))
+        if len(fragments) >= 2 and fragments[0][0] == fragments[1][0]:
+            # Two (or more) hosts tie for the best single-fragment overlap --
+            # there's no principled way to call one of them "primary" over
+            # the other, so this is advisory noise rather than split/unroll
+            # evidence. Skip both the split-union and the unroll fallback
+            # below for this vanished function.
+            continue
         covered: set[str] = set()
         chosen: list[tuple[Fn, frozenset[str]]] = []
         for _count, host, overlap in fragments:

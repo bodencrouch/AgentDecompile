@@ -5,7 +5,7 @@ import pytest
 
 from agentdecompile_recovery.corpus import source_contribution as sc
 from agentdecompile_recovery.corpus import whole_image_relink as wir
-from test_source_contribution import compiled_pair, pe_fixture
+from test_source_contribution import compiled_pair, compiler_available, pe_fixture
 
 
 def test_decisive_discard_a_fallback_b_survives(tmp_path):
@@ -120,6 +120,8 @@ def test_valid_collision_is_deterministic_and_snapshot_change_is_local(tmp_path)
 
 
 def test_database_projection_ignores_unrelated_rows_but_withdraws_changed_function(tmp_path):
+    if not compiler_available():
+        pytest.skip('native clang unavailable; real compiler canary remains open')
     raw,base=pe_fixture();target=tmp_path/'target.exe';target.write_bytes(raw)
     db=tmp_path/'corpus.sqlite'
     with sqlite3.connect(db) as con:
@@ -138,6 +140,8 @@ def test_database_projection_ignores_unrelated_rows_but_withdraws_changed_functi
 
 
 def test_database_loss_is_explicit_zero_credit_not_an_exception(tmp_path):
+    if not compiler_available():
+        pytest.skip('native clang unavailable; real compiler canary remains open')
     raw,base=pe_fixture();target=tmp_path/'target.exe';target.write_bytes(raw)
     db=tmp_path/'corpus.sqlite'
     with sqlite3.connect(db) as con:

@@ -11,7 +11,7 @@ import pytest
 
 from agentdecompile_recovery.corpus import source_contribution as sc
 from agentdecompile_recovery.corpus import source_revalidation as sr
-from test_source_contribution import pe_fixture
+from test_source_contribution import compiler_available, pe_fixture
 
 
 def setup_recipe(root):
@@ -87,6 +87,8 @@ def test_zero_and_discarded_candidates_are_only_floor(tmp_path):
 
 
 def test_independent_database_failure_does_not_discard_b(tmp_path):
+    if not compiler_available():
+        pytest.skip('native clang unavailable; real compiler canary remains open')
     doc = setup_recipe(tmp_path)
     doc['candidates'][0]['size'] = 5
     result = run_recipe(tmp_path, doc)
@@ -96,6 +98,8 @@ def test_independent_database_failure_does_not_discard_b(tmp_path):
 
 
 def test_actual_three_process_loss_and_fresh_revalidation(tmp_path):
+    if not compiler_available():
+        pytest.skip('native clang unavailable; real compiler canary remains open')
     doc = setup_recipe(tmp_path)
     (tmp_path/'recipe.json').write_text(json.dumps(doc))
     script = r'''
@@ -172,6 +176,8 @@ def test_target_limit_is_checked_before_workspace(tmp_path):
 
 
 def test_recipe_source_race_does_not_admit_new_digest(tmp_path, monkeypatch):
+    if not compiler_available():
+        pytest.skip('native clang unavailable; real compiler canary remains open')
     doc = setup_recipe(tmp_path)
     doc['candidates'][1]['selected'] = False
     producer = sc.compile_observation

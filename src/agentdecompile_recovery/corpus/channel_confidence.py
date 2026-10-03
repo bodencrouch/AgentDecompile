@@ -77,7 +77,6 @@ def independent_channels(evidence: Mapping[str, Any] | None) -> set[str]:
         if key in HASH_KEYS or key.startswith("hash_"):
             letters.add("H")
             continue
-        ch = evidence.get("channel") or evidence.get("primary_channel")
         if key in {"channel", "primary_channel", "kind", "propagation_kind"} and isinstance(val, str):
             letters.add(_channel_letter(val))
             continue

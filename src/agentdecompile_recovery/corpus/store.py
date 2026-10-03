@@ -264,6 +264,9 @@ def ensure_match_columns(con: sqlite3.Connection) -> None:
 
 # Primary result codes that mean "cannot write right now", not "broken schema".
 _BACKFILL_SKIP_CODES = frozenset({sqlite3.SQLITE_BUSY, sqlite3.SQLITE_LOCKED, sqlite3.SQLITE_READONLY})
+# Retry skipped best-effort work on the next connect instead of waiting behind
+# a concurrent writer for the full connection timeout.
+_BACKFILL_BUSY_TIMEOUT_MS = 250
 
 
 def ensure_binary_columns(con: sqlite3.Connection) -> None:
@@ -329,6 +332,8 @@ def backfill_recovery_family(con: sqlite3.Connection) -> int:
         # pass a connection with pending work, so only undo a transaction this
         # function opened. Only lock/read-only failures are best-effort.
         owns = not con.in_transaction
+        saved_timeout = int(con.execute("PRAGMA busy_timeout").fetchone()[0])
+        con.execute(f"PRAGMA busy_timeout={min(saved_timeout, _BACKFILL_BUSY_TIMEOUT_MS)}")
         try:
             if owns:
                 con.execute("BEGIN IMMEDIATE")
@@ -347,6 +352,8 @@ def backfill_recovery_family(con: sqlite3.Connection) -> int:
             if owns and con.in_transaction:
                 con.rollback()
             raise
+        finally:
+            con.execute(f"PRAGMA busy_timeout={saved_timeout}")
     return int(unclassifiable[0]) if unclassifiable else 0
 
 

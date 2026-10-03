@@ -1349,15 +1349,21 @@ def main(argv: list[str] | None = None, prog: str | None = None) -> int:
         argv=["--verified-dir",str(args.verified_dir),"--raw",str(args.raw),
               "--receipts",str(args.receipts),"--max-diff",str(args.max_diff),
               "--limit",str(args.limit),"--workers",str(args.workers)]
-        if args.compiler: argv+=["--compiler",str(args.compiler)]
+        if args.compiler:
+            argv+=["--compiler",str(args.compiler)]
         else:
             from .ghidra_bulk import _find_compiler
             argv+=["--compiler",str(_find_compiler(args.raw.parent,args.db) if args.db else _find_compiler(args.raw.parent))]
-        if args.db: argv+=["--db",str(args.db)]
-        if args.binary_id is not None: argv+=["--binary-id",str(args.binary_id)]
-        if args.bin_dir: argv+=["--bin-dir",str(args.bin_dir)]
-        if args.model: argv+=["--model",str(args.model)]
-        if args.state: argv+=["--state",str(args.state)]
+        if args.db:
+            argv+=["--db",str(args.db)]
+        if args.binary_id is not None:
+            argv+=["--binary-id",str(args.binary_id)]
+        if args.bin_dir:
+            argv+=["--bin-dir",str(args.bin_dir)]
+        if args.model:
+            argv+=["--model",str(args.model)]
+        if args.state:
+            argv+=["--state",str(args.state)]
         return cnm_main(argv)
     if args.cmd == "unpack":
         from .unpack import main as unpack_main

@@ -71,7 +71,6 @@ def summarize(program) -> dict:
     sym_total = st.getNumSymbols()
 
     # Namespaces that look like C++ classes carry a lot of Lane's structure.
-    classes = 0
     for ns in st.getDefinedSymbols():
         pass
 

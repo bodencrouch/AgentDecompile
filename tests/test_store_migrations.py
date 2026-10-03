@@ -530,8 +530,10 @@ def test_backfill_participates_in_an_open_transaction(tmp_path: Path) -> None:
     """Inside a caller's BEGIN IMMEDIATE (migration 1) the backfill neither commits nor rolls back."""
     db = _migrated_store_with(tmp_path, "unclassified:1", _HASH)
     con = sqlite3.connect(db)
+    con.execute("PRAGMA busy_timeout=30000")
     con.execute("BEGIN IMMEDIATE")
     store.backfill_recovery_family(con)
+    assert con.execute("PRAGMA busy_timeout").fetchone()[0] == 30000
     assert con.in_transaction
     raw = sqlite3.connect(db)
     assert raw.execute("SELECT recovery_family FROM binary").fetchone() == ("unclassified:1",), "not visible before the caller commits"
@@ -541,20 +543,53 @@ def test_backfill_participates_in_an_open_transaction(tmp_path: Path) -> None:
     con.close()
 
 
-def test_backfill_tolerates_a_busy_lock_and_leaves_no_transaction(tmp_path: Path) -> None:
+@pytest.mark.parametrize("busy_timeout", [0, 200, 30000])
+def test_backfill_tolerates_a_busy_lock_and_leaves_no_transaction(tmp_path: Path, busy_timeout: int) -> None:
     db = _migrated_store_with(tmp_path, "unclassified:1", _HASH)
     holder = sqlite3.connect(db)
     holder.execute("BEGIN IMMEDIATE")
-    waiter = sqlite3.connect(db, timeout=0.2)
-    waiter.execute("PRAGMA busy_timeout=200")
+    observed_timeouts = []
+
+    class ObserveBusyTimeout(sqlite3.Connection):
+        def execute(self, sql, parameters=()):
+            if sql == "BEGIN IMMEDIATE":
+                observed_timeouts.append(super().execute("PRAGMA busy_timeout").fetchone()[0])
+            return super().execute(sql, parameters)
+
+    waiter = sqlite3.connect(db, factory=ObserveBusyTimeout)
+    waiter.execute(f"PRAGMA busy_timeout={busy_timeout}")
+    started = time.monotonic()
     assert store.backfill_recovery_family(waiter) == 0
+    assert time.monotonic() - started < 5.0, "best-effort backfill waited for the connection timeout"
+    assert waiter.execute("PRAGMA busy_timeout").fetchone()[0] == busy_timeout
     assert not waiter.in_transaction
+    assert observed_timeouts == [min(busy_timeout, 250)]
     holder.rollback()
     holder.close()
     # Once the lock is free the same handle writes and commits.
     assert store.backfill_recovery_family(waiter) == 0
+    assert waiter.execute("PRAGMA busy_timeout").fetchone()[0] == busy_timeout
     assert not waiter.in_transaction
     raw = sqlite3.connect(db)
     assert raw.execute("SELECT recovery_family FROM binary").fetchone() == (f"unclassified:{_HASH[:16]}",)
     raw.close()
     waiter.close()
+
+
+def test_backfill_restores_timeout_after_a_non_lock_error(tmp_path: Path) -> None:
+    db = _migrated_store_with(tmp_path, "unclassified:1", _HASH)
+    con = sqlite3.connect(db)
+    con.execute("PRAGMA busy_timeout=30000")
+    con.execute(
+        "CREATE TRIGGER refuse_backfill BEFORE UPDATE ON binary "
+        "BEGIN SELECT RAISE(ABORT, 'backfill refused'); END"
+    )
+    con.commit()
+    try:
+        with pytest.raises(sqlite3.IntegrityError, match="backfill refused"):
+            store.backfill_recovery_family(con)
+        assert con.execute("PRAGMA busy_timeout").fetchone()[0] == 30000
+        assert not con.in_transaction
+        assert con.execute("SELECT recovery_family FROM binary").fetchone() == ("unclassified:1",)
+    finally:
+        con.close()

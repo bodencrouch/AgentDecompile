@@ -77,7 +77,6 @@ from agentdecompile_cli.registry import (
     RESOURCE_URI_STATIC_ANALYSIS,
     RESPONSE_FORMAT_PARAM,
     RESPONSE_FORMAT_VALUES,
-    TOOL_PARAM_ALIASES,
     TOOLS,
     Tool,
     apply_alias_implied_arguments,

@@ -23,7 +23,7 @@ import hashlib
 import json
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Callable, Iterable, Iterator, Mapping, Protocol, Sequence, runtime_checkable
+from typing import Any, Iterable, Iterator, Mapping, Protocol, Sequence, runtime_checkable
 
 GRID_SCHEMA_VERSION = 1
 HASH_ALGORITHM = "sha256"

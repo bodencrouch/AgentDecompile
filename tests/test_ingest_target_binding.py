@@ -57,3 +57,18 @@ def test_header_cannot_override_checked_comparison_metadata(tmp_path):
     rejected=[]
     assert parse_recovered(recovered,coverage,rejected=rejected)==[]
     assert rejected[0]['reason']=='header_target_size_mismatch'
+
+
+def test_preloaded_coverage_index_pins_observation_and_empty_is_not_absent(tmp_path):
+    from agentdecompile_recovery.corpus.ingest_recovered import load_coverage_index
+    recovered, coverage, source, row, ledger = prepared(tmp_path)
+    snapshot = load_coverage_index(coverage)
+    ledger.write_text(json.dumps({'function': row['function'], 'byteExact': False}) + '\n')
+    parsed = parse_recovered(recovered, coverage, coverage_index=snapshot)
+    assert len(parsed) == 1 and parsed[0]['source_sha256'] == row['sourceSha256']
+    assert parse_recovered(recovered, coverage) == []
+    ledger.write_text(json.dumps(row) + '\n')
+    rejected = []
+    assert parse_recovered(recovered, coverage, coverage_index={}, rejected=rejected) == []
+    assert rejected[0]['binding'] == 'source'
+    assert len(parse_recovered(recovered, coverage)) == 1

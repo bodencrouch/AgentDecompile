@@ -247,17 +247,20 @@ def parse_recovered(
     coverage_dir: pathlib.Path,
     *,
     rejected: list[dict] | None = None,
+    coverage_index: dict[tuple[str, str], dict] | None = None,
 ) -> list[dict]:
     """Read local positive observations bound to the current exact source bytes.
 
     Legacy/unbound files remain on disk for revalidation. Optional diagnostics
-    explain exclusions without fabricating replacement provenance.
+    explain exclusions without fabricating replacement provenance. A supplied
+    coverage_index pins the caller's observation basis; an empty supplied index
+    remains empty rather than reloading the ledger. It conveys no acceptance.
     """
     rows = []
     recovered_dir = pathlib.Path(recovered_dir)
     if not recovered_dir.is_dir():
         return rows
-    verified = load_coverage_index(coverage_dir)
+    verified = load_coverage_index(coverage_dir) if coverage_index is None else coverage_index
     target_cache: dict = {}
     for pdir in sorted(recovered_dir.iterdir()):
         if not pdir.is_dir():

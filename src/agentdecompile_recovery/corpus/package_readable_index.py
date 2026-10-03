@@ -41,24 +41,45 @@ recovered — only struct layouts.
 """
 
 
+def _as_count(value, default: int = 0) -> int:
+    """Coerce a manifest field to a count, tolerating a list (len) or junk (default).
+
+    Manifests from other producers (e.g. ``corpus package``'s generic
+    workspace MANIFEST.json, which uses ``files`` for a list of paths rather
+    than a count) must not crash index generation; they just contribute 0/len.
+    """
+    if isinstance(value, bool):
+        return default
+    if isinstance(value, (int, float)):
+        return int(value)
+    if isinstance(value, (list, tuple, set)):
+        return len(value)
+    if isinstance(value, str):
+        try:
+            return int(value)
+        except ValueError:
+            return default
+    return default
+
+
 def _manifest_counts(directory: Path, manifest: dict) -> dict:
     functions = manifest.get("functions")
     if isinstance(functions, list):
         verified = sum(1 for f in functions if (f.get("authority") or "") == "verified-byte-exact")
         advisory = sum(1 for f in functions if (f.get("authority") or "") == "advisory-ghidra")
         return {
-            "functions_written": int(manifest.get("functions_written") or len(functions)),
-            "verified_byte_exact": int(manifest.get("verified_byte_exact") or verified),
-            "advisory_ghidra": int(manifest.get("advisory_ghidra") or advisory),
-            "types_exported": int(manifest.get("types_exported") or 0),
-            "files": int(manifest.get("files") or len({f.get("source_file") for f in functions})),
+            "functions_written": _as_count(manifest.get("functions_written"), len(functions)),
+            "verified_byte_exact": _as_count(manifest.get("verified_byte_exact"), verified),
+            "advisory_ghidra": _as_count(manifest.get("advisory_ghidra"), advisory),
+            "types_exported": _as_count(manifest.get("types_exported"), 0),
+            "files": _as_count(manifest.get("files"), len({f.get("source_file") for f in functions})),
         }
     return {
-        "functions_written": int(manifest.get("functions_written") or 0),
-        "verified_byte_exact": int(manifest.get("verified_byte_exact") or 0),
-        "advisory_ghidra": int(manifest.get("advisory_ghidra") or 0),
-        "types_exported": int(manifest.get("types_exported") or 0),
-        "files": int(manifest.get("files") or 0),
+        "functions_written": _as_count(manifest.get("functions_written"), 0),
+        "verified_byte_exact": _as_count(manifest.get("verified_byte_exact"), 0),
+        "advisory_ghidra": _as_count(manifest.get("advisory_ghidra"), 0),
+        "types_exported": _as_count(manifest.get("types_exported"), 0),
+        "files": _as_count(manifest.get("files"), 0),
     }
 
 

@@ -1257,10 +1257,23 @@ def main(argv: list[str] | None = None, prog: str | None = None) -> int:
         def emit_progress(event: dict) -> None:
             print(json.dumps({"event": "match-pair-progress", **event}), flush=True)
 
-        print(json.dumps(run_pair(
-            connect(args.db), args.src, args.dst, args.note, args.run,
-            progress=emit_progress if args.progress_json else None,
-        ), indent=2))
+        con = connect(args.db)
+        try:
+            result = run_pair(
+                con, args.src, args.dst, args.note, args.run,
+                progress=emit_progress if args.progress_json else None,
+            )
+        except KeyError:
+            missing = [
+                path
+                for path in (args.src, args.dst)
+                if con.execute("SELECT 1 FROM binary WHERE repo_path=?", (path,)).fetchone() is None
+            ]
+            if not missing:
+                raise
+            print(f"error: not in database: {', '.join(missing)}", file=sys.stderr)
+            return 2
+        print(json.dumps(result, indent=2))
         return 0
     if args.cmd == "logical-build":
         from .logical import build

@@ -94,6 +94,15 @@ export interface SurfaceProps {
   }) => void;
 }
 export const API = "/dashboard/api/workbench";
+// A spectator session's token lives only in sessionStorage (R46: never the
+// URL after first use). When present, every request carries it so the
+// backend's read-only enforcement sees it on write attempts even if a
+// spectator-mode UI control were somehow reachable.
+export const SPECTATOR_TOKEN_KEY = "spectatorToken";
+function spectatorHeader(): Data {
+  const token = typeof sessionStorage !== "undefined" ? sessionStorage.getItem(SPECTATOR_TOKEN_KEY) : null;
+  return token ? { "X-Spectator-Token": token } : {};
+}
 export async function request<T = Data>(
   url: string,
   init: RequestInit = {},
@@ -104,6 +113,7 @@ export async function request<T = Data>(
       ...(init.body instanceof FormData
         ? {}
         : { "Content-Type": "application/json" }),
+      ...spectatorHeader(),
       ...init.headers,
     },
   });

@@ -161,8 +161,13 @@ def test_structural_island_matches_unique_spp_and_cfg():
 
 
 def test_inline_review_when_blocks_are_contained():
+    # "A" used to share a unique-string anchor with "B" here, which (rightly)
+    # consumed "B" as a stronger, direct identity match before the inline
+    # pass ever ran -- leaving no host left for "Tiny" to inline into and
+    # making this fixture test anchor-vs-inline precedence instead of the
+    # inline detection it's named for. Drop the colliding string so "B"
+    # stays unclaimed for the inline relation under test.
     left = [
-        _fn("A", strings=["Failed to allocate heap"]),
         {**_fn("Tiny"), "block_hashes": ["blk-a", "blk-b"]},
     ]
     right = [

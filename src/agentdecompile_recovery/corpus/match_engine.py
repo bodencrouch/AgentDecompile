@@ -644,8 +644,18 @@ def match_binaries(
         [left_index.funcs[sid] for sid in src_ids if sid not in mapping],
         [index.funcs[did] for did in dst_eligible if did not in taken],
     ):
+        # The fuzzy scoring rounds above may have already left a weak,
+        # rejected ("unresolved") placeholder under this id -- that's not a
+        # real accepted match, so it must not block this (stronger) inline
+        # relation from being recorded. setdefault() alone would silently
+        # keep the stale unresolved row and drop every inline hit whose
+        # source function happened to also score (and lose) against some
+        # candidate in the fuzzy rounds.
+        key = str(hit["missing_id"])
+        if results.get(key, {}).get("status") == "unresolved":
+            del results[key]
         results.setdefault(
-            str(hit["missing_id"]),
+            key,
             {
                 "left_id": hit["missing_id"],
                 "right_id": hit["host_id"],

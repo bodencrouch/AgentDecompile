@@ -23,10 +23,16 @@ def persist_status(result: dict, pair_class: str, src_key, dst_key, *, n_instr: 
     name_conflict = bool(src_key and dst_key and src_key != dst_key)
     kind = result.get("kind")
     pinned = result.get("status")
-    proposed = pinned if kind in PINNED_KINDS and pinned else match.status_for(
+    is_pinned = bool(kind in PINNED_KINDS and pinned)
+    proposed = pinned if is_pinned else match.status_for(
         result["score"], result["margin"], pair_class,
         ev.get("_content", result.get("content", 0)), ev.get("compunit"), False,
     )
+    if is_pinned:
+        # "Do not re-score" applies to the channel-confidence gate below too
+        # -- it's a second scoring pass, not just match.status_for. Only the
+        # independent name-conflict demote still overrides a pinned status.
+        return "verify" if name_conflict and proposed == "auto" else proposed
     if proposed not in {"auto", "verify"}:
         return proposed
     from .channel_confidence import allows_auto, allows_verify, channel_confidence

@@ -1,4 +1,4 @@
-"""Atomic binary removal for the reviewed, deliberately bounded v9 profile.
+"""Atomic binary removal for the reviewed, deliberately bounded v9/v10/v11 profiles.
 
 This module never initializes a store. A future schema or surviving identity
 lineage requires a separately reviewed profile, not heuristic provenance cleanup.
@@ -375,10 +375,20 @@ LEDGER = tuple(enumerate((
 # Frozen compatibility deltas: future migration registry edits grant no deletion
 # permission. Version 9 retains optional STABS attribution exactly as reviewed.
 LEDGER_V10 = LEDGER + ((10, 'stabs_schema_ownership'),)
+LEDGER_V11 = LEDGER_V10 + ((11, 'decomp_schema_ownership'),)
+TABLE_SQL_V11 = {**TABLE_SQL, 'decomp_schema_state': """CREATE TABLE decomp_schema_state (
+    singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
+    mode TEXT NOT NULL CHECK (mode IN ('absent', 'skeleton_hash', 'ast_fingerprint'))
+)"""}
+MANDATORY_TABLES_V11 = MANDATORY_TABLES | {'decomp', 'decomp_schema_state'}
+OPTIONAL_ADDITIONS_V11 = {key: value for key, value in OPTIONAL_ADDITIONS.items() if key != 'decomp'}
+
 VERSION_PROFILES = {
     9: (LEDGER, (), frozenset()),
     10: (LEDGER_V10, ('stabs_name TEXT', 'stabs_type TEXT'),
          frozenset({'ix_func_srcfile', 'ix_stabs_type_bin', 'ix_stabs_type_src'})),
+    11: (LEDGER_V11, ('stabs_name TEXT', 'stabs_type TEXT'),
+         frozenset({'ix_func_srcfile', 'ix_stabs_type_bin', 'ix_stabs_type_src', 'ix_decomp_bin'})),
 }
 
 
@@ -454,22 +464,25 @@ def _schema_preflight(con: sqlite3.Connection) -> frozenset[str]:
     if version not in VERSION_PROFILES:
         raise BinaryDeleteUnsupported('schema_unsupported', 'user_version')
     expected_ledger, func_additions, required_indexes = VERSION_PROFILES[version]
+    table_sql = TABLE_SQL_V11 if version == 11 else TABLE_SQL
+    mandatory = MANDATORY_TABLES_V11 if version == 11 else MANDATORY_TABLES
+    optional_additions = OPTIONAL_ADDITIONS_V11 if version == 11 else OPTIONAL_ADDITIONS
     objects = list(con.execute('SELECT type,name,tbl_name,sql FROM main.sqlite_schema'))
     missing_indexes = required_indexes - {row[1] for row in objects if row[0] == 'index'}
     if missing_indexes:
         raise BinaryDeleteUnsupported('schema_unsupported', sorted(missing_indexes)[0])
-    present = frozenset(row[1] for row in objects if row[0] == 'table' and row[1] in TABLE_SQL)
-    missing = MANDATORY_TABLES - present
+    present = frozenset(row[1] for row in objects if row[0] == 'table' and row[1] in table_sql)
+    missing = mandatory - present
     if missing:
         raise BinaryDeleteUnsupported('schema_unsupported', sorted(missing)[0])
     for kind, name, table, sql in objects:
         if name in {'sqlite_sequence', 'sqlite_stat1', 'sqlite_stat4'} and kind == 'table':
             continue
-        if kind == 'table' and name in TABLE_SQL:
+        if kind == 'table' and name in table_sql:
             actual = _clauses(sql, name)
-            required = set(_clauses(TABLE_SQL[name], name))
+            required = set(_clauses(table_sql[name], name))
             required.update(_tokens(item, name) for item in REQUIRED_ADDITIONS.get(name, ()))
-            optional = {_tokens(item, name) for item in OPTIONAL_ADDITIONS.get(name, ())}
+            optional = {_tokens(item, name) for item in optional_additions.get(name, ())}
             required -= optional
             if name == 'func':
                 required.update(_tokens(item, name) for item in func_additions)
@@ -497,6 +510,27 @@ def _schema_preflight(con: sqlite3.Connection) -> frozenset[str]:
         match_review_schema.require(con)
     except ValueError as exc:
         raise BinaryDeleteUnsupported('schema_unsupported', 'match_review') from exc
+    if version == 11:
+        # Column order/type/default/PK metadata is part of canonical v11 shape.
+        decomp_columns = ('binary_id', 'addr', 'ok', 'n_tokens', 'n_lines', 'max_nest',
+                          'n_calls', 'n_locals', 'n_deref', 'n_index', 'n_field',
+                          'ctrl', 'ops', 'skeleton_hash', 'ast_fingerprint')
+        expected_columns = [(i, name, 'INTEGER' if i < 11 else 'TEXT', int(i < 2),
+                             None, i + 1 if i < 2 else 0, 0)
+                            for i, name in enumerate(decomp_columns)]
+        if [tuple(row) for row in con.execute('PRAGMA main.table_xinfo(decomp)')] != expected_columns:
+            raise BinaryDeleteUnsupported('schema_unsupported', 'decomp')
+        # Frozen deletion state checks; no dependency on the live migration registry.
+        columns = [tuple(row) for row in con.execute('PRAGMA main.table_xinfo(decomp_schema_state)')]
+        rows = [tuple(row) for row in con.execute('SELECT singleton,mode FROM main.decomp_schema_state')]
+        if columns != [(0, 'singleton', 'INTEGER', 0, None, 1, 0), (1, 'mode', 'TEXT', 1, None, 0, 0)]:
+            raise BinaryDeleteUnsupported('schema_unsupported', 'decomp_schema_state')
+        if len(rows) != 1 or rows[0][0] != 1 or rows[0][1] not in {'absent', 'skeleton_hash', 'ast_fingerprint'}:
+            raise BinaryDeleteUnsupported('schema_unsupported', 'decomp_schema_state')
+        if rows[0][1] == 'absent' and con.execute('SELECT 1 FROM main.decomp LIMIT 1').fetchone():
+            raise BinaryDeleteUnsupported('schema_unsupported', 'decomp_schema_state')
+        if rows[0][1] == 'skeleton_hash' and con.execute('SELECT 1 FROM main.decomp WHERE ast_fingerprint IS NOT NULL LIMIT 1').fetchone():
+            raise BinaryDeleteUnsupported('schema_unsupported', 'decomp_schema_state')
     return present
 
 

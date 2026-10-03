@@ -2243,6 +2243,8 @@ def _comparison_path(run_id: str, src: str, dst: str) -> Path:
 
 def _matching_input_digests(paths: set[str], progress: Any = None) -> dict[str, Any]:
     """Hash matcher inputs once per binary per wave, in one SQLite snapshot."""
+    from ..store import decomp_read_state
+
     if not paths:
         return {}
     result = {}
@@ -2252,6 +2254,7 @@ def _matching_input_digests(paths: set[str], progress: Any = None) -> dict[str, 
         con.row_factory = sqlite3.Row
         con.execute('BEGIN')
         available = {row[0] for row in con.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+        decomp_state = decomp_read_state(con)
         for source in sorted(paths):
             if progress:
                 progress(len(result), len(paths), source, 0)
@@ -2266,7 +2269,7 @@ def _matching_input_digests(paths: set[str], progress: Any = None) -> dict[str, 
             def add(value: Any) -> None:
                 digest.update(json.dumps(value, sort_keys=True, separators=(',', ':'), default=str).encode())
                 digest.update(b'\n')
-            add({'schema': 'matcher-input-v1', 'binary': dict(binary)})
+            add({'schema': 'matcher-input-v2', 'binary': dict(binary), 'decompMode': decomp_state})
             for row in con.execute('SELECT * FROM func WHERE binary_id=? ORDER BY addr,id', (binary['id'],)):
                 add({'func': dict(row)})
                 count += 1
@@ -2275,10 +2278,10 @@ def _matching_input_digests(paths: set[str], progress: Any = None) -> dict[str, 
             if 'calledge' in available:
                 for row in con.execute('SELECT caller_addr,callee_addr FROM calledge WHERE binary_id=? ORDER BY caller_addr,callee_addr', (binary['id'],)):
                     add({'edge': list(row)})
-            if 'decomp' in available:
-                for row in con.execute('SELECT addr,n_tokens,n_lines,max_nest,n_calls,n_locals,n_deref,n_index,n_field,ctrl,ops,skeleton_hash FROM decomp WHERE binary_id=? AND ok=1 ORDER BY addr', (binary['id'],)):
+            if decomp_state is not None:
+                for row in con.execute(f'SELECT addr,n_tokens,n_lines,max_nest,n_calls,n_locals,n_deref,n_index,n_field,ctrl,ops,skeleton_hash,{decomp_state} AS selected_fingerprint FROM main.decomp WHERE binary_id=? AND ok=1 ORDER BY addr', (binary['id'],)):
                     add({'decomp': dict(row)})
-            result[source] = {'source': source, 'schema': 'matcher-input-v1', 'digest': digest.hexdigest(), 'functionCount': count, 'md5': binary['md5']}
+            result[source] = {'source': source, 'schema': 'matcher-input-v2', 'digest': digest.hexdigest(), 'functionCount': count, 'md5': binary['md5']}
             if progress:
                 progress(len(result), len(paths))
     return result

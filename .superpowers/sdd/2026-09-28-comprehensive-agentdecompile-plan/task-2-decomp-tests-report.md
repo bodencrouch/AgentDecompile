@@ -1,0 +1,34 @@
+# Task2.4 authored decomp regressions
+
+Status: **READY_TO_COMMIT — SOURCE ONLY**, 2026-10-02. This worker owns the five transferred regression files below and this report. Production, documentation and Git remain with their respective owners. Other contributors' edits were retained.
+
+## Exact paths
+
+- `tests/test_store_migrations.py`
+- `tests/test_corpus_db_compatibility.py`
+- `tests/test_corpus_delete_registry.py`
+- `tests/test_corpus_stabs_migration.py`
+- `tests/test_corpus_decomp_schema.py` (new source file initially authored by the production worker, completed here)
+- `.superpowers/sdd/2026-09-28-comprehensive-agentdecompile-plan/task-2-decomp-tests-report.md` (new)
+
+## Authored acceptance coverage
+
+The new decomp file has 32 distinct top-level test functions with parametrized cases. These are future operation regressions, not executed receipts. Its historical helper stops the real runner at9/10 and independently declares old14-column and CREATE/ALTER15-column decomp shapes. Frozen ordered ledgers distinguish9,10,11. Future12 refusal also uses an actual added migration/ledger entry rather than restamping current11.
+
+- Schema-only adoption matrix: absent/legacy/AST-CREATE/AST-ALTER, empty/populated, missing/correct index, actual9/10. Assertions preserve original rowids/keys/fields, all old AST values including unsuccessful rows, NULLs, binary survivor rows, unrelated extensions and prior ledger rows. Feature producers are forbidden during adoption. The runner's existing basis-hash hook is not described as absent or newly added.
+- Real Binary/candidate/receipt callers: global skeleton versus AST selection, NULL/empty/nonempty/arbitrary/whitespace values, distinct skeleton and AST values, successful-row exclusions, same-ID receipt counting, and preservation across migration. Explicit ensure/attach/persist transitions are tested separately from schema adoption, including logical absent materialization and absent ensure no-op.
+- Real public corpus-status and wrapper callers: per-build None versus0, aggregate0, successful distinct addresses, globally present rows with another empty binary, failed/unknown-only zero witnesses, by-build consistency, and unknown source availability/compile/byte acceptance.
+- Real matching-input projection and comparison receipt helpers: stable v2 inputs, selector transitions, selected AST changes, unaffected other binary, and v1 inventory rejection. The fixture deliberately invokes the real future digest/receipt functions when execution becomes authorized; no such function was invoked here.
+- Strict refusal matrix: extra columns, wrong types/defaults/PK/FK/CHECK/collation, generated/virtual/view tables, STRICT/WITHOUT ROWID, wrong/colliding/mixed-case indexes and object names, triggers, TEMP table/view shadows, malformed/missing/contradictory singleton state, and damaged current schema. Snapshots and caller transaction assertions detect mutation or repair on refusal. Pure current guards trace only reads/PRAGMAs. A feature callback invalidates an admitted index to verify writer revalidation before mutation.
+- Migration failure injection after table/ALTER/index/state creation, state insert, ledger insert, version update and pre-durability COMMIT, including KeyboardInterrupt. Separate fixtures cover failure11 after newly committed1–10, cleanup failure propagation, and durable-but-unacknowledged migration commit without a rollback claim. Actual10 lock/read-only-tolerated handles refuse main writers before features.
+- Main writer fixtures: exact falsy/truthy/whitespace payloads and return dictionaries; one-key replacement and unaffected addresses/binaries; owned commit and successful caller commit; write/state/commit/interruption failure with prior caller work pending; cleanup and unacknowledged-commit uncertainty; attach closes an owned failed handle. Independent part payloads/column installer remain separate; mixed/raw/corpus destinations, mixed-case reserved names and part TEMP shadows refuse before cross-domain changes.
+- Frozen deletion9/10/11: equivalent populated target/survivor fixtures exercise existing count/dependency/transaction regressions. Metadata survives target, survivor and last-binary deletion and never enters counts. Missing current table/index/state and future12 refuse. Historical optional decomp/AST absence remains admitted at actual9/10.
+- Source assertions pin canonical declaration/MAIN_SCHEMA compatibility, absence of corpus installers in main mutators, and absence of feature/fingerprint/extraction/backfill calls in migration11.
+
+Existing file corrections retain meaningful older regression intent. The registry now pins the exact11-step identities independently. Current fresh and known-v0 assertions include logical absent decomp. A compatibility test formerly labeled claimed-v10 actually opens current11; its name/path now say v11. Deletion's frozen optional set no longer implies decomp may be dropped at11; current refusal accounts for ix_decomp_bin disappearing with the table. The view and malformed replacement fixtures likewise expect missing-index-first refusal at11. Known-addition positives now also run at11 while AST absence is restricted to actual9/10. The STABS missing-index reconstruction fixture stops the actual runner at10, and direct-repeat negative fixtures use actual11/12 histories rather than relabeled9; the existing current11 STABS assertions and future12 refusal remain distinct.
+
+## Checks performed and limits
+
+Read the repository authority, adopted next-decomp schema contract, brief, all five transferred regression sources and affected production interfaces. Repeated final source checks used Python stdlib AST parsing without importing any project or test module. All five parse; top-level test function names are distinct (23,18,32,13,32 respectively). An independent frozen AST declaration was compared to the canonical store literal using AST literal extraction and whitespace normalization only; they agree. Assertions were audited against current public names and None/skeleton_hash/ast_fingerprint selector semantics.
+
+No tests, collection, build, typecheck, project import, database open/query/create/migration, fingerprint/cryptographic calculation, process inspection, runtime/live/catalog operation, provisioning, activation, service/port action or Git command was performed. No fixture function or authored source assertion was executed. Source parsing and declaration comparison establish syntax/text consistency only: SQLite DDL equivalence, transaction/concurrency outcomes, fixture execution, computed fingerprints, installed consumers and recovery acceptance all remain unverified. Existing process/concurrency/backfill fixtures in transferred files are retained source, not authorization or evidence that they ran. These regressions do not broaden schema ownership or qualify recovery.

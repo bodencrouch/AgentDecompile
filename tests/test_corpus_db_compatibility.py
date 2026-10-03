@@ -145,6 +145,8 @@ def test_explicit_fresh_and_known_v0_migrate_and_preserve_unknown_data(tmp_path)
             )] == expected
         for con in (fresh, migrated):
             store.require_stabs_schema(con)
+            store.require_decomp_schema(con)
+            assert store.decomp_read_state(con) is None
             assert con.execute("SELECT COUNT(*) FROM stabs_type").fetchone()[0] == 0
         fresh_shape, legacy_shape = _schema_shape(fresh), _schema_shape(migrated)
         legacy_shape.pop("extension_table")
@@ -433,8 +435,8 @@ def test_malformed_sqlite_propagates_database_error_and_closes(tmp_path, monkeyp
     "DROP INDEX ix_stabs_type_src",
     "DROP TABLE stabs_type",
 ])
-def test_read_only_claimed_v10_requires_stabs_postcondition(tmp_path, monkeypatch, damage):
-    path = tmp_path / "incomplete-v10.sqlite"
+def test_read_only_current_v11_requires_stabs_postcondition(tmp_path, monkeypatch, damage):
+    path = tmp_path / "incomplete-v11.sqlite"
     con = store.connect(path)
     con.execute(damage)
     con.commit()

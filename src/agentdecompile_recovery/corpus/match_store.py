@@ -29,7 +29,7 @@ from .fingerprint_hashes import attach_hashes
 from .fuzzy_fingerprint import fuzzy_bits
 from .identical_image import short_circuit_match
 from .match_islands import island_evidence, leftover_inlines, unique_structural_pairs
-from .store import ensure_func_columns
+from .store import decomp_read_state, ensure_func_columns
 from .symbol_provenance import authentic_named_index
 from .match_engine import (
     MAX_CONST_DF,
@@ -95,6 +95,7 @@ class Binary:
 
     def __init__(self, con, binary_id: int):
         self.id = binary_id
+        fp_col = decomp_read_state(con)
         ensure_func_columns(con)
         row = con.execute("SELECT * FROM binary WHERE id=?", (binary_id,)).fetchone()
         self.meta = dict(row)
@@ -134,22 +135,21 @@ class Binary:
             self.funcs[d["addr"]] = d
 
         self.decomp: dict[int, dict] = {}
-        try:
-            decomp_cols = {row[1] for row in con.execute("PRAGMA table_info(decomp)")}
-            fp_col = next((c for c in ("pcode_fingerprint", "ast_fingerprint", "pcode_hash", "hash_pcode", "skeleton_hash") if c in decomp_cols), None)
-            fp_select = f", {fp_col} AS pcode_fingerprint" if fp_col else ""
-            for rec in con.execute(
-                f"""SELECT addr,n_tokens,n_lines,max_nest,n_calls,n_locals,n_deref,
-                          n_index,n_field,ctrl,ops,skeleton_hash{fp_select}
-                     FROM decomp WHERE binary_id=? AND ok=1 ORDER BY addr""",
-                (binary_id,),
-            ):
-                d = dict(rec)
-                d["ctrl"] = json.loads(d["ctrl"] or "{}")
-                d["ops"] = json.loads(d["ops"] or "{}")
-                self.decomp[d["addr"]] = d
-        except Exception:
-            pass
+        if fp_col is not None:
+            try:
+                fp_select = f", {fp_col} AS pcode_fingerprint"
+                for rec in con.execute(
+                    f"""SELECT addr,n_tokens,n_lines,max_nest,n_calls,n_locals,n_deref,
+                              n_index,n_field,ctrl,ops,skeleton_hash{fp_select}
+                         FROM main.decomp WHERE binary_id=? AND ok=1 ORDER BY addr""",
+                    (binary_id,),
+                ):
+                    d = dict(rec)
+                    d["ctrl"] = json.loads(d["ctrl"] or "{}")
+                    d["ops"] = json.loads(d["ops"] or "{}")
+                    self.decomp[d["addr"]] = d
+            except Exception:
+                pass
 
         self.callees: dict[int, set[int]] = defaultdict(set)
         self.callers: dict[int, set[int]] = defaultdict(set)
@@ -294,15 +294,11 @@ def _classify_store(sa: Binary, sb: Binary) -> str:
 
 def _pcode_receipt(con, src_id: int, dst_id: int) -> dict:
     """Report stored P-code capability without invoking Ghidra or extraction."""
-    columns = {row[1] for row in con.execute("PRAGMA table_info(decomp)")}
-    fingerprint = next(
-        (name for name in ("pcode_fingerprint", "ast_fingerprint", "pcode_hash", "hash_pcode", "skeleton_hash") if name in columns),
-        None,
-    )
+    fingerprint = decomp_read_state(con)
     if fingerprint is None:
         return {"skipped": True, "reason": "pcode_fingerprints_not_extracted"}
     counts = {int(row[0]): int(row[1]) for row in con.execute(
-        f"SELECT binary_id,COUNT(*) FROM decomp WHERE binary_id IN (?,?) AND ok=1 AND {fingerprint} IS NOT NULL AND {fingerprint}<>'' GROUP BY binary_id",
+        f"SELECT binary_id,COUNT(*) FROM main.decomp WHERE binary_id IN (?,?) AND ok=1 AND {fingerprint} IS NOT NULL AND {fingerprint}<>'' GROUP BY binary_id",
         (src_id, dst_id),
     )}
     ready = bool(counts.get(src_id) and counts.get(dst_id))

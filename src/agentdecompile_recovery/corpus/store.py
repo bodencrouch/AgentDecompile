@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import json
 import pathlib
+import re
 import sqlite3
 
 STABS_TYPE_DDL = """
@@ -40,6 +41,40 @@ STABS_FUNC_COLUMNS = (
     ("source_file", "TEXT"), ("object_file", "TEXT"),
     ("stabs_name", "TEXT"), ("stabs_type", "TEXT"),
 )
+
+DECOMP_TABLE_DDL = """
+CREATE TABLE IF NOT EXISTS decomp (
+    binary_id     INTEGER NOT NULL,
+    addr          INTEGER NOT NULL,
+    ok            INTEGER,
+    n_tokens      INTEGER,
+    n_lines       INTEGER,
+    max_nest      INTEGER,
+    n_calls       INTEGER,
+    n_locals      INTEGER,
+    n_deref       INTEGER,
+    n_index       INTEGER,
+    n_field       INTEGER,
+    ctrl          TEXT,
+    ops           TEXT,
+    skeleton_hash TEXT,
+    ast_fingerprint TEXT,
+    PRIMARY KEY (binary_id, addr)
+)
+"""
+DECOMP_INDEX_SQL = "CREATE INDEX IF NOT EXISTS ix_decomp_bin ON decomp(binary_id)"
+DECOMP_COMPAT_STATE_DDL = """
+CREATE TABLE decomp_schema_state (
+    singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
+    mode TEXT NOT NULL CHECK (mode IN ('absent', 'skeleton_hash', 'ast_fingerprint'))
+)
+"""
+# Only declarations actually emitted by historical CREATE / ADD COLUMN paths.
+_DECOMP_LEGACY_DDL = DECOMP_TABLE_DDL.replace("    ast_fingerprint TEXT,\n", "")
+_DECOMP_ALTER_DDL = _DECOMP_LEGACY_DDL.rstrip().removesuffix(")") + ", ast_fingerprint TEXT)"
+_DECOMP_COLUMNS = ("binary_id", "addr", "ok", "n_tokens", "n_lines", "max_nest",
+                   "n_calls", "n_locals", "n_deref", "n_index", "n_field",
+                   "ctrl", "ops", "skeleton_hash", "ast_fingerprint")
 
 SCHEMA = f"""
 PRAGMA journal_mode=WAL;
@@ -264,6 +299,128 @@ def require_stabs_schema(con: sqlite3.Connection) -> None:
         ) from exc
 
 
+def _decomp_sql(sql: str) -> str:
+    """Known declarations only: tolerate SQLite ADD COLUMN punctuation spacing."""
+    from .match_review_schema import _normalized
+
+    return re.sub(r"\s*([(),])\s*", r"\1", _normalized(sql))
+
+
+def _decomp_objects(con: sqlite3.Connection) -> dict:
+    """Inspect reserved main names before any potentially shadowed access."""
+    reserved = {"decomp", "decomp_schema_state", "schema_migration", "ix_decomp_bin"}
+    if con.execute(
+        "SELECT 1 FROM temp.sqlite_schema WHERE name COLLATE NOCASE IN "
+        "('decomp','decomp_schema_state','schema_migration','ix_decomp_bin')"
+    ).fetchone():
+        raise ValueError("shadowing decomp temp object")
+    rows = [tuple(row) for row in con.execute(
+        "SELECT type,name,tbl_name,sql FROM main.sqlite_schema"
+    )]
+    ascii_lower = str.maketrans("ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz")
+    for _, name, _, _ in rows:
+        if name.translate(ascii_lower) in reserved and name not in reserved:
+            raise ValueError(f"unsupported decomp object spelling {name}")
+    for name in reserved:
+        if sum(row[1] == name for row in rows) > 1:
+            raise ValueError(f"occupied decomp object name {name}")
+    for kind, name, owner, sql in rows:
+        if owner not in {"decomp", "decomp_schema_state"} or kind == "table":
+            continue
+        if kind == "index" and owner == "decomp" and (
+            name == "ix_decomp_bin" or (sql is None and name == "sqlite_autoindex_decomp_1")
+        ):
+            continue
+        raise ValueError(f"undeclared decomp object {name}")
+    return {row[1]: row for row in rows}
+
+
+def _require_decomp_shape(con: sqlite3.Connection, *, complete: bool) -> str | None:
+    """Bounded physical admission; incomplete means the pre-v11 shapes only."""
+    objects = _decomp_objects(con)
+    state = objects.get("decomp_schema_state")
+    if not complete and state is not None:
+        raise ValueError("unexpected pre-v11 decomp_schema_state")
+    obj = objects.get("decomp")
+    if obj is None:
+        if complete or objects.get("ix_decomp_bin") is not None:
+            raise ValueError("missing decomp table")
+        return None
+    allowed = {_decomp_sql(DECOMP_TABLE_DDL), _decomp_sql(_DECOMP_ALTER_DDL)}
+    if not complete:
+        allowed.add(_decomp_sql(_DECOMP_LEGACY_DDL))
+    if obj[0] != "table" or not obj[3] or _decomp_sql(obj[3]) not in allowed:
+        raise ValueError("unsupported decomp table shape (including P-code extensions)")
+    cols = [tuple(row) for row in con.execute("PRAGMA main.table_xinfo(decomp)")]
+    expected = [
+        (i, name, "INTEGER" if i < 11 else "TEXT", int(i < 2), None,
+         i + 1 if i < 2 else 0, 0)
+        for i, name in enumerate(_DECOMP_COLUMNS)
+    ]
+    if cols != expected and (complete or cols != expected[:-1]):
+        raise ValueError("unsupported decomp column shape")
+    index = objects.get("ix_decomp_bin")
+    if index is None:
+        if complete:
+            raise ValueError("missing decomp index ix_decomp_bin")
+    elif (index[0] != "index" or index[2] != "decomp" or not index[3]
+          or _decomp_sql(index[3]) != _decomp_sql(DECOMP_INDEX_SQL)):
+        raise ValueError("unsupported decomp index ix_decomp_bin")
+    if not complete:
+        return "ast_fingerprint" if len(cols) == 15 else "skeleton_hash"
+    if (state is None or state[0] != "table" or not state[3]
+            or _decomp_sql(state[3]) != _decomp_sql(DECOMP_COMPAT_STATE_DDL)):
+        raise ValueError("missing or unsupported decomp_schema_state")
+    if [tuple(row) for row in con.execute("PRAGMA main.table_xinfo(decomp_schema_state)")] != [
+        (0, "singleton", "INTEGER", 0, None, 1, 0), (1, "mode", "TEXT", 1, None, 0, 0)
+    ]:
+        raise ValueError("unsupported decomp_schema_state columns")
+    rows = [tuple(row) for row in con.execute("SELECT singleton,mode FROM main.decomp_schema_state")]
+    if len(rows) != 1 or rows[0][0] != 1 or rows[0][1] not in {"absent", "skeleton_hash", "ast_fingerprint"}:
+        raise ValueError("decomp_schema_state requires exactly one valid singleton")
+    mode = rows[0][1]
+    if mode == "absent" and con.execute("SELECT 1 FROM main.decomp LIMIT 1").fetchone():
+        raise ValueError("decomp absent state contains rows")
+    # Integrity cost: proving all ASTs NULL may scan the table in skeleton mode.
+    if mode == "skeleton_hash" and con.execute(
+        "SELECT 1 FROM main.decomp WHERE ast_fingerprint IS NOT NULL LIMIT 1"
+    ).fetchone():
+        raise ValueError("decomp skeleton state contains non-NULL AST values")
+    return None if mode == "absent" else mode
+
+
+def decomp_read_state(con: sqlite3.Connection) -> str | None:
+    """Pure bounded v9/v10/v11 selector; NULL/empty ASTs never fall back."""
+    from . import migrations
+
+    version = migrations.user_version(con)
+    try:
+        _decomp_objects(con)
+        if version not in {9, 10, 11}:
+            raise ValueError("unsupported reader version")
+        migrations.require_ledger(con, version=version)
+        return _require_decomp_shape(con, complete=version == 11)
+    except ValueError as exc:
+        raise ValueError(f"decomp schema required: observed version {version}, supported versions 9/10/11: {exc}") from exc
+
+
+def require_decomp_schema(con: sqlite3.Connection) -> None:
+    """Pure current writer admission; never migrate or commit caller work."""
+    from . import migrations
+
+    version = migrations.user_version(con)
+    try:
+        _decomp_objects(con)
+        migrations.require_ledger(con, version=migrations.SCHEMA_VERSION)
+        _require_stabs_shape(con, complete=True)
+        _require_decomp_shape(con, complete=True)
+    except ValueError as exc:
+        raise ValueError(
+            f"decomp schema required: observed version {version}, "
+            f"supported version {migrations.SCHEMA_VERSION}: {exc}"
+        ) from exc
+
+
 def connect(
     path: pathlib.Path | str, *, read_only: bool = False, create: bool = True
 ) -> sqlite3.Connection:
@@ -297,6 +454,7 @@ def connect(
         if read_only:
             try:
                 require_stabs_schema(con)
+                require_decomp_schema(con)
             except ValueError as exc:
                 raise SchemaCompatibilityError(dest, version, supported, str(exc)) from exc
         else:
@@ -323,7 +481,7 @@ def remove_binary(
     repo_path: str | None = None,
     slug: str | None = None,
 ) -> dict:
-    """Remove one binary using the bounded v9/v10 registry; preserve logical rows.
+    """Remove one binary using the bounded v9/v10/v11 registry; preserve logical rows.
 
     With a caller-owned transaction, the returned receipt is provisional until
     the caller commits. This operation releases only its own savepoint.

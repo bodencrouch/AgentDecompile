@@ -76,6 +76,11 @@ def test_registry_is_ordered_and_named() -> None:
     names = [m.name for m in migrations.MIGRATIONS]
     assert len(set(names)) == len(names)
     assert migrations.MIGRATIONS[0].name == "baseline"
+    assert list(zip(versions, names)) == list(enumerate((
+        'baseline', 'analyzer_identity', 'basis_supersession', 'match_review',
+        'function_storage', 'typed_fields', 'matching_evidence', 'pcode_channel',
+        'match_metadata', 'stabs_schema_ownership', 'decomp_schema_ownership',
+    ), 1))
 
 
 def test_registry_rejects_bad_order() -> None:
@@ -123,6 +128,9 @@ def test_fresh_store_is_at_schema_version_with_one_ledger_row_per_migration(tmp_
     assert "content_sha256" in {c[1] for c in golden["binary"]}
     assert {"cfg_nodes", "stabs_name", "stabs_type"} <= {c[1] for c in golden["func"]}
     store.require_stabs_schema(con)
+    store.require_decomp_schema(con)
+    assert store.decomp_read_state(con) is None
+    assert con.execute("SELECT COUNT(*) FROM decomp").fetchone()[0] == 0
     assert con.execute("SELECT COUNT(*) FROM stabs_type").fetchone()[0] == 0
     con.close()
 

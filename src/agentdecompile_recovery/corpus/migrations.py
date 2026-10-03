@@ -272,7 +272,8 @@ def _stabs_schema_ownership(con: sqlite3.Connection) -> None:
         raise ValueError("STABS migration requires an owned transaction")
     version = user_version(con)
     if version == 10:
-        _store.require_stabs_schema(con)
+        require_ledger(con, version=10)
+        _store._require_stabs_shape(con, complete=True)
         return
     require_ledger(con, version=9)
     _store._require_stabs_shape(con, complete=False)
@@ -283,6 +284,30 @@ def _stabs_schema_ownership(con: sqlite3.Connection) -> None:
     for sql in (*_store.STABS_INDEX_SQL.values(), _store.STABS_FUNC_INDEX_SQL):
         con.execute(sql)
     _store._require_stabs_shape(con, complete=True)
+
+def _decomp_schema_ownership(con: sqlite3.Connection) -> None:
+    """Version 11: preserve preexisting global witness/selector semantics."""
+    if not con.in_transaction:
+        raise ValueError("decomp migration requires an owned transaction")
+    _store._decomp_objects(con)
+    if user_version(con) == 11:
+        require_ledger(con, version=11)
+        _store._require_stabs_shape(con, complete=True)
+        _store._require_decomp_shape(con, complete=True)
+        return
+    require_ledger(con, version=10)
+    _store._require_stabs_shape(con, complete=True)
+    mode = _store._require_decomp_shape(con, complete=False)
+    if mode is None:
+        con.execute(_store.DECOMP_TABLE_DDL)
+    elif mode == "skeleton_hash":
+        con.execute("ALTER TABLE main.decomp ADD COLUMN ast_fingerprint TEXT")
+    if "ix_decomp_bin" not in _store._decomp_objects(con):
+        con.execute(_store.DECOMP_INDEX_SQL)
+    con.execute(_store.DECOMP_COMPAT_STATE_DDL)
+    con.execute("INSERT INTO main.decomp_schema_state(singleton,mode) VALUES (1,?)",
+                (mode or "absent",))
+    _store._require_decomp_shape(con, complete=True)
 
 
 MIGRATIONS: list[Migration] = [
@@ -296,6 +321,7 @@ MIGRATIONS: list[Migration] = [
     Migration(8, "pcode_channel", _pcode_channel),
     Migration(9, "match_metadata", _match_metadata),
     Migration(10, "stabs_schema_ownership", _stabs_schema_ownership),
+    Migration(11, "decomp_schema_ownership", _decomp_schema_ownership),
 ]
 
 SCHEMA_VERSION = MIGRATIONS[-1].version

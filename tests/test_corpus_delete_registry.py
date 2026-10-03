@@ -15,8 +15,30 @@ from agentdecompile_recovery.corpus import delete_registry as deletion
 from agentdecompile_recovery.corpus import migrations, store
 
 
+FROZEN_DECOMP_DDL = """
+CREATE TABLE IF NOT EXISTS decomp (
+    binary_id     INTEGER NOT NULL,
+    addr          INTEGER NOT NULL,
+    ok            INTEGER,
+    n_tokens      INTEGER,
+    n_lines       INTEGER,
+    max_nest      INTEGER,
+    n_calls       INTEGER,
+    n_locals      INTEGER,
+    n_deref       INTEGER,
+    n_index       INTEGER,
+    n_field       INTEGER,
+    ctrl          TEXT,
+    ops           TEXT,
+    skeleton_hash TEXT,
+    ast_fingerprint TEXT,
+    PRIMARY KEY (binary_id, addr)
+);
+CREATE INDEX IF NOT EXISTS ix_decomp_bin ON decomp(binary_id);
+"""
+
 OPTIONAL_DECLARATIONS = (
-    ('decompile.py', 'MAIN_SCHEMA'), ('export_types.py', 'SCHEMA'),
+    ('export_types.py', 'SCHEMA'),
     ('propagate_types.py', 'ORIGIN_DDL'), ('propagate_conventions.py', 'SCHEMA'),
     ('ingest_recovered.py', 'RECOVERED_FUNCTION_DDL'),
     ('ingest_recovered.py', 'REUSE_CANDIDATE_DDL'), ('name_precedence.py', 'SCHEMA'),
@@ -44,13 +66,17 @@ def _snapshot(con):
     return {name: _rows(con, name) for name in names}
 
 
-@pytest.fixture(params=[9, 10], ids=["frozen-v9", "canonical-v10"])
+@pytest.fixture(params=[9, 10, 11], ids=["frozen-v9", "frozen-v10", "canonical-v11"])
 def populated(tmp_path, request):
     path = tmp_path / 'corpus.sqlite'
     con = sqlite3.connect(path)
     con.row_factory = sqlite3.Row
     con.execute("PRAGMA journal_mode=WAL")
     migrations.apply_pending(con, target=request.param)
+    if request.param < 11:
+        con.executescript(FROZEN_DECOMP_DDL)
+    else:
+        con.execute("UPDATE decomp_schema_state SET mode='ast_fingerprint'")
     for filename, variable in OPTIONAL_DECLARATIONS:
         con.executescript(_writer_ddl(filename, variable))
     con.execute('CREATE TABLE binary_source_alias (source_path TEXT PRIMARY KEY, binary_slug TEXT NOT NULL, sha256 TEXT NOT NULL)')
@@ -208,6 +234,10 @@ def test_every_optional_table_can_be_absent_without_creation(populated, table):
             con.execute(f'DROP TABLE {dependent}')
     con.execute(f'DROP TABLE {table}')
     con.commit()
+    if table == 'decomp' and con.execute('PRAGMA user_version').fetchone()[0] == 11:
+        # The frozen v9/v10 optional set does not weaken v11 admission.
+        _refuses_unchanged(con, 'binary_delete_schema_unsupported:ix_decomp_bin')
+        return
     before = list(con.execute('SELECT name FROM sqlite_master ORDER BY name'))
     result = store.remove_binary(con, slug='a')
     assert list(con.execute('SELECT name FROM sqlite_master ORDER BY name')) == before
@@ -215,7 +245,7 @@ def test_every_optional_table_can_be_absent_without_creation(populated, table):
         assert result['deleted'][table] == 0
 
 
-@pytest.mark.parametrize('version', [0, 8, 11])
+@pytest.mark.parametrize('version', [0, 8, 12])
 def test_other_versions_refuse_without_migration(populated, version):
     con, _ = populated
     con.execute(f'PRAGMA user_version={version}')
@@ -256,7 +286,8 @@ def test_legacy_keys_and_foreign_key_actions_refuse(populated, table, replacemen
     con, _ = populated
     con.execute(f'DROP TABLE {table}')
     con.execute(replacement)
-    _refuses_unchanged(con, 'binary_delete_schema_unsupported:' + table)
+    expected = 'ix_decomp_bin' if table == 'decomp' and con.execute('PRAGMA user_version').fetchone()[0] == 11 else table
+    _refuses_unchanged(con, 'binary_delete_schema_unsupported:' + expected)
 
 
 def test_modified_canonical_trigger_refuses(populated):
@@ -485,7 +516,8 @@ def test_known_additions_and_old_optional_layout_are_admitted(populated):
         con.execute('ALTER TABLE func ADD COLUMN stabs_type TEXT')
         con.execute('CREATE INDEX ix_func_srcfile ON func(binary_id, source_file)')
     con.execute('ALTER TABLE ghidra_type ADD COLUMN origin TEXT')
-    con.execute('ALTER TABLE decomp DROP COLUMN ast_fingerprint')
+    if con.execute('PRAGMA user_version').fetchone()[0] < 11:
+        con.execute('ALTER TABLE decomp DROP COLUMN ast_fingerprint')
     con.commit()
     assert store.remove_binary(con, slug='a')['deleted']['binary'] == 1
 
@@ -494,7 +526,8 @@ def test_view_cannot_impersonate_optional_table(populated):
     con, _ = populated
     con.execute('DROP TABLE decomp')
     con.execute('CREATE VIEW decomp AS SELECT binary_id,addr FROM func')
-    _refuses_unchanged(con, 'binary_delete_schema_unsupported:decomp')
+    expected = 'ix_decomp_bin' if con.execute('PRAGMA user_version').fetchone()[0] == 11 else 'decomp'
+    _refuses_unchanged(con, 'binary_delete_schema_unsupported:' + expected)
 
 
 def test_unbound_raw_only_corpus_is_a_real_positive(populated):

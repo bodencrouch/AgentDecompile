@@ -6,10 +6,12 @@ import json
 import hashlib
 import re
 import sqlite3
+from contextlib import contextmanager
+from itertools import count
 from pathlib import Path
 
 from .decompile_shape import features
-from .store import connect
+from .store import DECOMP_TABLE_DDL, DECOMP_INDEX_SQL, connect, decomp_read_state, require_decomp_schema
 
 
 # This is deliberately a syntax fingerprint, not a claim that a real compiler
@@ -92,126 +94,201 @@ CREATE TABLE IF NOT EXISTS decomp_part (
 );
 """
 
-MAIN_SCHEMA = """
-CREATE TABLE IF NOT EXISTS decomp (
-    binary_id     INTEGER NOT NULL,
-    addr          INTEGER NOT NULL,
-    ok            INTEGER,
-    n_tokens      INTEGER,
-    n_lines       INTEGER,
-    max_nest      INTEGER,
-    n_calls       INTEGER,
-    n_locals      INTEGER,
-    n_deref       INTEGER,
-    n_index       INTEGER,
-    n_field       INTEGER,
-    ctrl          TEXT,
-    ops           TEXT,
-    skeleton_hash TEXT,
-    ast_fingerprint TEXT,
-    PRIMARY KEY (binary_id, addr)
-);
-CREATE INDEX IF NOT EXISTS ix_decomp_bin ON decomp(binary_id);
-"""
+# Import compatibility only; corpus operations obtain schema from migration 11.
+MAIN_SCHEMA = DECOMP_TABLE_DDL + ";\n" + DECOMP_INDEX_SQL + ";\n"
+_SAVEPOINT_IDS = count()
+
+
+@contextmanager
+def _main_write_scope(con: sqlite3.Connection, *, commit_caller: bool = False):
+    """Undo only this operation on failure, if SQLite retains its transaction.
+
+    persist_code intentionally commits caller work on success. Keep its private
+    savepoint until that commit so pre-durability commit failure can undo just
+    the operation. Never reconstruct a lost transaction or hide cleanup errors.
+    """
+    owns = not con.in_transaction
+    savepoint = f"decomp_write_{next(_SAVEPOINT_IDS)}"
+    con.execute("BEGIN IMMEDIATE" if owns else f"SAVEPOINT {savepoint}")
+    try:
+        require_decomp_schema(con)
+        if _decomp_domain(con) != "corpus":
+            raise ValueError("decomp corpus destination required")
+        yield
+        if owns or commit_caller:
+            con.commit()
+        else:
+            con.execute(f"RELEASE SAVEPOINT {savepoint}")
+    except BaseException as exc:
+        if not con.in_transaction:
+            raise RuntimeError(
+                "decomp transaction ended before failure acknowledgement; "
+                "durability/rollback is uncertain and caller work cannot be reconstructed"
+            ) from exc
+        if owns:
+            con.rollback()
+        else:
+            con.execute(f"ROLLBACK TO SAVEPOINT {savepoint}")
+            con.execute(f"RELEASE SAVEPOINT {savepoint}")
+        raise
+
+
+def _materialize_main(con: sqlite3.Connection) -> None:
+    # Admission belongs to the surrounding scope. This helper owns only DML.
+    con.execute("UPDATE main.decomp_schema_state SET mode=? WHERE singleton=1", ("ast_fingerprint",))
+
+
+def _decomp_domain(con: sqlite3.Connection) -> str:
+    """Keep independent part installation out of the corpus ownership domain."""
+    names = ("binary", "schema_migration", "decomp", "decomp_schema_state", "decomp_part")
+    marks = ','.join('?' for _ in names)
+    if con.execute(f"SELECT 1 FROM temp.sqlite_schema WHERE name COLLATE NOCASE IN ({marks})", names).fetchone():
+        raise ValueError("shadowing decomp temp object")
+    rows = list(con.execute(f"SELECT name,type FROM main.sqlite_schema WHERE name COLLATE NOCASE IN ({marks})", names))
+    ascii_lower = str.maketrans("ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz")
+    for name, _ in rows:
+        if name.translate(ascii_lower) != name:
+            raise ValueError(f"unsupported decomp object spelling {name}")
+    present = {row[0] for row in rows}
+    corpus = bool(present & set(names[:-1]))
+    if corpus and "decomp_part" in present:
+        raise ValueError("mixed corpus and decomp_part ownership")
+    return "corpus" if corpus else "part" if "decomp_part" in present else "empty"
+
+
+def _ensure_part_columns(con: sqlite3.Connection) -> None:
+    cols = {row[1] for row in con.execute("PRAGMA main.table_info(decomp_part)")}
+    if cols and "ast_fingerprint" not in cols:
+        con.execute("ALTER TABLE main.decomp_part ADD COLUMN ast_fingerprint TEXT")
 
 
 def persist_code(con, binary_id: int, addr: int, code: str | None) -> dict:
-    con.executescript(MAIN_SCHEMA)
-    ensure_decomp_columns(con)
-    if not code:
+    """Replace one row atomically; success commits caller pending work too."""
+    require_decomp_schema(con)
+    if _decomp_domain(con) != "corpus":
+        raise ValueError("decomp corpus destination required")
+    ft = features(code) if code else None
+    if ft is not None:
+        ft["ast_fingerprint"] = syntax_fingerprint(code)
+    with _main_write_scope(con, commit_caller=True):
+        _materialize_main(con)
+        if not code:
+            con.execute(
+                """INSERT OR REPLACE INTO main.decomp
+                   (binary_id, addr, ok, n_tokens, n_lines, max_nest, n_calls, n_locals,
+                    n_deref, n_index, n_field, ctrl, ops, skeleton_hash, ast_fingerprint)
+                   VALUES (?,?,0,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                (binary_id, addr, *[None] * 12),
+            )
+            return {"ok": 0, "addr": addr}
         con.execute(
-            """INSERT OR REPLACE INTO decomp
+            """INSERT OR REPLACE INTO main.decomp
                (binary_id, addr, ok, n_tokens, n_lines, max_nest, n_calls, n_locals,
                 n_deref, n_index, n_field, ctrl, ops, skeleton_hash, ast_fingerprint)
-               VALUES (?,?,0,?,?,?,?,?,?,?,?,?,?,?,?)""",
-            (binary_id, addr, *[None] * 12),
+               VALUES (?,?,1,?,?,?,?,?,?,?,?,?,?,?,?)""",
+            (
+                binary_id,
+                addr,
+                ft["n_tokens"],
+                ft["n_lines"],
+                ft["max_nest"],
+                ft["n_calls"],
+                ft["n_locals"],
+                ft["n_deref"],
+                ft["n_index"],
+                ft["n_field"],
+                json.dumps(ft["ctrl"]),
+                json.dumps(ft["ops"]),
+                ft["skeleton_hash"],
+                ft["ast_fingerprint"],
+            ),
         )
-        con.commit()
-        return {"ok": 0, "addr": addr}
-    ft = features(code)
-    ft["ast_fingerprint"] = syntax_fingerprint(code)
-    con.execute(
-        """INSERT OR REPLACE INTO decomp
-           (binary_id, addr, ok, n_tokens, n_lines, max_nest, n_calls, n_locals,
-            n_deref, n_index, n_field, ctrl, ops, skeleton_hash, ast_fingerprint)
-           VALUES (?,?,1,?,?,?,?,?,?,?,?,?,?,?,?)""",
-        (
-            binary_id,
-            addr,
-            ft["n_tokens"],
-            ft["n_lines"],
-            ft["max_nest"],
-            ft["n_calls"],
-            ft["n_locals"],
-            ft["n_deref"],
-            ft["n_index"],
-            ft["n_field"],
-            json.dumps(ft["ctrl"]),
-            json.dumps(ft["ops"]),
-            ft["skeleton_hash"],
-            ft["ast_fingerprint"],
-        ),
-    )
-    con.commit()
-    return {"ok": 1, "addr": addr, **ft}
+        return {"ok": 1, "addr": addr, **ft}
 
 
 def persist_part(part_path: Path, repo_path: str, addr: int, code: str | None) -> dict:
     con = sqlite3.connect(part_path)
-    con.executescript(PART_SCHEMA)
-    ensure_decomp_columns(con)
-    if not code:
+    try:
+        if _decomp_domain(con) == "corpus":
+            raise ValueError("independent decomp_part destination required")
+        con.executescript(PART_SCHEMA)
+        _ensure_part_columns(con)
+        if not code:
+            con.execute(
+                """INSERT OR REPLACE INTO decomp_part
+                   (repo_path, addr, ok, n_tokens, n_lines, max_nest, n_calls, n_locals,
+                    n_deref, n_index, n_field, ctrl, ops, skeleton_hash, ast_fingerprint)
+                   VALUES (?,?,0,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                (repo_path, addr, *[None] * 12),
+            )
+            con.commit()
+            return {"ok": 0, "addr": addr}
+        ft = features(code)
+        ft["ast_fingerprint"] = syntax_fingerprint(code)
         con.execute(
             """INSERT OR REPLACE INTO decomp_part
                (repo_path, addr, ok, n_tokens, n_lines, max_nest, n_calls, n_locals,
                 n_deref, n_index, n_field, ctrl, ops, skeleton_hash, ast_fingerprint)
-               VALUES (?,?,0,?,?,?,?,?,?,?,?,?,?,?,?)""",
-            (repo_path, addr, *[None] * 12),
+               VALUES (?,?,1,?,?,?,?,?,?,?,?,?,?,?,?)""",
+            (
+                repo_path,
+                addr,
+                ft["n_tokens"],
+                ft["n_lines"],
+                ft["max_nest"],
+                ft["n_calls"],
+                ft["n_locals"],
+                ft["n_deref"],
+                ft["n_index"],
+                ft["n_field"],
+                json.dumps(ft["ctrl"]),
+                json.dumps(ft["ops"]),
+                ft["skeleton_hash"],
+                ft["ast_fingerprint"],
+            ),
         )
         con.commit()
+        return {"ok": 1, "addr": addr, **ft}
+
+    finally:
         con.close()
-        return {"ok": 0, "addr": addr}
-    ft = features(code)
-    ft["ast_fingerprint"] = syntax_fingerprint(code)
-    con.execute(
-        """INSERT OR REPLACE INTO decomp_part
-           (repo_path, addr, ok, n_tokens, n_lines, max_nest, n_calls, n_locals,
-            n_deref, n_index, n_field, ctrl, ops, skeleton_hash, ast_fingerprint)
-           VALUES (?,?,1,?,?,?,?,?,?,?,?,?,?,?,?)""",
-        (
-            repo_path,
-            addr,
-            ft["n_tokens"],
-            ft["n_lines"],
-            ft["max_nest"],
-            ft["n_calls"],
-            ft["n_locals"],
-            ft["n_deref"],
-            ft["n_index"],
-            ft["n_field"],
-            json.dumps(ft["ctrl"]),
-            json.dumps(ft["ops"]),
-            ft["skeleton_hash"],
-            ft["ast_fingerprint"],
-        ),
-    )
-    con.commit()
-    con.close()
-    return {"ok": 1, "addr": addr, **ft}
 
 
 def attach_store(store_path: Path) -> sqlite3.Connection:
+    """Open a canonical store and explicitly materialize logical decomp state."""
     con = connect(store_path)
-    con.executescript(MAIN_SCHEMA)
-    ensure_decomp_columns(con)
-    return con
+    try:
+        require_decomp_schema(con)
+        if _decomp_domain(con) != "corpus":
+            raise ValueError("decomp corpus destination required")
+        with _main_write_scope(con):
+            _materialize_main(con)
+        return con
+    except BaseException:
+        try:
+            if con.in_transaction:
+                con.rollback()
+        finally:
+            con.close()
+        raise
 
 
 def ensure_decomp_columns(con: sqlite3.Connection) -> None:
-    for table in ("decomp", "decomp_part"):
-        try:
-            cols = {row[1] for row in con.execute(f"PRAGMA table_info({table})")}
-        except sqlite3.Error:
-            continue
-        if cols and "ast_fingerprint" not in cols:
-            con.execute(f"ALTER TABLE {table} ADD COLUMN ast_fingerprint TEXT")
+    """Compatibility mutator: explicit skeleton→AST transition, never backfill.
+
+    Corpus schema must already be current. Absent remains logically absent.
+    Standalone transitions are durable; caller transactions are never committed.
+    Independent part handles retain their own nullable column installer.
+    """
+    domain = _decomp_domain(con)
+    if domain == "empty":
+        return
+    if domain == "part":
+        _ensure_part_columns(con)
+        return
+    require_decomp_schema(con)
+    if decomp_read_state(con) != "skeleton_hash":
+        return
+    with _main_write_scope(con):
+        if decomp_read_state(con) == "skeleton_hash":
+            _materialize_main(con)

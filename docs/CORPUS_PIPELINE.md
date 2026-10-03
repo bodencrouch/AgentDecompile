@@ -59,11 +59,32 @@ and indexes remain canonical. Migration validates known v9 shapes before any
 DDL and preserves stored values, including NULL. STABS writers now require the
 complete current ledger and schema; `ensure_columns` validates without repairing
 or committing caller work. Raw or outdated handles must pass through the owned
-migration path first. Read-only v10 admission also checks these postconditions.
-Binary deletion independently admits frozen v9 and v10 profiles; v9's optional
-STABS fields remain optional, while incomplete v10 and future versions refuse.
-Type, decomp, recovered-source and other persistent DDL owners remain separate
+migration path first. Current read-only admission also checks these postconditions.
+Binary deletion independently admits frozen v9/v10/v11 profiles; historical
+optional fields stay optional only in their original profiles.
+Type, recovered-source and other persistent DDL owners remain separate
 unfinished work. These are source contracts, not a fresh migration or live receipt.
+
+Migration 11 (`decomp_schema_ownership`) owns the corpus `decomp` table/index
+and singleton `decomp_schema_state`. Its observed pre-migration mode preserves
+logical absence versus installed-empty witnesses and table-wide skeleton versus
+AST selection, including historical NULL/empty AST values. It generates no
+fingerprints or source evidence. `decomp_read_state` inspects supported ledgered
+v9/v10/v11 stores; `require_decomp_schema` and canonical read-only connection
+admission require complete current v11. Missing/corrupt state refuses rather
+than guessing. Skeleton-mode integrity checking may scan the AST column.
+
+Explicit `attach_store`/`persist_code` materialize AST mode. Compatibility
+`ensure_decomp_columns` changes skeleton to AST without backfilling old rows;
+logical absence remains absent. It never commits an existing caller transaction.
+`persist_code` still commits caller work on success; operation failure uses its
+savepoint while SQLite retains the outer transaction. Transaction loss or an
+unacknowledged commit cannot be represented as successful rollback. Independent
+part stores remain separate. The matcher-input-v2 projection includes selector
+and selected values, invalidating older comparison inventories. Frozen v11
+deletion retains global state even after removing the last binary. No installed
+consumer, migration execution, fingerprint provenance upgrade or byte proof is
+established by these source changes.
 
 The deprecated [`corpus.db`](../src/agentdecompile_recovery/corpus/db.py) facade
 retains public symbols and the exact historical module-relative `DB_PATH`.

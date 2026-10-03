@@ -20,6 +20,7 @@ V9_LEDGER = list(enumerate((
     'match_metadata',
 ), 1))
 V10_LEDGER = V9_LEDGER + [(10, 'stabs_schema_ownership')]
+V11_LEDGER = V10_LEDGER + [(11, 'decomp_schema_ownership')]
 
 
 def _v9(path=':memory:'):
@@ -66,9 +67,9 @@ def test_actual_v9_variants_preserve_values_nulls_ids_and_other_binary(columns, 
         con.execute("UPDATE func SET unrelated_extension='preserve' WHERE binary_id=2")
         con.commit()
         old = _snapshot(con)
-        assert [s.version for s in migrations.apply_pending(con)] == [10]
+        assert [s.version for s in migrations.apply_pending(con, target=10)] == [10]
         assert _ledger(con) == V10_LEDGER
-        store.require_stabs_schema(con)
+        store._require_stabs_shape(con, complete=True)
         assert list(con.execute('SELECT * FROM stabs_type ORDER BY id')) == old[2]['stabs_type']
         assert list(con.execute('SELECT * FROM binary ORDER BY id')) == old[2]['binary']
         new_columns = [r[1] for r in con.execute('PRAGMA table_info(func)')]
@@ -78,7 +79,7 @@ def test_actual_v9_variants_preserve_values_nulls_ids_and_other_binary(columns, 
             assert list(con.execute(f'SELECT {name} FROM func')) == [(None,), (None,)]
         seen = []
         con.set_trace_callback(seen.append)
-        assert migrations.apply_pending(con) == []
+        assert migrations.apply_pending(con, target=10) == []
         assert _mutations(seen) == []
         con.set_trace_callback(None)
         with pytest.raises(delete_registry.BinaryDeleteUnsupported, match='schema_unsupported:func'):
@@ -95,8 +96,9 @@ def test_v10_recreates_only_missing_declared_indexes(missing):
             if missing in {name, 'both'}:
                 con.execute(f'DROP INDEX {name}')
         before = list(con.execute('SELECT * FROM stabs_type ORDER BY id'))
-        migrations.apply_pending(con)
-        store.require_stabs_schema(con)
+        migrations.apply_pending(con, target=10)
+        assert _ledger(con) == V10_LEDGER
+        store._require_stabs_shape(con, complete=True)
         assert list(con.execute('SELECT * FROM stabs_type ORDER BY id')) == before
     finally:
         con.close()
@@ -256,7 +258,7 @@ def test_lock_tolerated_v9_and_readonly_v9_still_refuse_every_stabs_writer(tmp_p
             assert _mutations(seen) == []
             assert con.execute('SELECT COUNT(*) FROM temp.sqlite_schema').fetchone()[0] == 0
         holder.rollback()
-        assert [s.version for s in migrations.apply_pending(waiter)] == [10]
+        assert [s.version for s in migrations.apply_pending(waiter)] == [10, 11]
         stabs_link.ensure_columns(waiter)
     finally:
         holder.close()
@@ -264,11 +266,20 @@ def test_lock_tolerated_v9_and_readonly_v9_still_refuse_every_stabs_writer(tmp_p
         readonly.close()
 
 
-@pytest.mark.parametrize('version', [0, 8, 11])
+@pytest.mark.parametrize('version', [0, 8, 11, 12])
 def test_direct_migration_body_refuses_other_versions_without_writes(version):
     con = _v9()
     try:
-        con.execute(f'PRAGMA user_version={version}')
+        if version == 11:
+            migrations.apply_pending(con)
+            assert _ledger(con) == V11_LEDGER
+        elif version == 12:
+            future = migrations.MIGRATIONS + [migrations.Migration(12, 'future', lambda c: None)]
+            migrations.apply_pending(con, migrations=future)
+            assert _ledger(con) == V11_LEDGER + [(12, 'future')]
+        else:
+            # Explicit corrupt stamps remain negative fixtures, not history.
+            con.execute(f'PRAGMA user_version={version}')
         con.execute('BEGIN IMMEDIATE')
         before = _snapshot(con)
         with pytest.raises(ValueError):
@@ -283,7 +294,7 @@ def test_direct_migration_body_refuses_other_versions_without_writes(version):
 def test_direct_repeated_v10_body_is_readonly_and_requires_complete_schema():
     con = _v9()
     try:
-        migrations.apply_pending(con)
+        migrations.apply_pending(con, target=10)
         con.execute('BEGIN IMMEDIATE')
         seen = []
         con.set_trace_callback(seen.append)
@@ -291,7 +302,7 @@ def test_direct_repeated_v10_body_is_readonly_and_requires_complete_schema():
         assert _mutations(seen) == []
         con.execute('DROP INDEX ix_func_srcfile')
         seen.clear()
-        with pytest.raises(ValueError, match='STABS schema required'):
+        with pytest.raises(ValueError, match='missing or unsupported STABS index'):
             migrations._stabs_schema_ownership(con)
         assert _mutations(seen) == []
     finally:
@@ -386,7 +397,7 @@ def test_mixed_case_temp_shadow_refuses_current_direct_writers_and_keeps_caller_
             operations[operation]()
         assert con.in_transaction
         assert (_snapshot(con), _temp_snapshot(con)) == before
-        assert _ledger(con) == V10_LEDGER
+        assert _ledger(con) == V11_LEDGER
         assert con.execute('SELECT run,metric FROM main.eval').fetchall() == [('caller', 'pending')]
         assert _mutations(seen) == []
         assert not any(sql.lstrip().upper().startswith(('ROLLBACK', 'RELEASE ', 'PRAGMA TEMP_STORE')) for sql in seen)

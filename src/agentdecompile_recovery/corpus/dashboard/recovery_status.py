@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from .common import live_db, live_root
+from ..store import decomp_read_state
 
 
 def _program(value: Any) -> str:
@@ -110,6 +111,7 @@ def corpus_status(*, locator: str = '', slug: str = '', program: str = '', scope
             con.row_factory = sqlite3.Row
             con.execute('BEGIN')
             tables = {row[0] for row in con.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+            decomp_state = decomp_read_state(con)
             selection, builds = _scope(con, tables, locator, slug, program, all_corpora, runs)
             source_measured = 'recovered_function' in tables
             for build in builds:
@@ -117,7 +119,7 @@ def corpus_status(*, locator: str = '', slug: str = '', program: str = '', scope
                 count, named = con.execute("SELECT COUNT(*),COALESCE(SUM(name IS NOT NULL AND name!='' AND name NOT GLOB 'FUN_*' AND name NOT GLOB 'LAB_*'),0) FROM func WHERE binary_id=?", (bid,)).fetchone()
                 bound = con.execute('SELECT COUNT(DISTINCT addr) FROM identity WHERE binary_id=?', (bid,)).fetchone()[0] if 'identity' in tables else 0
                 artifacts, logical, concrete = con.execute('SELECT COUNT(*),COUNT(DISTINCT logical_id),COUNT(DISTINCT addr) FROM recovered_function WHERE binary_id=? AND real_c=1', (bid,)).fetchone() if source_measured else (None, None, None)
-                witnesses = con.execute('SELECT COUNT(DISTINCT addr) FROM decomp WHERE binary_id=? AND ok=1', (bid,)).fetchone()[0] if 'decomp' in tables else None
+                witnesses = con.execute('SELECT COUNT(DISTINCT addr) FROM main.decomp WHERE binary_id=? AND ok=1', (bid,)).fetchone()[0] if decomp_state is not None else None
                 build.update(func_count=count, named_count=named, bound=bound, real_c=concrete, sourceWitnesses=witnesses, byte_verified=None)
                 report['by_build'].append({'slug': build['slug'], 'binary_id': bid, 'artifacts': artifacts, 'logical': logical, 'concrete': concrete, 'functions': count, 'sourceWitnesses': witnesses, 'compiles': None, 'byte_verified': None})
                 for key, value in (('functions', count), ('named', named), ('bound', bound), ('sourceRecords', concrete), ('sourceWitnesses', witnesses)):

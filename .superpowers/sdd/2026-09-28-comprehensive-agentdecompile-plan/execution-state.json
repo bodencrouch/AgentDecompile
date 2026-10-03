@@ -230,7 +230,7 @@
     "11.6a": "task-11-runtime-profile-brief.md",
     "2.4": "task-2-decomp-brief.md"
   },
-  "later_prerequisite": "23 reviewed bounded source slices. Type schema migration13 and native removal source plus disjoint removal regressions are running concurrently. Type regression authorship queued until slot release. Full unit, database, process/filesystem and live recovery acceptance remain open.",
+  "later_prerequisite": "25 reviewed bounded source slices through Task2.6 and Task11.6c; authored sources/reviews are committed, but operational acceptance remains open. Read-only specification work is defining safe boundaries for two P3.2 source-only candidates before any implementation dispatch. Database, process/filesystem, current-P2, installed/runtime and whole-image/game acceptance remain open.",
   "game_prerequisite": "Task4.1 terminal-refusal source approved; actual same-build linked replacement producer and action resource/lifetime qualification remain missing.",
   "rules": [
     "Up to three concurrent implementation/review agents on disjoint source ownership; controller alone stages and commits owned task files.",
@@ -254,6 +254,21 @@
     "fresh_process": "live-process-resume-oct03.json"
   },
   "concurrency_override": "Explicit user request for as many concurrent agents as possible in current continuation.",
-  "active_workers": [],
-  "last_controller_checkpoint": "a4dc6ac8"
+  "active_workers": [
+    {
+      "id": "P3.2-role-plan-brief",
+      "phase": "source-boundary-specification",
+      "agent": "/root/implement_type_ownership",
+      "brief": "task-p3-role-plan-brief.md",
+      "base": "a1dcb3c6"
+    },
+    {
+      "id": "P3.2-current-reader-brief",
+      "phase": "source-boundary-specification",
+      "agent": "/root/native_removal_contract",
+      "brief": "task-p3-current-reader-brief.md",
+      "base": "a1dcb3c6"
+    }
+  ],
+  "last_controller_checkpoint": "a1dcb3c6"
 }

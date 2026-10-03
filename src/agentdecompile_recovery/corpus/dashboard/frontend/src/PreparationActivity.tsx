@@ -47,8 +47,23 @@ function WorkflowControls({run,selection,notify,compact=false}:{run:Data;selecti
   }
   return <div className="workflow-controls">{active(run.status)&&<><button type="button" disabled={Boolean(busy)} onClick={()=>void control('pause')}>Pause</button><button type="button" disabled={Boolean(busy)} onClick={()=>void control('stop')}>Stop</button></>}{run.status==='paused'&&(!run.deadline||run.deadline>Date.now()/1000)&&<button type="button" disabled={Boolean(busy)} onClick={()=>void control('resume')}>Resume</button>}{!compact&&<details><summary>Execution budget · {run.deadline==null?'Unlimited':'Limited'}</summary><p>Unlimited work has no wall-clock deadline. Per-function attempt limits and prerequisite checks still apply. A budget is not an estimate of completion.</p>{run.deadline!=null?<p>{Math.max(0,Math.ceil((run.deadline-Date.now()/1000)/60))} minutes remaining</p>:<p>No execution deadline</p>}<label>Budget <select name="workflow-budget" aria-label="Workflow execution budget" value={budgetMode} onChange={e=>setBudgetMode(e.target.value)}><option value="unlimited">Unlimited</option><option value="finite">Time allowance</option></select></label>{budgetMode==='finite'&&<label>Hours from now <input name="workflow-budget-hours" aria-label="Workflow execution budget hours" type="number" min={1} max={168} value={hours} onChange={e=>setHours(Number(e.target.value))}/></label>}<button type="button" disabled={Boolean(busy)||(budgetMode==='finite'&&(!Number.isFinite(hours)||hours<1||hours>168))} onClick={()=>void control('budget')}>{budgetMode==='unlimited'?'Use unlimited budget':'Set time allowance'}</button></details>}{busy&&<span role="status">Submitting {busy}…</span>}<ErrorLine error={error}/></div>;
 }
-export function PreparationProgress({ run, selection, notify, error = "", loading = false, lastConnectedAt, now = Date.now(), compact = false }: {
-  run?: Data; selection: Selection; notify: Notify; error?: string; loading?: boolean; lastConnectedAt?: number; now?: number; compact?: boolean;
+/** Retry is stage-scoped and only ever appears on a stage that has actually
+ * failed (status "blocked") — never a manual per-stage run control (R1/R44).
+ * It reuses the same workbench.workflow-control resume action the operator's
+ * own Resume button uses: resuming from the recorded checkpoint naturally
+ * re-attempts only the blocked stage, so no stage-specific backend param is
+ * needed. */
+function StageRetry({run,selection,notify}:{run:Data;selection:Selection;notify:Notify}) {
+  const [busy,setBusy]=useState(false),[error,setError]=useState('');
+  async function retry(){
+    if(busy)return;setBusy(true);setError('');
+    try{const result=await request('/dashboard/api/jobs',{method:'POST',body:JSON.stringify({action:'workbench.workflow-control',params:{preparation_id:run.id,operation:'resume'},context:selection,confirm:true})});notify('Retry requested for the failed stage; resuming from the recorded checkpoint',result.job?'info':'warning',{jobId:result.job?.id,target:run.locator||run.slug});}
+    catch(e){setError(e instanceof Error?e.message:String(e));}finally{setBusy(false);}
+  }
+  return <span className="stage-retry"><button type="button" disabled={busy} onClick={()=>void retry()}>{busy?'Retrying…':'Retry this stage'}</button><ErrorLine error={error}/></span>;
+}
+export function PreparationProgress({ run, selection, notify, error = "", loading = false, lastConnectedAt, now = Date.now(), compact = false, readOnly = false }: {
+  run?: Data; selection: Selection; notify: Notify; error?: string; loading?: boolean; lastConnectedAt?: number; now?: number; compact?: boolean; readOnly?: boolean;
 }) {
   const stages: Data[] = run?.stages || [];
   const current = active(run?.status) ? stages.find(stage => stage.status === "running" || stage.status === "waiting" || stage.status === "cancelling") || stages.find(stage => stage.status === "queued") : undefined;
@@ -110,17 +125,25 @@ export function PreparationProgress({ run, selection, notify, error = "", loadin
         </div>
       </>}
       {workMeasured && currentProgress.secondary && <div className="preparation-live-work" role="status"><strong>{current?.title}: {stageProgressLabel(currentProgress.secondary)}</strong><progress value={currentProgress.secondary.completed} max={currentProgress.secondary.total} aria-label={`${current?.title}: ${currentProgress.secondary.completed} of ${currentProgress.secondary.total} ${currentProgress.secondary.unit}`}/>{currentProgress.secondary.currentTarget && <code>{currentProgress.secondary.currentTarget}</code>}</div>}
-      {!compact && <ol className="preparation-rail" aria-label="Preparation stages">
-        {stages.map(stage => {
+      {!compact && <ol className="preparation-rail" aria-label="Preparation stage dependency graph">
+        {stages.map((stage, index) => {
           const { primary, secondary } = stageDisplayProgress(stage);
           const measured = Boolean(primary);
-          return <li key={stage.key} data-state={stage.status} aria-current={stage === current ? "step" : undefined}>
+          // The pipeline's stage order is itself the recorded dependency edge:
+          // every stage here blocks on the one before it, so the first stage
+          // is the graph's only root (no incoming edge) and every later stage
+          // names its one prerequisite explicitly rather than rendering a
+          // flat, edge-less list.
+          const prerequisite = index > 0 ? stages[index - 1] : null;
+          return <li key={stage.key} data-state={stage.status} data-root={index === 0 ? "true" : undefined} aria-current={stage === current ? "step" : undefined}>
             <div><strong>{stage.title}</strong><span>{stage.key} · {stageStatusLabels[String(stage.status)] || stage.status}</span></div>
+            <small className="preparation-edge">{prerequisite ? `Depends on: ${prerequisite.title}` : "Root stage · no recorded prerequisites"}</small>
             {measured && primary ? <progress max={primary.total} value={primary.completed} aria-label={`${stage.title}: ${primary.completed} of ${primary.total}`} /> : active(stage.status) && stage.status !== "queued" ? <progress aria-label={`${stage.title}: ${stageProgressDetail(stage)}`} /> : <div className="preparation-track" />}
             <small>{stage.total === 0 ? "No applicable items" : stageProgressDetail(stage)}</small>
             {secondary && <small className="preparation-subprogress">{stageProgressLabel(secondary)}</small>}
             {stage.status === 'waiting' && stage.nextFallback && <small>{stage.nextFallback}{stage.retryAt?` · next attempt ${new Date(stage.retryAt*1000).toLocaleTimeString()}`:''}{stage.attempts?` · attempt ${stage.attempts}`:''}</small>}
             {stage.reason && <div className="preparation-reason"><ProgressMessage message={stage.reason} /></div>}
+            {stage.status === 'blocked' && !readOnly && run && <StageRetry run={run} selection={selection} notify={notify}/>}
           </li>;
         })}
       </ol>}
@@ -145,7 +168,7 @@ export function PreparationProgress({ run, selection, notify, error = "", loadin
         {updated && <time dateTime={updated.toISOString()}>Last change {updated.toLocaleTimeString()}{active(run.status) ? ` · ${Math.max(0, Math.floor((now - updated.getTime()) / 1000))}s ago` : ""}</time>}
         {lastConnectedAt ? <span>Last received {Math.max(0, Math.floor((now - lastConnectedAt) / 1000))}s ago{stale ? " · current state unknown" : ""}</span> : <span>No successful status receipt</span>}
         {!compact && <span>Stage completion is not byte verification.</span>}
-        <WorkflowControls run={run} selection={selection} notify={notify} compact={compact}/>
+        {!readOnly && <WorkflowControls run={run} selection={selection} notify={notify} compact={compact}/>}
       </div>
       {!compact && <PrefDetails pref="prep.events-open" className="preparation-events" summary={`Activity history (${run.events?.length || 0})`}><ol>{(run.events || []).map((event: Data, index: number) => <li key={`${event.at}:${index}`}><time>{new Date(event.at * 1000).toLocaleTimeString()}</time><div><ProgressMessage message={event.message} /></div></li>)}</ol></PrefDetails>}
     </>}

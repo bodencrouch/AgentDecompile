@@ -2475,7 +2475,7 @@
     </li>`;
   }
 
-  function SymbolTree({ program, hint, runReadAction, onOpenFunctions, onSelectFunction }) {
+  function SymbolTree({ program, scopeKey, hint, runReadAction, onOpenFunctions, onSelectFunction }) {
     const [expanded, setExpanded] = useState({});
     const [nodes, setNodes] = useState({}); // key -> { items, error, offset, hasMore, loading }
     const [symbolSweep, setSymbolSweep] = useState(null); // shared cache for classes/namespaces
@@ -2500,7 +2500,7 @@
         query: "", includeExternal: false, limit: 500
       }, { timeoutMs: 8000 });
       const next = result.ok
-        ? { items: (result.data && result.data.results) || [] }
+        ? { scopeKey: scopeKey, items: (result.data && result.data.results) || [] }
         : { error: result.error || "Could not read symbols." };
       setSymbolSweep(next);
       return next;
@@ -2527,7 +2527,7 @@
       const sweep = await ensureSymbolSweep();
       if (sweep.error) { patchNode(nsKey, { loading: false, error: sweep.error }); return; }
       const members = (sweep.items || []).filter(function (sym) { return sym.namespace === namespace; });
-      patchNode(nsKey, { loading: false, items: members.slice(0, SYMTREE_PAGE), hasMore: members.length > SYMTREE_PAGE });
+      patchNode(nsKey, { scopeKey: sweep.scopeKey, loading: false, items: members.slice(0, SYMTREE_PAGE), hasMore: members.length > SYMTREE_PAGE });
     }
 
     async function loadFlatAction(key, actionId, offset) {
@@ -2538,8 +2538,9 @@
       const hasMore = Boolean(result.data && result.data.hasMore);
       setNodes(function (prev) {
         const prior = (offset && prev[key] && prev[key].items) || [];
+        const priorScope = offset && prev[key] ? prev[key].scopeKey : scopeKey;
         return Object.assign({}, prev, {
-          [key]: { loading: false, error: "", items: prior.concat(results), hasMore: hasMore, offset: (offset || 0) + results.length }
+          [key]: { scopeKey: priorScope === scopeKey ? scopeKey : null, loading: false, error: "", items: prior.concat(results), hasMore: hasMore, offset: (offset || 0) + results.length }
         });
       });
     }
@@ -2552,8 +2553,8 @@
       });
     }
 
-    function activateFunction(name, addr) {
-      onSelectFunction({ name: name, addr: addr });
+    function activateFunction(name, addr, scope) {
+      onSelectFunction({ name: name, addr: addr }, scope);
     }
 
     if (!program) {
@@ -2583,7 +2584,7 @@
             return html`<${SymbolTreeNode} key=${nsKey + "#" + sym.address} id=${nsKey + "#" + sym.address}
               title=${(sym.name || sym.address) + " " + (sym.address || "")} depth=${2}
               isLeaf=${true}
-              onActivate=${function () { activateFunction(sym.name, sym.address); }} />`;
+              onActivate=${function () { activateFunction(sym.name, sym.address, nsNode.scopeKey); }} />`;
           }).concat(nsNode.hasMore ? [html`<li key=${nsKey + "-more"} className="wb-symtree-li" style=${{ paddingLeft: "28px" }}>
             <span className="wb-hint">${nsNode.items.length} shown, more available</span>
           </li>`] : []) : null} />`;
@@ -2603,7 +2604,7 @@
         const label = (item.name || "") + "  " + (item.address || "") + (item.library ? "  (" + item.library + ")" : "");
         return html`<${SymbolTreeNode} key=${key + "#" + i + "#" + item.address} id=${key + "#" + i}
           title=${label} depth=${1} isLeaf=${true}
-          onActivate=${function () { activateFunction(item.name, item.address); }} />`;
+          onActivate=${function () { activateFunction(item.name, item.address, node.scopeKey); }} />`;
       });
       if (node.hasMore) {
         items.push(html`<li key=${key + "-more"} className="wb-symtree-li">
@@ -2697,7 +2698,7 @@
     useEffect(function () {
       let cancelled = false;
       const seq = ++seqRef.current;
-      setFocusIdx(0);
+      // Address/target changes remount this component; evidence refresh retains focus.
       if (!addr || !program) { setState({ status: "idle" }); return undefined; }
       // The function read already carries its whole disassembly; use it rather
       // than one inspect-memory round trip per instruction.
@@ -3342,13 +3343,12 @@
   function App() {
     const start = params();
     const [binaries, setBinaries] = useState([]);
-    const [slug, setSlug] = useState(start.get("slug") || start.get("binary") || "");
-    const [rows, setRows] = useState([]);
+    const [slug, setSlugState] = useState(start.get("slug") || start.get("binary") || "");
+    const [rowPacket, setRowPacket] = useState(null);
     const [total, setTotal] = useState(0);
     const [query, setQuery] = useState(start.get("q") || "");
-    const [selected, setSelected] = useState(null);
-    const [detail, setDetail] = useState(null);
-    const [overview, setOverview] = useState(null);
+    const [selectionPacket, setSelectionPacket] = useState(null);
+    const [evidencePacket, setEvidencePacket] = useState(null);
     const [corpusStatus, setCorpusStatus] = useState(null);
     const [corpusIdentity, setCorpusIdentity] = useState("");
     const [corpusRevision, setCorpusRevision] = useState(0);
@@ -3361,7 +3361,6 @@
       const timer = setInterval(function () { setPreparationNow(Date.now()); }, 1000);
       return function () { clearInterval(timer); };
     }, []);
-    const [graph, setGraph] = useState(null);
     const [actions, setActions] = useState([]);
     const [jobs, setJobs] = useState([]);
     const [reaction, setReaction] = useState(null);
@@ -3396,11 +3395,11 @@
     const [openTab, setOpenTab] = useState("local");
     const [openPaste, setOpenPaste] = useState("");
     const [funcNote, setFuncNote] = useState("");
-    const [program, setProgram] = useState(start.get("program") || "");
+    const [program, setProgramState] = useState(start.get("program") || "");
     const [sessions, setSessions] = useState([]);
-    const [activeSession, setActiveSession] = useState("");
+    const [activeSession, setActiveSessionState] = useState("");
     const [sessionRevision, setSessionRevision] = useState(0);
-    const [dossier, setDossier] = useState(null);
+    const [dossier, setDossierState] = useState(null);
     const [editingTab, setEditingTab] = useState("");
     const [menu, setMenu] = useState("");
     const [saveAsTarget, setSaveAsTarget] = useState("ghidra-project");
@@ -3442,7 +3441,7 @@
     const [jobsRail, setJobsRail] = useState(function () { return readUiPref("wb-jobs-rail", "0") === "1"; });
     const [classicLayout, setClassicLayout] = useState(function () { return readUiPref("wb-classic-layout", "0") === "1"; });
     const [decompileOpenNarrow, setDecompileOpenNarrow] = useState(function () { return readUiPref("wb-decompile-open", "0") === "1"; });
-    const [lastDecompile, setLastDecompile] = useState(null);
+    const [lastDecompilePacket, setLastDecompile] = useState(null);
     const [recentActionIds, setRecentActionIds] = useState(readRecentActionIds);
     const [checkedAddrs, setCheckedAddrs] = useState([]);
     const [checkAnchor, setCheckAnchor] = useState("");
@@ -3450,7 +3449,12 @@
     const jobsSnapshotRef = useRef(null);
     const ensureSeqRef = useRef(0);
     const funcSeqRef = useRef(0);
-    const evidenceSeqRef = useRef(0);
+    const intentRef = useRef(null);
+    const primaryRowRef = useRef(null);
+    const intentGeneration = useRef(0);
+    const evidenceTimer = useRef(null);
+    const selectionMounted = useRef(true);
+    const targetRef = useRef(null);
     const funcSlugRef = useRef(slug);
     const fileRef = useRef(null);
     const folderRef = useRef(null);
@@ -3465,19 +3469,114 @@
       return job.status === "running" || job.status === "queued";
     });
 
-    const setContext = useCallback(function (row) {
+    const currentSession = useMemo(function () {
+      return sessions.find(function (item) { return item.id === activeSession; }) || sessions[0] || null;
+    }, [sessions, activeSession]);
+
+    function canonicalLocator(value) { return String(value || "").trim().replace(/\/+$/, ""); }
+    function canonicalProgram(value) { return String(value || "").trim().replace(/^\/+/, ""); }
+    function targetIdentity(fields) {
+      return JSON.stringify([fields.session, fields.locator, fields.program, fields.slug,
+        fields.corpus, fields.content]);
+    }
+    function targetFields(nextSlug, nextProgram, nextSession, nextLocator) {
+      const binary = binaries.find(function (item) { return item.slug === nextSlug; }) || {};
+      return { session: nextSession || "", locator: canonicalLocator(nextLocator),
+        program: canonicalProgram(nextProgram), slug: nextSlug || "", corpus: corpusIdentity || "",
+        // Only use identity supplied by the inventory. UI counters are not revisions.
+        content: binary.content_sha256 || binary.contentSha256 || binary.sha256 || binary.binary_hash || binary.hash || "", repo: binary.repo || "" };
+    }
+    const renderedTarget = targetFields(slug, program, activeSession,
+      (dossier && dossier.locator) || (currentSession && currentSession.locator));
+    const targetKey = targetIdentity(renderedTarget);
+
+    function writePageContext(row, target) {
       const node = document.getElementById("page-context");
       if (!node) return;
       node.setAttribute("data-page", row ? "function" : "home");
-      node.setAttribute("data-slug", slug);
-      node.setAttribute("data-program", program || current.program || current.repo || "");
-      node.setAttribute("data-repo", current.repo || "");
-      if (row) {
-        node.setAttribute("data-addr", row.addr || "");
-        node.setAttribute("data-name", row.name || "");
-        if (row.logicalId) node.setAttribute("data-logical-id", String(row.logicalId));
+      node.setAttribute("data-slug", target.slug || "");
+      node.setAttribute("data-program", target.program || "");
+      node.setAttribute("data-repo", target.repo || "");
+      node.setAttribute("data-addr", row && row.addr || "");
+      node.setAttribute("data-name", row && row.name || "");
+      node.setAttribute("data-logical-id", row && row.logicalId ? String(row.logicalId) : "");
+    }
+    function retireSelection() {
+      intentRef.current = null;
+      primaryRowRef.current = null;
+      intentGeneration.current += 1;
+      clearTimeout(evidenceTimer.current);
+      writePageContext(null, targetRef.current || renderedTarget);
+    }
+    // Setters retire synchronously, before React commits or a promise can settle.
+    // The render comparison also masks identity changes supplied by inventory/session refresh.
+    if (!targetRef.current || targetIdentity(targetRef.current) !== targetKey) {
+      retireSelection();
+      targetRef.current = renderedTarget;
+      writePageContext(null, renderedTarget);
+    }
+    function changeTarget(patch) {
+      const next = Object.assign({}, targetRef.current, patch);
+      if (targetIdentity(next) !== targetIdentity(targetRef.current)) {
+        retireSelection();
+        targetRef.current = next;
+        writePageContext(null, next);
       }
-    }, [slug, current, program]);
+    }
+    const setSlug = useCallback(function (value) {
+      const next = typeof value === "function" ? value(targetRef.current.slug) : value;
+      const binary = binaries.find(function (item) { return item.slug === next; }) || {};
+      changeTarget({ slug: next || "", content: binary.content_sha256 || binary.contentSha256 || binary.sha256 || binary.binary_hash || binary.hash || "", repo: binary.repo || "" });
+      setSlugState(next);
+    }, [binaries]);
+    const setProgram = useCallback(function (value) {
+      changeTarget({ program: canonicalProgram(value) });
+      setProgramState(value);
+    }, []);
+    const setActiveSession = useCallback(function (value) {
+      changeTarget({ session: value || "" });
+      setActiveSessionState(value);
+    }, []);
+    const setDossier = useCallback(function (value) {
+      if (value && Object.prototype.hasOwnProperty.call(value, "locator")) changeTarget({ locator: canonicalLocator(value.locator) });
+      setDossierState(value);
+    }, []);
+    function beginSelection(row) {
+      retireSelection();
+      const target = Object.freeze(Object.assign({}, targetRef.current));
+      const intent = Object.freeze({ generation: intentGeneration.current, target: target,
+        targetKey: targetIdentity(target), row: row ? Object.freeze(Object.assign({}, row)) : null,
+        requestedAddr: row && row.addr || "" });
+      intentRef.current = intent;
+      primaryRowRef.current = intent.row;
+      setSelectionPacket({ intent: intent, row: intent.row });
+      writePageContext(intent.row, target);
+      return intent;
+    }
+    function isCurrentIntent(intent) {
+      return selectionMounted.current && Boolean(intent) && intentRef.current === intent
+        && intent.targetKey === targetIdentity(targetRef.current);
+    }
+    function responseMatches(intent, data) {
+      return isCurrentIntent(intent) && Boolean(data)
+        && (!data.locator || canonicalLocator(data.locator) === intent.target.locator)
+        && (!data.program || canonicalProgram(data.program) === intent.target.program);
+    }
+    const renderIntent = intentRef.current;
+    const selected = selectionPacket && selectionPacket.intent === renderIntent
+      && isCurrentIntent(renderIntent) ? selectionPacket.row : null;
+    const admittedPacket = evidencePacket && evidencePacket.intent === renderIntent
+      && isCurrentIntent(renderIntent) ? evidencePacket : null;
+    const detail = admittedPacket && admittedPacket.detail;
+    const graph = admittedPacket && (!detail.resolvedFunction || !selected || detail.resolvedFunction.addr === selected.addr)
+      ? admittedPacket.graph : null;
+    const overview = admittedPacket && admittedPacket.overview;
+    const lastDecompile = lastDecompilePacket && lastDecompilePacket.targetKey === targetKey
+      && (!detail || !detail.resolvedSlug || !lastDecompilePacket.resolvedSlug || detail.resolvedSlug === lastDecompilePacket.resolvedSlug)
+      ? lastDecompilePacket : null;
+    const rows = rowPacket && rowPacket.targetKey === targetKey ? rowPacket.rows : [];
+    function setRows(value) { setRowPacket({ targetKey: targetIdentity(targetRef.current), rows: value }); }
+    const selectionKey = targetKey + "\0" + (selected && selected.addr || "");
 
     const reactJob = useCallback(function (id, data) {
       setReaction({ id: id, data: data });
@@ -3489,10 +3588,6 @@
       const list = data.binaries || [];
       setBinaries(list);
       setRecoveredRoot(data.recovered || "");
-      setSlug(function (prev) {
-        if (prev && list.some(function (row) { return row.slug === prev; })) return prev;
-        return prev || "";
-      });
     }, []);
 
     const corpusStatusSequence = useRef(0);
@@ -3525,25 +3620,30 @@
       }
     }, []);
 
-    const loadFuncs = useCallback(async function (nextSlug, nextQuery) {
+    const loadFuncs = useCallback(async function (nextSlug, nextQuery, intent) {
+      const scope = targetIdentity(targetRef.current);
+      const target = intent ? intent.target : Object.assign({}, targetRef.current);
+      const currentRead = function () { return scope === targetIdentity(targetRef.current) && (!intent || isCurrentIntent(intent)); };
+      if (!currentRead()) return;
       const seq = funcSeqRef.current + 1;
       funcSeqRef.current = seq;
-      const useSlug = nextSlug !== undefined ? nextSlug : slug;
-      if (!useSlug && !program) {
+      const useSlug = nextSlug !== undefined ? nextSlug : target.slug;
+      if (!useSlug && !target.program) {
         setRows([]);
         setTotal(0);
         setFuncNote("");
         return;
       }
-      const loc = (typeof currentLocator === "function" ? currentLocator() : "") || "";
+      const loc = target.locator;
       const url = API.functions + "?slug=" + encodeURIComponent(useSlug)
         + "&q=" + encodeURIComponent(nextQuery !== undefined ? nextQuery : query)
         + "&offset=" + Math.max(0, funcOffset) + "&limit=" + funcLimit
-        + (program ? "&program=" + encodeURIComponent(program) : "")
+        + (target.program ? "&program=" + encodeURIComponent(target.program) : "")
         + (loc ? "&locator=" + encodeURIComponent(loc) : "");
       const res = await fetch(url, { cache: "no-store" });
+      if (!currentRead() || seq !== funcSeqRef.current) return;
       const data = await res.json();
-      if (seq !== funcSeqRef.current) return;
+      if (!currentRead() || seq !== funcSeqRef.current) return;
       if (res.ok && data.ok === true && data.queued === true) {
         setRows([]);
         setTotal(0);
@@ -3558,122 +3658,125 @@
           ? (program + " has no functions yet. The pipeline analyzes it automatically.")
           : (funcOffset ? "Past the end of this build. Go back a page." : "Pick a program in Explorer.")));
       } else setFuncNote("");
-    }, [slug, query, program, funcOffset, funcLimit]);
+    }, [slug, query, program, funcOffset, funcLimit, targetKey]);
 
-    const applyWorkspace = useCallback(function (data, row) {
-      if (!data || !data.ok) {
-        if (data && data.error) {
-          setDetail(function (prev) {
-            return {
-              name: (row && row.name) || (prev && prev.name) || "",
-              addr: (row && row.addr) || (prev && prev.addr) || "",
-              preview: "// Could not open listing\n// " + humanError(data.error)
-            };
-          });
-        }
-        return data;
-      }
-      if (data.overview) setOverview(data.overview);
-      if (data.graph) setGraph(data.graph);
+    function commitEvidence(intent, data, row, merge) {
+      if (!responseMatches(intent, data)) return null;
       const listing = data.listing || data;
-      if (listing && (listing.preview || listing.name || listing.addr || data.decompile || listing.decompile)) {
-        setDetail(Object.assign({}, listing, data.decompile ? { decompile: data.decompile } : {}));
-      }
-      const pick = data.selected || row;
+      const center = data.selected || (listing.addr ? { addr: listing.addr, name: listing.name } : row) || intent.row;
+      const detailValue = Object.assign({}, listing, data.decompile ? { decompile: data.decompile } : {},
+        { resolvedFunction: center || null, resolvedSlug: data.slug || "", requestedAddr: intent.requestedAddr });
+      if (data.error && !data.ok) detailValue.preview = "// Could not open listing\n// " + humanError(data.error);
+      setEvidencePacket(function (previous) {
+        if (!isCurrentIntent(intent)) return previous;
+        const prior = merge && previous && previous.intent === intent ? previous : null;
+        return { intent: intent,
+          detail: Object.assign({}, prior && prior.detail || {}, detailValue),
+          graph: data.graph || (prior && prior.graph) || null,
+          overview: data.overview || (prior && prior.overview) || null };
+      });
+      // A backend center is evidence metadata, not permission to navigate from a data address.
+      const pick = intent.row || center;
       if (pick && pick.addr) {
-        setSelected(pick);
-        setContext(pick);
+        primaryRowRef.current = pick;
+        setSelectionPacket({ intent: intent, row: pick });
+        writePageContext(pick, intent.target);
+      }
+      const decompile = detailValue.decompile;
+      if (decompile && decompile.text && center && center.addr) {
+        setLastDecompile({ targetKey: intent.targetKey, resolvedSlug: data.slug || "", text: decompile.text,
+          name: center.name || "", addr: center.addr, source: decompile.source || "" });
       }
       return data;
-    }, [setContext]);
+    }
 
-    const loadWorkspace = useCallback(async function (name, row, locatorHint) {
-      const loc = locatorHint || (typeof currentLocator === "function" ? currentLocator() : "") || "";
-      const prog = name || program || "";
-      if (!loc || !prog) return null;
-      const sameProgram = !program || !name || program === name;
-      const addr = (row && row.addr) || (sameProgram && selected && selected.addr) || "";
-      const url = API.workspace
-        + "?locator=" + encodeURIComponent(loc)
-        + "&program=" + encodeURIComponent(prog)
-        + "&slug=" + encodeURIComponent(slug || "")
+    async function loadWorkspace(intent, row) {
+      if (!isCurrentIntent(intent)) return null;
+      const target = intent.target;
+      if (!target.locator || !target.program) return null;
+      const addr = intent.requestedAddr || (row && row.addr) || "";
+      const url = API.workspace + "?locator=" + encodeURIComponent(target.locator)
+        + "&program=" + encodeURIComponent(target.program) + "&slug=" + encodeURIComponent(target.slug)
         + (addr ? "&addr=" + encodeURIComponent(addr) : "");
-      const data = await fetch(url, { cache: "no-store" }).then(function (res) { return res.json(); });
-      return applyWorkspace(data, row);
-    }, [program, slug, selected, applyWorkspace]);
+      const res = await fetch(url, { cache: "no-store" });
+      if (!isCurrentIntent(intent)) return null;
+      const data = await res.json();
+      return commitEvidence(intent, data, row, false);
+    }
 
-    // The store listing carries only recovered C. Decompiler output comes from a
-    // Ghidra read the detail endpoint admits as a job, so poll it until it lands.
-    async function loadFunctionEvidence(row, evidenceSlug, loc, attempt) {
-      const seq = attempt ? evidenceSeqRef.current : ++evidenceSeqRef.current;
+    // Every evidence retry carries the original intent, including diagnostic lookup.
+    async function loadFunctionEvidence(intent, row, evidenceSlug, attempt) {
+      if (!isCurrentIntent(intent)) return;
       let data = null;
       try {
-        const res = await fetch(
-          API.detail + "?slug=" + encodeURIComponent(evidenceSlug || "")
-            + "&addr=" + encodeURIComponent(row.addr)
-            + "&locator=" + encodeURIComponent(loc)
-            + "&program=" + encodeURIComponent(program),
-          { cache: "no-store" }
-        );
+        const res = await fetch(API.detail + "?slug=" + encodeURIComponent(evidenceSlug || "")
+          + "&addr=" + encodeURIComponent(row.addr)
+          + "&locator=" + encodeURIComponent(intent.target.locator)
+          + "&program=" + encodeURIComponent(intent.target.program), { cache: "no-store" });
+        if (!isCurrentIntent(intent)) return;
         data = await res.json();
-      } catch (err) {
-        return;
-      }
-      if (seq !== evidenceSeqRef.current || !data) return;
+      } catch (err) { return; }
+      if (!responseMatches(intent, data)) return;
       const request = data.evidenceRequest || null;
       let cause = "";
       if (request && request.status === "failed" && request.jobId) {
         try {
-          const job = await fetch(API.jobs + "/" + encodeURIComponent(request.jobId), { cache: "no-store" })
-            .then(function (res) { return res.json(); });
+          const res = await fetch(API.jobs + "/" + encodeURIComponent(request.jobId), { cache: "no-store" });
+          if (!isCurrentIntent(intent)) return;
+          const job = await res.json();
+          if (!isCurrentIntent(intent)) return;
           const record = (job && (job.job || job)) || {};
           const output = String(record.log || record.output || "");
-          // The job log carries the tool's markdown error, or its JSON form.
           const state = /\*\*State:\*\* `([^`]+)`/.exec(output) || /"state":\s*"([^"]+)"/.exec(output);
           cause = state ? state[1] : "";
-        } catch (err) {
-          cause = "";
-        }
-        if (seq !== evidenceSeqRef.current) return;
+        } catch (err) { cause = ""; }
+        if (!isCurrentIntent(intent)) return;
       }
-      setDetail(function (prev) {
-        const next = Object.assign({}, prev || {});
-        if (data.decompile && data.decompile.text) next.decompile = data.decompile;
-        if (data.assembly && data.assembly.text) next.assembly = data.assembly;
-        next.evidenceRequest = request ? Object.assign({}, request, { cause: cause }) : null;
-        return next;
-      });
-      const pending = request && (request.status === "running" || request.status === "queued" || request.status === "admitted");
-      if (pending && (attempt || 0) < 40) {
-        setTimeout(function () {
-          if (seq === evidenceSeqRef.current) loadFunctionEvidence(row, evidenceSlug, loc, (attempt || 0) + 1);
+      commitEvidence(intent, Object.assign({ slug: evidenceSlug || "" }, data, {
+        evidenceRequest: request ? Object.assign({}, request, { cause: cause }) : null
+      }), row, true);
+      const pending = request && ["running", "queued", "admitted"].indexOf(request.status) >= 0;
+      if (isCurrentIntent(intent) && pending && (attempt || 0) < 40) {
+        evidenceTimer.current = setTimeout(function () {
+          if (isCurrentIntent(intent)) loadFunctionEvidence(intent, row, evidenceSlug, (attempt || 0) + 1);
         }, 3000);
       }
     }
 
-    const selectRow = useCallback(async function (row) {
-      setSelected(row);
-      setContext(row);
-      const loc = (typeof currentLocator === "function" ? currentLocator() : "") || "";
-      if (loc && program) {
-        const ws = await loadWorkspace(program, row);
-        if (ws && ws.ok) {
-          if (!(ws.decompile && ws.decompile.text)) loadFunctionEvidence(row, ws.slug || slug, loc, 0);
-          return;
+    async function readSelection(intent) {
+      if (!isCurrentIntent(intent) || !intent.row) return;
+      const row = intent.row;
+      const target = intent.target;
+      try {
+        if (target.locator && target.program) {
+          const ws = await loadWorkspace(intent, row);
+          if (!isCurrentIntent(intent)) return;
+          if (ws && ws.ok) {
+            if (!(ws.decompile && ws.decompile.text)) {
+              loadFunctionEvidence(intent, ws.selected || row, ws.slug || target.slug, 0);
+            }
+            return;
+          }
+          // Null denotes an ignored response, never permission to start a fallback.
+          if (!ws) return;
         }
-      }
-      const res = await fetch(
-        API.detail + "?slug=" + encodeURIComponent(slug)
+        const res = await fetch(API.detail + "?slug=" + encodeURIComponent(target.slug)
           + "&addr=" + encodeURIComponent(row.addr)
-          + (loc ? "&locator=" + encodeURIComponent(loc) : "")
-          + (program ? "&program=" + encodeURIComponent(program) : ""),
-        { cache: "no-store" }
-      );
-      const data = await res.json();
-      setDetail(data);
-      if (data.graph) setGraph(data.graph);
-      if (data.overview) setOverview(data.overview);
-    }, [slug, program, setContext, loadWorkspace]);
+          + (target.locator ? "&locator=" + encodeURIComponent(target.locator) : "")
+          + (target.program ? "&program=" + encodeURIComponent(target.program) : ""), { cache: "no-store" });
+        if (!isCurrentIntent(intent)) return;
+        const data = await res.json();
+        commitEvidence(intent, data, row, false);
+      } catch (err) {
+        if (isCurrentIntent(intent)) commitEvidence(intent, { ok: false, error: String(err && err.message || err) }, row, false);
+      }
+    }
+    const selectRow = useCallback(function (row) {
+      // Retained callbacks from another concrete target cannot mint a fresh intent.
+      if (targetKey !== targetIdentity(targetRef.current) || !selectionMounted.current) return Promise.resolve(null);
+      const intent = beginSelection(row);
+      return readSelection(intent);
+    }, [targetKey]);
 
     function onFuncRowClick(ev, row) {
       if (!row) return;
@@ -3711,6 +3814,7 @@
     }
 
     const loadContext = useCallback(async function () {
+      const generation = intentGeneration.current;
       try {
         const query = "?slug=" + encodeURIComponent(slug || "")
           + "&program=" + encodeURIComponent(program || "");
@@ -3718,6 +3822,7 @@
         const data = await res.json();
         if (data.defaults) setEnvDefaults(data.defaults);
         if (Array.isArray(data.pipelineStages)) setPipelineStages(data.pipelineStages);
+        if (generation !== intentGeneration.current) return;
         const session = data.session || {};
         if (!program && session.program) setProgram(session.program);
         if (!slug && session.slug) setSlug(session.slug);
@@ -3771,14 +3876,18 @@
       }
     }, []);
 
-    const loadPreview = useCallback(async function (locator) {
+    const loadPreview = useCallback(async function (locator, intent) {
+      const generation = intentGeneration.current;
+      const currentRead = function () { return selectionMounted.current && generation === intentGeneration.current && (!intent || isCurrentIntent(intent)); };
       if (!locator) {
         setPreview(null);
         setDossier(null);
         return;
       }
       const res = await fetch(API.inspect + "?locator=" + encodeURIComponent(locator), { cache: "no-store" });
+      if (!currentRead()) return;
       const data = await res.json();
+      if (!currentRead()) return;
       setPreview(data);
       setDossier(data);
     }, []);
@@ -3818,6 +3927,7 @@
 
     const putSessions = useCallback(async function (nextActive, nextSessions, revision, options) {
       const rev = revision !== undefined ? revision : sessionRevision;
+      const generation = intentGeneration.current;
       try {
         const res = await fetch(API.sessions, {
           method: "PUT",
@@ -3830,7 +3940,7 @@
           return data;
         }
         if (data.revision != null) setSessionRevision(data.revision);
-        if (data.sessions) {
+        if (data.sessions && generation === intentGeneration.current) {
           setSessions(data.sessions);
           if (data.active) setActiveSession(data.active);
         }
@@ -3890,12 +4000,14 @@
     }
 
     function resetTabState() {
+      retireSelection();
+      changeTarget({ locator: "" });
       ensureSeqRef.current += 1;
       funcSeqRef.current += 1;
       setSlug("");
       setProgram("");
-      setSelected(null);
-      setDetail(null);
+      beginSelection(null);
+      setEvidencePacket(null);
       setDossier(null);
       setPreview(null);
       setQuery("");
@@ -3912,7 +4024,8 @@
       if (!item || !item.locator) return;
       setSlug(item.projectSlug || "");
       setProgram(item.program || "");
-      loadPreview(item.locator);
+      changeTarget({ locator: canonicalLocator(item.locator) });
+      loadPreview(item.locator, beginSelection(null));
     }
 
     function selectProgram(name) {
@@ -3921,90 +4034,75 @@
       funcSeqRef.current += 1;
       setProgram(picked);
       patchActiveSession({ program: picked });
-      if (currentSession && currentSession.projectSlug) {
-        setSlug(currentSession.projectSlug);
-      }
-      const loc = currentLocator();
-      if (picked && loc) {
-        loadWorkspace(picked, null, loc);
-        ensureGhidraProgram(picked, { locator: loc, quiet: true });
+      if (currentSession && currentSession.projectSlug) setSlug(currentSession.projectSlug);
+      const intent = beginSelection(null);
+      if (picked && intent.target.locator) {
+        loadWorkspace(intent, null).catch(function () { /* unavailable until next current read */ });
+        ensureGhidraProgram(picked, { intent: intent, quiet: true });
       }
     }
 
     async function ensureGhidraProgram(name, options) {
       const opts = options || {};
-      const target = String(name || program || "").trim();
-      const locator = opts.locator || currentLocator();
-      if (!target || !locator) return null;
-      ensureSeqRef.current += 1;
-      const seq = ensureSeqRef.current;
+      // Only a synchronous UI entry may create this token. Async callers pass theirs.
+      const intent = opts.intent || beginSelection(null);
+      const target = canonicalProgram(name || intent.target.program);
+      const locator = canonicalLocator(opts.locator || intent.target.locator);
+      if (!target || !locator || target !== intent.target.program || locator !== intent.target.locator
+          || !isCurrentIntent(intent)) return null;
+      const seq = ++ensureSeqRef.current;
+      const currentEnsure = function () { return seq === ensureSeqRef.current && isCurrentIntent(intent); };
       if (!opts.quiet) showToast("Opening " + target + "…");
       try {
         let res, data;
         for (let attempt = 0; attempt < 6; attempt += 1) {
-          if (seq !== ensureSeqRef.current) return null;
+          if (!currentEnsure()) return null;
           res = await fetch(API.ensureProgram, {
-            method: "POST",
-            headers: { "content-type": "application/json" },
+            method: "POST", headers: { "content-type": "application/json" },
             body: JSON.stringify({ locator: locator, program: target })
           });
+          if (!currentEnsure()) return null;
           data = await res.json();
-          if (seq !== ensureSeqRef.current) return null;
+          if (!currentEnsure() || !responseMatches(intent, data)) return null;
           if (!res.ok || data.ok !== true || data.queued !== true) break;
           setFuncNote("Live read queued for " + target + ". " + (data.sessionReason || "Waiting for the current Ghidra reader or writer."));
           if (attempt === 5) return data;
           const retryMs = Math.min(2000, Math.max(250, Number(data.retryAfterMs) || 500));
           await new Promise(function (resolve) { window.setTimeout(resolve, retryMs); });
+          if (!currentEnsure()) return null;
         }
+        if (!currentEnsure()) return null;
         if (!res.ok || data.ok !== true || data.ensured !== true) {
-          const message = data.error || ("Could not open " + target + " in Ghidra.");
-          if (!opts.quiet || opts.reportFailure) showToast(message, "error");
+          if (!opts.quiet || opts.reportFailure) showToast(data.error || ("Could not open " + target + " in Ghidra."), "error");
           return null;
         }
-        if (seq !== ensureSeqRef.current) return data;
         if (data.results && data.results.length) {
           setRows(data.results);
           setTotal(data.total || data.results.length);
           setFuncNote("");
           const first = data.results[0];
-          setSelected(first);
-          setOverview(function (prev) {
-            if (prev && prev.program === target && prev.functionCount) return prev;
-            return {
-              program: target,
-              functionCount: data.total || data.results.length,
-              namedCount: data.named || 0,
-              path: data.program_path || target
-            };
-          });
-          setDetail(function (prev) {
-            if (prev && prev.preview && String(prev.preview).indexOf("Opening ") !== 0) return prev;
-            return {
-              name: first.name,
-              addr: first.addr,
+          commitEvidence(intent, { ok: true, selected: first,
+            overview: { program: target, functionCount: data.total || data.results.length,
+              namedCount: data.named || 0, path: data.program_path || target },
+            listing: { name: first.name, addr: first.addr,
               preview: "// " + target + "\n// " + (data.total || data.results.length)
-                + " functions from the Ghidra project\n" + (first.name || "") + "  @ " + (first.addr || "")
-            };
-          });
-          await loadWorkspace(target, first, locator);
+                + " functions from the Ghidra project\n" + (first.name || "") + "  @ " + (first.addr || "") }
+          }, first, true);
+          await loadWorkspace(intent, first);
+          if (!currentEnsure()) return null;
           if (!opts.quiet) showToast(target + " — " + (data.total || data.results.length) + " functions", "success");
           return data;
         }
-        await loadFuncs();
+        await loadFuncs(intent.target.slug, undefined, intent);
+        if (!currentEnsure()) return null;
         if (data.error && !opts.quiet) showToast(data.error, data.next === "analyze-program" ? "" : "error");
         return data;
       } catch (err) {
-        if (seq !== ensureSeqRef.current) return null;
-        if (!opts.quiet || opts.reportFailure) {
-          showToast("Could not open " + target + " in Ghidra: " + String((err && err.message) || err), "error");
-        }
+        if (!currentEnsure()) return null;
+        if (!opts.quiet || opts.reportFailure) showToast("Could not open " + target + " in Ghidra: " + String((err && err.message) || err), "error");
         return null;
       }
     }
-
-    const currentSession = useMemo(function () {
-      return sessions.find(function (item) { return item.id === activeSession; }) || sessions[0] || null;
-    }, [sessions, activeSession]);
 
     const sessionOverviewSlugs = useMemo(function () {
       const slugs = [];
@@ -4042,6 +4140,8 @@
     }, [sessionOverviewSlugs, dossier, currentSession]);
 
     useEffect(function () {
+      selectionMounted.current = true;
+      const bootGeneration = intentGeneration.current;
       window.AgentDecompileUI = {
         announce: function (msg) {
           const pulse = document.getElementById("job-pulse");
@@ -4054,6 +4154,7 @@
       loadActions();
       loadBrowse("");
       fetch(API.sessions, { cache: "no-store" }).then(function (res) { return res.json(); }).then(function (data) {
+        if (!selectionMounted.current || bootGeneration !== intentGeneration.current) return;
         const list = data.sessions || [];
         setSessions(list);
         const activeId = data.active || (list[0] && list[0].id) || "";
@@ -4067,7 +4168,8 @@
         if (cur && cur.locator) {
           if (!pinned) setSlug(cur.projectSlug || "");
           if (!pinnedProgram) setProgram(cur.program || "");
-          loadPreview(cur.locator);
+          changeTarget({ locator: canonicalLocator(cur.locator) });
+          loadPreview(cur.locator, beginSelection(null));
         } else if (!pinned && cur && (cur.imports || []).length) {
           const first = importSlug(cur.imports[0]);
           if (first) setSlug(first);
@@ -4118,6 +4220,8 @@
       }
       window.addEventListener("keydown", onKey);
       return function () {
+        selectionMounted.current = false;
+        retireSelection();
         ensureSeqRef.current += 1;
         funcSeqRef.current += 1;
         window.clearInterval(probeTimer);
@@ -4348,18 +4452,6 @@
     }, [decompileOpenNarrow]);
 
     useEffect(function () {
-      const text = detail && detail.decompile && detail.decompile.text;
-      if (text) {
-        setLastDecompile({
-          text: text,
-          name: (selected && selected.name) || (detail && detail.name) || "",
-          addr: (selected && selected.addr) || (detail && detail.addr) || "",
-          source: detail.decompile.source || ""
-        });
-      }
-    }, [detail, selected]);
-
-    useEffect(function () {
       let last = "";
       async function poll() {
         try {
@@ -4393,6 +4485,8 @@
     }, [loadBinaries, loadFuncs]);
 
     async function registerLocator(locator, extraSlug, options) {
+      let operationGeneration = intentGeneration.current;
+      const operationCurrent = function () { return selectionMounted.current && operationGeneration === intentGeneration.current; };
       const value = (locator || "").trim();
       if (!value) return { ok: false, error: "locator is required" };
       const shared = /^(ghidra:\/\/|https?:\/\/)/i.test(value);
@@ -4407,7 +4501,9 @@
           label: (options && options.label) || label
         })
       });
+      if (!operationCurrent()) return null;
       const data = await res.json();
+      if (!operationCurrent()) return null;
       if (!options || !options.quiet) {
         setIngestNote(data.ok ? "Registered " + (data.binary && data.binary.slug) : (data.error || "register failed"));
         if (data.ok && data.binary && !(options && options.intoProject)) {
@@ -4433,6 +4529,7 @@
     }
 
     async function importIntoTab(binarySlug) {
+      const generation = intentGeneration.current;
       const name = (binarySlug || "").trim();
       if (!name || !activeSession) return;
       let base = sessions;
@@ -4441,6 +4538,7 @@
         const data = await res.json();
         if (data.sessions && data.sessions.length) base = data.sessions;
       } catch (_err) { /* use in-memory copy */ }
+      if (generation !== intentGeneration.current || !selectionMounted.current) return;
       const list = base.map(function (item) {
         if (item.id !== activeSession) return item;
         return Object.assign({}, item, {
@@ -4451,6 +4549,8 @@
     }
 
     async function createTabProject(preferredName) {
+      let operationGeneration = intentGeneration.current;
+      const operationCurrent = function () { return selectionMounted.current && operationGeneration === intentGeneration.current; };
       const session = sessions.find(function (item) { return item.id === activeSession; }) || currentSession;
       if (tabHasRealProject(session)) {
         return { ok: true, list: sessions, id: activeSession, projectSlug: session.projectSlug || "" };
@@ -4461,7 +4561,9 @@
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ name: projectName })
       });
+      if (!operationCurrent()) return null;
       const data = await res.json();
+      if (!operationCurrent()) return null;
       if (!data.ok) {
         showToast(data.error || "Could not create a project.", "error");
         return null;
@@ -4484,7 +4586,12 @@
       if (!sameProject && !opts.refresh) {
         resetTabState();
       }
-      const inspected = await fetch(API.inspect + "?locator=" + encodeURIComponent(value), { cache: "no-store" }).then(function (res) { return res.json(); });
+      retireSelection();
+      const openGeneration = intentGeneration.current;
+      const inspectedRes = await fetch(API.inspect + "?locator=" + encodeURIComponent(value), { cache: "no-store" });
+      if (openGeneration !== intentGeneration.current || !selectionMounted.current) return null;
+      const inspected = await inspectedRes.json();
+      if (openGeneration !== intentGeneration.current || !selectionMounted.current) return null;
       if (!inspected.ok) {
         showToast(inspected.error || "Could not load that project.", "error");
         setDialogError(inspected.error || "Could not load that project.");
@@ -4497,6 +4604,7 @@
       const projectKind = ["ghidra-project", "shared-fs", "shared-project"].indexOf(inspected.kind) >= 0;
       if (!projectKind && (!sameProject || !currentSession.projectSlug)) {
         registered = await registerLocator(value, regSlug, { quiet: true });
+        if (openGeneration !== intentGeneration.current || !selectionMounted.current) return null;
         if (!registered.ok) {
           showToast(registered.error || "Could not register that project.", "error");
           setDialogError(registered.error || "Could not register that project.");
@@ -4549,7 +4657,9 @@
       setProgram(nextProgram);
       setSessions(list);
       setActiveSession(id);
+      const openIntent = beginSelection(null);
       const saved = await putSessions(id, list, undefined, { admitOpen: true });
+      if (!isCurrentIntent(openIntent)) return null;
       const admission = saved && saved.preparation;
       setIngestNote("Loaded " + nextTitle + (admission
         ? " · Recovery " + admission.status + " · run " + (admission.id || "unavailable")
@@ -4557,8 +4667,8 @@
           + " · queue " + (admission.queuePosition == null ? (admission.admissionPending ? "position pending" : "not queued") : admission.queuePosition)
           + (admission.reason ? " · " + admission.reason : "") : ""));
       closeDialog();
-      if (nextProgram) ensureGhidraProgram(nextProgram, { quiet: true, locator: value });
-      return { ok: true, list: list, id: id, projectSlug: projectSlug || "", inspected: inspected };
+      if (nextProgram) ensureGhidraProgram(nextProgram, { quiet: true, locator: value, intent: openIntent });
+      return { ok: true, list: list, id: id, projectSlug: projectSlug || "", inspected: inspected, intent: openIntent };
     }
 
     function builtSharedUrl() {
@@ -4617,11 +4727,12 @@
         return;
       }
       const next = id === activeSession ? remain[remain.length - 1].id : activeSession;
-      await persistSessions(remain, next);
       if (id === activeSession) {
         const chosen = remain.find(function (item) { return item.id === next; });
+        setActiveSession(next);
         restoreTabSession(chosen);
       }
+      await persistSessions(remain, next);
     }
 
     async function renameTab(id, title) {
@@ -4634,12 +4745,14 @@
     }
 
     async function createProject() {
+      const generation = intentGeneration.current;
       const res = await fetch(API.projects, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ name: (currentSession && currentSession.title) || "Project" })
       });
       const data = await res.json();
+      if (generation !== intentGeneration.current || !selectionMounted.current) return;
       if (!data.ok) {
         const err = data.error || "Could not create a local project.";
         setIngestNote(err);
@@ -4659,26 +4772,32 @@
     async function reloadProject() {
       setMenu("");
       setStatusError("");
-      const locator = currentLocator();
-      if (!locator) {
-        showToast("This tab has no project to reload.");
-        return;
-      }
+      const intent = beginSelection(selected);
+      const locator = intent.target.locator;
+      if (!locator) { showToast("This tab has no project to reload."); return; }
       showToast("Reloading…");
       try {
         await loadBinaries();
+        if (!isCurrentIntent(intent)) return;
         await loadActions();
-        await loadPreview(locator);
-        await loadFuncs(slug, query);
-        if (selected && selected.addr) await selectRow(selected);
+        if (!isCurrentIntent(intent)) return;
+        await loadPreview(locator, intent);
+        if (!isCurrentIntent(intent)) return;
+        await loadFuncs(intent.target.slug, query, intent);
+        if (!isCurrentIntent(intent)) return;
+        if (intent.row) await readSelection(intent);
+        else await loadWorkspace(intent, null);
+        if (!isCurrentIntent(intent)) return;
         reloadIslands();
-        showToast(locator ? "Reloaded " + locator : "This tab has no project to reload.", locator ? "success" : "");
+        showToast("Reloaded " + locator, "success");
       } catch (err) {
-        showToast("Reload failed: " + String((err && err.message) || err), "error");
+        if (isCurrentIntent(intent)) showToast("Reload failed: " + String((err && err.message) || err), "error");
       }
     }
 
     async function saveProject() {
+      let operationGeneration = intentGeneration.current;
+      const operationCurrent = function () { return selectionMounted.current && operationGeneration === intentGeneration.current; };
       const locator = currentLocator();
       const prevSlug = slug;
       const prevProgram = program;
@@ -4687,7 +4806,9 @@
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ locator: locator })
       });
+      if (!operationCurrent()) return null;
       const data = await res.json();
+      if (!operationCurrent()) return null;
       if (!data.ok) {
         showToast(data.error || "Save failed.", "error");
         return data;
@@ -4705,7 +4826,9 @@
           title: item.title || title
         });
       });
+      operationGeneration = intentGeneration.current;
       await persistSessions(list, activeSession);
+      if (!operationCurrent()) return null;
       if (prevSlug) setSlug(prevSlug);
       if (prevProgram) setProgram(prevProgram);
       showToast("Saved " + title, "success");
@@ -4724,6 +4847,8 @@
     }
 
     async function submitSaveAs(ev) {
+      let operationGeneration = intentGeneration.current;
+      const operationCurrent = function () { return selectionMounted.current && operationGeneration === intentGeneration.current; };
       if (ev) ev.preventDefault();
       setDialogError("");
       if (!(saveAsName || "").trim()) {
@@ -4745,7 +4870,9 @@
           url: saveAsUrl
         })
       });
+      if (!operationCurrent()) return null;
       const data = await res.json();
+      if (!operationCurrent()) return null;
       if (!data.ok) {
         failDialog(data.error || "Save As failed.");
         return data;
@@ -4757,7 +4884,7 @@
       if (next && next !== currentLocator()) {
         const carryImports = sessionImportSlugs(currentSession);
         const opened = await openLocator(next, data.slug || saveAsName);
-        if (opened && opened.ok && carryImports.length) {
+        if (opened && opened.ok && isCurrentIntent(opened.intent) && carryImports.length) {
           const list = opened.list.map(function (item) {
             if (item.id !== opened.id) return item;
             return Object.assign({}, item, {
@@ -4801,7 +4928,11 @@
         await openLocator(value, value.split("/").pop() || "shared");
         return;
       }
-      const inspected = await fetch(API.inspect + "?locator=" + encodeURIComponent(value), { cache: "no-store" }).then(function (res) { return res.json(); });
+      const generation = intentGeneration.current;
+      const inspectRes = await fetch(API.inspect + "?locator=" + encodeURIComponent(value), { cache: "no-store" });
+      if (generation !== intentGeneration.current || !selectionMounted.current) return;
+      const inspected = await inspectRes.json();
+      if (generation !== intentGeneration.current || !selectionMounted.current) return;
       if (inspected.ok && (inspected.kind === "shared-fs" || inspected.kind === "ghidra-project" || inspected.kind === "shared-project")) {
         await openLocator(value, inspected.slug || value);
         return;
@@ -5188,6 +5319,14 @@
       };
     }, [binaries, slug, program, selected, rows, currentSession, dossier, envDefaults, recoveredRoot]);
 
+    function liveToolContext() {
+      const target = targetRef.current;
+      const row = isCurrentIntent(intentRef.current) ? primaryRowRef.current : null;
+      return Object.assign({}, toolContext, { slug: target.slug, program: target.program,
+        locator: target.locator, repo: target.repo || "", addr: row && row.addr || "", name: row && row.name || "",
+        functions: targetKey === targetIdentity(target) ? rows : [] });
+    }
+
     const programProgress = useMemo(function () {
       const locator = currentLocator();
       if (!locator) return {};
@@ -5213,6 +5352,9 @@
     async function executeAction(actionId, paramOverrides, options) {
       const opts = options || {};
       if (!actionId) return null;
+      if (!opts.targetContext && targetKey !== targetIdentity(targetRef.current)) return null;
+      const actionIntent = intentRef.current;
+      const currentContext = liveToolContext();
       setLastActionId(actionId);
       const act = actions.find(function (item) { return item.id === actionId; });
       if (!act) {
@@ -5261,15 +5403,15 @@
         return Object.prototype.hasOwnProperty.call(targetContext, key) ? targetContext[key] : fallback;
       };
       const ctx = {
-        slug: captured("slug", toolContext.slug) || "",
-        program: captured("program", toolContext.program) || "",
-        repo: captured("repo", toolContext.repo) || "",
-        locator: captured("locator", currentLocator()) || "",
-        addr: (row && row.addr) || params.addr || toolContext.addr || "",
-        name: (row && row.name) || params.name || toolContext.name || "",
-        db: toolContext.db || "",
-        work_dir: toolContext.work_dir || "",
-        kb: toolContext.kb || ""
+        slug: captured("slug", currentContext.slug) || "",
+        program: captured("program", currentContext.program) || "",
+        repo: captured("repo", currentContext.repo) || "",
+        locator: captured("locator", currentContext.locator) || "",
+        addr: (row && row.addr) || params.addr || currentContext.addr || "",
+        name: (row && row.name) || params.name || currentContext.name || "",
+        db: currentContext.db || "",
+        work_dir: currentContext.work_dir || "",
+        kb: currentContext.kb || ""
       };
       if (!opts.quiet) showToast("Starting " + (act.title || actionId) + "…", "info");
       const body = Object.assign({}, params, { confirm: true, context: ctx });
@@ -5305,8 +5447,13 @@
       }
       if (String(actionId).indexOf("decompile") >= 0 || String(actionId).indexOf("rename") >= 0) {
         loadBinaries();
-        loadFuncs();
-        if (selected) selectRow(selected);
+        if (isCurrentIntent(actionIntent)) {
+          loadFuncs(actionIntent.target.slug, undefined, actionIntent);
+          if (primaryRowRef.current) {
+            const refreshed = beginSelection(primaryRowRef.current);
+            readSelection(refreshed);
+          }
+        }
       }
       return data;
     }
@@ -5339,6 +5486,12 @@
        say why. */
     async function runReadAction(actionId, params, options) {
       const opts = options || {};
+      const readScope = targetKey;
+      const readCurrent = function () { return selectionMounted.current && readScope === targetIdentity(targetRef.current)
+        && (!opts.selectionIntent || isCurrentIntent(opts.selectionIntent)); };
+      const ignored = { ok: false, ignored: true, error: "Selection target changed.", elapsedMs: 0 };
+      if (!readCurrent()) return ignored;
+      const readContext = liveToolContext();
       const t0 = (window.performance && performance.now) ? performance.now() : Date.now();
       const elapsed = function () { return ((window.performance && performance.now) ? performance.now() : Date.now()) - t0; };
       const act = actions.find(function (item) { return item.id === actionId; });
@@ -5346,18 +5499,18 @@
       if (act.danger || act.mutating || act.long_running) {
         return { ok: false, error: actionId + " is not a confirmed read-only action; refusing to auto-run it.", elapsedMs: elapsed() };
       }
-      const loc = (typeof currentLocator === "function" ? currentLocator() : "") || "";
+      const loc = readContext.locator || "";
       const ctx = {
-        slug: toolContext.slug || "",
-        program: toolContext.program || "",
-        repo: toolContext.repo || "",
-        addr: params.addr || toolContext.addr || "",
-        name: params.name || toolContext.name || "",
-        db: toolContext.db || "",
-        work_dir: toolContext.work_dir || "",
-        kb: toolContext.kb || ""
+        slug: readContext.slug || "",
+        program: readContext.program || "",
+        repo: readContext.repo || "",
+        addr: params.addr || readContext.addr || "",
+        name: params.name || readContext.name || "",
+        db: readContext.db || "",
+        work_dir: readContext.work_dir || "",
+        kb: readContext.kb || ""
       };
-      const body = Object.assign({ confirm: true, context: ctx, locator: loc, program: toolContext.program || "" }, params);
+      const body = Object.assign({ confirm: true, context: ctx, locator: loc, program: readContext.program || "" }, params);
       let res, data;
       try {
         res = await fetch("/api/v1/actions/" + actionId.replace(/\./g, "/"), {
@@ -5365,7 +5518,9 @@
           headers: { "content-type": "application/json" },
           body: JSON.stringify(body)
         });
+        if (!readCurrent()) return ignored;
         data = await res.json();
+        if (!readCurrent()) return ignored;
       } catch (err) {
         return { ok: false, error: String((err && err.message) || err), elapsedMs: elapsed() };
       }
@@ -5384,9 +5539,12 @@
           return { ok: false, timedOut: true, error: "Timed out waiting for " + actionId, elapsedMs: elapsed(), jobId: jobId };
         }
         await new Promise(function (resolve) { setTimeout(resolve, 250); });
+        if (!readCurrent()) return ignored;
         try {
           const jres = await fetch(API.jobs + "/" + encodeURIComponent(jobId), { cache: "no-store" });
+          if (!readCurrent()) return ignored;
           const jdata = await jres.json();
+          if (!readCurrent()) return ignored;
           job = (jdata && jdata.job) || job;
         } catch (err) {
           // Keep polling until the deadline; a transient fetch error isn't fatal.
@@ -5415,10 +5573,10 @@
 
     useEffect(function () {
       window.AgentDecompileUI = Object.assign(window.AgentDecompileUI || {}, {
-        getToolContext: function () { return toolContext; },
+        getToolContext: function () { return liveToolContext(); },
         getEnvDefaults: function () { return envDefaults; },
         getBinaries: function () { return binaries; },
-        getSiblings: function () { return (detail && detail.siblings) || []; },
+        getSiblings: function () { return isCurrentIntent(renderIntent) && admittedPacket ? ((admittedPacket.detail && admittedPacket.detail.siblings) || []) : []; },
         runCatalogAction: function (actionId, params) {
           if (!actionId) return null;
           openActionStrip(actionId);
@@ -5486,16 +5644,19 @@
     }
 
     async function importPathIntoProject(filePath, preferredName, sourceProgram) {
+      let operationGeneration = intentGeneration.current;
+      const operationCurrent = function () { return selectionMounted.current && operationGeneration === intentGeneration.current; };
       const path = (filePath || "").trim();
       if (!path) return null;
       const baseName = (preferredName || path.split(/[/\\]/).pop() || "binary").trim();
       let locator = currentLocator();
       if (!locator) {
         const opened = await createTabProject(baseName);
-        if (!opened || !opened.ok) {
+        if (!opened || !opened.ok || (opened.intent && !isCurrentIntent(opened.intent))) {
           showToast("Open a project first, then add binaries into it.", "error");
           return null;
         }
+        operationGeneration = intentGeneration.current;
         locator = (opened.inspected && opened.inspected.locator) || currentLocator();
       }
       if (!locator) {
@@ -5514,7 +5675,9 @@
           analyze: false
         })
       });
+      if (!operationCurrent()) return null;
       const data = await res.json();
+      if (!operationCurrent()) return null;
       if (!data.ok) {
         const message = data.error || "Could not import into the project.";
         setIngestNote(message);
@@ -5523,18 +5686,19 @@
       }
       if (data.inspect) await applyProjectInspect(data.inspect);
       else await loadPreview(locator);
+      if (!operationCurrent()) return null;
       const prog = data.program || baseName;
       if (currentSession && currentSession.projectSlug) setSlug(currentSession.projectSlug);
       if (prog) {
         setProgram(prog);
         patchActiveSession({ program: prog });
-        setSelected(null);
-        setDetail(null);
+        beginSelection(null);
+        setEvidencePacket(null);
       }
       closeDialog();
       setIngestNote("Imported " + prog + " into the project");
       showToast("Imported " + prog + " into the project", "success");
-      return data;
+      return Object.assign({}, data, { selectionIntent: intentRef.current });
     }
 
     async function removeProgramFromProject(name) {
@@ -5554,27 +5718,32 @@
     }
 
     async function removeProgramConfirmed(locator, target) {
+      let operationGeneration = intentGeneration.current;
+      const operationCurrent = function () { return selectionMounted.current && operationGeneration === intentGeneration.current; };
       const res = await fetch(API.programs, {
         method: "DELETE",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ locator: locator, program: target, confirm: true })
       });
+      if (!operationCurrent()) return null;
       const data = await res.json();
+      if (!operationCurrent()) return null;
       if (!data.ok) {
         showToast(data.error || "Could not remove that program.", "error");
         return;
       }
       if (data.inspect) await applyProjectInspect(data.inspect);
       else await loadPreview(locator);
+      if (!operationCurrent()) return null;
       if (program === target) {
         const next = ((data.inspect && data.inspect.programs) || []).map(programName).filter(Boolean)[0] || "";
         setProgram(next);
         patchActiveSession({ program: next });
-        setSelected(null);
-        setDetail(null);
+        beginSelection(null);
+        setEvidencePacket(null);
         setRows([]);
         setTotal(0);
-        if (next) ensureGhidraProgram(next, { quiet: true, locator: locator });
+        if (next) ensureGhidraProgram(next, { quiet: true, locator: locator, intent: intentRef.current });
       }
       showToast("Removed " + target + " from the project", "success");
     }
@@ -5587,18 +5756,22 @@
     }
 
     async function selectImportBinary(row) {
+      let operationGeneration = intentGeneration.current;
+      const operationCurrent = function () { return selectionMounted.current && operationGeneration === intentGeneration.current; };
       if (!row || !row.slug) return;
       if (tabHasRealProject(currentSession) && !importsContain(currentSession, row.slug)) {
         await importIntoTab(row.slug);
+        if (!operationCurrent()) return null;
       }
       setSlug(row.slug);
       setProgram("");
       patchActiveSession({ program: "" });
-      setSelected(null);
-      setDetail(null);
+      beginSelection(null);
+      setEvidencePacket(null);
     }
 
     async function uploadFiles(fileList) {
+      let generation = intentGeneration.current;
       if (dialog === "add-binary") closeDialog();
       const files = Array.from(fileList || []);
       const rels = files.map(function (file) { return file.webkitRelativePath || file.name; });
@@ -5616,7 +5789,9 @@
         });
         form.append("paths", JSON.stringify(rels));
         const stageRes = await fetch(API.stageDrop, { method: "POST", body: form });
+        if (generation !== intentGeneration.current || !selectionMounted.current) return null;
         const stageData = await stageRes.json();
+        if (generation !== intentGeneration.current || !selectionMounted.current) return null;
         if (!stageRes.ok || stageData.ok === false || !stageData.staging_id) {
           setIngestNote(stageData.error || "Could not stage dropped files.");
           return;
@@ -5630,7 +5805,9 @@
             staging_id: stageData.staging_id
           })
         });
+        if (generation !== intentGeneration.current || !selectionMounted.current) return null;
         const data = await res.json();
+        if (generation !== intentGeneration.current || !selectionMounted.current) return null;
         if (data.ok && data.locator) {
           await openLocator(data.locator, data.slug);
           return;
@@ -5647,7 +5824,9 @@
         body.append("file", file, file.name);
         body.append("role", role || "member");
         const res = await fetch(API.binaries, { method: "POST", body: body });
+        if (generation !== intentGeneration.current || !selectionMounted.current) return null;
         const data = await res.json();
+        if (generation !== intentGeneration.current || !selectionMounted.current) return null;
         // source_path is the immutable staged upload. binary.repo can be a
         // reused virtual Ghidra row and binary.locator a project locator;
         // neither is a file the project import can read.
@@ -5658,7 +5837,9 @@
           continue;
         }
         if (!data.ok) showToast("Staged " + file.name + ", but the corpus did not record it: " + (data.error || "unknown reason"), "error");
-        await importPathIntoProject(staged, file.name);
+        const imported = await importPathIntoProject(staged, file.name);
+        if (!imported || !imported.selectionIntent || !isCurrentIntent(imported.selectionIntent)) return;
+        generation = intentGeneration.current;
       }
     }
 
@@ -5674,13 +5855,21 @@
     }
 
     async function removeSlugConfirmed(target) {
+      const generation = intentGeneration.current;
       const res = await fetch(API.binaries + "/" + encodeURIComponent(target), {
         method: "DELETE",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ confirm: true })
       });
       const data = await res.json();
+      if (generation !== intentGeneration.current || !selectionMounted.current) return null;
       reactJob("corpus.remove-binary", data);
+      if (slug === target) {
+        setSlug(currentSession && currentSession.projectSlug ? currentSession.projectSlug : "");
+        beginSelection(null);
+        setEvidencePacket(null);
+      }
+
       if (currentSession && currentSession.projectSlug === target) {
         resetTabState();
         const cleared = sessions.map(function (item) {
@@ -5702,11 +5891,6 @@
           });
         });
         await persistSessions(trimmed, activeSession);
-      }
-      if (slug === target) {
-        setSlug(currentSession && currentSession.projectSlug ? currentSession.projectSlug : "");
-        setSelected(null);
-        setDetail(null);
       }
       await loadBinaries();
     }
@@ -5807,7 +5991,8 @@
        existing wb-fnbrowse path, never a second row list: switch to the
        Functions tab, narrow its own search so the row loads into view, then
        reuse selectRow -- the same click handler the table itself uses. */
-    function selectFunctionLeaf(name, addr) {
+    function selectFunctionLeaf(name, addr, scope) {
+      if (scope && scope !== targetIdentity(targetRef.current)) return;
       jumpTo("wb-fnbrowse");
       onSearch(name || addr || "");
       selectRow({ name: name || "", addr: addr || "" });
@@ -6256,7 +6441,7 @@
           </div>
         </section>`;
       }
-      const decompileText = (detail && detail.decompile && detail.decompile.text) || "";
+      const decompileText = (detail && detail.resolvedFunction && selected && detail.resolvedFunction.addr === selected.addr && detail.decompile && detail.decompile.text) || "";
       /* Classic layout keeps today's side-by-side Listing/Decompile split, unchanged.
          The CodeBrowser layout lifts Decompile into its own persistent dock (see
          decompileDock() below), so Listing here is always single-column there. */
@@ -6292,10 +6477,13 @@
               })}
             </ul>` : null}
             ${selected && selected.addr
-              ? html`<${ListingRows} addr=${selected.addr} name=${selected.name} program=${program}
-                  runReadAction=${runReadAction}
-                  assemblyText=${detail && detail.assembly && detail.assembly.text}
-                  fallbackText=${(detail && detail.preview) || ("Reading " + program + " from the Ghidra project on disk…")}
+              ? html`<${ListingRows} key=${selectionKey} addr=${selected.addr} name=${selected.name} program=${program}
+                  runReadAction=${function (id, parameters, options) {
+                    if (!isCurrentIntent(renderIntent)) return Promise.resolve({ ok: false, ignored: true, error: "Selection changed." });
+                    return runReadAction(id, parameters, Object.assign({}, options, { selectionIntent: renderIntent }));
+                  }}
+                  assemblyText=${detail && detail.resolvedFunction && detail.resolvedFunction.addr === selected.addr && detail.assembly && detail.assembly.text}
+                  fallbackText=${(detail && detail.resolvedFunction && detail.resolvedFunction.addr === selected.addr && detail.preview) || ("Reading " + program + " from the Ghidra project on disk…")}
                   onJumpAddr=${function (target) { selectRow({ addr: target, name: target }); }} />`
               : html`<pre className="wb-preview" id="wb-listing-preview">${(detail && detail.preview) || (program
                   ? ("Reading " + program + " from the Ghidra project on disk…")
@@ -6336,7 +6524,8 @@
        Listing. When nothing is selected, it keeps the last function that had
        a decompile, per the guide's "connected views" behavior. */
     function decompileDockBody() {
-      const liveText = detail && detail.decompile && detail.decompile.text;
+      const liveText = detail && detail.resolvedFunction && selected && detail.resolvedFunction.addr === selected.addr
+        && detail.decompile && detail.decompile.text;
       const text = liveText || (lastDecompile && lastDecompile.text) || "";
       const request = detail && detail.evidenceRequest;
       let status = "";
@@ -6355,7 +6544,7 @@
           <p className="wb-hint" role="status">${status || "Pick a function to see its decompiled C."}</p>
         </div>`;
       }
-      const name = (liveText && selected && selected.name)
+      const name = (liveText && detail.resolvedFunction && detail.resolvedFunction.name)
         || (lastDecompile && lastDecompile.name)
         || (selected && selected.name)
         || "function";
@@ -6363,10 +6552,10 @@
         || (lastDecompile && lastDecompile.source)
         || "";
       return html`<div className="wb-decompile-pane">
-        <h3>Decompile: ${name}</h3>
+        <h3>Decompile: ${name} ${!liveText && lastDecompile ? "(previous function @ " + lastDecompile.addr + ")" : ""}</h3>
         <p className="wb-hint" role="status">${status
           ? status + " Showing the last function read."
-          : (source === "recovered" ? "Recovered C for this function." : "Decompiler pane.")}</p>
+          : (!liveText ? "Showing the previous function read; the current address has no decompile evidence." : (source === "recovered" ? "Recovered C for this function." : "Decompiler pane."))}</p>
         <pre className="wb-preview" id="wb-decompile-preview">${text}</pre>
       </div>`;
     }
@@ -6787,8 +6976,8 @@
                       setSlug(activeProjectSlug);
                       setProgram("");
                       patchActiveSession({ program: "" });
-                      setSelected(null);
-                      setDetail(null);
+                      beginSelection(null);
+                      setEvidencePacket(null);
                     }
                   }}>
                   ${projectCard.name}
@@ -6804,16 +6993,13 @@
                         title=${name}
                         onClick=${function (ev) {
                           ev.stopPropagation();
-                          selectProgram(name);
                           if (activeProjectSlug) setSlug(activeProjectSlug);
-                          setSelected(null);
-                          setDetail(null);
+                          selectProgram(name);
                         }}
                         onDoubleClick=${function (ev) {
                           ev.stopPropagation();
-                          selectProgram(name);
                           if (activeProjectSlug) setSlug(activeProjectSlug);
-                          ensureGhidraProgram(name, { locator: currentLocator() });
+                          selectProgram(name);
                           jumpTo("decompile");
                         }}>${name}</button>
                       <button type="button" className="wb-text-action wb-remove"
@@ -6879,11 +7065,13 @@
                 onClick=${function () { runCommand("view.browse"); }}>Browse all functions</button>
             </p>
           </div>
-          <${SymbolTree} program=${program}
+          <${SymbolTree} program=${program} scopeKey=${targetKey}
             hint=${dossier && dossier.error ? "Symbols need a readable project. " + dossier.error : ""}
             runReadAction=${runReadAction}
             onOpenFunctions=${function () { jumpTo("wb-fnbrowse"); }}
-            onSelectFunction=${function (fn) { selectFunctionLeaf(fn.name, fn.addr); }} />
+            onSelectFunction=${function (fn, scope) {
+              if (scope && scope === targetKey && scope === targetIdentity(targetRef.current)) selectFunctionLeaf(fn.name, fn.addr, scope);
+            }} />
         </aside>
         <${SplitHandle} axis="x" label="Resize explorer"
           value=${sideW} min=${180} max=${900}

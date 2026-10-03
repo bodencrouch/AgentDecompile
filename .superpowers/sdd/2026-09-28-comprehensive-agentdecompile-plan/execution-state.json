@@ -1,0 +1,277 @@
+{
+  "plan": "docs/plans/2026-09-28-comprehensive-agentdecompile-plan.md",
+  "plan_sha256": "42bbb486706e529b20007ae0b680509b30d4988cb55612e3f00b46fc8c9f9c44",
+  "branch": "codex/review-identity-workbench-fixes",
+  "program_complete": false,
+  "scope": "Bounded source slices only; no full integration unit accepted from source checks.",
+  "completed_source_slices": [
+    {
+      "id": "13.1",
+      "base": "527b847a",
+      "head": "d43a86fb",
+      "review": "task-13-fix-r1-review.md",
+      "fix_rounds": 1
+    },
+    {
+      "id": "1.1",
+      "base": "860731e5",
+      "head": "2a16c365",
+      "review": "task-1-fix-r1-review.md",
+      "fix_rounds": 1
+    },
+    {
+      "id": "29.1",
+      "base": "6e4b313d",
+      "head": "bdbb4ef7",
+      "review": "task-29-review.md",
+      "fix_rounds": 0
+    },
+    {
+      "id": "11.1",
+      "base": "6e4b313d",
+      "head": "d966fefc",
+      "review": "task-11-review.md",
+      "fix_rounds": 0
+    },
+    {
+      "id": "25.1",
+      "base": "6e4b313d",
+      "head": "c5c191e0",
+      "review": "task-25-fix-r1-review.md",
+      "fix_rounds": 1
+    },
+    {
+      "id": "8.1",
+      "base": "d966fefc",
+      "head": "2590e25a",
+      "review": "task-8-review.md",
+      "fix_rounds": 0
+    },
+    {
+      "id": "42.1",
+      "base": "c5c191e0",
+      "head": "1d468be5",
+      "review": "task-42-fix-r1-review.md",
+      "fix_rounds": 1
+    },
+    {
+      "id": "11.2",
+      "base": "2590e25a",
+      "head": "2472d02b",
+      "review": "task-11-target-fix-r1-review.md",
+      "fix_rounds": 1
+    },
+    {
+      "id": "3.1",
+      "base": "2a6f49a2",
+      "head": "81f819c3",
+      "review": "task-3-fix-r1-review.md",
+      "fix_rounds": 1
+    },
+    {
+      "id": "21.1",
+      "base": "1d468be5",
+      "head": "bb414041",
+      "review": "task-21-review.md",
+      "fix_rounds": 0,
+      "deferred_minors": [
+        "M1 fixed pre-slice compatibility payload/digest fixture"
+      ]
+    },
+    {
+      "id": "4.1",
+      "base": "bb414041",
+      "head": "1c74b9c5",
+      "review": "task-4-review.md",
+      "fix_rounds": 0
+    },
+    {
+      "id": "11.3",
+      "base": "1f29d91d",
+      "head": "dd7f2af0",
+      "review": "task-11-parity-review.md",
+      "fix_rounds": 0,
+      "deferred_minors": [
+        "M1 lost child ownership before cleanup regression"
+      ]
+    },
+    {
+      "id": "2.1",
+      "base": "dd7f2af0",
+      "head": "7a0ffdfa",
+      "review": "task-2-review.md",
+      "fix_rounds": 0
+    },
+    {
+      "id": "11.4",
+      "base": "515d3de6",
+      "head": "7d6fdbf2",
+      "review": "task-11-region-review.md",
+      "fix_rounds": 0,
+      "deferred_minors": [
+        "M1 integrated nested-stage reservation deadline regression"
+      ]
+    },
+    {
+      "id": "2.2",
+      "base": "adf0bbb4",
+      "head": "e00b92e4",
+      "review": "task-2-delete-review.md",
+      "fix_rounds": 0
+    },
+    {
+      "id": "11.5",
+      "base": "adf0bbb4",
+      "head": "cc452407",
+      "review": "task-11-admission-fix-r1-review.md",
+      "fix_rounds": 1
+    },
+    {
+      "id": "2.3",
+      "base": "81d455517ddf9e25dcc7c3320cee00f3dee41709",
+      "head": "34b7287f123cff90c36eeac08f287db8833aeea0",
+      "review": "task-2-stabs-fix-r1-review.md",
+      "fix_rounds": 1
+    },
+    {
+      "id": "15.1",
+      "base": "cc4524075cacdf25a1ae667ab97c92b1f740656c",
+      "head": "d2e0ccc2ca3a63fa12a0686f39527f1f69535c06",
+      "review": "task-15-fix-r2-review.md",
+      "fix_rounds": 2,
+      "deferred_minors": [
+        "M1 Listing focus index clamp on shrink"
+      ]
+    },
+    {
+      "id": "11.6a",
+      "base": "7eb844b374ce254fe9214bad1b589e5e530fb057",
+      "head": "244396d8cf41e95ab8002b105b4e7ac5a2939df9",
+      "review": "task-11-runtime-profile-review.md",
+      "fix_rounds": 0,
+      "deferred_minors": [
+        "M1 otherwise-valid strict JSON negative specimens"
+      ]
+    },
+    {
+      "id": "2.4",
+      "base": "b989ad20b32cd587942d628cd6fb46b9da692de8",
+      "head": "5578ae9c1c2d0feeed604f876f71036582aae0d1",
+      "review": "task-2-decomp-review.md",
+      "fix_rounds": 0,
+      "parallel_regressions_report": "task-2-decomp-tests-report.md"
+    },
+    {
+      "id": "11.6b",
+      "base": "2ddca4a825839c6ee73979d30e9400b69e93228b",
+      "source_base": "b989ad20",
+      "head": "403c86f8592c85f67aec3e4a637890e9522153b5",
+      "review": "task-11-native-helper-review.md",
+      "fix_rounds": 0,
+      "parallel_regressions_report": "task-11-native-helper-tests-report.md"
+    },
+    {
+      "id": "9.1",
+      "base": "5578ae9c1c2d0feeed604f876f71036582aae0d1",
+      "head": "d87c0f8fc7df1369548e2915dbf460b5d4260d13",
+      "review": "task-9-durable-authority-review.md",
+      "parallel_regressions_report": "task-9-durable-authority-tests-report.md",
+      "corrections": "DA-S1-S7 plus raw selected DB identity refinement",
+      "source_only": true
+    },
+    {
+      "id": "2.5",
+      "base": "d87c0f8fc7df1369548e2915dbf460b5d4260d13",
+      "head": "eb153101dc7b3b2bb4a9e2dc281e2ff23117e109",
+      "review": "task-2-convention-review.md",
+      "fix_rounds": 1,
+      "corrections": "TEMP owned-table trigger refusal and malformed WITHOUT ROWID snapshot",
+      "source_only": true
+    }
+  ],
+  "active": {
+    "id": "2.6",
+    "phase": "adopted-source-implementation",
+    "agent": "/root/implement_type_ownership",
+    "brief": "task-2-type-brief.md",
+    "report": "task-2-type-report.md",
+    "base": "fc9828e1"
+  },
+  "ready_queue": [
+    {
+      "id": "2.6-tests",
+      "phase": "queued-until-worker-slot-frees",
+      "brief": "task-2-type-tests-brief.md",
+      "report": "task-2-type-tests-report.md"
+    }
+  ],
+  "briefs": {
+    "11.1": "task-11-brief.md",
+    "29.1": "task-29-brief.md",
+    "8.1": "task-8-brief.md",
+    "42.1": "task-42-brief.md",
+    "3.1": "task-3-brief.md",
+    "21.1": "task-21-brief.md",
+    "11.3": "task-11-parity-brief.md",
+    "4.1": "task-4-brief.md",
+    "2.1": "task-2-brief.md",
+    "11.4": "task-11-region-brief.md",
+    "2.2": "task-2-delete-brief.md",
+    "11.5": "task-11-admission-brief.md",
+    "15.1": "task-15-brief.md",
+    "2.3": "task-2-stabs-brief.md",
+    "11.6a": "task-11-runtime-profile-brief.md",
+    "2.4": "task-2-decomp-brief.md"
+  },
+  "later_prerequisite": "23 reviewed bounded source slices. Type schema migration13 and native removal source plus disjoint removal regressions are running concurrently. Type regression authorship queued until slot release. Full unit, database, process/filesystem and live recovery acceptance remain open.",
+  "game_prerequisite": "Task4.1 terminal-refusal source approved; actual same-build linked replacement producer and action resource/lifetime qualification remain missing.",
+  "rules": [
+    "Up to three concurrent implementation/review agents on disjoint source ownership; controller alone stages and commits owned task files.",
+    "Fresh implementer per slice; original implementer resumes fix rounds1-3",
+    "Per-slice spec and quality review required; scoped fix diffs use prior reviewed HEAD",
+    "No tests/builds/proofs/project imports/live mutations under current mission",
+    "No systemctl/restarts/alternate ports/push/publication",
+    "Parent owns progress and briefs; preserve all other edits",
+    "Do not delete SDD workspace before all plan work and final review complete",
+    "Serialize U2 decomp matcher-input edits in preparation.py with U9 preparation authority source; report-only reviews may run concurrently."
+  ],
+  "current_parent_dirty": [],
+  "live_evidence": {
+    "health": "live-health-resume-oct03.json",
+    "catalog": "live-actions-continuation.json",
+    "pid": 2697197,
+    "startedAt": 1790595674.5226107,
+    "source_revision": "753d7fcea7580335e33533bf9aad693f6c5fe9b0",
+    "activated_local_source": false,
+    "source_revision_evidence": "Retained same-process module provenance only; current loaded revision not established.",
+    "fresh_process": "live-process-resume-oct03.json"
+  },
+  "concurrency_override": "Explicit user request for as many concurrent agents as possible in current continuation.",
+  "active_workers": [
+    {
+      "id": "2.6",
+      "phase": "adopted-source-implementation",
+      "agent": "/root/implement_type_ownership",
+      "brief": "task-2-type-brief.md",
+      "report": "task-2-type-report.md",
+      "base": "fc9828e1"
+    },
+    {
+      "id": "11.6c",
+      "phase": "adopted-source-implementation",
+      "agent": "/root/implement_native_removal",
+      "brief": "task-11-native-removal-brief.md",
+      "report": "task-11-native-removal-report.md",
+      "base": "fc9828e1",
+      "native_source_base": "403c86f8"
+    },
+    {
+      "id": "11.6c-tests",
+      "phase": "authored-regression-source",
+      "agent": "/root/author_native_removal_tests",
+      "brief": "task-11-native-removal-tests-brief.md",
+      "report": "task-11-native-removal-tests-report.md"
+    }
+  ],
+  "last_controller_checkpoint": "fc9828e113e8965a7f44c1f68e2775e83d5700d0"
+}

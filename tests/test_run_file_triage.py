@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import shutil
 from pathlib import Path
 
 import pytest
@@ -13,6 +14,12 @@ from agentdecompile_cli.mcp_utils.static_triage import _merge_tier_escalation, b
 from agentdecompile_cli.registry import Tool, get_tool_analysis_tier
 
 pytestmark = pytest.mark.unit
+
+# build_file_triage_payload() shells out to the system `file` and `strings`
+# binaries and degrades to an empty description/values list rather than
+# raising when they're missing -- offline-safe for the tool itself, but it
+# means these two assertions need the real binaries present to mean anything.
+_HAS_FILE_AND_STRINGS = shutil.which("file") is not None and shutil.which("strings") is not None
 
 
 @pytest.fixture
@@ -26,6 +33,7 @@ def test_run_file_triage_is_tier_zero() -> None:
     assert get_tool_analysis_tier(Tool.RUN_FILE_TRIAGE) == 0
 
 
+@pytest.mark.skipif(not _HAS_FILE_AND_STRINGS, reason="requires file and strings on PATH")
 def test_build_file_triage_payload_core_fields(sample_binary: Path) -> None:
     payload = build_file_triage_payload(
         sample_binary,
@@ -44,6 +52,7 @@ def test_build_file_triage_payload_core_fields(sample_binary: Path) -> None:
     assert "externalScans" not in payload
 
 
+@pytest.mark.skipif(not _HAS_FILE_AND_STRINGS, reason="requires file and strings on PATH")
 def test_build_file_triage_payload_string_filter(sample_binary: Path) -> None:
     payload = build_file_triage_payload(
         sample_binary,

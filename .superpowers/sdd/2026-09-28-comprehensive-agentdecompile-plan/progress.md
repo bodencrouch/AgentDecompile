@@ -588,3 +588,12 @@ Task11.5 initial review: spec failed/quality needs fixes; Important1 same Ed2551
 
 Task2.2: complete bounded source slice (adf0bbb4..e00b92e4); task-2-delete-review.md spec/quality approved with no findings. Actual DB behavior, general cross-build dependency deletion, installed consumers and full U2/U22 remain open.
 Task11.5 fix round1 dispatched /root/fix_current_admission_aliases from689f6dd1 under exact fix brief; original handle lost. U15 report-only source reconciliation dispatched /root/resolve_shared_selection_contract; runtime closure investigation continues.
+
+Task11.5 fix round1: cc4524075cacdf25a1ae667ab97c92b1f740656c rejects exact duplicate Ed25519 material across raw/node/ancestor entries; two new regression functions/eight cases unrun; two Python ASTs/diff checks pass. Scoped re-review from689f6dd1 pending.
+Read-only runtime corroboration live-health-current-admission-fix.json: healthy8080 PID2697197/start1790595674.5226107/startticks68973313/NVMe cwd, restarts0/watchedFiles0/revision blank. Retained matching-process module receipt remains provenance only; no new activation inferred. MemAvailable15137716kB/SwapFree14481768kB recorded; no local compute launched.
+
+Terminology clarification: deletion/schema references to U22 are the named child portable-plan-2026-09-21:U22 under integration U2, not integration U22 (optional AI). Current living-plan acceptance states use the namespaced child explicitly; no AI unit was affected or closed.
+
+Task11.5: fix round1/5 (Important1 addressed, 0 open/introduced;689f6dd1..cc452407); task-11-admission-fix-r1-review.md spec/quality PASS. Complete bounded current-signed-observation source slice fromadf0bbb4..cc452407 only; actual crypto/read behavior, owner provisioning, P3.2/P3.3 and full U11 remain open.
+Task15.1: adopted next-shared-selection-contract.md and implementation-ready task-15-brief.md fromcc452407; /root/implement_static_selection_isolation owns static script and at most one dedicated behavioral regression source. Runtime closure proposed contract under /root/review_runtime_closure_contract, not adopted; canonical remaining-DDL contract investigation /root/resolve_schema_ddl_contract queued concurrently.
+Ruling: Implement only the concrete static selected-response race now and reuse the equivalent React source fencing — actual root/caller inspection establishes a static-only defect while unrelated SymbolTree caches/drafts/history/batch predicates remain open — cost if wrong: additional separately owned consumer work, no claim of full U15 safety.

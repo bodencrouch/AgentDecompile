@@ -858,3 +858,59 @@ def test_pidfd_readiness_without_wait_status_does_not_confirm_exit(model):
     model.process.observe_exit()
     assert not model.process.confirmed_exit and not model.process.identity_lost
     assert model.wait_calls == [os.WEXITED | os.WNOHANG | os.WNOWAIT]
+
+
+@pytest.mark.parametrize("fault", ["claim", "generation", "lane", "boot_nonce", "root_fd", "writer"])
+def test_removal_bridge_exact_claim_rejects_mutation_before_handle_release(model, fault):
+    """Task11.6c private bridge model only; no deletion/exit qualification."""
+    model.process.confirmed_exit = True
+    quarantine = capture.CaptureQuarantine(model.lane, model.allocation, model.process, model.slot, "cancelled")
+    model.lane.occupant = quarantine
+    capture._record_quarantine(quarantine, writer_attempted=True,
+                               original_job_deadline_ns=600 * capture.NS, origin="capture_failure")
+    claim = object()
+    quarantine._removal_claim = claim
+    capture._check_removal_claim(quarantine, claim, 0)
+    if fault == "claim":
+        quarantine._removal_claim = object()
+    elif fault == "generation":
+        quarantine.removal_generation = 1
+    elif fault == "lane":
+        model.lane.occupant = object()
+    elif fault == "boot_nonce":
+        model.allocation.boot_nonce = "e" * 64
+    elif fault == "root_fd":
+        model.allocation.root_fd = 799
+    else:
+        quarantine.process = None
+    occupant = model.lane.occupant
+    with pytest.raises(capture.CaptureRefused):
+        capture._finalize_removal(quarantine, claim, 0)
+    assert model.closed == [] and model.lane.occupant is occupant
+    assert quarantine._removal_terminal is None
+
+
+def test_removal_bridge_exact_claim_without_qualified_gate_cannot_release_handles(model):
+    """Claim ownership alone is not the removal run's terminal qualification."""
+    model.process.confirmed_exit = True
+    quarantine = capture.CaptureQuarantine(model.lane, model.allocation, model.process, model.slot, "cancelled")
+    model.lane.occupant = quarantine
+    capture._record_quarantine(quarantine, writer_attempted=True,
+                               original_job_deadline_ns=600 * capture.NS, origin="capture_failure")
+    claim = object()
+    quarantine._removal_claim = claim
+    for gate in (None, object()):
+        with pytest.raises(capture.CaptureRefused):
+            capture._finalize_removal(quarantine, claim, 0, gate)
+    assert model.closed == [] and model.lane.occupant is quarantine
+    assert (model.allocation.root_fd, model.allocation.parent_fd) == (701, 702)
+    assert quarantine._removal_terminal is None
+
+
+def test_removal_bridge_mutable_removed_label_never_mints_terminal_proof(model):
+    quarantine = capture.CaptureQuarantine(model.lane, model.allocation, model.process, model.slot, "cancelled")
+    model.lane.occupant = quarantine
+    quarantine.cleanup_state = "removed"
+    assert capture.request_cleanup(quarantine).state == "cleanup_incomplete"
+    assert model.closed == [] and model.lane.occupant is quarantine
+    assert quarantine._removal_terminal is None

@@ -3,7 +3,7 @@
 Preparation is ONLY an explicit quiescent, single-threaded maintenance operation.
 It may block in kernel filesystem/spawn calls. No scheduler registration exists.
 The immutable installation and dedicated trusted UID are owner prerequisites.
-Physical removal is deliberately a separate, still-required helper interface.
+Physical removal uses the separate, still-unqualified native_removal interface.
 """
 from __future__ import annotations
 
@@ -394,6 +394,14 @@ class CaptureQuarantine:
     completion_received: bool = False
     cleanup_state: str = "blocked_pending_exit"
     held_fds: list[int] = field(default_factory=list)
+    removal_generation: int = field(default=0, init=False)
+    _removal_claim: object | None = field(default=None, init=False, repr=False)
+    _removal_owner: object | None = field(default=None, init=False, repr=False)
+    _removal_history: list = field(default_factory=list, init=False, repr=False)
+    _removal_started: bool = field(default=False, init=False, repr=False)
+    _removal_terminal: object | None = field(default=None, init=False, repr=False)
+    _removal_gate: object | None = field(default=None, init=False, repr=False)
+    _provenance: object | None = field(default=None, init=False, repr=False)
 
     def observe_exit(self) -> None:
         """Later passive metadata observation enables removal only, not success."""
@@ -412,20 +420,175 @@ class CleanupDisposition:
     state: Literal["blocked_pending_exit", "queued_owned_removal", "cleanup_incomplete", "removed"]
 
 
-def request_cleanup(quarantine: CaptureQuarantine) -> CleanupDisposition:
-    """Metadata-only queue admission. No removal exists in this source packet.
+@dataclass(frozen=True)
+class _QuarantineProvenance:
+    quarantine: CaptureQuarantine
+    lane: CaptureLane
+    allocation: object
+    process: OwnedProcess | None
+    writer_attempted: bool
+    original_job_deadline_ns: int | None
+    origin: str
+    anchors: tuple
+    process_anchor: tuple
+    slot: PreparedCaptureSlot | None
+    held_fds: list[int]
+    held_snapshot: tuple[int, ...]
 
-    A future fixed removal helper MUST consume this SAME live allocation and
-    parent/root identity, compare retained parent's name to root dev/ino/mount
-    before every root-level mutation, reject symlinks/mounts/special anomalies,
-    cap depth24/entries16384/path512 and 20s cooperative work, and retain its own
-    pidfd/finite cancellation. Only its confirmed successful exit may set removed
-    and release the lane. No receipt/JSON/path can reconstruct that authority.
+
+def _allocation_snapshot(allocation: object) -> tuple:
+    if type(allocation) is not profile_api.OwnedAllocation:
+        return ()
+    return (allocation.root_fd, allocation.parent_fd, allocation.device, allocation.inode,
+            allocation.mount_id, allocation.parent_identity, allocation.boot_nonce, allocation.allocation_name)
+
+
+def _record_quarantine(quarantine: CaptureQuarantine, *, writer_attempted: bool,
+                       original_job_deadline_ns: int | None, origin: str) -> None:
+    """Acquisition-branch provenance, never reconstructed by cleanup admission."""
+    if quarantine._provenance is not None or origin not in ("preparation_failure", "capture_failure", "expired_slot"):
+        _fail("quarantine provenance already recorded")
+    if type(writer_attempted) is not bool:
+        _fail("writer-attempt provenance must be explicit")
+    if original_job_deadline_ns is not None:
+        _uint(original_job_deadline_ns)
+    held = quarantine.slot.held_fds if quarantine.slot is not None else quarantine.held_fds
+    quarantine._provenance = _QuarantineProvenance(
+        quarantine, quarantine.lane, quarantine.allocation, quarantine.process, writer_attempted,
+        original_job_deadline_ns, origin, _allocation_snapshot(quarantine.allocation),
+        (() if quarantine.process is None else
+         (quarantine.process.pid, quarantine.process.pidfd, quarantine.process.identity)),
+        quarantine.slot, held, tuple(held))
+
+
+def _removal_authority(quarantine: CaptureQuarantine) -> _QuarantineProvenance:
+    """Metadata gate; the remover separately verifies actual descriptors/names."""
+    p = quarantine._provenance
+    a = quarantine.allocation
+    if (type(p) is not _QuarantineProvenance or p.quarantine is not quarantine
+            or p.lane is not quarantine.lane or quarantine.lane.occupant is not quarantine
+            or p.allocation is not a or p.process is not quarantine.process
+            or p.slot is not quarantine.slot
+            or (quarantine.slot.held_fds if quarantine.slot is not None else quarantine.held_fds) is not p.held_fds
+            or tuple(p.held_fds) != p.held_snapshot
+            or not p.anchors or p.anchors != _allocation_snapshot(a)
+            or a.root_fd < 0 or a.parent_fd < 0 or a.parent_identity is None
+            or len(a.parent_identity) != 3 or a.boot_nonce is None
+            or re.fullmatch("capture-[0-9a-f]{32}", a.allocation_name) is None):
+        _fail("lost live quarantine authority", "cleanup_incomplete")
+    for value in (a.device, a.inode, a.mount_id, *a.parent_identity, quarantine.removal_generation):
+        _uint(value)
+    _digest(a.boot_nonce)
+    if p.writer_attempted:
+        process = p.process
+        if (process is None or process.identity is None or process.identity_lost
+                or process.pidfd < 0 or not process.confirmed_exit
+                or process.pid != process.identity.pid
+                or (process.pid, process.pidfd) != p.process_anchor[:2]
+                or process.identity is not p.process_anchor[2]):
+            _fail("capture writer exit unqualified", "owned_process_identity_unavailable")
+    elif p.process is not None:
+        _fail("no-writer provenance changed", "owned_process_identity_unavailable")
+    if quarantine._removal_terminal is not None:
+        _fail("terminal allocation cannot be claimed", "cleanup_incomplete")
+    return p
+
+
+def _check_removal_claim(quarantine: CaptureQuarantine, claim: object, generation: int) -> None:
+    _uint(generation)
+    _removal_authority(quarantine)
+    if quarantine._removal_claim is not claim or quarantine.removal_generation != generation:
+        _fail("stale removal claim", "cleanup_incomplete")
+
+
+@dataclass(frozen=True)
+class _RemovalTombstone:
+    quarantine: CaptureQuarantine
+    claim: object
+    generation: int
+
+
+@dataclass(frozen=True)
+class _RemovalGate:
+    quarantine: CaptureQuarantine
+    claim: object
+    generation: int
+    process: OwnedProcess
+    identity: ProcessIdentity
+    deadline_ns: int
+    proof: object
+
+
+def _qualify_removal(quarantine: CaptureQuarantine, claim: object, generation: int,
+                     process: OwnedProcess, deadline_ns: int) -> _RemovalGate:
+    """Internal bridge from the exact removal run, never a public success flag."""
+    _check_removal_claim(quarantine, claim, generation)
+    proof = getattr(claim, "qualified", None)
+    run = getattr(proof, "run", None)
+    prepared = getattr(claim, "prepared", None)
+    if (proof is None or run is None or prepared is None or getattr(proof, "claim", None) is not claim
+            or getattr(proof, "generation", None) != generation or getattr(run, "prepared", None) is not prepared
+            or prepared.claim is not claim or prepared.process is not process or claim.process is not process
+            or getattr(run, "state", None) != "removed" or getattr(run, "complete", None) is not True
+            or getattr(run, "reason", None) is not None or claim.reason is not None or claim.retired
+            or getattr(run, "summary", None) is not getattr(proof, "summary", None)
+            or not all(prepared.eof) or process.identity is None or process.identity_lost
+            or proof.process is not process or proof.identity is not process.identity
+            or process.pidfd < 0 or not process.confirmed_exit or process.exit_code != 0
+            or deadline_ns != claim.attempt_deadline_ns or time.monotonic_ns() >= _uint(deadline_ns)
+            or proof.qualified_at_ns >= deadline_ns):
+        _fail("terminal removal proof unqualified", "cleanup_incomplete")
+    gate = _RemovalGate(quarantine, claim, generation, process, process.identity, deadline_ns, proof)
+    quarantine._removal_gate = gate
+    return gate
+
+
+def _finalize_removal(quarantine: CaptureQuarantine, claim: object, generation: int,
+                      gate: object | None = None) -> CleanupDisposition:
+    """One qualified live terminal gate; state strings and close are insufficient."""
+    _check_removal_claim(quarantine, claim, generation)
+    if (type(gate) is not _RemovalGate or gate is not quarantine._removal_gate
+            or gate.quarantine is not quarantine or gate.claim is not claim or gate.generation != generation
+            or gate.proof is not getattr(claim, "qualified", None) or gate.identity is not gate.process.identity):
+        _fail("missing terminal removal gate", "cleanup_incomplete")
+    _qualify_removal(quarantine, claim, generation, gate.process, gate.deadline_ns)
+    tombstone = _RemovalTombstone(quarantine, claim, generation)
+    # Close failures retain the lane. Mark each consumed descriptor immediately;
+    # neither a close nor a mutable cleanup_state alone establishes deletion.
+    quarantine.allocation.close()
+    if quarantine.slot is not None:
+        _close_transport(quarantine.slot)
+    else:
+        for fd in quarantine.held_fds:
+            os.close(fd)
+        quarantine.held_fds.clear()
+        if quarantine.process is not None and quarantine.process.pidfd >= 0:
+            os.close(quarantine.process.pidfd)
+            quarantine.process.pidfd = -1
+    quarantine._removal_gate = None
+    quarantine._removal_terminal = tombstone
+    quarantine.cleanup_state = "removed"
+    quarantine.lane.occupant = None
+    return CleanupDisposition("removed")
+
+
+def request_cleanup(quarantine: CaptureQuarantine) -> CleanupDisposition:
+    """Metadata-only queue hint; native_removal separately claims live authority.
+
+    Only the internal terminal tombstone returns removed after lane release.
+    No receipt, pathname, closed FD or mutable state string grants that result.
     """
+    terminal = quarantine._removal_terminal
+    if (type(terminal) is _RemovalTombstone and terminal.quarantine is quarantine
+            and terminal.claim is quarantine._removal_claim
+            and terminal.generation == quarantine.removal_generation):
+        return CleanupDisposition("removed")
     if quarantine.lane.occupant is not quarantine:
         return CleanupDisposition("cleanup_incomplete")
-    if quarantine.cleanup_state in ("queued_owned_removal", "cleanup_incomplete", "removed"):
+    if quarantine.cleanup_state in ("queued_owned_removal", "cleanup_incomplete"):
         return CleanupDisposition(quarantine.cleanup_state)
+    if quarantine.cleanup_state == "removed":
+        return CleanupDisposition("cleanup_incomplete")
     if quarantine.process is not None and not quarantine.process.confirmed_exit:
         return CleanupDisposition("blocked_pending_exit")
     allocation = quarantine.allocation
@@ -697,6 +860,7 @@ def prepare_capture_slot(owner_inputs: OwnerInputs, preparation_deadline: int) -
     deadline = min(_uint(preparation_deadline), now + 20 * NS)
     budget = profile_api._Budget(deadline / NS)
     allocation = process = slot = None
+    writer_attempted = False
     held: list[int] = []
     channels: list[socket.socket] = []
     if owner.lane.occupant is not None:
@@ -754,6 +918,7 @@ def prepare_capture_slot(owner_inputs: OwnerInputs, preparation_deadline: int) -
         budget.check()
         # Mark unknown spawn disposition before entering the kernel. An error
         # without a returned PID is not proof that no child ever existed.
+        writer_attempted = True
         process = OwnedProcess(-1)
         process.pid = _spawn_fixed(owner, [null, out_w, err_w, child_channel.fileno(), donor,
                                           allocation.root_fd, profile_doc, inventory_doc])
@@ -804,6 +969,8 @@ def prepare_capture_slot(owner_inputs: OwnerInputs, preparation_deadline: int) -
         for channel in channels:
             channel.close()
         quarantine = CaptureQuarantine(owner.lane, allocation, process, slot, reason, held_fds=held)
+        _record_quarantine(quarantine, writer_attempted=writer_attempted,
+                           original_job_deadline_ns=None, origin="preparation_failure")
         owner.lane.occupant = quarantine
         if process is not None and process.identity is not None:
             process.send_signal(signal.SIGKILL)
@@ -860,6 +1027,8 @@ class CaptureRun:
     term_until_ns: int | None = None
     exit_until_ns: int | None = None
     taken: bool = False
+    original_job_deadline_ns: int | None = None
+    quarantine_origin: str = "capture_failure"
 
     def request_cancel(self, now_ns: int, reason: str = "cancelled") -> None:
         _uint(now_ns)
@@ -999,6 +1168,8 @@ class CaptureRun:
         quarantine = CaptureQuarantine(self.slot.owner.lane, self.slot.allocation, self.slot.process, self.slot,
                                         self.reason or "capture_integrity_failed", self.cancel_at_ns, self.kill_at_ns,
                                         self.exit_until_ns, self.complete_reported)
+        _record_quarantine(quarantine, writer_attempted=True,
+                           original_job_deadline_ns=self.original_job_deadline_ns, origin=self.quarantine_origin)
         self.slot.owner.lane.occupant = quarantine
         return quarantine
 
@@ -1028,6 +1199,7 @@ def begin_capture(slot: PreparedCaptureSlot, seed_timing: dict) -> CaptureRun:
         if absolute - admitted != 600 * NS or admitted > now:
             _fail("seed must retain original 600s admission", "deadline_exceeded")
         run.absolute_deadline_ns = absolute
+        run.original_job_deadline_ns = absolute
         run.capture_deadline_ns = min(now + 90 * NS, absolute - 510 * NS)
         if (slot.prepared_at_ns <= 0 or now >= slot.prepared_at_ns + 30 * NS
                 or now >= run.capture_deadline_ns):
@@ -1051,6 +1223,7 @@ def expire_prepared_slot(slot: PreparedCaptureSlot, now_ns: int) -> CaptureRun:
         _fail("prepared slot has not expired")
     slot.used = True
     run = CaptureRun(slot, now_ns + 10 * NS, now_ns + 10 * NS)
+    run.quarantine_origin = "expired_slot"
     slot.owner.lane.occupant = run
     run.request_cancel(now_ns, "deadline_exceeded")
     return run

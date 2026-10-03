@@ -573,3 +573,13 @@ Task11.4 P2: source committed 7d6fdbf28895f6150d5390aa97d4d519196d5be6; exact ow
 
 Task11.4: independent /root/review_parity_region reviewing exact515d3de6..7d6fdbf2 owned-path package.
 Ruling: Accept strictly typed existing NodeKey lifecycle metadata as pinned metadata, without inferring lineage or introducing wall-clock expiry authority — current Keyring intentionally authorizes selected public material/role/lineage independently of that local-key lifecycle — cost if wrong: an owner must withdraw expired trust in the current admission snapshot; this slice does not add an expiry policy.
+
+Task2.2: source committed e00b92e4b49e8ee1f93f0acc15462681dcc655fa; exact owned-path review package from adf0bbb4d14c7a7721873fa42da6dbfc49f141a2. Five Python ASTs and whitespace/source checks pass; deletion/DB/regression behavior remains unexecuted. Independent review pending.
+
+Task11.4 P2: complete bounded source slice at7d6fdbf2; task-11-region-review.md approves spec/quality with zero Critical/Important findings. Minor M1 stage-boundary deadline regression deferred to final review; actual reservation call sites satisfy the contract. Native execution/current closure/source admission/full U11 remain open.
+Ruling: Defer P2 M1 integrated reservation-placement regression as nonblocking — direct deadline helper coverage exists and required reservations are source-confirmed — cost if wrong: future movement of reservation checks has weaker focused coverage until that follow-up.
+P3.2 /root/resolve_runtime_closure_contract now investigates a concrete native-only immutable execution profile; Task2.2 /root/review_delete_registry reviews exact adf0bbb4..e00b92e4 owned paths.
+
+Task11.5 P3.1: source committed 689f6dd1e8b45d1f4a20e7e48d7dd49cb623108b; scoped owned-path review package from adf0bbb4d14c7a7721873fa42da6dbfc49f141a2. Three Python ASTs/source checks pass; 29 authored regression functions unexecuted. No policy/key provisioning or runtime closure/consumer connection. Independent spec/quality review pending.
+
+Resume after intentional interruption: confirmed Task11.5 commit689f6dd1 completed and review package exists; old agent handles are gone and unfinished Task2.2/P3.2 report files are absent. Redispatched only pending work: /root/review_current_admission_resumed, /root/review_delete_registry_resumed, /root/resolve_runtime_closure_resumed. Latest user AGENTS replaces prior copies; reconstruct implementation reference is agentdecompile-cli reconstruct. No completed source slice redispatched.

@@ -489,3 +489,20 @@ Task42.1: fix round1 committed1d468be5; scoped review task-42-fix-r1.diff addres
 
 Task42.1: fix round1/5 (2 addressed, 0 open, 0 introduced — T42-R1 disk URL identity and T42-R2 Vitest lifecycle; commits1cdfe463..1d468be5).
 Task42.1: complete (owned source commitsc5c191e0..1cdfe463 and fix1cdfe463..1d468be5; spec/quality source review approved). Full U13/U42 and locked-version build/filesystem/browser/installed/reloader gates remain open.
+
+Task21.1: implementation dispatched /root/implement_filtered_matrix from1d468be5; brief task-21-brief.md. Exact logical subset SQL and both current matrix consumers only, no provider/cache or executing changes.
+Task3.1: source committed000d400a; task-3-review.diff records owned paths from2a6f49a2 for independent spec/quality review. Seven AST/source checks pass, real-image/regression/runtime/consumer behavior unrun.
+
+Task11.2: fix round1/5 from24d3547f — Important I1 fixed loaded helper closure omits ObjectRef.hex accessor; original implementer resumes narrow closure plus property/source-only mismatch regression source. Both source review gates remain open; execution/current admission gates remain separate.
+
+Live source-wave read-only check: live-health-source-wave.json corroborates healthy8080 PID2697197/start1790595674.5226107/NVMe roots/restarts0/watchedFiles0; /proc startticks68973313 and cwd unchanged. Health revision remains blank; retained catalog loaded-module provenance is still historical, not a new activation receipt. No recovery action or restart.
+
+Task11.2: fix round1 committed2472d02b; accessor closure plus loaded-property/source-only mismatch regression source; task-11-target-fix-r1.diff prepares scoped re-review. No behavioral or runtime acceptance.
+
+Task3.1: minor (deferred): M1 identity withdrawal fixture deletes an empty table; original worker may strengthen it with the adjacent I1 regression edits, without extending the blocking loop.
+Task3.1: fix round1/5 from000d400a — Important I1 SG_HIGHVM ignored while VA mapping assumes low-backed segment. Original worker resumes explicit unsupported-layout refusal and 32/64-bit regression sources. Narrow bounded scope stays unchanged; no high-VM mapper expansion.
+
+Task11.2: fix round1/5 (1 addressed, 0 open, 0 introduced — consumed ObjectRef.hex closure; commits24d3547f..2472d02b).
+Task11.2: complete (owned source commits2590e25a..24d3547f plus fix24d3547f..2472d02b; spec/quality approved). Full U11 remains open, including runtime/manifest sizing/reproducibility, independent current admission/key lineage, catalog and complete accepted-source chain.
+Task11.3 contract investigation: dispatched /root/resolve_parity_binding_contract; bounded parity-contract-investigation-brief.md, source-only next-parity-binding-contract.md ownership.
+Task3.1: fix round1 source committed81f819c3; SG_HIGHVM refusal and actual unrelated-edge withdrawal fixture, task-3-fix-r1.diff prepared for scoped review.

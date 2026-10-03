@@ -6668,8 +6668,20 @@
       const listingSignature = (detail && detail.function && detail.function.signature)
         || (detail && detail.decompile && detail.decompile.signature) || "";
       const listingSiblings = (detail && detail.siblings) || [];
+      /* U7 completion: the project tab (this Listing/Decompiler surface) now
+         keeps the peer rail visible alongside the focused peer's Listing and
+         Decompiler instead of only reachable from the separate "wb-peers" tab
+         (R12, R15-R18). Focusing a peer here just moves `slug` -- it never
+         changes centerTab -- so the shared cursor (`selected`) and this same
+         tab's layout both stay put; the Listing/Decompiler re-render for the
+         newly focused peer while the rail keeps every other peer's light
+         track visible. Below the corpus's ~30-tab ceiling this is the full
+         side-by-side delivery; the "wb-peers" tab and deep links (slug/tab
+         query params) are unchanged so neither regresses. */
+      const peerRailBinaries = (corpusStatus && corpusStatus.ladder && corpusStatus.ladder.binaries) || [];
+      const showPeerRail = peerRailBinaries.length > 1;
       return html`<${Surface} id="wb-inspect" title=${"Listing: " + (program || "—")}>
-        <div id="wb-inspect-body" className=${"wb-workspace-split" + (showInlineDecompile ? "" : " wb-listing-only")}>
+        <div id="wb-inspect-body" className=${"wb-workspace-split" + (showInlineDecompile ? "" : " wb-listing-only") + (showPeerRail ? " has-peer-rail" : "")}>
           <div className="wb-listing-pane">
           ${overview || selected || program ? html`<div>
             <h3 className="wb-listing-header">Listing ${listingTitle} ${(selected && selected.addr) ? html`<code>${selected.addr}</code>` : null}
@@ -6725,6 +6737,13 @@
             <pre className="wb-preview" id="wb-decompile-preview">${decompileText}</pre>
           </div>` : null}
           ${program ? html`<${CodeBrowserProviders} program=${program} locator=${currentLocator()} selectedAddr=${selected && selected.addr}/>` : null}
+          ${showPeerRail ? html`<aside className="wb-peer-rail" aria-label="Project peers">
+            <p className="wb-kicker">Peers</p>
+            <p className="wb-hint">Focus loads this peer's Listing/Decompiler here; the rest stay light (R15-R18).</p>
+            <${PeerLanes} binaries=${peerRailBinaries} activeSlug=${slug}
+              selected=${selected} siblings=${listingSiblings}
+              onFocusPeer=${function (peerSlug) { setSlug(peerSlug); }} />
+          </aside>` : null}
           <${CrossBuildDock} binaries=${(corpusStatus && corpusStatus.ladder && corpusStatus.ladder.binaries) || []}
             selected=${selected}
             onJumpAddr=${function (target) { selectRow({ addr: target, name: target }); }} />

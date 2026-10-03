@@ -2076,3 +2076,43 @@ body.workbench-page.wb-density-compact .wb-project-bar {
   background: #3c3f41;
   font-size: 11px;
 }
+
+/* --- Publish approval panel (R50) --- */
+
+.workbench-page .wb-publish-approval {
+  margin-top: var(--wb-space-3);
+  padding: var(--wb-space-3);
+  border: 1px solid var(--border);
+  background: var(--bg-sunken);
+}
+
+.workbench-page .wb-publish-approval h3 {
+  margin: 0 0 var(--wb-space-2);
+  color: var(--fg-head);
+  font-size: var(--wb-type-kicker);
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.workbench-page .wb-publish-approval [data-publish-status] {
+  font-weight: 600;
+}
+
+.workbench-page .wb-publish-approval [data-publish-status="blocked"] {
+  color: var(--danger);
+}
+
+.workbench-page .wb-publish-approval [data-publish-status="approvable"] {
+  color: var(--st-partial);
+}
+
+.workbench-page .wb-publish-approval [data-publish-status="approved_unsent"] {
+  color: var(--st-proven);
+}
+
+.workbench-page .wb-publish-approved {
+  padding: var(--wb-space-2);
+  border: 1px solid var(--st-proven);
+  background: var(--bg-panel);
+  color: var(--st-proven);
+}

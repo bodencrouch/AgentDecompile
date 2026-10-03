@@ -15,6 +15,8 @@ STATIC = ROOT / "src" / "agentdecompile_recovery" / "corpus" / "dashboard" / "st
 CSS = STATIC / "dashboard.css"
 JS = STATIC / "dashboard.js"
 ACTIONS_JS = STATIC / "actions.js"
+# The workbench loads every window from these two; a syntax error blanks all of them.
+WORKBENCH_SCRIPTS = (STATIC / "workbench-app.js", STATIC / "workbench.js")
 
 
 class DashboardStaticAssetTests(unittest.TestCase):
@@ -110,5 +112,14 @@ class DashboardStaticAssetTests(unittest.TestCase):
             timeout=10,
         )
         self.assertEqual(actions.returncode, 0, actions.stderr)
+        for script in WORKBENCH_SCRIPTS:
+            with self.subTest(script=script.name):
+                checked = subprocess.run(
+                    [node, "--check", str(script)],
+                    text=True,
+                    capture_output=True,
+                    timeout=30,
+                )
+                self.assertEqual(checked.returncode, 0, checked.stderr)
 
 

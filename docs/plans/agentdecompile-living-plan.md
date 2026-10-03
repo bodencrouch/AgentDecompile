@@ -12,6 +12,18 @@ Scope authority: `2026-09-28-comprehensive-agentdecompile-plan.md`. Queue: `agen
 
 This consolidation performed source/document checks only. It did not establish new software, installed-consumer, runtime, gameplay, host or release acceptance. Prior source implementation is preserved in the frozen frontend status and unit records; it must not be flattened to either “nothing exists” or “complete”.
 
+## Source reconciliation continuation — 2026-10-02 (Task 13.1)
+
+Bounded source reconciliation is complete in `/home/brunner56/.codex/worktrees/6e95/AgentDecompile`, branch `codex/review-identity-workbench-fixes`. The original local tip `527b847a8b27a20edd759803325e3e119a35a38e` retains review fixes `a804cf4b`, `a9b804aa`, and `527b847a`; planning import `93217a5c` preserves the three donor-identical plan artifacts. A real ancestry merge imports only committed donor `2595ef42efc04df9869d81b3f6e4f090729fe4bc`, common base `a8b6d2faf8a71b633fd5dedfd07cc493ee250536`. Local safety refs retain both source tips. Donor working-copy changes remain excluded.
+
+The five conflict files preserve sticky matcher quarantine, weak-hash exclusion and incremental destination ownership; transitive identity invalidation now uses donor content-hash tokens and destination-scoped updates; donor migration transactions retain durable backfill and failure-close semantics; preparation retains `currentStage`; exact-child observation and EOF cancellation feed the donor's single resource reservation authority. Donor WorkstationApp, `/react/`, static shell, routing and package declarations remain intact. Local AtlasApp/session and exchange serialization/cancellation fixes remain byte-identical to their original reviewed source. Regression sources were adapted to merged interfaces without executing them.
+
+Evidence: [Task 13.1 report](../../.superpowers/sdd/2026-09-28-comprehensive-agentdecompile-plan/task-13-report.md) and its before/donor/after blob manifest. Verification is source-only: AST parsing of 407 changed Python files, conflict-marker and dictionary-key checks, ancestry/blob/path checks and scoped whitespace checks. Historical proofs are reused evidence on their original revisions, not rerun proof of this merged source.
+
+This closes only the committed source reconciliation slice, **not U13** or any other delivery unit. Selection-preserving redirect/browser receipts, staged hashed-assets/atomic-index/old-chunk rollout, installed consumer/reloader, positive/refusal execution, platform/runtime and fresh whole-image acceptance remain open. Runtime identity is inherited from the controller's current receipt: 8080 PID 2697197/start 1790595674.5226107/cwd `/home/brunner56/agentdecompile-nvme`, catalog receipt `564ff3819ece` loads MyBook modules at source-root HEAD `753d7fcea7580335e33533bf9aad693f6c5fe9b0`; this isolated source was not activated. No tests, builds, project imports, services, restart, push or publication were performed.
+
+Next concrete missing source predicates: U25/U28 cave producer qualification and bounded canonical-input depth (V5/R6); then U1/U21 independent accepted-source receipt adapter with exact target/source/version/dependency binding. Independent merged-source review and separately authorized software/installed/browser acceptance remain required.
+
 ## Execution continuation — 2026-09-28
 
 Execution continues in `/home/brunner56/ad-wt/consolidation-20260928`, branch `codex/branch-consolidation-20260928`, starting at `24ef91c`. This branch carries the earlier frontend/export implementation. The eight pre-existing dirty paths recorded in the SDD progress ledger remain excluded from this execution's writes and commits.
@@ -58,7 +70,7 @@ Each row tracks source implementation, installed consumer, software validation, 
 | U10 | External verification and portable recovered projects | U1, U4, U9 | unassessed-current | Reconcile retained source/evidence, then close the first missing child predicate |
 | U11 | Reusable donated compute foundation and adapters | U1, U9 | unassessed-current | Reconcile retained source/evidence, then close the first missing child predicate |
 | U12 | Autonomous capability product M1–M7 | U6, U9 | unassessed-current | Reconcile retained source/evidence, then close the first missing child predicate |
-| U13 | Source and package reconciliation | None | unassessed-current | Reconcile retained source/evidence, then close the first missing child predicate |
+| U13 | Source and package reconciliation | None | Task 13.1 committed source reconciled; software/installed/live acceptance open | Review merged source, then qualify redirects, atomic asset rollout and exact installed consumer |
 | U14 | Project lifecycle, admission and tab contexts | U13, U29, U9 | unassessed-current | Reconcile retained source/evidence, then close the first missing child predicate |
 | U15 | Shared selection, navigation and accessible shell | U13 | unassessed-current | Reconcile retained source/evidence, then close the first missing child predicate |
 | U16 | Full CodeBrowser and Ghidra guide parity | U15, U29 | unassessed-current | Reconcile retained source/evidence, then close the first missing child predicate |

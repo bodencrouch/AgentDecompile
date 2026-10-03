@@ -23,6 +23,7 @@ import subprocess
 from dataclasses import dataclass
 from typing import Any, Callable
 
+from .targeted_ai import resolve_targeted_ai
 from .rewrite_context import check_rewrite_content, extract_code_block, render_rewrite_prompt
 
 SCHEMA = "agentdecompile.rewrite-fulfillment.v1"
@@ -96,6 +97,9 @@ def fulfill_rewrite(
     construct, unchanged source -- resolves to a `failed` result rather than an
     exception, so one bad rewrite cannot abort a campaign sweep.
     """
+
+    if not resolve_targeted_ai().enabled:
+        return {**_failed(pack, "Targeted AI disabled by operator"), "ran": False}
 
     prompt = render_rewrite_prompt(pack)
     command = build_cli_command(cli=cli, model=model)

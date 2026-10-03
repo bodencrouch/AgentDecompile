@@ -246,7 +246,7 @@ def test_versioned_persistence_forwards_context_through_fallback(monkeypatch):
     monkeypatch.setattr(provider, "_dispose_decompilers_for_domain_file", dispose)
     monkeypatch.setattr(import_export.SESSION_CONTEXTS, "get_or_create", lambda *_: SimpleNamespace(open_programs={}))
     provider._save_domain_file_before_versioned_checkin(domain_file, target.program, program_info=target)
-    assert seen == [("persist", target), ("dispose", target), ("dispose", target)]
+    assert seen == [("persist", target), ("dispose", target)]
     assert provider.program_info is other
 
 

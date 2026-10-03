@@ -8,6 +8,8 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
+from agentdecompile_cli.mcp_utils.ghidrecomp_runner import run_ghidrecomp
+
 try:
     from ghidrecomp.decompile import decompile as ghidrecomp_decompile
     from ghidrecomp.decompile import gen_proj_bin_name_from_path, get_bin_output_path
@@ -135,17 +137,22 @@ def build_batch_decompile_payload(
             raise RuntimeError("ghidrecomp is not installed")
         runner = ghidrecomp_decompile
 
-    runner(args)
+    run_ghidrecomp(args, runner)
 
     if gen_proj_bin_name_from_path is None or get_bin_output_path is None:
         raise RuntimeError("ghidrecomp is not installed")
 
     bin_name = gen_proj_bin_name_from_path(path)
     bin_output = Path(get_bin_output_path(output_root, bin_name))
-    decomp_dir = bin_output / "decomp"
+    # ghidrecomp writes per-function C to ``decomps``; ``decomp`` is kept for older layouts.
     callgraph_dir = bin_output / "callgraphs"
 
-    decompiled_files = _collect_artifact_files(decomp_dir, suffix=".c")
+    decompiled_files = sorted(
+        {
+            *_collect_artifact_files(bin_output / "decomps", suffix=".c"),
+            *_collect_artifact_files(bin_output / "decomp", suffix=".c"),
+        },
+    )
     callgraph_files = _collect_artifact_files(callgraph_dir, suffix=".md")
 
     return {

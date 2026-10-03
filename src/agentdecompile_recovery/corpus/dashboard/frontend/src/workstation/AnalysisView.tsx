@@ -1,3 +1,5 @@
+import {ContainerTree} from './ContainerTree';
+import {ExpertView} from './ExpertView';
 import {useEffect,useState} from 'react';
 import {API,query,type Data,type SurfaceProps} from '../contracts';
 import {useData,ErrorLine,RecordView} from '../ui';
@@ -17,6 +19,8 @@ export function AnalysisView({tab,props,onEvidence}:{tab:AnalysisTab;props:Surfa
   const overview=useData(!local&&tab==='Info'&&(selection.slug||selection.program)?`${API}/workspace?${query(selection)}`:null,revision);
   useEffect(()=>{if(detail.error)props.notify(detail.error,'error');if(overview.error)props.notify(overview.error,'error');},[detail.error,overview.error,props.notify]);
   useEffect(()=>{onEvidence(local?{provider:'Local artifact parser',binaryHash:selection.binaryHash,status:'Metadata only; no source or match proof'}:normalized);},[raw,selection.binaryHash,local,onEvidence]);
+  if(tab==='Container')return <ContainerTree selection={selection} revision={revision} onSelect={onSelect}/>;
+  if(tab==='Expert')return <ExpertView selection={selection} revision={revision} onSelect={onSelect}/>;
   if(tab==='Providers')return <ProviderView revision={revision} onAction={props.onAction}/>;
   if(local)return <LocalBytes tab={tab} hash={selection.binaryHash!} addr={selection.addr} revision={revision} onSelect={onSelect}/>;
   if(tab==='Scripts')return <div className="ws-empty"><h2>Script console</h2><p>Review script, target, and approval before execution. Output is retained in Logs.</p><button disabled={!selection.program} onClick={()=>props.onAction('mcp.execute-script',{code:'print(currentProgram.getName())'})}>Open script editor</button></div>;

@@ -6,6 +6,7 @@ import type {
   ProviderResult,
   Revision,
 } from "../analysis/contracts";
+import {ProviderRegistry} from "../providers/registry";
 import { ProjectIndex } from "../index/projectIndex";
 import { artifactParserCapability, createArtifactParserSession } from "../workers/artifactParser";
 import type { ArtifactInspection } from "../workers/artifactParser.worker";
@@ -18,16 +19,18 @@ import { projectStore } from "../storage/projectStore";
  */
 export class LocalProjectRuntime {
   readonly index = new ProjectIndex();
+  readonly providers = new ProviderRegistry();
   private revisionId = "";
   private model: NormalizedAnalysisModel;
 
   constructor(readonly projectId: string) {
+    this.providers.register({capability:artifactParserCapability});
     this.model = {
       schemaVersion: 1,
       projectId,
       artifacts: [], binaries: [], functions: [], instructions: [], basicBlocks: [],
       xrefs: [], decompilerResults: [], findings: [], evidence: [],
-      capabilities: [artifactParserCapability],
+      capabilities: this.providers.capabilities(),
     };
   }
 

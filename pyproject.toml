@@ -73,9 +73,8 @@ Changelog = "https://github.com/bolabaden/AgentDecompile/releases"
 agentdecompile        = "agentdecompile_cli.cli:cli_entry_point"
 agentdecompile-cli    = "agentdecompile_cli.cli:cli_entry_point"
 agentdecompile-recover = "agentdecompile_recovery.cli:main"
-agentdecompile-reconstruct = "agentdecompile_recovery.frontdoor:main"
 agentdecompile-corpus = "agentdecompile_recovery.corpus.cli:main"
-agentdecompile-acquisition-query = "agentdecompile_recovery.acquisition_mcp:main"
+adgrid = "agentdecompile_grid.cli:main"
 # MCP stdio entrypoint.
 agentdecompile-mcp    = "agentdecompile_cli.__main__:main"
 mcp_agentdecompile    = "agentdecompile_cli.__main__:main"
@@ -85,7 +84,17 @@ agentdecompile-server = "agentdecompile_cli.server:main"
 # Proxy entry point: forward MCP to a remote backend (no local PyGhidra).
 agentdecompile-proxy = "agentdecompile_cli.server:proxy_main"
 
+# Grid extension points (design 1.1: the grid never imports the pipeline; lanes register by name).
+[project.entry-points."agentdecompile_grid.lanes"]
+recovery = "agentdecompile_recovery.grid_lanes"
+
+[project.entry-points."agentdecompile_grid.task_kinds"]
+builtin = "agentdecompile_grid.tasks.builtin:BUILTIN_KINDS"
+
 [project.optional-dependencies]
+# Optional backends for the consolidated grid command.
+s3 = ["boto3"]
+signing = ["cryptography"]
 semantic = [
   "chromadb",
 ]
@@ -104,7 +113,7 @@ test = [
 # PyPI package, and cannot be expressed as a pip dependency. Install it
 # separately with `dotnet tool install -g ilspycmd`; see README.md.
 all = [
-  "agentdecompile[semantic,unity]",
+  "agentdecompile[semantic,unity,s3,signing]",
 ]
 
 [build-system]
@@ -120,7 +129,7 @@ package-dir = {"" = "src"}
 
 [tool.setuptools.packages.find]
 where = ["src"]
-include = ["agentdecompile_cli*", "agentdecompile_recovery*"]
+include = ["agentdecompile_cli*", "agentdecompile_recovery*", "agentdecompile_grid*"]
 exclude = ["*.frontend", "*.frontend.*"]
 
 [tool.setuptools.package-data]
@@ -266,6 +275,7 @@ python_functions = ["test_*"]
 addopts = "-v --tb=short"
 #addopts = "-ra -q -m \"not slow\""
 markers = [
+    "determinism_cascade: cascade-level determinism gate (U5c-b); red until Phase 0 ordering fixes land",
     "cli: All CLI-specific tests",
     "e2e: End-to-end tests via subprocess",
     "gui: marks tests that require a GUI (deselect with '-m \"not gui\"')",

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 import shutil
 import subprocess
 import tempfile
@@ -171,6 +172,7 @@ def _summarize_objdiff_report(report: dict[str, Any], *, unit_filter: str | None
             {
                 "name": name,
                 "matchPercent": float(match_percent) if isinstance(match_percent, (int, float)) else None,
+                "size": measures.get("total_code"),
                 "totalFunctions": measures.get("total_functions"),
                 "matchedFunctions": measures.get("matched_functions"),
                 "nonmatchingCount": len(nonmatching),
@@ -178,8 +180,14 @@ def _summarize_objdiff_report(report: dict[str, Any], *, unit_filter: str | None
             }
         )
 
-    percents = [u["matchPercent"] for u in selected if u.get("matchPercent") is not None]
-    overall = sum(percents) / len(percents) if percents else None
+    # A tiny unit cannot weigh as much as a large one. Missing sizes or scores
+    # leave the aggregate unknown; do not quietly revert to an unweighted mean.
+    measured = all(type(u.get("size")) in (int, float) and math.isfinite(u["size"])
+                   and u["size"] >= 0 and type(u.get("matchPercent")) in (int, float)
+                   and math.isfinite(u["matchPercent"]) and 0 <= u["matchPercent"] <= 100
+                   for u in selected)
+    weight = sum(u["size"] for u in selected) if measured else 0
+    overall = sum(u["size"] * u["matchPercent"] for u in selected) / weight if weight else None
     all_nonmatching: list[dict[str, Any]] = []
     for unit in selected:
         all_nonmatching.extend(unit.get("nonmatchingFunctions") or [])
@@ -187,6 +195,7 @@ def _summarize_objdiff_report(report: dict[str, Any], *, unit_filter: str | None
     return {
         "units": selected,
         "overallMatchPercent": overall,
+        "aggregation": "size-weighted" if weight else "unknown-unit-size-or-score",
         "nonmatchingFunctions": all_nonmatching[:100],
     }
 

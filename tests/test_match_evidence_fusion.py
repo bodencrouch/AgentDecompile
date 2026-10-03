@@ -1,5 +1,6 @@
 """Integration: byte anchors, weak hash candidates, and identical images."""
 
+import hashlib
 import sqlite3
 
 from agentdecompile_recovery.corpus.fingerprint_hashes import attach_hashes, hash_raw_bytes
@@ -16,6 +17,8 @@ def _db():
 
 
 def _insert_binary(con, slug, *, content_sha256=None, md5=None):
+    # The merged matcher names dependency evidence by image hash, not row ID.
+    content_sha256 = content_sha256 or hashlib.sha256(slug.encode()).hexdigest()
     con.execute(
         "INSERT INTO binary(repo_path, slug, arch, bits, format, game, md5, content_sha256) VALUES (?,?,?,?,?,?,?,?)",
         (f"/tmp/{slug}", slug, "x86", 32, "PE", "g", md5, content_sha256),

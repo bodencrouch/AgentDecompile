@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 from pathlib import Path
 
 import pytest
@@ -16,6 +17,15 @@ from agentdecompile_recovery.corpus.ingest_recovered import (
 from agentdecompile_recovery.corpus.store import connect
 
 pytestmark = pytest.mark.unit
+
+
+def observed_target(tmp_path):
+    target = tmp_path / 'target.bin'
+    data = bytes.fromhex('33c0c3')
+    target.write_bytes(data)
+    digest = hashlib.sha256(data).hexdigest()
+    return {'targetSnapshot': {'path': str(target), 'size': len(data), 'sha256': digest},
+            'targetRegion': {'address': 4096, 'offset': 0, 'size': len(data), 'sha256': digest}}
 
 
 @pytest.fixture
@@ -106,6 +116,9 @@ def test_seed_promotion_requires_byte_exact_compile_and_destination_identity(
     results = tmp_path / "seed_validation.jsonl"
     results.write_text(json.dumps({
         "compile_status": "byte_exact",
+        "comparisonPolicy": "raw-region-v1",
+        **observed_target(tmp_path),
+        "sourceSha256": hashlib.sha256(seed.read_bytes()).hexdigest(),
         "static_status": "identity_linked",
         "dst_slug": "game__bin",
         "dst_repo": "/arbitrary/game",
@@ -130,3 +143,13 @@ def test_seed_promotion_requires_byte_exact_compile_and_destination_identity(
     assert promotions[0]["logical_id"] == 10
     assert promotions[0]["binary_id"] == 1
     assert promotions[0]["program"] == "bin"
+
+    observed = json.loads(results.read_text())
+    for patch in ({'comparisonPolicy': 'masked-prefix'}, {'destination_bytes': '909090'},
+                  {'size': 2}, {'targetSnapshot': None},
+                  {'targetRegion': {**observed['targetRegion'], 'address': 8192}}):
+        results.write_text(json.dumps({**observed, **patch}) + '\n')
+        assert load_seed_promotions(con, results, reuse) == []
+    results.write_text(json.dumps(observed) + '\n')
+    Path(observed['targetSnapshot']['path']).write_bytes(b'changed target')
+    assert load_seed_promotions(con, results, reuse) == []

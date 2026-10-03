@@ -16,6 +16,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Protocol
 
+from .targeted_ai import resolve_targeted_ai
 from . import rewrite_queue
 from .autonomous_policy import choose_next_action
 from .background_task_coordinator import BackgroundSpawnContext, BackgroundTaskCoordinator
@@ -471,6 +472,9 @@ class PluginPipeline:
         a provider that actually returned a verdict resolves the entry.
         """
 
+        if not resolve_targeted_ai().enabled:
+            self.emit({"type": "rewrite-skipped", "ran": False, "reason": "Targeted AI disabled by operator"})
+            return
         claimant = f"in-process-{request_id}"
         if not rewrite_queue.claim_pending_entry(work_dir, request_id, claimant=claimant):
             return
@@ -500,6 +504,9 @@ class PluginPipeline:
         decision: dict[str, Any],
         previous_attempts: list[dict[str, Any]] | None = None,
     ) -> None:
+        if not resolve_targeted_ai().enabled:
+            self.emit({"type": "rewrite-skipped", "ran": False, "reason": "Targeted AI disabled by operator"})
+            return
         row = context.get("sourceParityRow")
         candidate = context.get("selectedSourceCandidate")
         work_dir_value = context.get("workDir")

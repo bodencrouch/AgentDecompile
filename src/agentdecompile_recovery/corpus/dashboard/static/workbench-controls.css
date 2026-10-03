@@ -230,3 +230,15 @@
 .workbench-page .wb-kind-shared-http { color: var(--kind-shared-http); }
 .workbench-page .wb-kind-bin { color: var(--kind-bin); }
 .workbench-page .wb-kind-draft { color: var(--kind-draft); }
+.workbench-page .wb-workflow-control {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border);
+}
+.workbench-page .wb-workflow-control > span {
+  overflow-wrap: anywhere;
+  min-width: 0;
+}

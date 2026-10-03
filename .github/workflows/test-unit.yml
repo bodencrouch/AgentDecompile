@@ -34,10 +34,18 @@ jobs:
         run: uv sync --all-extras --dev
 
       - name: Ruff (src and tests)
-        run: uv run ruff check --no-fix src/ tests/
+        run: uv run ruff check --no-fix src/ tests/ native/python/gnsdk
 
       - name: Anonymization gate
-        run: bash scripts/check-anonymization.sh
+        env:
+          NAME_DENYLIST_SECRET: ${{ secrets.AGENT_DECOMPILE_NAME_DENYLIST }}
+        run: |
+          if [ -z "$NAME_DENYLIST_SECRET" ]; then
+            echo "::error::repository secret AGENT_DECOMPILE_NAME_DENYLIST is not set; the anonymization gate cannot run"
+            exit 2
+          fi
+          printf '%s\n' "$NAME_DENYLIST_SECRET" > "$RUNNER_TEMP/name-denylist.txt"
+          AGENT_DECOMPILE_NAME_DENYLIST="$RUNNER_TEMP/name-denylist.txt" bash scripts/check-anonymization.sh
 
       - name: Run unit tests
         run: uv run pytest -m unit -q --timeout=120 --tb=short --cov --cov-report=xml:coverage.xml

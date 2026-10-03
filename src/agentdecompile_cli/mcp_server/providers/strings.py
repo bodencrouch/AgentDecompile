@@ -38,6 +38,10 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+# search-code fallback caps (used when the code index is absent, e.g. --local).
+_SEARCH_CODE_MAX_FUNCTIONS = 500
+_SEARCH_CODE_DECOMPILE_TIMEOUT_S = 10
+
 _STRING_MUTATING_MODES: frozenset[str] = frozenset({"create", "update", "delete"})
 
 
@@ -135,18 +139,25 @@ class StringToolProvider(ToolProvider):
             ),
             types.Tool(
                 name=Tool.SEARCH_CODE.value,
-                description="Scan all function names across the entire program looking for a specific text string.",
+                description="Search function names and decompiled C for a text or regex pattern. Without a code index it decompiles up to 500 functions (overrideMaxFunctionsLimit lifts the cap).",
                 inputSchema={
                     "type": "object",
                     "properties": {
                         "programPath": {"type": "string", "description": "The active program project."},
                         "binaryName": {"type": "string", "description": "Alternative parameter for programPath."},
-                        "query": {"type": "string", "description": "The function name fragment to hunt for."},
-                        "searchMode": {"type": "string", "description": "How to match the text against functions.", "enum": ["semantic", "literal"], "default": "semantic"},
-                        "limit": {"type": "integer", "default": 100, "description": "Number of results to return. Typical values are 100–500."},
+                        "query": {"type": "string", "description": "Text or regex to find in function names and decompiled code."},
+                        "pattern": {"type": "string", "description": "Alternative parameter for query."},
+                        "maxResults": {"type": "integer", "default": 10, "description": "Alternative parameter for limit."},
+                        "similarityThreshold": {"type": "number", "default": 0.0, "description": "Minimum similarity (0.0-1.0) for semantic code-index results."},
+                        "searchMode": {"type": "string", "description": "How to match: semantic (code index), literal, or regex.", "enum": ["semantic", "literal", "regex"], "default": "semantic"},
+                        "caseSensitive": {"type": "boolean", "default": False, "description": "Case-sensitive matching (fallback search)."},
+                        "includeFullCode": {"type": "boolean", "default": False, "description": "Include the full decompiled function in each result."},
+                        "previewLength": {"type": "integer", "default": 200, "description": "Snippet length around a code match."},
+                        "overrideMaxFunctionsLimit": {"type": "boolean", "default": False, "description": "Scan every function instead of the first 500."},
+                        "limit": {"type": "integer", "default": 10, "description": "Number of results to return."},
                         "offset": {"type": "integer", "default": 0, "description": "Pagination offset."},
                     },
-                    "required": ["query"],
+                    "required": [],
                 },
             ),
         ]
@@ -171,18 +182,29 @@ class StringToolProvider(ToolProvider):
         query: str = self._require_str(args, "query", "pattern", "text", name="query")
         offset, limit = self._get_pagination_params(args, default_limit=10)
         mode: str = self._get_str(args, "searchmode", "mode", default="semantic")
+        mode_norm: str = mode.strip().lower()
+        case_sensitive = self._get_bool(args, "casesensitive", "cases", default=False)
 
-        if ghidra_tools is not None:
+        # The code index (GhidraTools.search_code) has no regex or case-sensitive
+        # matching, so those requests go straight to the decompiling fallback.
+        if ghidra_tools is not None and mode_norm != "regex" and not case_sensitive:
             try:
                 from agentdecompile_cli.models import SearchMode
 
-                mode_norm: str = mode.strip().lower()
                 search_mode = SearchMode.LITERAL if mode_norm == "literal" else SearchMode.SEMANTIC
+                threshold_raw = self._get_str(args, "similaritythreshold", "simthreshold", "threshold", default="")
+                try:
+                    similarity_threshold = float(threshold_raw) if threshold_raw != "" else 0.0
+                except ValueError:
+                    similarity_threshold = 0.0
                 results = ghidra_tools.search_code(
                     query=query,
                     limit=limit,
                     offset=offset,
                     search_mode=search_mode,
+                    include_full_code=self._get_bool(args, "includefullcode", "fullcode", default=False),
+                    preview_length=self._get_int(args, "previewlength", "previewlen", "snippetlength", default=200) or 200,
+                    similarity_threshold=similarity_threshold,
                 )
                 if hasattr(results, "model_dump"):
                     return create_success_response(results.model_dump())
@@ -191,44 +213,150 @@ class StringToolProvider(ToolProvider):
                 logger.warning("search-code semantic/literal backend unavailable, using fallback search: %s", e)
 
         assert program_info is not None, "Program info is required for search-code"
+        return create_success_response(self._search_code_fallback(args, query, mode, offset, limit, program_info=program_info))
+
+    def _search_code_fallback(
+        self,
+        args: dict[str, Any],
+        query: str,
+        mode: str,
+        offset: int,
+        limit: int,
+        *,
+        program_info: ProgramInfo | SimpleNamespace,
+    ) -> dict[str, Any]:
+        """Search function names and decompiled C when the code index is unavailable.
+
+        Scans at most ``_SEARCH_CODE_MAX_FUNCTIONS`` functions (lifted by
+        overrideMaxFunctionsLimit) with a per-function decompile timeout, the
+        same lease pattern search-everything uses for its decompilation scope.
+        """
+        logger.debug("diag.enter %s", "mcp_server/providers/strings.py:StringToolProvider._search_code_fallback")
         program = program_info.program
         fm = self._get_function_manager(program, program_info=program_info)
+        case_sensitive = self._get_bool(args, "casesensitive", "cases", default=False)
+        include_full_code = self._get_bool(args, "includefullcode", "fullcode", default=False)
+        preview_length = self._get_int(args, "previewlength", "previewlen", "snippetlength", default=200) or 200
+        no_limit = self._get_bool(args, "overridemaxfunctionslimit", "nolimit", default=False)
+        max_functions = None if no_limit else _SEARCH_CODE_MAX_FUNCTIONS
+        mode_norm = mode.strip().lower()
+        flags = 0 if case_sensitive else re.IGNORECASE
+        if mode_norm == "regex":
+            try:
+                pattern = re.compile(query, flags)
+            except re.error as exc:
+                raise ValueError(f"Invalid regex for search-code: {exc}") from exc
+        else:
+            pattern = re.compile(re.escape(query), flags)
+
+        def _snippet(text: str, m: re.Match[str]) -> str:
+            half = max(preview_length // 2, 20)
+            start = max(m.start() - half, 0)
+            end = min(m.end() + half, len(text))
+            return ("..." if start else "") + text[start:end] + ("..." if end < len(text) else "")
 
         matches: list[dict[str, Any]] = []
         skipped = 0
-        needle = query.lower()
-        for func in fm.getFunctions(True):
-            function_name = str(func.getName())
-            if needle not in function_name.lower():
-                continue
-            if skipped < offset:
-                skipped += 1
-                continue
-            if len(matches) >= limit:
-                break
-            matches.append(
-                {
+        scanned = 0
+        decompile_failures = 0
+        scan_capped = False
+        decompile_unavailable: str | None = None
+
+        lease_cm: Any = None
+        try:
+            from agentdecompile_cli.mcp_server.providers._collectors import make_task_monitor
+            from agentdecompile_cli.mcp_utils.decompiler_util import acquire_decompiler_for_program, get_decompiled_function_from_results
+
+            session_decompiler: Any = None
+            getter = getattr(program_info, "get_decompiler", None)
+            if callable(getter):
+                try:
+                    session_decompiler = getter()
+                except Exception:
+                    session_decompiler = getattr(program_info, "decompiler", None)
+            else:
+                session_decompiler = getattr(program_info, "decompiler", None)
+            # Build the monitor first: acquiring the lease takes the session lock,
+            # and an exception after that point would never release it.
+            monitor = make_task_monitor()
+            lease_cm = acquire_decompiler_for_program(session_decompiler, program)
+        except Exception as exc:
+            decompile_unavailable = str(exc)
+            lease_cm = None
+
+        def _scan(decompiler: Any) -> None:
+            nonlocal skipped, scanned, decompile_failures, scan_capped
+            for func in fm.getFunctions(True):
+                if len(matches) >= limit:
+                    break
+                if max_functions is not None and scanned >= max_functions:
+                    scan_capped = True
+                    break
+                scanned += 1
+                function_name = str(func.getName())
+                name_match = pattern.search(function_name)
+                code = ""
+                if decompiler is not None:
+                    try:
+                        dr = decompiler.decompileFunction(func, _SEARCH_CODE_DECOMPILE_TIMEOUT_S, monitor)
+                        if dr is not None and dr.decompileCompleted():
+                            df = get_decompiled_function_from_results(dr)
+                            code = str(df.getC()) if df is not None else ""
+                        else:
+                            decompile_failures += 1
+                    except Exception:
+                        decompile_failures += 1
+                code_match = pattern.search(code) if code else None
+                if name_match is None and code_match is None:
+                    continue
+                if skipped < offset:
+                    skipped += 1
+                    continue
+                row: dict[str, Any] = {
                     "function": function_name,
                     "address": str(func.getEntryPoint()),
-                    "match": "name",
-                },
-            )
+                    "match": "name+code" if (name_match and code_match) else ("code" if code_match else "name"),
+                }
+                if code_match is not None:
+                    row["line"] = code.count("\n", 0, code_match.start()) + 1
+                    row["snippet"] = _snippet(code, code_match)
+                if include_full_code and code:
+                    row["code"] = code
+                matches.append(row)
 
-        return create_success_response(
-            {
-                "query": query,
-                "searchMode": "literal-fallback",
-                "returnedCount": len(matches),
-                "offset": offset,
-                "limit": limit,
-                "results": matches,
-            },
-        )
+        if lease_cm is not None:
+            with lease_cm as lease:
+                _scan(lease.decompiler)
+        else:
+            _scan(None)
+
+        payload: dict[str, Any] = {
+            "query": query,
+            "searchMode": "regex-fallback" if mode_norm == "regex" else "literal-fallback",
+            "caseSensitive": case_sensitive,
+            "returnedCount": len(matches),
+            "offset": offset,
+            "limit": limit,
+            "scannedFunctions": scanned,
+            "maxFunctions": max_functions,
+            "scanCapped": scan_capped,
+            "decompileFailures": decompile_failures,
+            "results": matches,
+        }
+        if decompile_unavailable is not None:
+            payload["note"] = f"Decompiler unavailable; matched function names only ({decompile_unavailable})."
+        elif scan_capped:
+            payload["note"] = f"Stopped after {scanned} functions; pass overrideMaxFunctionsLimit=true to scan all."
+        return payload
 
     async def _handle(self, args: dict[str, Any], *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
         logger.debug("diag.enter %s", "mcp_server/providers/strings.py:StringToolProvider._handle")
         self._require_program(program_info=program_info)
-        mode = self._get_str(args, "mode", default="list")
+        # search-strings reaches here as manage-strings with no mode; a search text
+        # without a mode means search, not "list everything".
+        mode = self._get_str(args, "mode", default="")
+        if not mode:
+            mode = "search" if self._get_str(args, "pattern", "query", "search", "text", "regex", "searchstring", "filter") else "list"
         if n(mode) in _STRING_MUTATING_MODES:
             return await self._dispatch_handler(
                 args,
@@ -338,7 +466,8 @@ class StringToolProvider(ToolProvider):
         *, program_info: ProgramInfo | SimpleNamespace | None,
     ) -> list[types.TextContent]:
         logger.debug("diag.enter %s", "mcp_server/providers/strings.py:StringToolProvider._handle_list")
-        return self._filter_strings(strings, "list", "", min_len, max_results, offset, include_refs, program_info=program_info)
+        # A pattern given with mode=list narrows the listing (case-insensitive substring).
+        return self._filter_strings(strings, "list", pattern, min_len, max_results, offset, include_refs, program_info=program_info)
 
     async def _handle_regex(
         self,
@@ -437,6 +566,9 @@ class StringToolProvider(ToolProvider):
         total: int = len(strings)
 
         if mode_n == "count":
+            if pattern:
+                p_lower = pattern.lower()
+                strings = [s for s in strings if p_lower in str(s.get("value", "")).lower()]
             return create_success_response({"mode": "count", "totalStrings": len(strings)})
 
         if mode_n in {"search", "similarity"} and pattern:

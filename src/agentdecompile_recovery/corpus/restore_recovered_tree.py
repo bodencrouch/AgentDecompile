@@ -10,7 +10,7 @@ import collections
 import json
 from pathlib import Path
 
-from .export_run_report import RECOVERED_FUNCTION_DDL
+from .coverage_evidence import source_binding
 
 
 def index_package(package: Path | str) -> dict[str, list[Path]]:
@@ -45,12 +45,13 @@ def restore(
     dry_run: bool = False,
 ) -> dict:
     """Restore bodies under *recovered_dir* and merge ledgers under *coverage_dir*."""
-    con.executescript(RECOVERED_FUNCTION_DDL)
+    columns = {row[1] for row in con.execute("PRAGMA table_info(recovered_function)")}
+    digest_select = "source_sha256" if "source_sha256" in columns else "NULL AS source_sha256"
     recovered = Path(recovered_dir)
     coverage = Path(coverage_dir)
     rows = list(
         con.execute(
-            "SELECT program, name, size, convention, real_c, path, machine_code"
+            "SELECT program, name, size, convention, real_c, path, machine_code, " + digest_select +
             "  FROM recovered_function ORDER BY program, name"
         )
     )
@@ -61,40 +62,72 @@ def restore(
     for row in rows:
         program, name = row["program"], row["name"]
         path = Path(row["path"]) if row["path"] else recovered / program / f"{name}.c"
+        payload = None
+        stored_digest = row["source_sha256"]
+        recorded_binding = {"sourceSha256": stored_digest}
+        binding = {"current": False, "reason": "body_unavailable"}
         try:
-            path.relative_to(recovered)
+            path.resolve().relative_to(recovered.resolve())
         except ValueError:
             offtree += 1
         else:
-            if path.exists():
+            if path.is_file():
+                payload = path.read_bytes()
                 kept += 1
+            elif path.exists():
+                nobody += 1
             else:
-                src = pick(by_name.get(name, []), program)
+                candidates = by_name.get(name, [])
+                # Prefer exact producer-bound bytes when multiple packages share
+                # a function name. A matching digest does not supply a verdict.
+                matching = [candidate for candidate in candidates
+                            if stored_digest and source_binding(recorded_binding, candidate.read_bytes())["current"]]
+                src = matching[0] if matching else pick(candidates, program)
                 if src is None:
-                    if by_name.get(name):
+                    if candidates:
                         ambiguous += 1
                     else:
                         nobody += 1
-                elif not dry_run:
-                    path.parent.mkdir(parents=True, exist_ok=True)
-                    path.write_text(src.read_text(errors="replace"), encoding="utf-8")
-                    wrote += 1
                 else:
-                    wrote += 1
+                    payload = src.read_bytes()
+                    if not dry_run:
+                        path.parent.mkdir(parents=True, exist_ok=True)
+                        try:
+                            with path.open("xb") as stream:
+                                stream.write(payload)
+                        except FileExistsError:
+                            # Another writer won creation. Preserve and evaluate
+                            # its actual bytes instead of overwriting its work.
+                            payload = path.read_bytes()
+                            kept += 1
+                        else:
+                            wrote += 1
+                    else:
+                        wrote += 1
+            if payload is not None:
+                binding = source_binding(recorded_binding, payload)
 
-        ledgers[program].append(
-            {
-                "function": name,
-                "byteExact": True,
-                "byteExactVerified": True,
-                "matched": True,
-                "convention": row["convention"] or "",
-                "originalBytes": (row["machine_code"] or "").lower(),
-                "size": row["size"],
-                "error": "",
-                "batch": "restored-from-db",
-            }
-        )
+        item = {
+            "function": name,
+            "byteExact": False,
+            "byteExactVerified": False,
+            "matched": False,
+            "verificationState": "unverified",
+            "reused": True,
+            "sourceBinding": binding,
+            "convention": row["convention"] or "",
+            "originalBytes": (row["machine_code"] or "").lower(),
+            "size": row["size"],
+            "error": "Restored database metadata is not a fresh comparison or recovery acceptance",
+            "batch": "restored-from-db",
+        }
+        if binding["current"]:
+            item["sourceSha256"] = stored_digest
+        elif stored_digest:
+            # Keep the historical digest as provenance, never label mismatched
+            # output with the producer's current-binding field.
+            item["recordedSourceSha256"] = stored_digest
+        ledgers[program].append(item)
 
     ledger_stats = []
     for program, new_rows in sorted(ledgers.items()):
@@ -108,6 +141,8 @@ def restore(
                 try:
                     item = json.loads(line)
                 except ValueError:
+                    continue
+                if not isinstance(item, dict):
                     continue
                 fn = str(item.get("function") or "")
                 if fn not in existing:

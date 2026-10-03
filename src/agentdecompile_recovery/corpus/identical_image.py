@@ -12,6 +12,12 @@ from typing import Any, Mapping
 
 
 def content_digest(path: str | Path | None) -> str | None:
+    """SHA-256 of the file at *path* right now, or ``None`` when it is not a file.
+
+    A live filesystem read for the short-circuit only. It is never the writer
+    of ``binary.content_sha256``; that column comes from the raw-image backfill
+    pass (see the ``extract`` module docstring).
+    """
     if not path:
         return None
     p = Path(path)

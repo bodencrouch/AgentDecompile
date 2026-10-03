@@ -1,0 +1,120 @@
+<!--SEC:Canvas-->
+<svg xmlns="http://www.w3.org/2000/svg" width="1800" height="1700" viewBox="0 0 1800 1700">
+<rect x="0" y="0" width="1800" height="1700" rx="8" fill="#16181c" stroke="#16181c"/>
+<text x="35" y="43" font-family="DejaVu Sans, sans-serif" font-size="32" fill="#f2f4f7" font-weight="bold">Prevention, containment and recovery</text>
+<text x="35" y="78" font-family="DejaVu Sans, sans-serif" font-size="18" fill="#f0c060" font-weight="normal">DESIGN ONLY · future failure-injection checks NOT RUN · implement locally first using existing task/corpus contracts</text>
+<text x="35" y="109" font-family="DejaVu Sans, sans-serif" font-size="18" fill="#d8dbe0" font-weight="normal">One durable decision owner. Recover the affected dependency; retain the objective, evidence and independent work.</text>
+<!--SEC:Failure lifecycle-->
+<rect x="35" y="140" width="550" height="260" rx="8" fill="#20232a" stroke="#495364"/>
+<text x="51" y="170" font-family="DejaVu Sans, sans-serif" font-size="21" fill="#8cbaff" font-weight="bold">1 · Prevent, detect, classify</text>
+<text x="51" y="203" font-family="DejaVu Sans, sans-serif" font-size="17" fill="#d8dbe0" font-weight="normal">Fixture recheck after ownership, before mutation</text>
+<text x="51" y="229" font-family="DejaVu Sans, sans-serif" font-size="17" fill="#d8dbe0" font-weight="normal">Observe process tree, unit receipts and goal facts</text>
+<text x="51" y="255" font-family="DejaVu Sans, sans-serif" font-size="17" fill="#d8dbe0" font-weight="normal">Classify: mismatch / transient / resource / policy</text>
+<text x="51" y="281" font-family="DejaVu Sans, sans-serif" font-size="17" fill="#d8dbe0" font-weight="normal">Distinguish missing evidence from unhealthy resource</text>
+<text x="51" y="307" font-family="DejaVu Sans, sans-serif" font-size="17" fill="#d8dbe0" font-weight="normal">Unknown outcome stays unknown until reconciled</text>
+<text x="51" y="333" font-family="DejaVu Sans, sans-serif" font-size="17" fill="#d8dbe0" font-weight="normal">No health decision from one noisy sample alone</text>
+<text x="51" y="359" font-family="DejaVu Sans, sans-serif" font-size="17" fill="#d8dbe0" font-weight="normal">Capture exact input, policy and observation versions</text>
+<rect x="625" y="140" width="550" height="260" rx="8" fill="#20232a" stroke="#495364"/>
+<text x="641" y="170" font-family="DejaVu Sans, sans-serif" font-size="21" fill="#8cbaff" font-weight="bold">2 · Record the decision before effects</text>
+<text x="641" y="203" font-family="DejaVu Sans, sans-serif" font-size="17" fill="#d8dbe0" font-weight="normal">Pure reducer: frozen facts + policy → next action</text>
+<text x="641" y="229" font-family="DejaVu Sans, sans-serif" font-size="17" fill="#d8dbe0" font-weight="normal">Atomically reserve attempt budget + effect intent</text>
+<text x="641" y="255" font-family="DejaVu Sans, sans-serif" font-size="17" fill="#d8dbe0" font-weight="normal">One durable retry budget; no nested retry owners</text>
+<text x="641" y="281" font-family="DejaVu Sans, sans-serif" font-size="17" fill="#d8dbe0" font-weight="normal">Persist reason, scope, wake predicate + event cursor</text>
+<text x="641" y="307" font-family="DejaVu Sans, sans-serif" font-size="17" fill="#d8dbe0" font-weight="normal">Deterministic negative requires changed hypothesis</text>
+<text x="641" y="333" font-family="DejaVu Sans, sans-serif" font-size="17" fill="#d8dbe0" font-weight="normal">New user message does not reset attempt spending</text>
+<text x="641" y="359" font-family="DejaVu Sans, sans-serif" font-size="17" fill="#d8dbe0" font-weight="normal">Ledger unavailable → pause new managed mutations</text>
+<rect x="1215" y="140" width="550" height="260" rx="8" fill="#20232a" stroke="#495364"/>
+<text x="1231" y="170" font-family="DejaVu Sans, sans-serif" font-size="21" fill="#8cbaff" font-weight="bold">3 · Repair, reroute or wait</text>
+<text x="1231" y="203" font-family="DejaVu Sans, sans-serif" font-size="17" fill="#d8dbe0" font-weight="normal">Repair only classified prerequisites with evidence</text>
+<text x="1231" y="229" font-family="DejaVu Sans, sans-serif" font-size="17" fill="#d8dbe0" font-weight="normal">Reroute only to declared compatible capabilities</text>
+<text x="1231" y="255" font-family="DejaVu Sans, sans-serif" font-size="17" fill="#d8dbe0" font-weight="normal">Checkpoint/split within the unchanged claim scope</text>
+<text x="1231" y="281" font-family="DejaVu Sans, sans-serif" font-size="17" fill="#d8dbe0" font-weight="normal">Reconcile cursor + exact version/owner/provider wake</text>
+<text x="1231" y="307" font-family="DejaVu Sans, sans-serif" font-size="17" fill="#d8dbe0" font-weight="normal">Unknown non-idempotent effect: inspect, never replay</text>
+<text x="1231" y="333" font-family="DejaVu Sans, sans-serif" font-size="17" fill="#d8dbe0" font-weight="normal">Quarantine resources until end of access is proven</text>
+<text x="1231" y="359" font-family="DejaVu Sans, sans-serif" font-size="17" fill="#d8dbe0" font-weight="normal">Independent work continues only if fully supplied</text>
+<line x1="585" y1="269" x2="625" y2="269" stroke="#8cbaff" stroke-width="3"/>
+<polygon points="625,269 614,263 614,275" fill="#8cbaff"/>
+<line x1="1175" y1="269" x2="1215" y2="269" stroke="#8cbaff" stroke-width="3"/>
+<polygon points="1215,269 1204,263 1204,275" fill="#8cbaff"/>
+<!--SEC:Acceptance and preventive feedback-->
+<text x="35" y="449" font-family="DejaVu Sans, sans-serif" font-size="21" fill="#f2f4f7" font-weight="bold">Every recovery action returns through independent acceptance; an available process is not a repaired capability.</text>
+<rect x="35" y="480" width="550" height="260" rx="8" fill="#20232a" stroke="#495364"/>
+<text x="51" y="510" font-family="DejaVu Sans, sans-serif" font-size="21" fill="#c9a4f0" font-weight="bold">4 · Accept against the current basis</text>
+<text x="51" y="543" font-family="DejaVu Sans, sans-serif" font-size="17" fill="#d8dbe0" font-weight="normal">Inspect new artifact and claim-specific proof roots</text>
+<text x="51" y="569" font-family="DejaVu Sans, sans-serif" font-size="17" fill="#d8dbe0" font-weight="normal">Recheck dependencies, generation and policy version</text>
+<text x="51" y="595" font-family="DejaVu Sans, sans-serif" font-size="17" fill="#d8dbe0" font-weight="normal">Prepare durable artifact outside acceptance commit</text>
+<text x="51" y="621" font-family="DejaVu Sans, sans-serif" font-size="17" fill="#d8dbe0" font-weight="normal">Short commit: manifest reference + corpus receipt</text>
+<text x="51" y="647" font-family="DejaVu Sans, sans-serif" font-size="17" fill="#d8dbe0" font-weight="normal">Required task predicates determine completion</text>
+<text x="51" y="673" font-family="DejaVu Sans, sans-serif" font-size="17" fill="#d8dbe0" font-weight="normal">Failure retains useful units without promoting claim</text>
+<text x="51" y="699" font-family="DejaVu Sans, sans-serif" font-size="17" fill="#d8dbe0" font-weight="normal">Resource release is separate from acceptance</text>
+<rect x="625" y="480" width="550" height="260" rx="8" fill="#20232a" stroke="#495364"/>
+<text x="641" y="510" font-family="DejaVu Sans, sans-serif" font-size="21" fill="#7fd6a4" font-weight="bold">5 · Resume only the justified capability</text>
+<text x="641" y="543" font-family="DejaVu Sans, sans-serif" font-size="17" fill="#d8dbe0" font-weight="normal">Revalidate affected descendants, preserve others</text>
+<text x="641" y="569" font-family="DejaVu Sans, sans-serif" font-size="17" fill="#d8dbe0" font-weight="normal">Clear quarantine only on resource-release evidence</text>
+<text x="641" y="595" font-family="DejaVu Sans, sans-serif" font-size="17" fill="#d8dbe0" font-weight="normal">Expire old runtime preflight and reacquire live facts</text>
+<text x="641" y="621" font-family="DejaVu Sans, sans-serif" font-size="17" fill="#d8dbe0" font-weight="normal">Record liveness / unit progress / accepted progress</text>
+<text x="641" y="647" font-family="DejaVu Sans, sans-serif" font-size="17" fill="#d8dbe0" font-weight="normal">No ready work → durable wait, no repeated audit loop</text>
+<text x="641" y="673" font-family="DejaVu Sans, sans-serif" font-size="17" fill="#d8dbe0" font-weight="normal">Expose exact reason and next eligible wake condition</text>
+<text x="641" y="699" font-family="DejaVu Sans, sans-serif" font-size="17" fill="#d8dbe0" font-weight="normal">Unknown empirical results remain explicitly unknown</text>
+<rect x="1215" y="480" width="550" height="260" rx="8" fill="#20232a" stroke="#495364"/>
+<text x="1231" y="510" font-family="DejaVu Sans, sans-serif" font-size="21" fill="#f0c060" font-weight="bold">6 · Prevent recurrence without blind tuning</text>
+<text x="1231" y="543" font-family="DejaVu Sans, sans-serif" font-size="17" fill="#d8dbe0" font-weight="normal">Aggregate failure signatures by input/policy basis</text>
+<text x="1231" y="569" font-family="DejaVu Sans, sans-serif" font-size="17" fill="#d8dbe0" font-weight="normal">Propose narrow policy change with deciding metric</text>
+<text x="1231" y="595" font-family="DejaVu Sans, sans-serif" font-size="17" fill="#d8dbe0" font-weight="normal">Canary uses frozen baseline and bounded population</text>
+<text x="1231" y="621" font-family="DejaVu Sans, sans-serif" font-size="17" fill="#d8dbe0" font-weight="normal">Independent reviewer accepts evidence, not opinion</text>
+<text x="1231" y="647" font-family="DejaVu Sans, sans-serif" font-size="17" fill="#d8dbe0" font-weight="normal">Regression → restore prior admission policy version</text>
+<text x="1231" y="673" font-family="DejaVu Sans, sans-serif" font-size="17" fill="#d8dbe0" font-weight="normal">Preserve failure history; never reset spent budgets</text>
+<text x="1231" y="699" font-family="DejaVu Sans, sans-serif" font-size="17" fill="#d8dbe0" font-weight="normal">Roll back policy, not arbitrary already-run effects</text>
+<line x1="585" y1="610" x2="625" y2="610" stroke="#8cbaff" stroke-width="3"/>
+<polygon points="625,610 614,604 614,616" fill="#8cbaff"/>
+<line x1="1175" y1="610" x2="1215" y2="610" stroke="#8cbaff" stroke-width="3"/>
+<polygon points="1215,610 1204,604 1204,616" fill="#8cbaff"/>
+<!--SEC:Failure containment boundaries-->
+<rect x="35" y="790" width="550" height="285" rx="8" fill="#20232a" stroke="#495364"/>
+<text x="51" y="820" font-family="DejaVu Sans, sans-serif" font-size="21" fill="#ef968b" font-weight="bold">CONTROL PLANE · Fail read-only</text>
+<text x="51" y="853" font-family="DejaVu Sans, sans-serif" font-size="17" fill="#d8dbe0" font-weight="normal">Lost durable decision or acceptance authority:</text>
+<text x="51" y="879" font-family="DejaVu Sans, sans-serif" font-size="17" fill="#d8dbe0" font-weight="normal">pause new managed mutation/admission in that scope</text>
+<text x="51" y="905" font-family="DejaVu Sans, sans-serif" font-size="17" fill="#d8dbe0" font-weight="normal">Keep cached read-only evidence available with age</text>
+<text x="51" y="931" font-family="DejaVu Sans, sans-serif" font-size="17" fill="#d8dbe0" font-weight="normal">Old outputs stay private/quarantined until reconciled</text>
+<text x="51" y="957" font-family="DejaVu Sans, sans-serif" font-size="17" fill="#d8dbe0" font-weight="normal">Do not kill external owners or assume children stop</text>
+<text x="51" y="983" font-family="DejaVu Sans, sans-serif" font-size="17" fill="#d8dbe0" font-weight="normal">Reconcile owner/generation and durable log on return</text>
+<text x="51" y="1009" font-family="DejaVu Sans, sans-serif" font-size="17" fill="#d8dbe0" font-weight="normal">Unknown command outcome → inspect before retry</text>
+<text x="51" y="1035" font-family="DejaVu Sans, sans-serif" font-size="17" fill="#d8dbe0" font-weight="normal">Wake: healthy durable authority + reconciled state</text>
+<rect x="625" y="790" width="550" height="285" rx="8" fill="#20232a" stroke="#495364"/>
+<text x="641" y="820" font-family="DejaVu Sans, sans-serif" font-size="21" fill="#ef968b" font-weight="bold">DATA / PROVIDER · Isolate dependency</text>
+<text x="641" y="853" font-family="DejaVu Sans, sans-serif" font-size="17" fill="#d8dbe0" font-weight="normal">Bound storage probes outside coordinator loop</text>
+<text x="641" y="879" font-family="DejaVu Sans, sans-serif" font-size="17" fill="#d8dbe0" font-weight="normal">One recovery probe per provider + shared retry budget</text>
+<text x="641" y="905" font-family="DejaVu Sans, sans-serif" font-size="17" fill="#d8dbe0" font-weight="normal">Complete input closure required for alternate worker</text>
+<text x="641" y="931" font-family="DejaVu Sans, sans-serif" font-size="17" fill="#d8dbe0" font-weight="normal">Partial copies never become launchable manifests</text>
+<text x="641" y="957" font-family="DejaVu Sans, sans-serif" font-size="17" fill="#d8dbe0" font-weight="normal">Tmpfs is budgeted cache, not durable rescue default</text>
+<text x="641" y="983" font-family="DejaVu Sans, sans-serif" font-size="17" fill="#d8dbe0" font-weight="normal">Host loss needs independent replica AND worker</text>
+<text x="641" y="1009" font-family="DejaVu Sans, sans-serif" font-size="17" fill="#d8dbe0" font-weight="normal">Retry requires budget + safe resources + current basis</text>
+<text x="641" y="1035" font-family="DejaVu Sans, sans-serif" font-size="17" fill="#d8dbe0" font-weight="normal">Wake: new verified inputs / capability / released owner</text>
+<rect x="1215" y="790" width="550" height="285" rx="8" fill="#20232a" stroke="#495364"/>
+<text x="1231" y="820" font-family="DejaVu Sans, sans-serif" font-size="21" fill="#f0c060" font-weight="bold">POLICY / CANARY · Bound the change</text>
+<text x="1231" y="853" font-family="DejaVu Sans, sans-serif" font-size="17" fill="#d8dbe0" font-weight="normal">Policy is immutable versioned data; producer cannot edit</text>
+<text x="1231" y="879" font-family="DejaVu Sans, sans-serif" font-size="17" fill="#d8dbe0" font-weight="normal">Canary declares baseline, population and abort rule</text>
+<text x="1231" y="905" font-family="DejaVu Sans, sans-serif" font-size="17" fill="#d8dbe0" font-weight="normal">Compare acceptance errors, useful throughput and cost</text>
+<text x="1231" y="931" font-family="DejaVu Sans, sans-serif" font-size="17" fill="#d8dbe0" font-weight="normal">No broader rollout from a successful process exit</text>
+<text x="1231" y="957" font-family="DejaVu Sans, sans-serif" font-size="17" fill="#d8dbe0" font-weight="normal">Revert routing/admission version if metric regresses</text>
+<text x="1231" y="983" font-family="DejaVu Sans, sans-serif" font-size="17" fill="#d8dbe0" font-weight="normal">Reassess active attempts under their recorded policy</text>
+<text x="1231" y="1009" font-family="DejaVu Sans, sans-serif" font-size="17" fill="#d8dbe0" font-weight="normal">Accept only with pinned/current policy compatibility</text>
+<text x="1231" y="1035" font-family="DejaVu Sans, sans-serif" font-size="17" fill="#d8dbe0" font-weight="normal">Wake: accepted policy version or corrected evidence</text>
+<!--SEC:Distributed compute failure classes-->
+<rect x="35" y="1115" width="1730" height="210" rx="8" fill="#20232a" stroke="#495364"/>
+<text x="51" y="1145" font-family="DejaVu Sans, sans-serif" font-size="21" fill="#8cbaff" font-weight="bold">Distributed compute · failure classes and their containment</text>
+<text x="51" y="1178" font-family="DejaVu Sans, sans-serif" font-size="17" fill="#d8dbe0" font-weight="normal">Hot key starves the shared object store → split heads, batch records, full-jitter backoff, rotate after 8 failures (H7)</text>
+<text x="51" y="1204" font-family="DejaVu Sans, sans-serif" font-size="17" fill="#d8dbe0" font-weight="normal">Verification funnel livelocks → cap 4 proposals per task; verify before generating more (H8)</text>
+<text x="51" y="1230" font-family="DejaVu Sans, sans-serif" font-size="17" fill="#d8dbe0" font-weight="normal">Analysis slice never converges → per-binary slice cap; mark task-poison and pin the last packed program (H10)</text>
+<text x="51" y="1256" font-family="DejaVu Sans, sans-serif" font-size="17" fill="#d8dbe0" font-weight="normal">View applier lags → named view-stale state with an age bound; readers use pinned objects past it (H11)</text>
+<text x="51" y="1282" font-family="DejaVu Sans, sans-serif" font-size="17" fill="#d8dbe0" font-weight="normal">Operator liveness → fleet keys sign invites, extend revocation, mirror objects, run appliers; no single laptop on a liveness path (H13)</text>
+<!--SEC:Worked interruption and evidence boundary-->
+<rect x="35" y="1355" width="1730" height="285" rx="8" fill="#20232a" stroke="#495364"/>
+<text x="52" y="1390" font-family="DejaVu Sans, sans-serif" font-size="23" fill="#f2f4f7" font-weight="bold">Worked interruption · the command was sent, then the decision store disappeared</text>
+<text x="52" y="1429" font-family="DejaVu Sans, sans-serif" font-size="19" fill="#d8dbe0" font-weight="normal">Observe: command ID C may have changed the game; the connection closed before its result was durably recorded.</text>
+<text x="52" y="1464" font-family="DejaVu Sans, sans-serif" font-size="19" fill="#d8dbe0" font-weight="normal">Contain: pause new managed mutations in this scope; preserve read-only status and existing evidence; do not replay C.</text>
+<text x="52" y="1499" font-family="DejaVu Sans, sans-serif" font-size="19" fill="#d8dbe0" font-weight="normal">Recover: reconcile C against observed engine state and ownership. Resume only after durable authority and state agree.</text>
+<text x="52" y="1534" font-family="DejaVu Sans, sans-serif" font-size="19" fill="#d8dbe0" font-weight="normal">Future proof: inject disconnect; show no blind duplicate dispatch, retained unknown outcome, reconciliation and scoped resumption.</text>
+<text x="52" y="1569" font-family="DejaVu Sans, sans-serif" font-size="19" fill="#d8dbe0" font-weight="normal">If the effect cannot be determined, keep the affected operation waiting and expose the exact required observation.</text>
+<text x="52" y="1611" font-family="DejaVu Sans, sans-serif" font-size="18" fill="#f0c060" font-weight="normal">NOT RUN · design acceptance is artifact consistency; runtime recovery needs the future measurements specified in the plan.</text>
+</svg>

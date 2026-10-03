@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import hashlib
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -25,6 +25,7 @@ class TargetIdentity:
     format: str
     architecture_hint: str
     stable_id: str
+    snapshot: bytes | None = field(default=None, repr=False, compare=False)
 
     def to_json(self) -> dict[str, Any]:
         return {
@@ -101,11 +102,16 @@ def sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
-def identify_binary(input_path: Path, preferred_name: str | None = None) -> TargetIdentity:
+def identify_binary(input_path: Path, preferred_name: str | None = None, *, retain_snapshot: bool = False) -> TargetIdentity:
     binary = resolve_target(input_path, preferred_name)
-    digest = sha256_file(binary)
-    size = binary.stat().st_size
-    fmt, arch = inspect_magic(binary)
+    return identify_binary_snapshot(input_path, binary, binary.read_bytes(), retain_snapshot=retain_snapshot)
+
+
+def identify_binary_snapshot(input_path: Path, binary: Path, data: bytes, *, retain_snapshot: bool = False) -> TargetIdentity:
+    """Identify the exact bytes supplied, without reopening the target path."""
+    digest = hashlib.sha256(data).hexdigest()
+    size = len(data)
+    fmt, arch = inspect_magic(binary, data=data)
     stable_id = f"{binary.stem}-{digest[:12]}".lower()
     return TargetIdentity(
         input_path=input_path.expanduser().resolve(),
@@ -115,11 +121,12 @@ def identify_binary(input_path: Path, preferred_name: str | None = None) -> Targ
         format=fmt,
         architecture_hint=arch,
         stable_id=stable_id,
+        snapshot=data if retain_snapshot else None,
     )
 
 
-def inspect_magic(path: Path) -> tuple[str, str]:
-    data = path.read_bytes()[:0x1000]
+def inspect_magic(path: Path, *, data: bytes | None = None) -> tuple[str, str]:
+    data = (path.read_bytes() if data is None else data)[:0x1000]
     from agentdecompile_recovery.containers import detect_container
 
     if detect_container(path, head=data[:0x200]):
@@ -130,6 +137,8 @@ def inspect_magic(path: Path) -> tuple[str, str]:
     if data.startswith(b"\x7fELF"):
         cls = {1: "x86", 2: "x86_64"}.get(data[4], "unknown")
         return ("elf", cls)
+    if data.startswith(b"XBEH"):
+        return ("xbe", "x86")
     if data[:4] in {b"\xfe\xed\xfa\xce", b"\xce\xfa\xed\xfe", b"\xfe\xed\xfa\xcf", b"\xcf\xfa\xed\xfe"}:
         return ("macho", macho_machine(data))
     return ("unknown", "unknown")

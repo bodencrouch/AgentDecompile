@@ -1,0 +1,250 @@
+name: Native SDK
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  submodule-preflight:
+    name: Check native SDK submodule pointer
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout without submodules
+        uses: actions/checkout@v6
+        with:
+          submodules: false
+
+      - name: Verify vendor/ghidra gitlink is fetchable
+        run: |
+          set -euo pipefail
+          gitlink="$(git ls-files -s vendor/ghidra | awk '{print $2}')"
+          url="$(git config -f .gitmodules --get submodule.vendor/ghidra.url)"
+          echo "vendor/ghidra gitlink: ${gitlink}"
+          echo "vendor/ghidra url: ${url}"
+          mkdir /tmp/ghidra-gitlink-check
+          git -C /tmp/ghidra-gitlink-check init
+          git -C /tmp/ghidra-gitlink-check fetch --depth=1 "${url}" "${gitlink}"
+
+  build-test:
+    name: Linux native build and CTest
+    runs-on: ubuntu-latest
+    needs: submodule-preflight
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          submodules: recursive
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v6
+        with:
+          java-version: "21"
+          distribution: "microsoft"
+
+      - name: Install native build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build cmake g++ gcc libfl-dev flex bison
+
+      - name: Configure native SDK
+        run: cmake --preset relwithdebinfo -S native
+
+      - name: Build native SDK
+        run: cmake --build native/build/relwithdebinfo --parallel 4
+
+      - name: Run native CTest suite
+        run: ctest --test-dir native/build/relwithdebinfo --output-on-failure -j1
+
+      - name: Upload native CTest logs
+        uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: native-sdk-ctest-logs
+          path: native/build/relwithdebinfo/Testing/
+          if-no-files-found: ignore
+
+  jvm-free-smoke:
+    name: JVM-free fixture replay smoke
+    runs-on: ubuntu-latest
+    needs: submodule-preflight
+    container: debian:bookworm-slim
+    steps:
+      - name: Install native-only build dependencies
+        run: |
+          apt-get update
+          apt-get install -y ca-certificates git ninja-build cmake g++ gcc libfl-dev flex bison
+
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          submodules: recursive
+
+      - name: Prove Java is absent
+        run: |
+          set -euo pipefail
+          if command -v java; then
+            echo "java must not be present in the JVM-free native lane" >&2
+            exit 1
+          fi
+
+      - name: Build native replay tools without Java
+        run: |
+          cmake --preset relwithdebinfo -S native
+          cmake --build native/build/relwithdebinfo --target gnsdk-batch decomp_console --parallel 4
+
+      - name: Replay committed fixture snapshot without Java
+        run: |
+          env -i \
+            PATH=/usr/bin:/bin \
+            HOME=/nonexistent \
+            LANG=C \
+            native/build/relwithdebinfo/tools/gnsdk_batch/gnsdk-batch \
+              --sleigh-home native/build/relwithdebinfo/ghidra-decomp/sleigh-home \
+              --snapshot tests/fixtures/native_snapshot/test_x86_64 \
+              --output native-jvm-free-results.jsonl \
+              --timeout 60
+          test "$(wc -l < native-jvm-free-results.jsonl)" -eq 3
+
+  asan:
+    name: AddressSanitizer native CTest
+    runs-on: ubuntu-latest
+    needs: submodule-preflight
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          submodules: recursive
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v6
+        with:
+          java-version: "21"
+          distribution: "microsoft"
+
+      - name: Install native build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build cmake clang libfl-dev flex bison
+
+      - name: Configure ASan lane
+        working-directory: native
+        run: cmake --preset asan
+
+      - name: Build ASan lane
+        working-directory: native
+        run: cmake --build --preset asan --parallel 4
+
+      - name: Run ASan CTest lane
+        working-directory: native
+        run: ctest --preset asan --output-on-failure -j1
+
+  rust:
+    name: Rust consumer tests
+    runs-on: ubuntu-latest
+    needs: submodule-preflight
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          submodules: recursive
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v6
+        with:
+          java-version: "21"
+          distribution: "microsoft"
+
+      - name: Install native and Rust build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build cmake g++ gcc libfl-dev flex bison clang libclang-dev
+
+      - name: Build shared native SDK
+        run: |
+          cmake -S native -B native/build/shared -G Ninja -DGNSDK_SHARED=ON -DCMAKE_BUILD_TYPE=RelWithDebInfo
+          cmake --build native/build/shared --target gnsdk_shared --parallel 4
+
+      - name: Run Rust workspace tests
+        env:
+          GNSDK_LIB_DIR: ${{ github.workspace }}/native/build/shared/sdk
+          GNSDK_SLEIGH_HOME: ${{ github.workspace }}/native/build/shared/ghidra-decomp/sleigh-home
+          LD_LIBRARY_PATH: ${{ github.workspace }}/native/build/shared/sdk
+          CARGO_TARGET_DIR: ${{ github.workspace }}/native/build/cargo-target
+        run: cargo test --manifest-path native/rust/Cargo.toml --workspace
+
+  differential:
+    name: Python fixture differential
+    runs-on: ubuntu-latest
+    needs: submodule-preflight
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          submodules: recursive
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v6
+        with:
+          java-version: "21"
+          distribution: "microsoft"
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Install Ghidra 12.1.3
+        uses: antoniovazquezblanco/setup-ghidra@v2.1.5
+        with:
+          version: "12.1.3"
+          auth_token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build cmake g++ gcc libfl-dev flex bison
+          python -m pip install --upgrade pip uv
+          uv sync --all-extras --dev
+          uv pip install "${GHIDRA_INSTALL_DIR}/Ghidra/Features/PyGhidra/pypkg"
+
+      - name: Build native replay tools
+        run: |
+          cmake --preset relwithdebinfo -S native
+          cmake --build native/build/relwithdebinfo --target decomp_console gnsdk-batch --parallel 4
+
+      - name: Run native differential fixture tests
+        env:
+          GNSDK_BUILD_DIR: ${{ github.workspace }}/native/build/relwithdebinfo
+          GHIDRA_INSTALL_DIR: ${{ env.GHIDRA_INSTALL_DIR }}
+          PYTEST_DISABLE_PLUGIN_AUTOLOAD: "1"
+        run: uv run pytest tests/test_native_replay_integration.py tests/test_native_batch_integration.py -q
+
+  macos:
+    name: macOS native build smoke
+    runs-on: macos-latest
+    needs: submodule-preflight
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          submodules: recursive
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v6
+        with:
+          java-version: "21"
+          distribution: "microsoft"
+
+      - name: Install native build dependencies
+        run: brew install ninja flex bison
+
+      - name: Configure native SDK
+        run: cmake --preset relwithdebinfo -S native
+
+      - name: Build smoke targets
+        run: cmake --build native/build/relwithdebinfo --target gnsdk-selftest decomp_console --parallel 4
+
+      - name: Run selftest
+        run: ctest --test-dir native/build/relwithdebinfo -R '^gnsdk_selftest$' --output-on-failure -j1

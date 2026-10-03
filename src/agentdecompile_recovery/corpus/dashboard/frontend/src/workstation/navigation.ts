@@ -1,12 +1,12 @@
 import {emptySelection, normalizeSelection, type Data, type Selection} from '../contracts';
 import {canonicalProjectLocator} from '../projectLocator';
-export const analysisTabs = ['Logical','Disassembly','Decompiler','Hex','Strings','Graph','Xrefs','Imports','Exports','Sections','Info','Matching'] as const;
-export type AnalysisTab = typeof analysisTabs[number] | 'Scripts' | 'Flags' | 'Types' | 'Providers';
-export const extraTabs: AnalysisTab[] = ['Scripts','Flags','Types','Providers'];
+export const analysisTabs = ['Logical','Disassembly','Decompiler','Hex','Strings','Graph','Xrefs','Imports','Exports','Sections','Info','Matching','Compare'] as const;
+export type AnalysisTab = typeof analysisTabs[number] | 'Scripts' | 'Flags' | 'Types' | 'Providers' | 'Expert' | 'Container';
+export const extraTabs: AnalysisTab[] = ['Scripts','Flags','Types','Providers','Expert','Container'];
 export type Route = {selection: Selection; tab: AnalysisTab};
 const routeKeys = ['slug','program','addr','logicalId','corpusIdentity','locator','binaryHash','projectId','functionId','lastFunctionAddr'] as const;
 const routeAliases = {binary:'slug',function:'addr',logical_id:'logicalId',corpus_identity:'corpusIdentity',project:'locator',binary_hash:'binaryHash',project_id:'projectId',function_id:'functionId'} as const;
-const legacyViews:Record<string,AnalysisTab> = {logical:'Logical',listing:'Disassembly',fnbrowse:'Disassembly',functions:'Disassembly',decompile:'Decompiler',decompiler:'Decompiler',disassembly:'Disassembly',hex:'Hex',strings:'Strings',graph:'Graph',xrefs:'Xrefs',imports:'Imports',exports:'Exports',sections:'Sections',overview:'Info',corpus:'Logical',info:'Info',matching:'Matching',scratch:'Matching',scripts:'Scripts',flags:'Flags',types:'Types',stabs:'Types',providers:'Providers'};
+const legacyViews:Record<string,AnalysisTab> = {logical:'Logical',listing:'Disassembly',fnbrowse:'Disassembly',functions:'Disassembly',decompile:'Decompiler',decompiler:'Decompiler',disassembly:'Disassembly',hex:'Hex',strings:'Strings',graph:'Graph',xrefs:'Xrefs',imports:'Imports',exports:'Exports',sections:'Sections',overview:'Info',corpus:'Logical',info:'Info',matching:'Matching',scratch:'Matching',compare:'Compare',scripts:'Scripts',flags:'Flags',types:'Types',stabs:'Types',providers:'Providers',expert:'Expert',container:'Container'};
 export function readRoute(search: string, fallback: Route): Route {
   const p = new URLSearchParams(search);
   const linked = routeKeys.some(k=>p.has(k)) || Object.keys(routeAliases).some(k=>p.has(k));

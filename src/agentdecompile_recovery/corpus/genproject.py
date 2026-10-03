@@ -13,11 +13,11 @@ import os
 import pathlib
 import re
 import sqlite3
-import struct
 import subprocess
 import sys
 
 from . import prompt_evidence
+from .exact_universal import pe_mapper
 from .ghidra_sanitize import c_name
 
 DECOMP_HINT_LIMIT = 12000
@@ -34,27 +34,14 @@ def entry_hex_map(fns: list[dict]) -> dict[str, int]:
     return out
 
 
-def pe_va_mapper(raw: bytes):
-    if raw[:2] != b"MZ":
-        return None
-    pe = struct.unpack_from("<I", raw, 0x3C)[0]
-    nsec = struct.unpack_from("<H", raw, pe + 6)[0]
-    opt = struct.unpack_from("<H", raw, pe + 20)[0]
-    base = struct.unpack_from("<I", raw, pe + 24 + 28)[0]
-    secs = []
-    for i in range(nsec):
-        o = pe + 24 + opt + i * 40
-        vsize, vaddr, rsize, roff = struct.unpack_from("<IIII", raw, o + 8)
-        secs.append((vaddr, max(vsize, rsize), roff))
+def pe_va_mapper(raw: bytes, load_base: int | None = None):
+    """Deprecated alias for :func:`exact_universal.pe_mapper`.
 
-    def va2off(va: int):
-        r = va - base
-        for vaddr, size, roff in secs:
-            if vaddr <= r < vaddr + size:
-                return roff + (r - vaddr)
-        return None
-
-    return va2off
+    Kept so older callers keep importing from here. The former local copy
+    read a 32-bit ImageBase unconditionally and returned wrong offsets for
+    PE32+ images.
+    """
+    return pe_mapper(raw, load_base)
 
 
 def load_queue(
@@ -453,6 +440,47 @@ def collect_prompt_evidence_batch(con: sqlite3.Connection, *, binary_id: int,
     }
 
 
+def current_recovered_skips(con, binary_id: int | None, coverage_ledger=None) -> tuple[set[int], set[str]]:
+    """Return only source-current automatic exclusions; explicit manifests differ."""
+    from .coverage_evidence import source_file_binding
+    addresses: set[int] = set()
+    names: set[str] = set()
+    try:
+        columns = {r[1] for r in con.execute("PRAGMA table_info(recovered_function)")}
+        if binary_id is not None and "source_sha256" in columns:
+            for row in con.execute(
+                "SELECT addr,name,path,source_sha256 FROM recovered_function "
+                "WHERE binary_id=? AND real_c=1", (binary_id,)
+            ):
+                if not source_file_binding(dict(row))["current"]:
+                    continue
+                if row["addr"] is not None:
+                    try:
+                        addresses.add(int(row["addr"]))
+                    except (TypeError, ValueError):
+                        continue
+                if row["name"]:
+                    names.add(str(row["name"]))
+    except sqlite3.Error:
+        pass
+    if coverage_ledger is not None and pathlib.Path(coverage_ledger).is_file():
+        latest = {}
+        for line in pathlib.Path(coverage_ledger).read_text(errors="replace").splitlines():
+            try:
+                row = json.loads(line)
+            except ValueError:
+                continue
+            if isinstance(row, dict) and isinstance(row.get("function"), str):
+                latest[row["function"]] = row
+        for name, row in latest.items():
+            # No filename-based path guesses and no digest manufactured now.
+            reference = {"source_sha256": row.get("sourceSha256"),
+                         "path": row.get("path") or row.get("source_path")}
+            if row.get("byteExact") is True and source_file_binding(reference)["current"]:
+                names.add(name)
+    return addresses, names
+
+
 def generate_project(
     *,
     con: sqlite3.Connection,
@@ -474,12 +502,12 @@ def generate_project(
     outdir = pathlib.Path(out_dir)
     outdir.mkdir(parents=True, exist_ok=True)
     brow = con.execute(
-        "SELECT id, bits, slug FROM binary WHERE repo_path=?", (repo_path,)
+        "SELECT id, bits, slug, image_base FROM binary WHERE repo_path=?", (repo_path,)
     ).fetchone()
     if brow is None:
         raise ValueError(f"not in database: {repo_path}")
     raw = pathlib.Path(raw_path).read_bytes()
-    va2off = pe_va_mapper(raw)
+    va2off = pe_mapper(raw, brow["image_base"])
     if va2off is None:
         raise ValueError("not a PE image (only x86/x64 PE is in scope)")
 
@@ -528,28 +556,17 @@ def generate_project(
             nm = f.get("canonical_name") or f.get("name")
             if nm:
                 skip_names.add(str(nm))
-    if skip_recovered:
-        try:
-            for r in con.execute(
-                    "SELECT addr, name FROM recovered_function WHERE binary_id=?",
-                    (brow["id"],)):
-                if r["addr"] is not None:
-                    skip.add(int(r["addr"]))
-                if r["name"]:
-                    skip_names.add(str(r["name"]))
-        except sqlite3.Error:
-            pass
-    if coverage_ledger is not None and pathlib.Path(coverage_ledger).is_file():
-        for line in pathlib.Path(coverage_ledger).read_text(errors="replace").splitlines():
-            if not line.strip():
-                continue
-            try:
-                row = json.loads(line)
-            except ValueError:
-                continue
-            fn = row.get("function")
-            if fn and row.get("byteExact"):
-                skip_names.add(str(fn))
+    # Explicit skip manifests remain user exclusions. Automatic recovery skips
+    # require a current source observation, including the optional ledger path.
+    if skip_recovered or coverage_ledger is not None:
+        if skip_recovered:
+            recovered_addresses, recovered_names = current_recovered_skips(
+                con, brow["id"], coverage_ledger)
+        else:
+            recovered_addresses, recovered_names = current_recovered_skips(
+                con, None, coverage_ledger)
+        skip.update(recovered_addresses)
+        skip_names.update(recovered_names)
 
     real_c_lids: set[int] = set()
     tried_lids: set[int] = set()

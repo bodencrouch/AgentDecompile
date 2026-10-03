@@ -51,7 +51,7 @@ def test_bind_identities_cli(tmp_path: Path, capsys: pytest.CaptureFixture[str])
     con = store.connect(db)
     con.executescript(
         """
-        INSERT INTO binary(id, repo_path, slug) VALUES (1,'src/a','a'),(2,'dst/b','b');
+        INSERT INTO binary(id, repo_path, slug, content_sha256) VALUES (1,'src/a','a','1111111111111111111111111111111111111111111111111111111111111111'),(2,'dst/b','b','2222222222222222222222222222222222222222222222222222222222222222');
         INSERT INTO logical_function(id, best_name) VALUES (1,'fn');
         INSERT INTO identity(logical_id, binary_id, addr, confidence, method) VALUES (1,1,0x10,0.9,'seed');
         INSERT INTO func(binary_id, addr, name) VALUES (1,0x10,'fn'),(2,0x20,'FUN_20');

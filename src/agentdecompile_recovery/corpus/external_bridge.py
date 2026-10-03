@@ -20,6 +20,7 @@ import pathlib
 from collections import defaultdict
 
 from . import canon
+from .ingest_recovered import ensure_recovered_function
 from .store import ensure_priority_index
 
 OUTDIR: pathlib.Path | None = None
@@ -89,6 +90,9 @@ def emit_enrichment(con, *, out_dir: pathlib.Path | None = None) -> dict:
 
 def load_recovered(con) -> list[dict]:
     """Load only recoveries admitted by the authoritative coverage-gated ingest."""
+    # Same canonical table export-run-report and ingest-recovered create, so
+    # the order the verbs run in no longer decides whether binary_id exists.
+    ensure_recovered_function(con)
     return [
         {
             "program": row["program"],

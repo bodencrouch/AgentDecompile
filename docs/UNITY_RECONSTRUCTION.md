@@ -4,7 +4,7 @@ Point the front door at a shipped Unity game and get a project that opens in the
 Unity Editor:
 
 ```bash
-uv run agentdecompile-reconstruct "/path/to/TheVillainSimulator" \
+uv run agentdecompile-cli reconstruct "/path/to/TheVillainSimulator" \
   --unity-project-out /path/to/output-project
 ```
 

@@ -12,6 +12,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import sqlite3
 from pathlib import Path
 from typing import Any
 
@@ -57,8 +58,11 @@ def variants_state() -> dict[str, Any]:
         "codeTotal": doc.get("code_total"),
         "receiptsPartial": bool(doc.get("receiptsPartial")),
         "activeVariant": active if active in ("byte_accurate", "max_c") else "byte_accurate",
-        "byteAccurate": variants.get("byte_accurate"),
-        "maxC": variants.get("max_c"),
+        "byteAccurate": {"c": 0, "c_pct": 0, "shim": doc.get("code_total", 0),
+                         "note": "No trusted live contribution observation supplied"},
+        "maxC": {"c": 0, "byte_exact_c": 0, "readable_only_c": 0,
+                 "note": "Imported source counts are diagnostic"},
+        "diagnosticVariants": variants,
     }
 
 
@@ -88,26 +92,12 @@ def _sha256(path: str) -> str | None:
 
 
 def _full_image_receipt() -> dict[str, Any]:
-    """Return only a terminal receipt whose target still matches this dashboard."""
-    path = os.environ.get(_FULL_IMAGE_RECEIPT_ENV, "").strip()
-    if not path:
-        return {}
-    try:
-        receipt = json.loads(Path(path).read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return {}
-    target = receipt.get("target") or {}
-    valid = (
-        receipt.get("schema") == "agentdecompile.full-image-compiler-objdiff-receipt.v1"
-        and receipt.get("verified") is True
-        and receipt.get("compilerProducedWholeImage") is True
-        and receipt.get("wholeFileByteIdentical") is True
-        and target.get("sha256") == _sha256(_TARGET)
-    )
-    return {"path": path, "valid": valid, "receipt": receipt} if valid else {}
+    """No supported terminal link evaluator: supplied flags never certify it."""
+    return {}
 
 
-def byte_parity_state() -> dict[str, Any]:
+
+def byte_parity_state(*, reconstruction_observation=None, db=None, binary_id=None) -> dict[str, Any]:
     report_path = os.environ.get(_REPORT_ENV) or _DEFAULT_REPORT
     report: dict[str, Any] = {}
     try:
@@ -120,20 +110,29 @@ def byte_parity_state() -> dict[str, Any]:
     terminal = _full_image_receipt()
     total = int(report.get("totalFunctions") or 0)
     report_be = int(report.get("byteExactRecoveredC") or 0)
-    # text-permuter closures are, by construction, addresses the reconciliation
-    # report's verify pass had marked as mismatches (the permuter queue is
-    # built from exactly those rows) -- additive, not double-counted.
+    from ..source_contribution import evaluate_reconstruction
+    contribution = evaluate_reconstruction(reconstruction_observation, target_path=_TARGET,
+                                           output_path=_REBUILT)
     permuter_closed = _text_permuter_closed_count()
-    be = report_be + permuter_closed
-
-    # Prefer the fresh matching-watch variants report when present; the legacy
-    # reconciliation report above is a point-in-time finish_binary snapshot.
+    # A standalone span is useful anonymous region evidence. It does not prove
+    # a complete function in a selected corpus, even at the same address.
+    region_count = contribution["placedCompiledRegions"]
+    qualified = evaluate_reconstruction(reconstruction_observation, target_path=_TARGET,
+                output_path=_REBUILT, db=db, binary_id=binary_id) if db is not None else {}
+    be = qualified.get("placedCompiledRegions", 0)
     vstate = variants_state()
-    ba = vstate.get("byteAccurate") or {}
     if vstate.get("codeTotal"):
         total = int(vstate["codeTotal"])
-        be = int(ba.get("c") or be)
 
+    if db is not None:
+        from ..finish_binary import total_functions
+        try:
+            total = total_functions(str(db), binary_id)
+        except (OSError, sqlite3.Error):
+            total = 0
+    vstate["byteAccurate"] = {"c": be, "c_pct": round(100 * be / total, 2) if total else 0,
+                              "shim": max(0, total - be), "byte_identical": False,
+                              "exact_placement_hash_equal": contribution["wholeFileByteIdentical"]}
     return {
         "reportPath": report_path,
         "targetHash": target_hash,
@@ -144,10 +143,17 @@ def byte_parity_state() -> dict[str, Any]:
         "wholeImageByteIdentical": bool(terminal),
         "totalFunctions": total,
         "byteExactRecoveredC": be,
+        "rawLocalObservedC": int(report.get("rawLocalObservedC") or 0),
+        "placedCompiledRegions": region_count,
+        "qualifiedCorpusFunctions": be,
+        "placedCompiledBytes": contribution["placedCompiledBytes"],
+        "wholeFileByteIdentical": contribution["wholeFileByteIdentical"],
+        "contribution": contribution,
+        "qualifiedFunctionContribution": qualified,
         "reportByteExactRecoveredC": report_be,
         "textPermuterClosed": permuter_closed,
         "coveragePct": round(100 * be / total, 2) if total else 0.0,
-        "asmFloorRemainder": (total - be),
+        "asmFloorRemainder": max(0, total - be),
         # Both maintained build variants for the dashboard visual.
         "variants": {
             "byteAccurate": vstate.get("byteAccurate"),
@@ -155,15 +161,14 @@ def byte_parity_state() -> dict[str, Any]:
             "active": vstate.get("activeVariant"),
             "receiptsPartial": vstate.get("receiptsPartial"),
             "reportPath": vstate.get("reportPath"),
+            "diagnosticImportedVariants": vstate.get("diagnosticVariants"),
         },
         "claimBoundary": (
-            ("A fresh compiler plus object-level objdiff receipt and independent whole-file comparison verified this image. "
-             if terminal else
-             "The displayed exact-placement hash uses the original file and assembly-floor bytes; it is not "
-             "a compiler-produced whole-image receipt. ") +
-            "Coverage is functions reproduced from genuine recovered C rather "
-            "than embedded original bytes (including live closures from the autonomous "
-            "text-permuter search); the remainder is the byte-accuracy work queue."
+            "Function coverage requires the selected corpus identity and exact function size. "
+            "Standalone region counts are separate current object-derived final-writer contribution in an explicit "
+            "preserved-floor reconstruction. Imported reports, variant totals and permuter closures "
+            "remain diagnostics. Whole-file equality is separate; this is not a compiler-linked "
+            "whole-image acceptance receipt."
         ),
     }
 
@@ -230,12 +235,13 @@ async function refresh(){
       <div class="hash">rebuilt: ${d.rebuiltHash||'—'}</div>
     </div>
     <div class="hero">
-      <div class="k">Recovered C (byte-exact) coverage</div>
+      <div class="k">Qualified corpus function contribution</div>
       <div class="bar"><span style="width:${pct}%"></span></div>
       <div class="stat">
         <div><div class="k">byte-exact C</div><b>${d.byteExactRecoveredC}</b> / ${d.totalFunctions} (${pct}%)</div>
         <div><div class="k">asm-floor remainder</div><b>${d.asmFloorRemainder}</b></div>
-        <div><div class="k">text-permuter live closures</div><b>${d.textPermuterClosed||0}</b></div>
+        <div><div class="k">placed compiled regions / bytes</div><b>${d.placedCompiledRegions||0} / ${d.placedCompiledBytes||0}</b></div>
+        <div><div class="k">text-permuter closures (diagnostic)</div><b>${d.textPermuterClosed||0}</b></div>
       </div>
       <div class="claim">${d.claimBoundary}</div>
     </div>

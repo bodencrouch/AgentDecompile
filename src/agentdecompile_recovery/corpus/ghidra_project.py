@@ -708,6 +708,21 @@ def inspect_locator(raw: str) -> dict[str, object]:
         out["program_count"] = len(out.get("programs") or [])
     if kind == "ghidra-project":
         out["access"] = "local"
+        # Programs in a local project live in folders. Map each bare name to its
+        # folder path, so a pipeline probe asks Ghidra for the path it will
+        # report back.
+        if out.get("gpr") and not out.get("program_paths"):
+            try:
+                from agentdecompile_recovery.ghidra_db.store import list_store_programs
+
+                paths: dict[str, str] = {}
+                for entry in list_store_programs(str(out["gpr"])):
+                    paths.setdefault(entry.name, entry.project_path)
+                    paths[entry.project_path] = entry.project_path
+                if paths:
+                    out["program_paths"] = paths
+            except Exception:
+                pass
     if kind in ("binary", "packed-program"):
         loc = Path(str(out.get("locator") or raw))
         out["access"] = "local"
@@ -1130,7 +1145,28 @@ def save_project_as(
     dest_text = (dest or "").strip()
     dest_path = Path(dest_text).expanduser() if dest_text else None
     if dest_path is not None and not _allowed_dest(dest_path, work_dir):
-        return {"ok": False, "error": "Save As path must be inside the work directory or a known project root"}
+        roots = [str(Path(work_dir).resolve()), *(str(base) for base in search_roots(work_dir))]
+        return {
+            "ok": False,
+            "error": "Save As path must be inside one of: " + ", ".join(dict.fromkeys(roots)),
+            "allowed_roots": list(dict.fromkeys(roots)),
+        }
+    src_kind = str(source.get("kind") or "")
+    src_loc = str(source.get("locator") or locator or "")
+    program_count = 0
+    if src_kind in ("shared-fs", "ghidra-project") and src_loc:
+        from agentdecompile_recovery.ghidra_db.store import list_store_programs
+
+        try:
+            program_count = len(list_store_programs(src_loc))
+        except (OSError, ValueError) as exc:
+            return {"ok": False, "error": f"Could not read the program databases in {src_loc}: {exc}"}
+        if program_count == 0 and not (src_kind == "ghidra-project" and source.get("gpr")) and not _program_names(source):
+            return {
+                "ok": False,
+                "error": f"{src_loc} has no programs, so there is nothing to convert. Choose the folder that holds the repository.",
+                "program_count": 0,
+            }
 
     if kind == "ghidra-project":
         folder = dest_path if dest_path is not None else Path(work_dir) / "ghidra-projects"
@@ -1141,12 +1177,10 @@ def save_project_as(
             dest_gpr = _unique_gpr(folder, stem)
         folder.mkdir(parents=True, exist_ok=True)
         src_gpr = source.get("gpr")
-        src_kind = str(source.get("kind") or "")
-        src_loc = str(source.get("locator") or locator or "")
         if src_kind == "ghidra-project" and src_gpr and Path(str(src_gpr)).is_file():
             _copy_gpr_rep(Path(str(src_gpr)), dest_gpr)
             origin["note"] = "Copied local Ghidra project files (.gpr and .rep)."
-        elif src_kind == "shared-fs" and src_loc and _store_has_programs(src_loc):
+        elif src_kind == "shared-fs" and src_loc and program_count:
             from agentdecompile_recovery.ghidra_db.store import materialize_local_project, ProjectLayoutError
 
             try:
@@ -1166,14 +1200,16 @@ def save_project_as(
                 )
             elif src_kind == "shared-fs":
                 origin["note"] = (
-                    "Local checkout of a filesystem shared-server tree. "
-                    "Program names came from ~index.dat."
+                    "The source lists programs but holds no local program databases. "
+                    "Only the program names from ~index.dat were recorded; no databases were copied."
                 )
             else:
                 origin["note"] = "New local Ghidra project."
         _write_origin(dest_gpr.with_suffix(".rep") / "user" / "origin.json", origin)
         out = inspect_locator(str(dest_gpr))
         out["converted_from"] = source.get("kind")
+        out["origin_note"] = origin["note"]
+        out["source_program_count"] = program_count
         return out
 
     if kind == "shared-fs":
@@ -1189,8 +1225,7 @@ def save_project_as(
         while repo_dir.exists():
             repo_dir = root / f"_{stem}-{index}"
             index += 1
-        src_loc = str(source.get("locator") or locator or "")
-        if src_loc and _store_has_programs(src_loc):
+        if src_loc and program_count:
             from agentdecompile_recovery.ghidra_db.store import materialize_server_repo
 
             materialize_server_repo(src_loc, repo_dir, name=stem)
@@ -1207,6 +1242,8 @@ def save_project_as(
         _write_origin(root / "origin.json", origin)
         out = inspect_locator(str(root))
         out["converted_from"] = source.get("kind")
+        out["origin_note"] = origin["note"]
+        out["source_program_count"] = program_count
         return out
 
     remote = (url or dest_text or "").strip()
@@ -1246,6 +1283,7 @@ def save_project_as(
     out["local_checkout"] = str(dest_gpr)
     out["http_locator"] = http_locator
     out["converted_from"] = source.get("kind")
+    out["origin_note"] = origin["note"]
     out["saved"] = True
     return out
 
@@ -1398,6 +1436,11 @@ def _canonical_session_locator(value: object) -> str:
     text = str(value or "").strip()
     if not text:
         return ""
+    if is_shared_locator(text):
+        # A repository URL is not a relative filesystem path. Resolving it
+        # through Path would tie its identity to the dashboard's current cwd.
+        parsed = urlparse(text)
+        return parsed._replace(scheme=parsed.scheme.lower(), path=parsed.path.rstrip("/")).geturl()
     try:
         return str(Path(text).expanduser().resolve(strict=False))
     except (OSError, RuntimeError, ValueError):
@@ -1405,11 +1448,10 @@ def _canonical_session_locator(value: object) -> str:
 
 
 def _dedupe_project_sessions(sessions: list[dict[str, object]], active: str) -> tuple[list[dict[str, object]], str]:
-    """Coalesce duplicate project records and leave one project visibly loaded.
+    """Coalesce aliases of each project while retaining distinct open peers.
 
-    Draft sessions are retained, but hidden while a concrete project is active.
-    Older projects remain as hidden recent-project records instead of rendering
-    as competing open projects in the explorer.
+    Active selection is independent of visibility. Scoped MCP consumers own
+    their project's reads; a second tab is not a second writer admission.
     """
     project_by_locator: dict[str, dict[str, object]] = {}
     other: list[dict[str, object]] = []
@@ -1451,12 +1493,13 @@ def _dedupe_project_sessions(sessions: list[dict[str, object]], active: str) -> 
         active_item = next((item for item in sessions if str(item.get("id") or "") == active), {})
         active_locator = _canonical_session_locator(active_item.get("locator")) or (f"slug:{str(active_item.get('projectSlug') or '').strip()}" if active_item.get("projectSlug") else "")
     visible_project = active_locator if active_locator in project_by_locator else (next(reversed(project_by_locator), ""))
-    for key, project in project_by_locator.items():
-        project["hidden"] = key != visible_project
+    for project in project_by_locator.values():
+        project["hidden"] = False
     for item in other:
-        item["hidden"] = bool(visible_project) or bool(item.get("hidden"))
+        item["hidden"] = False if str(item.get("id") or "") == active else bool(item.get("hidden"))
     ordered = [*other, *projects]
-    active_id = str(project_by_locator[visible_project].get("id") or "") if visible_project else active
+    active_draft = any(str(item.get("id") or "") == active for item in other)
+    active_id = active if active_draft else str(project_by_locator[visible_project].get("id") or "") if visible_project else active
     return ordered, active_id
 
 

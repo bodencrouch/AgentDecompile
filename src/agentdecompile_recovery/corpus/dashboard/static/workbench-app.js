@@ -24,8 +24,12 @@
     programs: "/dashboard/api/workbench/programs",
     matchStatus: "/dashboard/api/workbench/match-status",
     matchDecide: "/dashboard/api/workbench/match-decide",
+    matchDecideBatch: "/dashboard/api/workbench/match-decide-batch",
+    matchReview: "/dashboard/api/workbench/match-review",
     recoverStatus: "/dashboard/api/workbench/recover-status",
     corpusStatus: "/dashboard/api/workbench/corpus-status",
+    corpusDb: "/dashboard/api/workbench/corpus-db",
+    progressReport: "/dashboard/api/workbench/progress-report",
     preparations: "/dashboard/api/workbench/preparations",
     ghidraDefaults: "/dashboard/api/workbench/ghidra-defaults",
     artifacts: "/dashboard/artifact",
@@ -558,97 +562,202 @@
     });
   }
 
+  /* Review decisions follow one contract on every surface (see MatchReview.tsx):
+     rows and tokens come from API.matchReview; a decision is a pending job
+     (HTTP 202) until /api/v1/jobs/{id} ends "ok" with acceptance
+     "review-decision-only". Nothing here marks a row decided before that. */
+  const REVIEW_ERRORS = {
+    stale_basis: "A row changed after you loaded it, or was already decided. Nothing was saved. Refresh the rows and decide again.",
+    context_changed: "The selected database changed after these rows loaded. Nothing was saved. Refresh the rows and decide again.",
+    busy: "The database is busy. Nothing was saved. Try again shortly.",
+    unavailable: "The review database is unavailable. Nothing was saved.",
+    review_schema_required: "This database has no review tables yet. Run its schema migration first.",
+    review_schema_corrupt: "The review tables in this database are damaged. Nothing was saved.",
+    schema_required: "This database needs a schema migration before review.",
+    duplicate_match: "The same match was submitted twice. Nothing was saved.",
+    malformed_request: "The server refused the request format. Refresh the rows and try again.",
+    malformed_context: "The request had no current selection. Refresh the rows and try again.",
+    request_too_large: "Too many rows in one request. Decide fewer rows at a time.",
+    unsafe_database_alias: "The review database path is a link or has extra hard links. Review is refused for it.",
+    corrupt_basis: "One review row has damaged data, so the whole review list could not load. Nothing was saved.",
+    basis_too_large: "One review row has too much recorded data, so the whole review list could not load. Nothing was saved.",
+    cancelled: "The decision was cancelled before it ran. Nothing was saved.",
+    ranked_cursor_retired: "This link used the old score-ranked page cursor. Rows are now listed by match ID."
+  };
+  const REVIEW_REFRESH = ["stale_basis", "context_changed", "malformed_context", "ranked_cursor_retired"];
+
+  function reviewErrorText(code) {
+    const text = String(code == null ? "" : code).trim();
+    return REVIEW_ERRORS[text] || text || "The review request failed.";
+  }
+
+  function reviewFailure(kind, code, text) {
+    const error = new Error(text || reviewErrorText(code));
+    error.kind = kind; /* "refused": nothing saved. "unknown": may have been saved. */
+    error.code = code || "";
+    error.refresh = kind === "unknown" || REVIEW_REFRESH.indexOf(code) >= 0;
+    return error;
+  }
+
+  function reviewOutcomeText(decisions) {
+    return (decisions || []).map(function (item) {
+      if (item.status === "verify") return "Match " + item.matchId + " moved to verification.";
+      if (item.status === "rejected") return "Match " + item.matchId + " rejected.";
+      return "Match " + item.matchId + " is now \"" + item.status + "\".";
+    }).join(" ");
+  }
+
+  /* Returns the decisions list on a committed result, or null while still running. */
+  async function observeReviewDecision(jobId, stopped) {
+    for (let attempt = 0; attempt < 40; attempt++) {
+      if (stopped && stopped()) return null;
+      const response = await fetch(API.jobs + "/" + encodeURIComponent(jobId), { cache: "no-store" });
+      if (response.status === 404) {
+        throw reviewFailure("unknown", "", "The server no longer knows this decision job. Refresh the rows to see whether it was saved.");
+      }
+      let data = {};
+      try { data = await response.json(); } catch (_) { data = {}; }
+      if (!response.ok) throw new Error("Could not read the decision job (" + response.status + "). Check its result again.");
+      const job = data.job || {};
+      if (["ok", "failed", "cancelled", "interrupted"].indexOf(job.status) >= 0) {
+        let result = {};
+        try { result = JSON.parse(job.log || "{}"); } catch (_) { result = {}; }
+        if (job.status === "ok" && result.ok === true && result.acceptance === "review-decision-only" && Array.isArray(result.decisions)) {
+          return result.decisions;
+        }
+        if (typeof result.error === "string" && result.error) throw reviewFailure("refused", result.error);
+        throw reviewFailure("unknown", "", "The decision job ended as \"" + job.status + "\" without a result. It may have been saved. Refresh the rows to see the current state.");
+      }
+      await new Promise(function (resolve) { setTimeout(resolve, 750); });
+    }
+    return null;
+  }
+
+  /* rows: [{match_id, token}] exactly as observed. Returns the pending job ID. */
+  async function submitReviewRows(rows, selection, decision) {
+    if (!selection || !rows.length || rows.some(function (row) {
+      return !Number.isSafeInteger(row.match_id) || !row.token;
+    })) throw reviewFailure("refused", "malformed_context");
+    const response = await fetch(API.matchDecideBatch, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ selection: selection, entries: rows.map(function (row) {
+        return { matchId: row.match_id, token: row.token, decision: decision };
+      }) })
+    });
+    let data = {};
+    try { data = await response.json(); } catch (_) { data = {}; }
+    if (!(response.ok || response.status === 202) || data.ok === false) {
+      const code = data.error || "";
+      if (REVIEW_ERRORS[code]) throw reviewFailure("refused", code);
+      throw new Error(code || ("The server refused the decision (" + response.status + ")."));
+    }
+    const jobId = data.job_id || (data.job && data.job.id);
+    if (!jobId) throw new Error("The server returned no decision job. Refresh the rows before you decide again.");
+    return String(jobId);
+  }
+
+  /* Decision links in server-rendered review tables (panels/entities.py). Each
+     link carries data-match-id, data-token and data-selection from one review read.
+     A click asks for confirmation first, because a decision cannot be undone. */
   function wireMatchDecide(host) {
     if (!host || host.dataset.matchDecideWired) return;
     host.dataset.matchDecideWired = "1";
+    function toast(text, tone) {
+      const ui = window.AgentDecompileUI || {};
+      if (typeof ui.showToast === "function") ui.showToast(text, tone);
+    }
+    /* The busy flag lives on the rendered table, so a refresh that replaces it
+       also releases a lock left by a still-running job. */
+    function lock(scope, on) {
+      scope.querySelectorAll("a.wb-match-decide").forEach(function (item) {
+        if (on) item.setAttribute("aria-disabled", "true"); else item.removeAttribute("aria-disabled");
+      });
+      scope.dataset.reviewBusy = on ? "1" : "";
+    }
+    /* Status text for one row, with optional buttons: [[label, onClick], ...]. */
+    function note(link, text, buttons) {
+      const cell = link.closest("td") || link.parentNode;
+      if (!cell) return;
+      let status = cell.querySelector(".wb-review-status");
+      if (!status) {
+        status = document.createElement("span");
+        status.className = "wb-review-status";
+        status.setAttribute("role", "status");
+        cell.appendChild(status);
+      }
+      status.textContent = " " + text + " ";
+      (buttons || []).forEach(function (spec) {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "wb-btn wb-btn-mini";
+        button.textContent = spec[0];
+        button.addEventListener("click", function (ev) { ev.preventDefault(); spec[1](); });
+        status.appendChild(button);
+        status.appendChild(document.createTextNode(" "));
+      });
+      return status;
+    }
+    function watch(link, scope, jobId) {
+      note(link, "Waiting for job " + jobId + "…");
+      const stopped = function () { return !scope.isConnected; };
+      const again = ["Check result", function () { watch(link, scope, jobId); }];
+      observeReviewDecision(jobId, stopped).then(function (decisions) {
+        if (stopped()) return;
+        if (decisions) {
+          const text = reviewOutcomeText(decisions);
+          note(link, text);
+          toast(text, "info");
+          lock(scope, false);
+          reloadIslands();
+          return;
+        }
+        note(link, "Job " + jobId + " is still running. The table stays locked until you check its result or refresh the panel.", [again]);
+      }).catch(function (err) {
+        if (stopped()) return;
+        const text = String((err && err.message) || err);
+        toast(text, "error");
+        if (err && err.kind) {
+          note(link, text);
+          lock(scope, false);
+          if (err.refresh) reloadIslands();
+          return;
+        }
+        /* The job could not be read. It may still save, so keep its handle. */
+        note(link, text + " Job " + jobId + " may still save.", [again]);
+      });
+    }
     host.addEventListener("click", function (ev) {
       const link = ev.target.closest("a.wb-match-decide[data-match-id][data-decision]");
       if (!link || !host.contains(link)) return;
       ev.preventDefault();
-      if (link.dataset.busy === "1") return;
-      const matchId = link.getAttribute("data-match-id");
+      const scope = link.closest(".wb-legacy") || host;
+      if (scope.dataset.reviewBusy === "1") return;
+      const matchId = Number(link.getAttribute("data-match-id"));
+      const token = link.getAttribute("data-token") || "";
+      const selection = link.getAttribute("data-selection") || "";
       const decision = link.getAttribute("data-decision");
-      if (!matchId || !decision) return;
-      link.dataset.busy = "1";
-      fetch(API.matchDecide, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ match_id: Number(matchId), decision: decision })
-      }).then(function (res) {
-        return res.json().then(function (data) { return { ok: res.ok, data: data }; });
-      }).then(function (payload) {
-        link.dataset.busy = "0";
-        const ui = window.AgentDecompileUI || {};
-        if (payload.ok && payload.data && payload.data.ok) {
-          const msg = (decision === "accept" ? "Accepted" : "Rejected")
-            + " match #" + matchId + " → " + payload.data.status;
-          if (typeof ui.showToast === "function") ui.showToast(msg, "info");
-          reloadIslands();
-          return;
-        }
-        const err = (payload.data && payload.data.error) || "Could not update match.";
-        if (typeof ui.showToast === "function") ui.showToast(err, "error");
-      }).catch(function (err) {
-        link.dataset.busy = "0";
-        const ui = window.AgentDecompileUI || {};
-        if (typeof ui.showToast === "function") {
-          ui.showToast(String(err.message || err), "error");
-        }
-      });
-    });
-  }
-
-  function reviewPageMatchIds() {
-    const host = document.querySelector("#wb-review .wb-legacy");
-    if (!host) return [];
-    const ids = [];
-    const seen = {};
-    host.querySelectorAll("table tbody tr").forEach(function (tr) {
-      let id = 0;
-      const span = tr.querySelector("td:first-child [data-match-id]");
-      if (span) {
-        id = Number(span.getAttribute("data-match-id"));
-      } else {
-        const link = tr.querySelector("a.wb-match-decide[data-match-id]");
-        if (link) id = Number(link.getAttribute("data-match-id"));
-      }
-      if (id && !seen[id]) {
-        seen[id] = 1;
-        ids.push(id);
-      }
-    });
-    return ids;
-  }
-
-  function batchReviewPage(decision) {
-    const matchIds = reviewPageMatchIds();
-    const ui = window.AgentDecompileUI || {};
-    if (!matchIds.length) {
-      if (typeof ui.showToast === "function") ui.showToast("No review rows on this page.", "error");
-      return;
-    }
-    fetch(API.matchDecideBatch, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ match_ids: matchIds, decision: decision })
-    }).then(function (res) {
-      return res.json().then(function (data) { return { ok: res.ok, data: data }; });
-    }).then(function (payload) {
-      if (payload.ok && payload.data && payload.data.ok) {
-        const d = payload.data;
-        const verb = decision === "accept" ? "Accepted" : "Rejected";
-        const msg = verb + " " + d.updated + " match" + (d.updated === 1 ? "" : "es")
-          + (d.skipped ? " (" + d.skipped + " skipped)" : "");
-        if (typeof ui.showToast === "function") ui.showToast(msg, "info");
-        reloadIslands();
-        return;
-      }
-      const err = (payload.data && payload.data.error) || "Could not update matches.";
-      if (typeof ui.showToast === "function") ui.showToast(err, "error");
-    }).catch(function (err) {
-      if (typeof ui.showToast === "function") {
-        ui.showToast(String(err.message || err), "error");
-      }
+      if (decision !== "accept" && decision !== "reject") return;
+      lock(scope, true);
+      const question = decision === "accept"
+        ? "Move match " + matchId + " to verification? This cannot be undone here."
+        : "Reject match " + matchId + "? This cannot be undone here.";
+      const status = note(link, question, [
+        ["Cancel", function () { note(link, ""); lock(scope, false); }],
+        [decision === "accept" ? "Confirm accept" : "Confirm reject", function () {
+          note(link, "Sending…");
+          submitReviewRows([{ match_id: matchId, token: token }], selection, decision).then(function (jobId) {
+            watch(link, scope, jobId);
+          }).catch(function (err) {
+            const text = String((err && err.message) || err);
+            note(link, text);
+            toast(text, "error");
+            lock(scope, false);
+            if (err && err.refresh) reloadIslands();
+          });
+        }]
+      ]);
+      const first = status && status.querySelector("button");
+      if (first) first.focus();
     });
   }
 
@@ -777,10 +886,35 @@
     return "http://" + window.location.hostname + ":5173/";
   }
 
-  function CorpusHeadline({ headline, claim }) {
+  function TierProgress({ slug, version, corpusIdentity, revision }) {
+    const [result,setResult]=useState({key:"",data:null,error:""});
+    const key=[slug,version,corpusIdentity,revision].join(":");
+    useEffect(function () {
+      let alive=true;const controller=new AbortController();setResult({key:key,data:null,error:slug&&!version?"Exact content-hash version unavailable for this build.":""});
+      const query=new URLSearchParams({slug:slug||"",version:version||"",corpusIdentity:corpusIdentity||""});
+      if(slug&&version)fetch(API.progressReport+"?"+query,{signal:controller.signal,cache:"no-store"})
+        .then(function(r){return r.json();}).then(function(body){if(alive){const p=body.matrix_projection,b=p&&p.binary;if(body.ok&&p&&p.corpus_identity===corpusIdentity&&b&&b.slug===slug&&b.version===version&&b.content_sha256===version)setResult({key:key,data:body,error:""});else setResult({key:key,data:null,error:body.error||"Progress basis does not match this selection"});}})
+        .catch(function(e){if(alive)setResult({key:key,data:null,error:String(e.message||e)});});
+      return function(){alive=false;controller.abort();};
+    },[key]);
+    if(!slug)return null;
+    const current=result.key===key?result:{key:key,data:null,error:""},data=current.data,error=current.error;
+    const report=data&&data.report||{},tiers=report.tiers||{},total=report.measures&&report.measures.total_functions;
+    const verified=tiers["verified-byte-exact"]&&tiers["verified-byte-exact"].functions,advisory=tiers["advisory-ghidra"]&&tiers["advisory-ghidra"].functions,provider=data&&data.matrix_projection&&data.matrix_projection.provider||{};
+    const valid=[total,advisory].every(function(v){return Number.isSafeInteger(v)&&v>=0;})&&advisory<=total,verifiedAvailable=provider.status==="connected"&&Number.isSafeInteger(verified)&&verified>=0&&verified+advisory<=total;
+    return html`<section aria-label="Separate verified and advisory progress"><h3>Recorded source coverage</h3>
+      ${error?html`<p className="wb-dialog-error">${error}</p>`:!data?html`<p role="status">Reading inventory accounting…</p>`:null}
+      ${valid?html`<div style=${{display:"flex",height:"12px",background:"#333943"}} role="img" aria-label=${(verifiedAvailable?verified+" accepted byte-exact receipts":"Verified count unavailable")+"; "+advisory+" advisory source records; "+total+" inventory members"}>${verifiedAvailable?html`<span style=${{width:(total?verified*100/total:0)+"%",background:"#79bd98"}}></span>`:null}<span style=${{width:(total?advisory*100/total:0)+"%",background:"repeating-linear-gradient(135deg,#8baee0 0,#8baee0 3px,#343f52 3px,#343f52 7px)"}}></span></div><p>${verifiedAvailable?verified+" accepted byte-exact receipts":"Verified unavailable"} · ${advisory} advisory source records · ${total} inventory members</p>`:data?html`<p>No reconciled tier counts available.</p>`:null}
+      ${data&&data.acceptance_provider?html`<p className="wb-hint">${data.acceptance_provider.reason}</p>`:null}
+      ${report.accounting?html`<p>Member accounting: ${report.accounting.status}. Byte extents: ${report.accounting.byte_accounting}. Function counts do not establish whole-image parity.</p>`:null}
+    </section>`;
+  }
+
+  function CorpusHeadline({ headline, claim, slug, version, corpusIdentity, revision }) {
     const h = headline || {};
     return html`<section className="wb-corpus-hero" id="wb-corpus-hero">
       <p className="wb-kicker">Readable C and byte identity stay separate</p>
+      <${TierProgress} slug=${slug} version=${version} corpusIdentity=${corpusIdentity} revision=${revision}/>
       <div className="wb-corpus-pair">
         <div>
           <p className="wb-hero-n">${fmtCount(h.real_c)} <span class="of">logical functions with real C</span></p>
@@ -903,31 +1037,225 @@
     </article>`;
   }
 
-  function ReviewReact({ review, onDecide }) {
-    const r = review || {};
-    const statuses = r.by_status || {};
+  function MatchAvailability({ match, selection }) {
+    const [open,setOpen]=useState(false),[data,setData]=useState(null),[error,setError]=useState("");
+    useEffect(function () {
+      let alive=true;const controller=new AbortController();setData(null);setError("");
+      if(open&&selection)fetch("/dashboard/api/workbench/matching-availability?"+new URLSearchParams({match_ids:String(match.id),selection:selection}),{signal:controller.signal,cache:"no-store"})
+        .then(function(r){return r.json().then(function(body){if(!r.ok||!body.ok)throw new Error(body.error||"Matching availability unavailable");return body;});})
+        .then(function(body){if(!alive)return;const row=(body.rows||[]).find(function(item){return item.matchId===match.id&&item.srcBinary===match.src_binary&&item.dstBinary===match.dst_binary&&item.srcAddr===match.src_addr&&item.run===match.run;});if(body.selection!==selection||!row)throw new Error("The matching evidence changed. Refresh this page.");setData(row);})
+        .catch(function(e){if(alive)setError(String(e.message||e));});
+      return function(){alive=false;controller.abort();};
+    },[open,selection,match.id,match.src_binary,match.dst_binary,match.src_addr,match.run]);
+    return html`<details onToggle=${function(e){setOpen(e.currentTarget.open);}}><summary>Matching methods</summary>
+      ${error?html`<p className="wb-dialog-error">${error}</p>`:open&&!data?html`<p role="status">Reading recorded method availability…</p>`:null}
+      <ul>${(data&&data.channels||[]).map(function(channel){return html`<li key=${channel.channel}><strong>${channel.channel} · ${channel.label}</strong>: ${channel.state} · ${channel.reason}</li>`;})}</ul>
+    </details>`;
+  }
+
+  function ReviewReact({ onRefresh }) {
+    /* Deep links from panels/entities.py carry review_after_id and
+       review_page_size. The retired score:id cursor is refused by name. */
+    const start = useMemo(function () {
+      const query = new URLSearchParams(window.location.search);
+      const rawAfter = query.get("review_after_id") || "";
+      const rawSize = (query.get("review_page_size") || query.get("page_size") || "").trim().toLowerCase();
+      const after = /^[0-9]{1,19}$/.test(rawAfter) && Number.isSafeInteger(Number(rawAfter)) ? Number(rawAfter) : 0;
+      let size = /^[0-9]{1,6}$/.test(rawSize) && Number(rawSize) > 0 ? Number(rawSize) : 50;
+      const capped = rawSize === "all" || size > 100;
+      if (capped) size = 100;
+      return {
+        after: after, size: size, capped: capped,
+        badCursor: Boolean(rawAfter) && !after && rawAfter !== "0",
+        legacy: Boolean(query.get("review_after")) || /^-?[0-9.]+(e-?[0-9]+)?:[0-9]+$/i.test(query.get("after") || "")
+      };
+    }, []);
+    const pageSize = start.size;
+    const legacyCursor = start.legacy;
+    /* Bumped to stop a poll loop: Stop waiting, a new poll, or unmount. */
+    const watchSeq = useRef(0);
+    const confirmRef = useRef(null);
+    /* Tracks mount state across an await so a resumed callback (e.g. send())
+       does not touch state or start a fresh watch() after unmount. Separate
+       from watchSeq, which only defeats an in-flight watch's own poll loop. */
+    const mountedRef = useRef(true);
+    useEffect(function () { return function () { watchSeq.current++; mountedRef.current = false; }; }, []);
+    const [page, setPage] = useState({ rows: [], total: 0, nextAfterId: null, selection: "" });
+    const [afterId, setAfterId] = useState(legacyCursor ? 0 : start.after);
+    const [history, setHistory] = useState([]);
+    const [nonce, setNonce] = useState(0);
+    const [loading, setLoading] = useState(false);
+    const [selected, setSelected] = useState([]);
+    const [submitting, setSubmitting] = useState(false);
+    const [watching, setWatching] = useState("");
+    /* Open decision jobs: [{id, tokens, matchIds}]. Their rows stay locked. */
+    const [jobs, setJobs] = useState([]);
+    const [confirm, setConfirm] = useState(null);
+    const [message, setMessage] = useState("");
+    const [error, setError] = useState("");
+    useEffect(function () {
+      let dead = false;
+      setLoading(true);
+      fetch(API.matchReview + "?after_id=" + afterId + "&limit=" + pageSize, { cache: "no-store" }).then(function (res) {
+        return res.json().catch(function () { return {}; }).then(function (data) {
+          if (!res.ok || data.ok === false) throw reviewFailure("refused", data.error || "", data.error ? "" : "Could not load review rows (" + res.status + ").");
+          return data;
+        });
+      }).then(function (data) {
+        if (dead) return;
+        const rows = data.rows || [];
+        setPage({ rows: rows, total: data.total || 0, nextAfterId: data.nextAfterId == null ? null : data.nextAfterId, selection: data.selection || "" });
+        setError(""); setConfirm(null);
+        /* Keep checked rows that are still on this page with the same token. */
+        const present = rows.map(function (row) { return row.token; });
+        setSelected(function (old) { return old.filter(function (token) { return present.indexOf(token) >= 0; }); });
+      }).catch(function (err) {
+        if (dead) return;
+        setPage({ rows: [], total: 0, nextAfterId: null, selection: "" });
+        setSelected([]); setConfirm(null);
+        setError(String((err && err.message) || err));
+      }).then(function () { if (!dead) setLoading(false); });
+      return function () { dead = true; };
+    }, [afterId, nonce]);
+    useEffect(function () {
+      if (!confirm || !confirmRef.current) return;
+      confirmRef.current.scrollIntoView({ block: "nearest" });
+      const first = confirmRef.current.querySelector("button");
+      if (first) first.focus({ preventScroll: true });
+    }, [confirm]);
+    function reload() { setNonce(function (n) { return n + 1; }); }
+    function closeJob(jobId) { setJobs(function (old) { return old.filter(function (job) { return job.id !== jobId; }); }); }
+    async function watch(jobId) {
+      const seq = ++watchSeq.current;
+      const stopped = function () { return seq !== watchSeq.current; };
+      setWatching(jobId); setError("");
+      try {
+        const decisions = await observeReviewDecision(jobId, stopped);
+        if (stopped()) return;
+        if (decisions) {
+          closeJob(jobId); setMessage(reviewOutcomeText(decisions));
+          reload();
+          if (onRefresh) onRefresh();
+        } else setMessage("Job " + jobId + " is still running. Its rows stay locked until you check its result or refresh the rows.");
+      } catch (err) {
+        if (stopped()) return;
+        setMessage("");
+        setError(String((err && err.message) || err));
+        if (err && err.kind) {
+          closeJob(jobId);
+          if (err.refresh) reload();
+        }
+        /* Any other failure only means the job could not be read. Keep it open. */
+      } finally { if (!stopped()) setWatching(""); }
+    }
+    function ask(rows, decision) {
+      if (busy || !rows.length) return;
+      setError(""); setConfirm({ rows: rows, decision: decision });
+    }
+    async function send() {
+      if (!confirm || busy) return;
+      const rows = confirm.rows, decision = confirm.decision;
+      setConfirm(null); setSubmitting(true); setError(""); setMessage("Sending the decision…");
+      try {
+        const jobId = await submitReviewRows(rows.map(function (row) {
+          return { match_id: row.match.id, token: row.token };
+        }), page.selection, decision);
+        if (!mountedRef.current) return;
+        const tokens = rows.map(function (row) { return row.token; });
+        setJobs(function (old) { return old.concat([{ id: jobId, tokens: tokens, matchIds: rows.map(function (row) { return row.match.id; }) }]); });
+        setSelected(function (old) { return old.filter(function (token) { return tokens.indexOf(token) < 0; }); });
+        setMessage("Decision sent as job " + jobId + ". Waiting for the server to record it.");
+        setSubmitting(false);
+        await watch(jobId);
+      } catch (err) {
+        if (!mountedRef.current) return;
+        setMessage("");
+        setError(String((err && err.message) || err));
+        if (err && err.refresh) reload();
+      } finally { if (mountedRef.current) setSubmitting(false); }
+    }
+    function stopWaiting() {
+      const jobId = watching;
+      watchSeq.current++;
+      setWatching("");
+      setMessage("Stopped waiting for job " + jobId + ". It may still save. Its rows stay locked until you check its result or refresh the rows.");
+    }
+    function refreshRows() {
+      /* After a refresh the rows show the current state, so open jobs no longer lock them. */
+      if (jobs.length) setMessage("Rows refreshed. Job" + (jobs.length === 1 ? " " : "s ") + jobs.map(function (job) { return job.id; }).join(", ") + " may still save; decided rows leave the list.");
+      setJobs([]); reload();
+    }
+    const locked = [].concat.apply([], jobs.map(function (job) { return job.tokens; }));
+    const busy = loading || submitting || Boolean(watching);
+    const eligible = function (row) { return Boolean(row.token && page.selection && Number.isSafeInteger(row.match && row.match.id)) && locked.indexOf(row.token) < 0; };
+    const chosen = page.rows.filter(function (row) { return selected.indexOf(row.token) >= 0 && eligible(row); });
+    const selectable = page.rows.filter(eligible);
+    const allChosen = selectable.length > 0 && selectable.every(function (row) { return selected.indexOf(row.token) >= 0; });
+    const slug = function (row, i) { const b = (row.binaries || [])[i] || {}; return (b.row && b.row.slug) || (i ? row.match.dst_binary : row.match.src_binary); };
+    const hex = function (value) { return Number.isSafeInteger(value) ? "0x" + value.toString(16) : String(value == null ? "Unavailable" : value); };
+    const confirmText = function (rows, decision) {
+      const ids = rows.map(function (row) { return String(row.match.id); });
+      const list = ids.length > 6 ? ids.slice(0, 6).join(", ") + " and " + (ids.length - 6) + " more" : ids.join(", ");
+      const noun = rows.length === 1 ? "match" : rows.length + " matches";
+      return decision === "accept"
+        ? "Move " + noun + " (" + list + ") to verification? This cannot be undone here."
+        : "Reject " + noun + " (" + list + ")? This cannot be undone here.";
+    };
     return html`<div className="wb-review-react">
-      <p className="wb-hint">${Object.keys(statuses).map(function (k) { return k + " " + statuses[k]; }).join(" · ") || "No match table."}</p>
+      <p className="wb-hint">Accept moves a candidate to verification. It does not prove matching source or runtime behaviour.</p>
+      ${legacyCursor ? html`<p role="alert">${REVIEW_ERRORS.ranked_cursor_retired} Showing the first page.</p>` : null}
+      ${start.badCursor ? html`<p role="alert">The page cursor in this link is not a match ID. Showing the first page.</p>` : null}
+      ${start.capped ? html`<p className="wb-hint">A review page holds at most 100 rows. Showing 100.</p>` : null}
+      ${error ? html`<p role="alert">${error}</p>` : null}
+      ${message ? html`<p role="status">${message}</p>` : null}
+      ${jobs.map(function (job) {
+        return html`<p key=${job.id}>Decision job <a href=${API.jobs + "/" + encodeURIComponent(job.id)} target="_blank" rel="noreferrer">${job.id}</a>
+          ${" for match" + (job.matchIds.length === 1 ? " " : "es ") + job.matchIds.join(", ") + " "}
+          ${watching === job.id
+            ? html`<button type="button" className="wb-btn wb-btn-mini" onClick=${stopWaiting}>Stop waiting</button>`
+            : html`<button type="button" className="wb-btn wb-btn-mini" disabled=${busy} onClick=${function () { watch(job.id); }}>Check result</button>`}</p>`;
+      })}
+      ${confirm ? html`<div ref=${confirmRef} className="review-confirm" role="group" aria-label="Confirm match decision">
+        <p>${confirmText(confirm.rows, confirm.decision)}</p>
+        <button type="button" className="wb-btn wb-btn-mini" onClick=${function () { setConfirm(null); }}>Cancel</button>
+        <button type="button" className="wb-btn wb-btn-mini" onClick=${send}>${confirm.decision === "accept" ? "Confirm accept" : "Confirm reject"}</button>
+      </div>` : null}
+      <div className="wb-toolbar">
+        <button type="button" className="wb-btn wb-btn-mini" disabled=${loading || submitting} onClick=${refreshRows}>Refresh rows</button>
+        <button type="button" className="wb-btn wb-btn-mini" disabled=${busy || Boolean(confirm) || !chosen.length} onClick=${function () { ask(chosen, "accept"); }}>Accept selected</button>
+        <button type="button" className="wb-btn wb-btn-mini" disabled=${busy || Boolean(confirm) || !chosen.length} onClick=${function () { ask(chosen, "reject"); }}>Reject selected</button>
+        <span>${loading ? "Loading…" : page.total + " candidates awaiting review, listed by match ID"}</span>
+      </div>
       <table className="wb-fnb-table">
-        <thead><tr><th>Score</th><th>Source</th><th>Dest</th><th></th></tr></thead>
-        <tbody>
-          ${(r.rows || []).length ? (r.rows || []).map(function (row, i) {
-            return html`<tr key=${i}>
-              <td>${fmtCount(row.score)}</td>
-              <td><code>${row.src_name || row.src_addr}</code></td>
-              <td><code>${row.dst_name || row.dst_addr}</code></td>
-              <td>
-                <button type="button" className="wb-btn wb-btn-mini" onClick=${function () { if (onDecide) onDecide(row, "accept"); }}>Accept</button>
-                <button type="button" className="wb-btn wb-btn-mini" onClick=${function () { if (onDecide) onDecide(row, "reject"); }}>Reject</button>
-              </td>
-            </tr>`;
-          }) : html`<tr><td colspan="4">No review-tier matches queued.</td></tr>`}
-        </tbody>
+        <thead><tr>
+          <th><input type="checkbox" aria-label="Select all rows on this page" checked=${allChosen} disabled=${busy || !selectable.length}
+            onChange=${function (event) { const checked = event.target.checked; const tokens = selectable.map(function (row) { return row.token; }); setSelected(function (old) { const rest = old.filter(function (token) { return tokens.indexOf(token) < 0; }); return checked ? rest.concat(tokens) : rest; }); }}/></th>
+          <th>Match</th><th>Score / margin</th><th>Source</th><th>Dest</th><th>Evidence</th><th>Decision</th></tr></thead>
+        <tbody>${page.rows.map(function (row) {
+          const waiting = locked.indexOf(row.token) >= 0;
+          return html`<tr key=${row.token}>
+            <td><input type="checkbox" aria-label=${"Select match " + row.match.id} disabled=${busy || !eligible(row)} checked=${selected.indexOf(row.token) >= 0}
+              onChange=${function (event) { const checked = event.target.checked; setSelected(function (old) { return checked ? old.concat([row.token]) : old.filter(function (token) { return token !== row.token; }); }); }}/></td>
+            <td>${String(row.match.id)}</td>
+            <td>${String(row.match.score)} / ${String(row.match.margin)}</td>
+            <td>${slug(row, 0)} <code>${hex(row.match.src_addr)}</code></td>
+            <td>${slug(row, 1)} <code>${hex(row.match.dst_addr)}</code></td>
+            <td><details><summary>${row.match.relation || "Recorded evidence"}</summary><pre>${row.match.evidence || "No recorded evidence"}</pre><p>Run: ${row.match.run}</p></details><${MatchAvailability} match=${row.match} selection=${page.selection}/></td>
+            <td>${waiting ? html`<span>Waiting for its job</span>` : html`<button type="button" className="wb-btn wb-btn-mini" disabled=${busy || Boolean(confirm) || !eligible(row)} onClick=${function () { ask([row], "accept"); }}>Accept</button>
+              <button type="button" className="wb-btn wb-btn-mini" disabled=${busy || Boolean(confirm) || !eligible(row)} onClick=${function () { ask([row], "reject"); }}>Reject</button>`}</td>
+          </tr>`;
+        })}</tbody>
       </table>
+      ${!loading && !error && !page.rows.length ? html`<p>${afterId ? "No review candidates after this match ID." : "No review candidates."}</p>` : null}
+      <div className="wb-toolbar">
+        <button type="button" className="wb-btn wb-btn-mini" disabled=${loading || !afterId} onClick=${function () { setHistory([]); setAfterId(0); }}>Go to first page</button>
+        <button type="button" className="wb-btn wb-btn-mini" disabled=${loading || !history.length} onClick=${function () { setAfterId(history[history.length - 1]); setHistory(history.slice(0, -1)); }}>Show previous page</button>
+        <button type="button" className="wb-btn wb-btn-mini" disabled=${loading || page.nextAfterId === null} onClick=${function () { setHistory(history.concat([afterId])); setAfterId(page.nextAfterId); }}>Show next page</button>
+      </div>
     </div>`;
   }
 
-  function StepLadder({ steps, title, onRun }) {
+  function StepLadder({ steps, title }) {
     const list = steps || [];
     if (!list.length) return html`<p className="wb-hint">No ladder facts yet.</p>`;
     return html`<section className="wb-ladder">
@@ -946,9 +1274,6 @@
               <span className="wb-step-name">${step.title || step.key}</span>
               <span className="wb-step-state">${st}</span>
               <span className="wb-step-count">${count}</span>
-              ${step.action_id && onRun ? html`<button type="button" className="wb-btn wb-btn-mini"
-                disabled=${!step.action_enabled}
-                onClick=${function () { onRun(step); }}>Run</button>` : null}
             </div>
             <p className="wb-hint">${step.why || step.reason || ""}</p>
             ${step.currentProgram || step.currentTarget ? html`<p className="wb-hint"><code>${step.currentProgram || step.currentTarget}</code>${step.currentAction ? " · " + step.currentAction : ""}</p>` : null}
@@ -957,6 +1282,102 @@
           </li>`;
         })}
       </ol>
+    </section>`;
+  }
+
+  function preparationResponse(data) {
+  if (!data || data.ok === false || !Array.isArray(data.runs)) throw new Error("Invalid preparation response");
+  const object = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
+  const texts = ["id", "status", "locator", "program", "slug", "title", "key", "reason", "error", "currentProgram", "currentTarget", "currentAction", "jobStatus", "unit", "nextFallback", "message", "action", "nextAction", "wakeCondition", "label", "state", "why", "next", "receipt", "programPath", "src", "dst", "actionId"];
+  const numbers = ["completed", "total", "done", "attempts", "attemptsSpent", "attemptsRemaining", "executionLimitSeconds"];
+  const times = ["updatedAt", "createdAt", "startedAt", "retryAt", "at", "executionDeadlineAt", "deadline"];
+  function row(value) {
+    if (!object(value)) return false;
+    if (texts.some(key => value[key] != null && typeof value[key] !== "string")) return false;
+    if (numbers.some(key => value[key] != null && (typeof value[key] !== "number" || !Number.isFinite(value[key])))) return false;
+    if (times.some(key => value[key] != null && (typeof value[key] !== "number" || !Number.isFinite(value[key]) || Math.abs(value[key]) > 8640000000000))) return false;
+    return true;
+  }
+  for (const run of data.runs) {
+    if (!row(run)) throw new Error("Invalid preparation record");
+    for (const key of ["stages", "events"]) {
+      if (run[key] != null && (!Array.isArray(run[key]) || !run[key].every(row))) throw new Error("Invalid preparation " + key);
+    }
+    if (run.currentJob != null && (!row(run.currentJob) || (run.currentJob.params != null && !row(run.currentJob.params)))) throw new Error("Invalid current job");
+    for (const stage of run.stages || []) {
+      if (stage.workProgress != null && !row(stage.workProgress)) throw new Error("Invalid stage work progress");
+    }
+    if (run.programs != null && (!Array.isArray(run.programs) || !run.programs.every(value => typeof value === "string"))) throw new Error("Invalid preparation programs");
+    if (run.retryDecisions != null && (!object(run.retryDecisions) || !Object.values(run.retryDecisions).every(row))) throw new Error("Invalid continuation decisions");
+  }
+  return data.runs;
+  }
+
+  function preparationBudgetText(value) {
+    if (!value || typeof value !== "object" || Array.isArray(value)) return "Action admissions: unknown";
+    const budget = value;
+    const count = (n) => typeof n === "number" && Number.isSafeInteger(n) && n >= 0;
+    const used = count(budget.consumed) ? String(budget.consumed) : "unknown";
+    const limit = budget.maxActionAdmissions === null ? "unlimited" : count(budget.maxActionAdmissions) ? String(budget.maxActionAdmissions) : "unknown";
+    const revision = count(budget.allocationRevision) ? String(budget.allocationRevision) : "unknown";
+    const prior = budget.priorUsageUnknown === true ? " · earlier spending unknown; shown usage is a lower bound" : "";
+    const exhausted = count(budget.consumed) && count(budget.maxActionAdmissions) && budget.consumed >= budget.maxActionAdmissions ? " · allowance exhausted" : "";
+    return `Action admissions: ${used} used / ${limit} allowance · allocation revision ${revision}${exhausted}${prior}`;
+  }
+
+  function preparationProviderBudgetText(value) {
+    if (!value || typeof value !== "object" || Array.isArray(value)) return "MCP tool calls: unknown";
+    const budget = value;
+    if (budget.schema !== 1 || budget.accountingScope !== "mcp-tool-dispatches-since-allocation") return "MCP tool calls: unknown";
+    const count = (n) => typeof n === "number" && Number.isSafeInteger(n) && n >= 0;
+    const used = count(budget.consumed) ? String(budget.consumed) : "unknown";
+    const limit = budget.maxMcpToolCalls === null ? "unlimited" : count(budget.maxMcpToolCalls) ? String(budget.maxMcpToolCalls) : "unknown";
+    const revision = count(budget.allocationRevision) ? String(budget.allocationRevision) : "unknown";
+    const prior = budget.priorUsageUnknown === true ? " · earlier spending unknown; shown usage is a lower bound" : "";
+    const exhausted = count(budget.consumed) && count(budget.maxMcpToolCalls) && budget.consumed >= budget.maxMcpToolCalls ? " · allowance exhausted" : "";
+    return `MCP tool calls: ${used} used / ${limit} allowance · allocation revision ${revision}${exhausted}${prior}`;
+  }
+
+  const PREPARATION_ACTIVE = { queued: 1, running: 1, waiting: 1, cancelling: 1 };
+
+  function PreparationObservation({ run, feed, now, onControl }) {
+    const stale = ["disconnected", "resync"].includes(String(run && run.status)) || Boolean(feed.error) || Boolean(feed.receivedAt && now - feed.receivedAt > 10000);
+    const decisions = Object.values(run && run.retryDecisions || {}).filter(function (value) { return value && typeof value === "object" && value.nextAction !== "dispatch"; });
+    const [busy, setBusy] = useState("");
+    const [ctlError, setCtlError] = useState("");
+    function control(operation) {
+      if (!run || !run.id || busy || !onControl) return;
+      setBusy(operation);
+      setCtlError("");
+      Promise.resolve(onControl(run.id, operation)).then(function (result) {
+        setBusy("");
+        if (!result) setCtlError("Could not send " + operation + ". Try again.");
+      }, function (err) {
+        setBusy("");
+        setCtlError(String((err && err.message) || err || ("Could not send " + operation + ".")));
+      });
+    }
+    return html`<section className="wb-preparation-observation" aria-label="Recorded preparation state">
+      <p role="status">${stale ? "Connection lost · showing last received state; current state unknown" : feed.receivedAt ? "Preparation feed connected" : "Preparation status not yet received"}</p>
+      ${feed.receivedAt ? html`<p className="wb-hint">Last received: <time dateTime=${new Date(feed.receivedAt).toISOString()}>${new Date(feed.receivedAt).toLocaleString()}</time></p>` : null}
+      ${feed.error ? html`<p className="wb-hint">${feed.error}</p>` : null}
+      ${run ? html`<p>${preparationProviderBudgetText(run.providerBudget)}${stale ? " · last received observation; current usage unknown" : ""}</p>
+        <p className="wb-hint">MCP allowance counts prerequisite, retry and check-in tools/call attempts since allocation. It is separate from action admissions and the execution deadline; it does not count tokens, money or provider-internal work.</p>
+        <p>${preparationBudgetText(run.objectiveBudget)}</p>
+        <p className="wb-hint">Admission allowance counts reserved action attempts, including uncertain or rejected dispatches. It is separate from the execution deadline and does not measure recovered code. Accounting scope: ${run.objectiveBudget && typeof run.objectiveBudget.accountingScope === "string" ? run.objectiveBudget.accountingScope : "unknown"}.</p>
+        ${typeof run.updatedAt === "number" && Number.isFinite(run.updatedAt) ? html`<p className="wb-hint">Last recorded change: <time dateTime=${new Date(run.updatedAt * 1000).toISOString()}>${new Date(run.updatedAt * 1000).toLocaleString()}</time></p>` : null}
+        ${decisions.map(function (decision, index) { return html`<p key=${index} className="wb-hint">${decision.reason || "Awaiting reconciliation"}${decision.wakeCondition ? " · Continues after: " + String(decision.wakeCondition).replace(/_/g, " ") : ""}</p>`; })}
+        <p className="wb-hint">Stage completion does not establish byte verification or accepted source contribution.</p>
+        ${onControl && run.id ? html`<div className="wb-fn-tools" role="toolbar" aria-label="Workflow control">
+          ${PREPARATION_ACTIVE[run.status] ? html`<button type="button" className="wb-btn wb-btn-mini" disabled=${Boolean(busy)}
+            onClick=${function () { control("pause"); }}>Pause</button>` : null}
+          ${PREPARATION_ACTIVE[run.status] ? html`<button type="button" className="wb-btn wb-btn-mini" disabled=${Boolean(busy)}
+            onClick=${function () { control("stop"); }}>Stop</button>` : null}
+          ${run.status === "paused" ? html`<button type="button" className="wb-btn wb-btn-mini" disabled=${Boolean(busy)}
+            onClick=${function () { control("resume"); }}>Resume</button>` : null}
+          ${busy ? html`<span role="status" className="wb-hint">Submitting ${busy}…</span>` : null}
+          ${ctlError ? html`<span role="status" className="wb-dialog-error">${ctlError}</span>` : null}
+        </div>` : null}` : null}
     </section>`;
   }
 
@@ -1122,10 +1543,7 @@
 
   function MatchWorkbench({
     program, selected, detail, bsim,
-    onRefresh, onRunMatch, onRunMatchFunction,
-    onApplyStabs, onLogicalBuild, onMergeParts, onPropagate,
-    onRunCrossPlace, onExtractStabs, onPickSibling,
-    canMatchPair, canMatchFunction, canIdentity
+    onRefresh, onPickSibling
   }) {
     const state = (bsim && bsim.state) || "";
     const siblings = (detail && detail.siblings) || [];
@@ -1141,33 +1559,13 @@
         <p>${line}</p>
         ${bsim && bsim.datadir ? html`<p className="wb-hint"><code>${bsim.datadir}</code></p>` : null}
       </div>
+      <p className="wb-hint">The pipeline matches and rebuilds identities automatically.</p>
       <div className="wb-fn-tools" role="toolbar" aria-label="Match">
-        <button type="button" id="wb-match-run" className="wb-btn wb-btn-primary"
-          disabled=${canMatchPair === false}
-          onClick=${onRunMatch}>Run match</button>
-        <button type="button" id="wb-match-fn" className="wb-btn"
-          disabled=${canMatchFunction === false}
-          onClick=${onRunMatchFunction}>Match function</button>
-        <button type="button" id="wb-match-apply-stabs" className="wb-btn wb-btn-mini"
-          disabled=${canIdentity === false}
-          onClick=${onApplyStabs}>Apply STABS</button>
-        <button type="button" id="wb-match-logical-build" className="wb-btn wb-btn-mini"
-          disabled=${canIdentity === false}
-          onClick=${onLogicalBuild}>Logical build</button>
-        <button type="button" id="wb-match-merge-parts" className="wb-btn wb-btn-mini"
-          disabled=${canIdentity === false}
-          onClick=${onMergeParts}>Merge parts</button>
-        <button type="button" id="wb-match-propagate" className="wb-btn wb-btn-mini"
-          disabled=${canIdentity === false}
-          onClick=${onPropagate}>Propagate</button>
-        <button type="button" id="wb-match-cross" className="wb-btn"
-          onClick=${onRunCrossPlace}>Run cross-place</button>
         <button type="button" className="wb-btn" onClick=${onRefresh}>Refresh</button>
       </div>
       <section className="wb-stabs-detail">
         <h3>STABS</h3>
-        <p className="wb-hint">Donor symbols for this program, if a STABS file exists.</p>
-        <button type="button" id="wb-match-stabs" className="wb-btn wb-btn-mini" onClick=${onExtractStabs}>Extract STABS</button>
+        <p className="wb-hint">Donor symbols for this program, if a STABS file exists. The pipeline extracts them automatically.</p>
       </section>
       ${siblings.length ? html`<section>
         <h3>Siblings</h3>
@@ -1213,6 +1611,36 @@
       return html`<p id="wb-repo-status" className="wb-repo-row">Local project ${dossier.slug || ""}</p>`;
     }
     return html`<p id="wb-repo-status" className="wb-repo-row">${kindTitle(kind)}</p>`;
+  }
+
+  function ExportBundles({ slug, locator }) {
+    const [data, setData] = useState(null);
+    const [error, setError] = useState("");
+    useEffect(function () {
+      const controller = new AbortController();
+      let alive = true;
+      setData(null); setError("");
+      const params = new URLSearchParams({slug: slug || "", locator: locator || ""});
+      fetch("/dashboard/api/workbench/exports?" + params, {cache: "no-store", signal: controller.signal})
+        .then(function (response) { if (!response.ok) throw new Error("Export listing unavailable (" + response.status + ")"); return response.json(); })
+        .then(function (body) { if (alive) { if (!body.ok) setError(body.error || "Export listing unavailable"); else setData(body); } })
+        .catch(function (err) { if (alive) setError(String(err.message || err)); });
+      return function () { alive = false; controller.abort(); };
+    }, [slug, locator]);
+    return html`<section aria-label="Export readiness"><h3>Export bundles</h3>
+      <p className="wb-hint">Recorded pipeline outputs. Locator readiness does not establish supported runtime operations or recovered-source parity.</p>
+      ${error ? html`<p className="wb-dialog-error">${error}</p>` : !data ? html`<p role="status">Reading export manifests…</p>` : !(data.bundles || []).length ? html`<p role="status">${data.reason || "No complete export bundle is recorded for this selection. Nothing to download yet."}</p>` : null}
+      ${(data && data.bundles || []).map(function (bundle) { return html`<article key=${bundle.bundle_sha256}>
+        <h4>Bundle <code>${String(bundle.bundle_sha256).slice(0,16)}</code></h4>
+        ${(bundle.readiness && bundle.readiness.builds || []).map(function (build) { return html`<p key=${build.build}>${build.summary}</p>`; })}
+        <details><summary>Per-entity locator readiness</summary><table><thead><tr><th>Entity</th><th>Build</th><th>Status</th><th>Reason</th></tr></thead><tbody>
+          ${(bundle.readiness && bundle.readiness.entities || []).map(function (row) { return html`<tr key=${row.entity+":"+row.build}><td>${row.entity}</td><td>${row.build}</td><td data-readiness=${row.status}>${row.status}</td><td>${row.reason}</td></tr>`; })}
+        </tbody></table></details>
+        <ul>${(bundle.artifacts || []).map(function (artifact) { return html`<li key=${artifact.path}><a href=${artifact.href} download>${artifact.path}</a> · ${artifact.size} bytes</li>`; })}</ul>
+        ${(bundle.scope_receipts || []).map(function (receipt) { return html`<p key=${receipt.artifact}>${receipt.artifact}: ${receipt.status} · ${receipt.reason}</p>`; })}
+      </article>`; })}
+      ${(data && data.errors || []).map(function (message,index) { return html`<p className="wb-dialog-error" key=${index}>${typeof message === "string" ? message : (message.bundle || "Bundle") + ": " + (message.reason || "Unavailable")}</p>`; })}
+    </section>`;
   }
 
   function ArtifactsReact({ path, onOpen }) {
@@ -1279,7 +1707,7 @@
     </div>`;
   }
 
-  function RecoverWorkbench({ program, selected, recover, recoveredRoot, onRefresh, onDump, onOneShot, onExportC, onDecompile, onGhidraBulk, onCrossPlace, onIngest }) {
+  function RecoverWorkbench({ program, selected, recover, recoveredRoot, onRefresh }) {
     const state = (recover && recover.state) || "";
     const files = (recover && recover.files) || [];
     const summary = (recover && recover.summary)
@@ -1292,25 +1720,16 @@
         <p>${summary}</p>
         ${recover && recover.path ? html`<p className="wb-hint"><code>${recover.path}</code></p>` : null}
       </div>
+      <p className="wb-hint">The pipeline recovers, places and ingests source automatically.</p>
       <div className="wb-fn-tools" role="toolbar" aria-label="Recover">
-        <button type="button" id="wb-recover-run" className="wb-btn wb-btn-primary"
-          onClick=${onGhidraBulk}>Ghidra bulk</button>
-        <button type="button" className="wb-btn" onClick=${onCrossPlace}>Cross-place</button>
-        <button type="button" id="wb-recover-export" className="wb-btn"
-          onClick=${onExportC}>Export C</button>
-        <button type="button" className="wb-btn" onClick=${onIngest}>Ingest recovered</button>
-        <button type="button" className="wb-btn" onClick=${onDecompile}>Decompile function</button>
         <button type="button" className="wb-btn" onClick=${onRefresh}>Refresh</button>
       </div>
-      ${((recover && recover.leftoverCount) || 0) > 0 ? html`<div className="wb-fn-tools" role="toolbar" aria-label="Leftover">
-        <button type="button" className="wb-btn" onClick=${onDump}>Dump leftover</button>
-        <button type="button" className="wb-btn" onClick=${onOneShot}>One-shot leftover</button>
-      </div>` : html`<p className="wb-hint">Leftover dump stays off until a leftover set exists.</p>`}
+      ${((recover && recover.leftoverCount) || 0) > 0 ? html`<p className="wb-hint">Leftover functions are pending. The pipeline recovers them automatically.</p>` : html`<p className="wb-hint">No leftover functions right now.</p>`}
       ${files.length ? html`<ul className="wb-recover-files">
         ${files.map(function (name) {
           return html`<li key=${name}><code>${name}</code></li>`;
         })}
-      </ul>` : html`<p className="wb-hint">Run Ghidra bulk to write compiling C.</p>`}
+      </ul>` : html`<p className="wb-hint">The pipeline writes compiling C here automatically.</p>`}
     </div>`;
   }
 
@@ -1437,56 +1856,39 @@
 
   const QUICK_ACTION_SETS = {
     home: [
-      { id: "corpus.ghidra-bulk", label: "Ghidra bulk", mutating: true },
-      { id: "corpus.cross-place", label: "Cross-place" },
       { id: "mcp.status", label: "Status" },
       { id: "mcp.list-functions", label: "List functions" }
     ],
     atlas: [
-      { id: "corpus.genproject", label: "Genproject" },
       { id: "mcp.decompile-function", label: "Decompile", needsFunction: true },
       { id: "mcp.get-function", label: "Get function", needsFunction: true }
     ],
     functions: [
       { id: "mcp.list-functions", label: "List functions" },
-      { id: "mcp.search-symbols", label: "Search symbols" },
-      { id: "corpus.logical-build", label: "Logical build", needsProject: true }
+      { id: "mcp.search-symbols", label: "Search symbols" }
     ],
     explorer: [
       { ui: "upload", label: "Add files…" },
       { ui: "import", label: "Open…" },
-      { id: "corpus.extract-stabs", label: "Extract STABS", needsProject: true },
       { id: "corpus.init-store", label: "Init store" },
       { id: "corpus.init", label: "Init corpus", needsProject: true, mutating: true }
     ],
-    project: [
-      { id: "corpus.ghidra-bulk", label: "Ghidra bulk", mutating: true },
-      { id: "corpus.workspace", label: "Workspace", mutating: true },
-      { id: "corpus.cross-place", label: "Cross-place" },
-      { id: "corpus.compile-link", label: "Compile link", mutating: true }
-    ],
+    project: [],
     pipeline: [
-      { id: "corpus.stages", label: "Stages" },
-      { id: "corpus.run", label: "Run pipeline", danger: true }
+      { id: "corpus.stages", label: "Stages" }
     ],
     function: [
       { id: "mcp.decompile-function", label: "Decompile", needsFunction: true },
-      { id: "mcp.match-function", label: "Match", needsFunction: true, mutating: true },
       { id: "mcp.get-references", label: "Xrefs", needsFunction: true },
       { id: "mcp.analyze-data-flow", label: "Data flow", needsFunction: true }
     ],
     binary: [
-      { id: "recover.inspect", label: "Inspect", needsSlug: true },
-      { id: "corpus.ghidra-bulk", label: "Ghidra bulk", needsSlug: true, mutating: true }
+      { id: "recover.inspect", label: "Inspect", needsSlug: true }
     ],
     report: [
-      { id: "corpus.export-run-report", label: "Export report" },
-      { id: "corpus.ingest-recovered", label: "Ingest recovered", mutating: true }
+      { id: "corpus.export-run-report", label: "Export report" }
     ],
-    stabs: [
-      { id: "corpus.extract-stabs", label: "Extract STABS", needsProject: true },
-      { id: "corpus.stabs-report", label: "STABS report" }
-    ]
+    stabs: []
   };
 
   function quickActionDisabled(item, flags) {
@@ -1494,18 +1896,6 @@
     if (item.needsSlug && flags.needsSlug) return true;
     if (item.needsProject && flags.needsProject) return true;
     return false;
-  }
-
-  function pipelineQuickActions(baseItems, stages) {
-    return (baseItems || []).concat((stages || []).map(function (stage) {
-      return {
-        id: stage.actionId,
-        label: stage.label,
-        needsProject: stage.needsProject === true,
-        mutating: stage.mutating === true,
-        requiresCatalog: true
-      };
-    }));
   }
 
   function quickActionUnavailable(item, catalog, flags) {
@@ -1540,12 +1930,33 @@
     </section>`;
   }
 
-  function Modal({ open, title, onClose, children, footer, error }) {
+  function Modal({ open, title, onClose, children, footer, error, menuInvokerRef }) {
     const boxRef = useRef(null);
+    const capturedInvokerRef = useRef(null);
     useEffect(function () {
       if (!open || !boxRef.current) return;
+      /* A2: remember what had focus before the modal opened, so closing it
+         (Escape, backdrop click, or the × button) can put focus back there
+         instead of dropping it to <body>. Dialogs opened from a menu item
+         are a special case: the item itself unmounts (its menu closes) in
+         the same render that opens the dialog, so document.activeElement
+         is already <body> by the time this effect runs. menuInvokerRef is
+         the surviving menu-trigger button captured at click time, before
+         that unmount -- prefer it when present. */
+      const menuInvoker = menuInvokerRef && menuInvokerRef.current;
+      capturedInvokerRef.current = (menuInvoker && document.contains(menuInvoker))
+        ? menuInvoker
+        : document.activeElement;
+      if (menuInvokerRef) menuInvokerRef.current = null;
       const first = boxRef.current.querySelector("input, select, textarea, button.wb-btn-primary");
       if (first && typeof first.focus === "function") first.focus();
+      return function () {
+        const invoker = capturedInvokerRef.current;
+        if (invoker && typeof invoker.focus === "function" && document.contains(invoker)) {
+          invoker.focus();
+        }
+        capturedInvokerRef.current = null;
+      };
     }, [open]);
     if (!open) return null;
     /* Tab stays inside the dialog, the way a modal window behaves on a desktop. */
@@ -1605,6 +2016,26 @@
     { id: "wb-review", title: "Review", more: true },
     { id: "wb-corpus", title: "Corpus", more: true },
     { id: "wb-tools", title: "Commands", more: true }
+  ];
+
+  /* Guide rail (slice 5). Titles and guide-anchor labels are reused verbatim
+     from the Vite frontend's GuideWorkflows.tsx (8 chapters, same order) so the
+     static dashboard doesn't grow a second guide taxonomy. GuideWorkflows.tsx
+     has no per-chapter URL (only a short "N · Section name" label) so a rail
+     click only focuses the mapped pane -- it never opens a tab and never calls
+     executeAction. `target` is the closest existing surface/centerTab id;
+     several chapters share one because the corresponding first-class surface
+     (Symbol Tree, Types/Structures/Vtables dock) doesn't exist yet -- see
+     docs/dashboard-design/2026-09-28-static-codebrowser-guide-redesign.md §2.3. */
+  const GUIDE_CHAPTERS = [
+    { title: "Orient to the project", guide: "2–3 · Projects and code browser", target: "wb-sidebar" },
+    { title: "Find symbols and types", guide: "4–5 · Symbol tree and data type manager", target: "wb-fnbrowse" },
+    { title: "Read bytes and reconstructed code", guide: "6–7 · Listing and decompile view", target: "decompile" },
+    { title: "Trace relationships and keep notes", guide: "8 · Call trees, memory map, and bookmarks", target: "graph" },
+    { title: "Check function signatures and ABI", guide: "9–11 · Functions, conventions, and return storage", target: "wb-fnbrowse" },
+    { title: "Recover structures and virtual dispatch", guide: "12–13 · Structures and vtables", target: "wb-tools" },
+    { title: "Compare template instantiations", guide: "14 · Template classes", target: "wb-tools" },
+    { title: "Diagnose decompiler inconsistencies", guide: "15–16 · Common issues and next steps", target: "decompile" }
   ];
 
   const EDITOR_TABS = EDITOR_PRIMARY.concat(CORPUS_NAV);
@@ -1886,11 +2317,7 @@
     { id: "view.density-comfortable", title: "Use roomy layout", group: "View" },
     { id: "view.jobs-rail", title: "Dock jobs on the side", group: "View" },
     { id: "view.jobs-bottom", title: "Dock jobs at the bottom", group: "View" },
-    { id: "analyze.program", title: "Analyze program", accel: "mod+shift+A", group: "Analyze" },
-    { id: "analyze.bsim-ingest", title: "Ingest repository into BSim", accel: "mod+shift+B", group: "Analyze" },
-    { id: "analyze.bsim-report", title: "Report BSim database", group: "Analyze" },
-    { id: "analyze.bsim-create", title: "Create BSim database", group: "Analyze" },
-    { id: "run.cross-place", title: "Run Cross-place", accel: "mod+shift+X", group: "Run" },
+    { id: "view.classic-layout", title: "Use classic layout", group: "View" },
     { id: "run.last", title: "Run last action", accel: "Enter", group: "Run" },
     { id: "help.access", title: "Shortcuts and menus…", accel: "shift+?", group: "Help" },
     { id: "help.overview", title: "Overview", group: "Help" }
@@ -1970,6 +2397,423 @@
     </div>`;
   }
 
+  /* Guide rail (slice 5, §5.3): state is derived only from data already in
+     scope, never invented. `reachable`/`evidence` are booleans the caller
+     computes from real app state (program selection, loaded rows/detail/
+     graph); this component only renders them. Clicking a step focuses its
+     mapped pane through the existing jumpTo mechanism -- it never runs an
+     action and never opens a network request. */
+  function GuideRail({ chapters, centerTab, reachable, evidence, onJump }) {
+    return html`<nav className="wb-guide-rail" aria-label="Guide">
+      <ol className="wb-guide-list">
+        ${chapters.map(function (chapter, i) {
+          const isReachable = Boolean(reachable[i]);
+          const inView = isReachable && centerTab === chapter.target;
+          const hasEvidence = isReachable && Boolean(evidence[i]);
+          const state = !isReachable ? "partial" : inView ? "active" : hasEvidence ? "proven" : "default";
+          const stateText = !isReachable ? "not reachable yet"
+            : inView ? "in view"
+              : hasEvidence ? "has evidence"
+                : "not started";
+          const label = (i + 1) + ". " + chapter.title + " (" + chapter.guide + ") — " + stateText;
+          return html`<li key=${chapter.title}>
+            <button type="button" className="wb-guide-step" data-state=${state}
+              title=${chapter.title}
+              aria-label=${label}
+              aria-current=${inView ? "step" : undefined}
+              onClick=${function () { onJump(chapter.target); }}>
+              <span className="wb-guide-dot" aria-hidden="true">${String(i + 1).padStart(2, "0")}</span>
+              <span className="sr-only">${label}</span>
+            </button>
+          </li>`;
+        })}
+      </ol>
+    </nav>`;
+  }
+
+  /* Symbol Tree (slice 1, redesign §5.1/§6 row 1). Lives under Explorer in the
+     left column. Every node is fetched lazily, through `runReadAction`
+     (same POST-then-poll idiom `executeAction` and `loadFunctionEvidence`
+     already use), and only the read-only catalog actions confirmed
+     `danger:false, mutating:false, long_running:false`:
+     mcp.search-symbols, mcp.list-imports, mcp.list-exports,
+     mcp.get-current-program. Nothing here ever calls a mutating action.
+
+     Classes and Namespaces both derive from one cached mcp.search-symbols
+     sweep, grouped client-side by the `namespace` field each symbol already
+     carries -- the action has no dedicated class-vs-namespace filter, so
+     "Classes" narrows that same grouping to namespaces that look like real
+     C++ types (not an import DLL, not the external/global bucket). This is
+     a heuristic, not a guarantee, and is called out as such in the slice
+     report.
+
+     The Functions node never renders its own rows (FRONTEND_INTENT §4.2 /
+     §9 -- two Functions surfaces are banned): clicking it only calls
+     onOpenFunctions(), which switches the existing wb-fnbrowse tab. */
+  const SYMTREE_PAGE = 200;
+
+  function looksLikeClassNamespace(name) {
+    if (!name) return false;
+    if (name === "Global" || name === "<EXTERNAL>") return false;
+    if (/\.(DLL|dll|EXE|exe)$/.test(name)) return false;
+    return true;
+  }
+
+  function SymbolTreeNode({ id, title, depth, expanded, loading, error, onToggle, children, isLeaf, onActivate, hint }) {
+    const indent = { paddingLeft: (depth * 14) + "px" };
+    return html`<li className="wb-symtree-li" role="treeitem" aria-expanded=${isLeaf ? undefined : Boolean(expanded)}>
+      <button type="button" className=${"wb-symtree-row wb-text-action" + (isLeaf ? " wb-symtree-leaf" : "")}
+        style=${indent}
+        title=${hint || title}
+        onClick=${function () { (isLeaf ? onActivate : onToggle)(id); }}>
+        ${!isLeaf ? html`<span className="wb-symtree-caret" aria-hidden="true">${expanded ? "▾" : "▸"}</span>` : null}
+        <span className="wb-symtree-label">${title}</span>
+        ${loading ? html`<span className="wb-hint wb-symtree-loading">loading…</span>` : null}
+      </button>
+      ${error ? html`<p className="wb-hint wb-symtree-error" style=${{ paddingLeft: ((depth + 1) * 14) + "px" }}>${error}</p>` : null}
+      ${expanded && children ? html`<ul className="wb-symtree-children" role="group">${children}</ul>` : null}
+    </li>`;
+  }
+
+  function SymbolTree({ program, hint, runReadAction, onOpenFunctions, onSelectFunction }) {
+    const [expanded, setExpanded] = useState({});
+    const [nodes, setNodes] = useState({}); // key -> { items, error, offset, hasMore, loading }
+    const [symbolSweep, setSymbolSweep] = useState(null); // shared cache for classes/namespaces
+
+    useEffect(function () {
+      setExpanded({});
+      setNodes({});
+      setSymbolSweep(null);
+    }, [program]);
+
+    function patchNode(key, patch) {
+      setNodes(function (prev) {
+        return Object.assign({}, prev, { [key]: Object.assign({}, prev[key], patch) });
+      });
+    }
+
+    async function ensureSymbolSweep() {
+      if (symbolSweep) return symbolSweep;
+      const pending = { loading: true };
+      setSymbolSweep(pending);
+      const result = await runReadAction("mcp.search-symbols", {
+        query: "", includeExternal: false, limit: 500
+      }, { timeoutMs: 8000 });
+      const next = result.ok
+        ? { items: (result.data && result.data.results) || [] }
+        : { error: result.error || "Could not read symbols." };
+      setSymbolSweep(next);
+      return next;
+    }
+
+    async function loadNamespaceGroup(key, filterFn) {
+      patchNode(key, { loading: true, error: "" });
+      const sweep = await ensureSymbolSweep();
+      if (sweep.error) { patchNode(key, { loading: false, error: sweep.error }); return; }
+      const seen = new Set();
+      const names = [];
+      (sweep.items || []).forEach(function (sym) {
+        const ns = sym.namespace || "";
+        if (!ns || seen.has(ns) || !filterFn(ns)) return;
+        seen.add(ns);
+        names.push(ns);
+      });
+      names.sort();
+      patchNode(key, { loading: false, items: names.slice(0, SYMTREE_PAGE), hasMore: names.length > SYMTREE_PAGE, allNames: names, offset: SYMTREE_PAGE });
+    }
+
+    async function loadNamespaceMembers(nsKey, namespace) {
+      patchNode(nsKey, { loading: true, error: "" });
+      const sweep = await ensureSymbolSweep();
+      if (sweep.error) { patchNode(nsKey, { loading: false, error: sweep.error }); return; }
+      const members = (sweep.items || []).filter(function (sym) { return sym.namespace === namespace; });
+      patchNode(nsKey, { loading: false, items: members.slice(0, SYMTREE_PAGE), hasMore: members.length > SYMTREE_PAGE });
+    }
+
+    async function loadFlatAction(key, actionId, offset) {
+      patchNode(key, { loading: true, error: "" });
+      const result = await runReadAction(actionId, { limit: SYMTREE_PAGE, offset: offset || 0 }, { timeoutMs: 8000 });
+      if (!result.ok) { patchNode(key, { loading: false, error: result.error || "Could not load this list." }); return; }
+      const results = (result.data && result.data.results) || [];
+      const hasMore = Boolean(result.data && result.data.hasMore);
+      setNodes(function (prev) {
+        const prior = (offset && prev[key] && prev[key].items) || [];
+        return Object.assign({}, prev, {
+          [key]: { loading: false, error: "", items: prior.concat(results), hasMore: hasMore, offset: (offset || 0) + results.length }
+        });
+      });
+    }
+
+    function toggle(key, loader) {
+      setExpanded(function (prev) {
+        const next = Object.assign({}, prev, { [key]: !prev[key] });
+        if (next[key] && !nodes[key]) loader();
+        return next;
+      });
+    }
+
+    function activateFunction(name, addr) {
+      onSelectFunction({ name: name, addr: addr });
+    }
+
+    if (!program) {
+      return html`<div id="wb-symtree" className="wb-sidebar-section wb-symbol-tree">
+        <header className="wb-sidebar-head"><h3>Symbol Tree</h3></header>
+        <p className="wb-hint">Pick a program in Explorer to browse its symbols.</p>
+      </div>`;
+    }
+    if (hint) {
+      return html`<div id="wb-symtree" className="wb-sidebar-section wb-symbol-tree">
+        <header className="wb-sidebar-head"><h3>Symbol Tree</h3></header>
+        <p className="wb-hint">${hint}</p>
+      </div>`;
+    }
+
+    function namespaceChildren(key) {
+      const node = nodes[key];
+      if (!node || !node.items) return null;
+      return node.items.map(function (ns) {
+        const nsKey = key + ":" + ns;
+        const nsNode = nodes[nsKey];
+        return html`<${SymbolTreeNode} key=${nsKey} id=${nsKey} title=${ns} depth=${1}
+          expanded=${Boolean(expanded[nsKey])} loading=${nsNode && nsNode.loading} error=${nsNode && nsNode.error}
+          onToggle=${function () { toggle(nsKey, function () { loadNamespaceMembers(nsKey, ns); }); }}
+          isLeaf=${false}
+          children=${expanded[nsKey] && nsNode && nsNode.items ? nsNode.items.map(function (sym) {
+            return html`<${SymbolTreeNode} key=${nsKey + "#" + sym.address} id=${nsKey + "#" + sym.address}
+              title=${(sym.name || sym.address) + " " + (sym.address || "")} depth=${2}
+              isLeaf=${true}
+              onActivate=${function () { activateFunction(sym.name, sym.address); }} />`;
+          }).concat(nsNode.hasMore ? [html`<li key=${nsKey + "-more"} className="wb-symtree-li" style=${{ paddingLeft: "28px" }}>
+            <span className="wb-hint">${nsNode.items.length} shown, more available</span>
+          </li>`] : []) : null} />`;
+      }).concat(node.hasMore ? [html`<li key=${key + "-more"} className="wb-symtree-li">
+        <button type="button" className="wb-text-action wb-symtree-more" style=${{ paddingLeft: "14px" }}
+          onClick=${function () {
+            const shown = node.items.length;
+            patchNode(key, { items: node.allNames.slice(0, shown + SYMTREE_PAGE), hasMore: node.allNames.length > shown + SYMTREE_PAGE });
+          }}>Show more…</button>
+      </li>`] : []);
+    }
+
+    function flatChildren(key) {
+      const node = nodes[key];
+      if (!node || !node.items) return null;
+      const items = node.items.map(function (item, i) {
+        const label = (item.name || "") + "  " + (item.address || "") + (item.library ? "  (" + item.library + ")" : "");
+        return html`<${SymbolTreeNode} key=${key + "#" + i + "#" + item.address} id=${key + "#" + i}
+          title=${label} depth=${1} isLeaf=${true}
+          onActivate=${function () { activateFunction(item.name, item.address); }} />`;
+      });
+      if (node.hasMore) {
+        items.push(html`<li key=${key + "-more"} className="wb-symtree-li">
+          <button type="button" className="wb-text-action wb-symtree-more" style=${{ paddingLeft: "14px" }}
+            onClick=${function () { loadFlatAction(key, key === "imports" ? "mcp.list-imports" : "mcp.list-exports", node.offset); }}>Show more…</button>
+        </li>`);
+      }
+      return items;
+    }
+
+    return html`<div id="wb-symtree" className="wb-sidebar-section wb-symbol-tree">
+      <header className="wb-sidebar-head"><h3>Symbol Tree</h3></header>
+      <ul className="wb-symtree-root" role="tree" aria-label="Symbol tree">
+        <${SymbolTreeNode} key="classes" id="classes" title="Classes" depth=${0}
+          expanded=${Boolean(expanded.classes)} loading=${nodes.classes && nodes.classes.loading} error=${nodes.classes && nodes.classes.error}
+          onToggle=${function () { toggle("classes", function () { loadNamespaceGroup("classes", looksLikeClassNamespace); }); }}
+          isLeaf=${false}
+          children=${expanded.classes ? namespaceChildren("classes") : null} />
+        <${SymbolTreeNode} key="namespaces" id="namespaces" title="Namespaces" depth=${0}
+          expanded=${Boolean(expanded.namespaces)} loading=${nodes.namespaces && nodes.namespaces.loading} error=${nodes.namespaces && nodes.namespaces.error}
+          onToggle=${function () { toggle("namespaces", function () { loadNamespaceGroup("namespaces", function () { return true; }); }); }}
+          isLeaf=${false}
+          children=${expanded.namespaces ? namespaceChildren("namespaces") : null} />
+        <${SymbolTreeNode} key="imports" id="imports" title="Imports" depth=${0}
+          expanded=${Boolean(expanded.imports)} loading=${nodes.imports && nodes.imports.loading} error=${nodes.imports && nodes.imports.error}
+          onToggle=${function () { toggle("imports", function () { loadFlatAction("imports", "mcp.list-imports", 0); }); }}
+          isLeaf=${false}
+          children=${expanded.imports ? flatChildren("imports") : null} />
+        <${SymbolTreeNode} key="exports" id="exports" title="Exports" depth=${0}
+          expanded=${Boolean(expanded.exports)} loading=${nodes.exports && nodes.exports.loading} error=${nodes.exports && nodes.exports.error}
+          onToggle=${function () { toggle("exports", function () { loadFlatAction("exports", "mcp.list-exports", 0); }); }}
+          isLeaf=${false}
+          children=${expanded.exports ? flatChildren("exports") : null} />
+        <li className="wb-symtree-li" role="treeitem">
+          <button type="button" className="wb-symtree-row wb-text-action" style=${{ paddingLeft: "0" }}
+            title="Open the Functions tab"
+            onClick=${onOpenFunctions}>
+            <span className="wb-symtree-caret" aria-hidden="true">▸</span>
+            <span className="wb-symtree-label">Functions</span>
+          </button>
+        </li>
+      </ul>
+    </div>`;
+  }
+
+  /* Continuous Listing rows (slice 2, redesign §5.1/§6 row 2). Replaces the
+     #wb-listing-preview text blob with an address/bytes/mnemonic/operands/
+     xref row table, backed by mcp.inspect-memory (mode: "instruction",
+     chained through each row's own fallThrough address) plus one
+     mcp.get-references call (mode: "to") for the function entry. Both are
+     confirmed danger:false/mutating:false/long_running:false in the catalog
+     -- same runReadAction reader the Symbol Tree uses.
+
+     Each inspect-memory round trip on this backend is a real Ghidra bridge
+     call, not a local computation -- measured against repos-local.gpr /
+     DragonAge2.exe it runs ~1.1s per instruction (see slice report). A
+     continuous table of any real size will blow past a 5s budget, so this
+     component fetches what it can inside `budgetMs` and falls back to the
+     existing detail.preview text -- with the measured elapsed time shown --
+     rather than pretend a partial or synthetic result is the whole listing. */
+  // "00b411a0  b6 f1   MOV DH,0xf1" lines from get-function's disassembly.
+  function parseAssemblyRows(text, addr) {
+    if (!text) return null;
+    const want = parseInt(String(addr || "").replace(/^0x/i, ""), 16);
+    const rows = [];
+    let found = false;
+    String(text).split("\n").forEach(function (line) {
+      const m = /^\s*([0-9a-fA-F]{6,16})\s+((?:[0-9a-fA-F]{2} )*[0-9a-fA-F]{2})\s+((?:(?:REP[A-Z]*|LOCK)\s+)?\S+)\s*(.*)$/i.exec(line);
+      if (!m) return;
+      const at = parseInt(m[1], 16);
+      if (at === want) found = true;
+      const targets = (m[4].match(/0x[0-9a-fA-F]{6,16}/g) || []);
+      const branch = /^(CALL|J[A-Z]{1,3}|LOOP[A-Z]*)$/i.test(m[3].split(/\s+/).pop());
+      rows.push({
+        addr: "0x" + m[1].toLowerCase(),
+        bytes: m[2],
+        mnemonic: m[3],
+        operands: m[4].trim(),
+        flows: branch ? targets : []
+      });
+    });
+    return rows.length && found ? rows : null;
+  }
+
+  function ListingRows({ addr, name, program, runReadAction, fallbackText, onJumpAddr, budgetMs, assemblyText }) {
+    const [state, setState] = useState({ status: "idle" });
+    const [focusIdx, setFocusIdx] = useState(0);
+    const seqRef = useRef(0);
+    const rowRefs = useRef([]);
+
+    useEffect(function () {
+      let cancelled = false;
+      const seq = ++seqRef.current;
+      setFocusIdx(0);
+      if (!addr || !program) { setState({ status: "idle" }); return undefined; }
+      // The function read already carries its whole disassembly; use it rather
+      // than one inspect-memory round trip per instruction.
+      const parsed = parseAssemblyRows(assemblyText, addr);
+      if (parsed) {
+        setState({ status: "ok", rows: parsed, elapsedMs: 0, budgetHit: false, inboundCount: null });
+        return undefined;
+      }
+      setState({ status: "loading" });
+      const t0 = (window.performance && performance.now) ? performance.now() : Date.now();
+      const now = function () { return (window.performance && performance.now) ? performance.now() : Date.now(); };
+      const budget = budgetMs || 5000;
+      const maxRows = 64;
+
+      async function run() {
+        const rows = [];
+        let cur = addr;
+        let inboundCount = null;
+        const refResult = await runReadAction("mcp.get-references", { target: addr, mode: "to", limit: 200 }, { timeoutMs: Math.max(1000, budget - (now() - t0)) });
+        if (cancelled || seq !== seqRef.current) return;
+        if (refResult.ok && refResult.data) inboundCount = refResult.data.count != null ? refResult.data.count : (refResult.data.references || []).length;
+        while (rows.length < maxRows) {
+          const elapsed = now() - t0;
+          if (elapsed >= budget) {
+            if (cancelled || seq !== seqRef.current) return;
+            if (rows.length) {
+              setState({ status: "ok", rows: rows, elapsedMs: elapsed, budgetHit: true, inboundCount: inboundCount });
+            } else {
+              setState({ status: "fallback", reason: "5s budget exceeded before the first row loaded", elapsedMs: elapsed });
+            }
+            return;
+          }
+          const result = await runReadAction("mcp.inspect-memory", { mode: "instruction", address: cur }, { timeoutMs: Math.max(500, budget - elapsed) });
+          if (cancelled || seq !== seqRef.current) return;
+          if (!result.ok) {
+            if (rows.length) {
+              setState({ status: "ok", rows: rows, elapsedMs: now() - t0, budgetHit: true, inboundCount: inboundCount });
+            } else {
+              setState({ status: "fallback", reason: result.error || "inspect-memory failed", elapsedMs: result.elapsedMs || (now() - t0) });
+            }
+            return;
+          }
+          const d = result.data || {};
+          const flows = (d.flows || []).map(function (f) { return typeof f === "string" ? f : (f && (f.address || f.target || f.to)); }).filter(Boolean);
+          rows.push({
+            addr: d.address || cur,
+            bytes: d.bytes || "",
+            mnemonic: d.mnemonic || "",
+            operands: (d.operands || []).map(function (o) { return o && o.text; }).filter(Boolean).join(", "),
+            flows: flows
+          });
+          if (!d.fallThrough || d.fallThrough === d.address) break;
+          cur = d.fallThrough;
+        }
+        if (cancelled || seq !== seqRef.current) return;
+        setState({ status: "ok", rows: rows, elapsedMs: now() - t0, budgetHit: false, inboundCount: inboundCount });
+      }
+      run();
+      return function () { cancelled = true; };
+    }, [addr, program, assemblyText]);
+
+    function onRowKeyDown(ev, idx, row) {
+      if (ev.key === "ArrowDown") {
+        ev.preventDefault();
+        const next = Math.min(idx + 1, state.rows.length - 1);
+        setFocusIdx(next);
+        const el = rowRefs.current[next];
+        if (el) el.focus();
+      } else if (ev.key === "ArrowUp") {
+        ev.preventDefault();
+        const prev = Math.max(idx - 1, 0);
+        setFocusIdx(prev);
+        const el = rowRefs.current[prev];
+        if (el) el.focus();
+      } else if ((ev.key === "Enter" || ev.key === " ") && row.flows && row.flows.length) {
+        ev.preventDefault();
+        onJumpAddr(row.flows[0]);
+      }
+    }
+
+    if (state.status === "ok" && state.rows && state.rows.length) {
+      return html`<div className="wb-listing-rows-wrap">
+        <table id="wb-listing-rows" className="wb-listing-rows" role="table" aria-label=${"Listing for " + (name || addr)}>
+          <thead>
+            <tr><th scope="col">Address</th><th scope="col">Bytes</th><th scope="col">Mnemonic</th><th scope="col">Operands</th><th scope="col">Xref</th></tr>
+          </thead>
+          <tbody>
+            ${state.rows.map(function (row, idx) {
+              return html`<tr key=${row.addr} ref=${function (el) { rowRefs.current[idx] = el; }}
+                tabIndex=${idx === focusIdx ? 0 : -1}
+                className="wb-listing-row"
+                onFocus=${function () { setFocusIdx(idx); }}
+                onKeyDown=${function (ev) { onRowKeyDown(ev, idx, row); }}>
+                <td><code>${row.addr}</code></td>
+                <td><code className="wb-hint">${row.bytes}</code></td>
+                <td>${row.mnemonic}</td>
+                <td>${row.operands}</td>
+                <td>${row.flows.map(function (target) {
+                  return html`<button key=${target} type="button" className="wb-text-action wb-listing-xref"
+                    title=${"Jump to " + target}
+                    onClick=${function (ev) { ev.stopPropagation(); onJumpAddr(target); }}>→${target}</button>`;
+                })}</td>
+              </tr>`;
+            })}
+          </tbody>
+        </table>
+        <p className="wb-hint">${state.rows.length} instructions${state.budgetHit ? ", stopped at the " + Math.round((budgetMs || 5000) / 1000) + "s read budget" : ""}${state.inboundCount != null ? " · " + state.inboundCount + " inbound reference" + (state.inboundCount === 1 ? "" : "s") : ""} (${Math.round(state.elapsedMs)}ms)</p>
+      </div>`;
+    }
+    return html`<div>
+      ${state.status === "fallback" ? html`<p className="wb-hint">Structured listing unavailable here (${state.reason}, ${Math.round(state.elapsedMs || 0)}ms) -- showing the text preview.</p>` : null}
+      ${state.status === "loading" ? html`<p className="wb-hint">Reading instructions…</p>` : null}
+      <pre className="wb-preview" id="wb-listing-preview">${fallbackText}</pre>
+    </div>`;
+  }
+
   function CorpusNavBar({ active, onJump, moreOpen, onMoreToggle }) {
     const primaryIds = {};
     EDITOR_PRIMARY.forEach(function (item) { primaryIds[item.id] = true; });
@@ -1980,13 +2824,16 @@
     const more = overflow.filter(function (item) { return !promoted || item.id !== promoted.id; });
     return html`<nav id="wb-corpus-nav" className="wb-corpus-nav wb-editor-tabs" aria-label="Windows">
       ${EDITOR_PRIMARY.map(function (item) {
-        const on = active === item.id ? " on" : "";
+        const isActive = active === item.id;
+        const on = isActive ? " on" : "";
         return html`<button type="button" key=${item.id} className=${"wb-corpus-nav-item" + on}
           data-surface=${item.id}
+          aria-current=${isActive ? "page" : undefined}
           onClick=${function () { onJump(item.id); }}>${item.title}</button>`;
       })}
       ${promoted ? html`<button type="button" key=${promoted.id} className="wb-corpus-nav-item on wb-nav-promoted"
         data-surface=${promoted.id}
+        aria-current="page"
         onClick=${function () { onJump(promoted.id); }}>${promoted.title}</button>` : null}
       <details className=${"wb-editor-more" + (promoted ? " on" : "")} open=${Boolean(moreOpen)}
         onToggle=${function (ev) {
@@ -2008,11 +2855,29 @@
     </nav>`;
   }
 
-  function CommandPalette({ open, query, onQuery, actions, surfaces, jobs, recentActionIds, commands, onPickAction, onPickSurface, onPickJob, onPickCommand, onClose }) {
+  function CommandPalette({ open, query, onQuery, actions, surfaces, jobs, recentActionIds, commands, onPickAction, onPickSurface, onPickJob, onPickCommand, onClose, menuInvokerRef }) {
     const inputRef = useRef(null);
+    const capturedInvokerRef = useRef(null);
     const [activeIdx, setActiveIdx] = useState(0);
     useEffect(function () {
-      if (open && inputRef.current) inputRef.current.focus();
+      if (!open) return;
+      /* A2: same invoker-focus contract as Modal -- remember what triggered
+         the palette (Ctrl+K, a menu item, …) and give it focus back on close.
+         menuInvokerRef covers the "View > Command palette" menu-item case,
+         where the item unmounts before this effect can see it as active. */
+      const menuInvoker = menuInvokerRef && menuInvokerRef.current;
+      capturedInvokerRef.current = (menuInvoker && document.contains(menuInvoker))
+        ? menuInvoker
+        : document.activeElement;
+      if (menuInvokerRef) menuInvokerRef.current = null;
+      if (inputRef.current) inputRef.current.focus();
+      return function () {
+        const invoker = capturedInvokerRef.current;
+        if (invoker && typeof invoker.focus === "function" && document.contains(invoker)) {
+          invoker.focus();
+        }
+        capturedInvokerRef.current = null;
+      };
     }, [open]);
     useEffect(function () {
       if (open) setActiveIdx(0);
@@ -2099,16 +2964,20 @@
       return "wb-palette-item" + (idx === safeIdx ? " active" : "");
     }
     return html`<div className="wb-palette-backdrop" onClick=${onClose}>
-      <div className="wb-palette" role="dialog" aria-label="Command palette" onClick=${function (ev) { ev.stopPropagation(); }}>
+      <div className="wb-palette" role="dialog" aria-modal="true" aria-label="Command palette" onClick=${function (ev) { ev.stopPropagation(); }}>
         <input ref=${inputRef} type="search" className="wb-palette-input" placeholder="Run an action or go to a surface…"
           value=${query} onInput=${function (ev) { onQuery(ev.target.value); }}
-          onKeyDown=${onPaletteInputKey} autocomplete="off" aria-activedescendant=${picks.length ? "wb-palette-pick-" + safeIdx : undefined} />
+          onKeyDown=${onPaletteInputKey} autocomplete="off"
+          role="combobox" aria-expanded="true" aria-controls="wb-palette-results"
+          aria-activedescendant=${picks.length ? "wb-palette-pick-" + safeIdx : undefined} />
+        <div id="wb-palette-results" role="listbox" aria-label="Command palette results">
         ${commandHits.length ? html`<section className="wb-palette-section">
           <h3>Workbench</h3>
           <ul>${commandHits.map(function (cmd) {
             const idx = pickCursor++;
             return html`<li key=${"cmd-" + cmd.id}>
               <button type="button" id=${"wb-palette-pick-" + idx} className=${itemClass(idx)}
+                role="option" aria-selected=${idx === safeIdx}
                 data-cmd=${cmd.id}
                 onMouseEnter=${function () { setActiveIdx(idx); }}
                 onClick=${function () { onPickCommand(cmd.id); }}>
@@ -2124,6 +2993,7 @@
             const idx = pickCursor++;
             return html`<li key=${"recent-" + act.id}>
               <button type="button" id=${"wb-palette-pick-" + idx} className=${itemClass(idx)}
+                role="option" aria-selected=${idx === safeIdx}
                 onMouseEnter=${function () { setActiveIdx(idx); }}
                 onClick=${function () { onPickAction(act.id); }}>
                 <strong>${act.title || act.id}</strong>
@@ -2138,6 +3008,7 @@
             const idx = pickCursor++;
             return html`<li key=${act.id}>
               <button type="button" id=${"wb-palette-pick-" + idx} className=${itemClass(idx)}
+                role="option" aria-selected=${idx === safeIdx}
                 onMouseEnter=${function () { setActiveIdx(idx); }}
                 onClick=${function () { onPickAction(act.id); }}>
                 <strong>${act.title || act.id}</strong>
@@ -2152,6 +3023,7 @@
             const idx = pickCursor++;
             return html`<li key=${item.id}>
               <button type="button" id=${"wb-palette-pick-" + idx} className=${itemClass(idx)}
+                role="option" aria-selected=${idx === safeIdx}
                 onMouseEnter=${function () { setActiveIdx(idx); }}
                 onClick=${function () { onPickSurface(item.id); }}>
                 <strong>${item.title}</strong>
@@ -2166,14 +3038,16 @@
             const idx = pickCursor++;
             return html`<li key=${job.id}>
               <button type="button" id=${"wb-palette-pick-" + idx} className=${itemClass(idx)}
+                role="option" aria-selected=${idx === safeIdx}
                 onMouseEnter=${function () { setActiveIdx(idx); }}
                 onClick=${function () { onPickJob(job.id); }}>
                 <strong>${job.actionId || job.id}</strong>
-                <span>${job.status}</span>
+                <span>${job.status}${job.resourceDisposition === "quarantined" || job.ownershipUnresolved === true ? " · ownership unresolved" : ""}</span>
               </button>
             </li>`;
           })}</ul>
         </section>` : null}
+        </div>
         ${!picks.length
           ? html`<p className="wb-hint">No matches. Try “ghidra”, “cross-match”, or “jobs”.</p>`
           : html`<p className="wb-hint wb-palette-kbd">↑↓ to move · Enter to select · Esc to close</p>`}
@@ -2208,11 +3082,38 @@
     </div>`;
   }
 
-  function SplitHandle({ axis, label, onDrag }) {
+  function SplitHandle({ axis, label, onDrag, value, min, max, step, onStep }) {
+    const orientation = axis === "x" ? "vertical" : "horizontal";
+    const stepSize = step || 16;
+    function onKeyDown(ev) {
+      if (!onStep) return;
+      let delta = 0;
+      if (orientation === "vertical") {
+        if (ev.key === "ArrowLeft") delta = -stepSize;
+        else if (ev.key === "ArrowRight") delta = stepSize;
+      } else {
+        if (ev.key === "ArrowUp") delta = stepSize;
+        else if (ev.key === "ArrowDown") delta = -stepSize;
+      }
+      if (!delta) return;
+      ev.preventDefault();
+      onStep(delta);
+    }
     return html`<div className=${"wb-split wb-split-" + axis} role="separator"
-      aria-orientation=${axis === "x" ? "vertical" : "horizontal"}
+      tabIndex="0"
+      aria-orientation=${orientation}
       aria-label=${label}
-      onMouseDown=${onDrag}></div>`;
+      aria-valuenow=${value != null ? Math.round(value) : undefined}
+      aria-valuemin=${min != null ? min : undefined}
+      aria-valuemax=${max != null ? max : undefined}
+      onMouseDown=${onDrag}
+      onKeyDown=${onKeyDown}></div>`;
+  }
+
+  function clampResize(next, min, max, setter, key) {
+    const clamped = Math.round(Math.min(max, Math.max(min, next)));
+    setter(clamped);
+    writeUiPref(key, String(clamped));
   }
 
   function beginResize(ev, startPx, setter, key, axis, min, max, invert) {
@@ -2221,9 +3122,7 @@
     document.body.classList.add(axis === "x" ? "wb-resizing-x" : "wb-resizing-y");
     function move(e) {
       const delta = (axis === "x" ? e.clientX : e.clientY) - origin;
-      const next = Math.round(Math.min(max, Math.max(min, startPx + (invert ? -delta : delta))));
-      setter(next);
-      writeUiPref(key, String(next));
+      clampResize(startPx + (invert ? -delta : delta), min, max, setter, key);
     }
     function up() {
       document.removeEventListener("mousemove", move);
@@ -2236,7 +3135,7 @@
 
   function LogDock({
     entries, tab, onTab, open, onToggle, selectedId, onSelect,
-    jobs, selectedJobId, jobDetail, onSelectJob, onCancel, actions, height, onResize
+    jobs, selectedJobId, jobDetail, onSelectJob, onCancel, actions, height, onResize, onKeyResize
   }) {
     const list = jobs || [];
     const running = list.filter(function (job) { return job.status === "running" || job.status === "queued"; });
@@ -2246,7 +3145,8 @@
     return html`<aside id="wb-log-dock" className=${"wb-log-dock" + (open ? " open" : "")}
       style=${open ? { height: height + "px" } : undefined}>
       <${SplitHandle} axis="y" label="Resize log"
-        onDrag=${onResize} />
+        value=${height} min=${72} max=${640}
+        onDrag=${onResize} onStep=${onKeyResize} />
       <header className="wb-log-dock-head">
         <button type="button" className=${"wb-log-tab" + (tab === "log" ? " on" : "")}
           onClick=${function () { onTab("log"); if (!open) onToggle(true); }}>Log</button>
@@ -2280,7 +3180,7 @@
                 <button type="button" className="wb-job-row" onClick=${function () { onSelectJob(job.id); }}>
                   <code>${job.id}</code>
                   <span>${actionTitle(job.actionId, actions)}</span>
-                  <span className=${"st-" + (job.status || "unknown")}>${job.status}</span>
+                  <span className=${"st-" + (job.status || "unknown")}>${job.status}${job.resourceDisposition === "quarantined" || job.ownershipUnresolved === true ? " · ownership unresolved" : ""}</span>
                 </button>
                 ${live ? html`<button type="button" className="wb-btn danger wb-job-cancel"
                   onClick=${function (ev) { ev.stopPropagation(); onCancel(job.id); }}>Cancel</button>` : null}
@@ -2317,6 +3217,120 @@
     return "…" + value.slice(-53);
   }
 
+  function staticMatrixCell(body, expected) {
+    const p = body && body.matrix_projection, b = p && p.binary;
+    const fail = function (reason) { return { verified: "Unavailable · " + reason, advisory: "Unavailable · " + reason, unclassified: "Unavailable · " + reason }; };
+    if (!expected.logicalId || !expected.corpusIdentity || !expected.slug || !/^[0-9a-f]{64}$/.test(expected.version)) return fail("Exact selection and content-hash version are required.");
+    if (!p) return fail(body && body.error || "Tier report unavailable.");
+    if (p.corpus_identity !== expected.corpusIdentity || !p.freshness || p.freshness.status !== "current") return fail("Stale or different corpus report.");
+    if (!b || b.slug !== expected.slug || b.content_sha256 !== expected.version || b.version !== expected.version || !/^[0-9a-f]{64}$/.test(String(b.report_sha256 || ""))) return fail("Exact build/version basis mismatch.");
+    if (!Array.isArray(p.rows)) return fail("Logical tier rows are malformed.");
+    const row = p.rows.find(function (item) { return String(item.logical_id) === expected.logicalId; });
+    if (!row) return fail("No authoritative row for this identity.");
+    const names = ["verified", "advisory", "unclassified"], all = [];
+    const validKey = function (key) { return typeof key === "string" && key.length > 0; };
+    if (!Array.isArray(row.member_keys) || !row.member_keys.every(validKey) || new Set(row.member_keys).size !== row.member_keys.length || row.member_keys.length !== row.physical_members) return fail("Physical member set mismatch.");
+    const rowKeys = new Set(row.member_keys);
+    for (const name of names) {
+      const tier = row[name];
+      if (!tier || !Array.isArray(tier.member_keys) || !tier.member_keys.every(validKey) || new Set(tier.member_keys).size !== tier.member_keys.length) return fail(name + " member set malformed.");
+      if (tier.member_keys.some(function (key) { return !rowKeys.has(key); })) return fail(name + " tier names members outside this logical identity.");
+      if (name === "verified" && tier.status === "unavailable") { if (tier.functions !== null || tier.bytes !== null) return fail("Unavailable verified tier supplied progress."); }
+      else if (!Number.isSafeInteger(tier.functions) || tier.functions < 0 || tier.member_keys.length !== tier.functions) return fail(name + " count mismatch.");
+      all.push.apply(all, tier.member_keys);
+    }
+    if (new Set(all).size !== all.length || all.length !== row.member_keys.length) return fail("Tier sets overlap or do not reconcile.");
+    if (row.verified.status === "available" && (!p.provider || p.provider.status !== "connected")) return fail("Verified tier conflicts with disconnected acceptance provider.");
+    return { verified: row.verified.status === "available" ? String(row.verified.functions) : "Unavailable · " + ((p.provider && p.provider.reason) || "acceptance provider unavailable"), advisory: String(row.advisory.functions), unclassified: String(row.unclassified.functions), basis: b.report_sha256 };
+  }
+
+  function logicalBrowseUrl(corpusIdentity, search, cursor) {
+    return "/dashboard/browse-block?" + new URLSearchParams({
+      block: "logical", limit: "50", lq: search || "",
+      logical_after: String(cursor || 0), corpus_identity: corpusIdentity || ""
+    });
+  }
+
+  function staticSelectionKey(corpusIdentity, revision, logicalId, binaries) {
+    const basis = (binaries || []).map(function (binary) {
+      return (binary.slug || "") + ":" + (binary.content_sha256 || binary.contentSha256 || binary.sha256 || "");
+    }).join("|");
+    return [corpusIdentity || "", revision, logicalId || "", basis].join(":");
+  }
+
+  function LogicalMatrix({ binaries, corpusIdentity, revision }) {
+    const corpus = corpusIdentity || "";
+    const [list, setList] = useState([]);
+    const [filter, setFilter] = useState("");
+    const [search, setSearch] = useState("");
+    const [pages, setPages] = useState([0]);
+    const [more, setMore] = useState(false);
+    const [chosen, setChosen] = useState("");
+    const [detailState, setDetailState] = useState({ key: "", data: null });
+    const [reportState, setReportState] = useState({ key: "", data: {} });
+    const [state, setState] = useState("Loading logical identities…");
+    useEffect(function () { setChosen(""); setPages([0]); }, [corpus, revision]);
+    useEffect(function () {
+      const c = new AbortController();
+      if (!corpus) { setList([]); setMore(false); setState("Current corpus identity unavailable."); return function () { c.abort(); }; }
+      const cursor = pages[pages.length - 1] || 0;
+      const url = logicalBrowseUrl(corpus, search, cursor);
+      fetch(url, { cache: "no-store", signal: c.signal }).then(function (r) { return r.json(); })
+        .then(function (body) { if (!c.signal.aborted) { if (!body.corpus || body.corpus.identity !== corpus) { setList([]); setMore(false); throw new Error("Logical list lacks the exact current corpus identity."); } setList(body.rows || []); setMore(Boolean(body.more)); setState("Select a logical identity."); } })
+        .catch(function (err) { if (!c.signal.aborted) setState(String(err && err.message || err)); });
+      return function () { c.abort(); };
+    }, [search, corpus, revision, pages]);
+    // Content-derived key: an equal-content binaries refresh (job poll) must not restart the fan-out.
+    // The effect below may read only slug and content hash from binaries; those are exactly what the key covers.
+    const key = staticSelectionKey(corpus, revision, chosen, binaries);
+    useEffect(function () {
+      const c = new AbortController();
+      setDetailState({ key: key, data: null });
+      setReportState({ key: key, data: {} });
+      if(!chosen||!corpus)return function(){c.abort();};
+      setState("Reading logical members and exact tier reports…");
+      fetch("/dashboard/api/workbench/logical/"+encodeURIComponent(chosen)+"?corpus_identity="+encodeURIComponent(corpus),{cache:"no-store",signal:c.signal}).then(function(r){return r.json();}).then(async function(body){
+        if(c.signal.aborted)return;
+        if(!body.corpus||body.corpus.identity!==corpus){setState(body.error||"Logical detail lacks the exact current corpus identity.");return;}
+        setDetailState({ key: key, data: body });
+        const queue=(binaries||[]).filter(function(b){return b.slug&&(b.content_sha256||b.contentSha256||b.sha256);}), found={};let next=0;
+        async function worker(){while(next<queue.length&&!c.signal.aborted){const b=queue[next++],version=String(b.content_sha256||b.contentSha256||b.sha256),q=new URLSearchParams({slug:String(b.slug),version:version,corpusIdentity:corpus});try{found[b.slug]=await fetch(API.progressReport+"?"+q,{cache:"no-store",signal:AbortSignal.any([c.signal,AbortSignal.timeout(15000)])}).then(function(r){return r.json();});}catch(err){if(!c.signal.aborted)found[b.slug]={error:String(err)};}if(!c.signal.aborted)setReportState({key:key,data:Object.assign({},found)});}}
+        await Promise.all([worker(),worker()]);if(!c.signal.aborted){setReportState({ key: key, data: found });setState("");}
+      }).catch(function(err){if(!c.signal.aborted)setState(String(err&&err.message||err));});
+      return function(){c.abort();};
+    }, [key]);
+    const detail = detailState.key === key ? detailState.data : null;
+    const reports = reportState.key === key ? reportState.data : {};
+    const members=detail&&detail.members||[];
+    return html`<section aria-label="Logical entity coverage matrix">
+      <form onSubmit=${function (ev) { ev.preventDefault(); setPages([0]); setSearch(filter); }}><label>Find a logical entity <input value=${filter} onInput=${function (ev) { setFilter(ev.target.value); }}/></label><button type="submit">Search</button></form>
+      <label>Logical entity <select value=${chosen} onChange=${function(ev){setChosen(ev.target.value);}}><option value="">Choose an identity</option>${list.map(function(row){return html`<option key=${row.id} value=${String(row.id)}>${row.name||"Identity "+row.id} · ${row.members==null?"?":row.members} members</option>`;})}</select></label>
+      <div><button type="button" disabled=${pages.length===1} onClick=${function(){setChosen("");setPages(function(old){return old.slice(0,-1);});}}>Previous identities</button><button type="button" disabled=${!more||!list.length} onClick=${function(){setChosen("");setPages(function(old){return old.concat(Number(list[list.length-1].id)||0);});}}>Next identities</button></div>
+      ${state?html`<p role="status">${state}</p>`:null}
+      ${chosen&&detail?html`<table className="wb-fnb-table"><thead><tr><th>Build</th><th>Corpus matches</th><th>Verified</th><th>Advisory</th><th>Unclassified</th></tr></thead><tbody>${(binaries||[]).map(function(b){const version=String(b.content_sha256||b.contentSha256||b.sha256||""),cell=staticMatrixCell(reports[b.slug],{logicalId:chosen,corpusIdentity:corpus,slug:String(b.slug||""),version:version}),count=members.filter(function(m){return m.slug===b.slug||(b.aliasSlugs||[]).includes(m.slug);}).length;return html`<tr key=${b.slug}><td>${b.name||b.slug}</td><td>${count}</td><td>${cell.verified}</td><td>${cell.advisory}</td><td>${cell.unclassified}</td></tr>`;})}</tbody></table>`:null}
+    </section>`;
+  }
+
+  // Corpus status and corpus-db identity settle independently: a failed identity read
+  // must not discard healthy status (it only clears identity), and vice versa.
+  async function readCorpusStatus(fetchImpl, api) {
+    const read = async function (url) {
+      const res = await fetchImpl(url, { cache: "no-store" });
+      let body;
+      try { body = await res.json(); } catch (_err) { throw new Error(url + " returned a non-JSON response (HTTP " + res.status + ")."); }
+      return { ok: Boolean(res.ok), body: body };
+    };
+    const reason = function (err) { return String(err && err.message || err); };
+    const settled = await Promise.allSettled([read(api.corpusStatus), read(api.corpusDb)]);
+    const statusResult = settled[0], dbResult = settled[1];
+    const status = statusResult.status === "fulfilled" && statusResult.value.body && typeof statusResult.value.body === "object"
+      ? statusResult.value.body
+      : { ok: false, error: statusResult.status === "rejected" ? reason(statusResult.reason) : "Corpus status response is malformed." };
+    const db = dbResult.status === "fulfilled" && dbResult.value.ok ? dbResult.value.body : null;
+    const identity = db && db.corpus && typeof db.corpus.identity === "string" ? db.corpus.identity : "";
+    return { status: status, identity: identity };
+  }
+
   function App() {
     const start = params();
     const [binaries, setBinaries] = useState([]);
@@ -2328,7 +3342,17 @@
     const [detail, setDetail] = useState(null);
     const [overview, setOverview] = useState(null);
     const [corpusStatus, setCorpusStatus] = useState(null);
+    const [corpusIdentity, setCorpusIdentity] = useState("");
+    const [corpusRevision, setCorpusRevision] = useState(0);
     const [preparationRuns, setPreparationRuns] = useState([]);
+    const [preparationFeed, setPreparationFeed] = useState({ receivedAt: 0, error: "" });
+    const [preparationNow, setPreparationNow] = useState(Date.now());
+    const preparationSequence = useRef(0);
+    const preparationInFlight = useRef(false);
+    useEffect(function () {
+      const timer = setInterval(function () { setPreparationNow(Date.now()); }, 1000);
+      return function () { clearInterval(timer); };
+    }, []);
     const [graph, setGraph] = useState(null);
     const [actions, setActions] = useState([]);
     const [jobs, setJobs] = useState([]);
@@ -2354,6 +3378,13 @@
     const [dialogError, setDialogError] = useState("");
     const [ctxMenu, setCtxMenu] = useState(null);
     const [dialog, setDialog] = useState("");
+    /* A2: when a dialog is opened from a menu item, the item itself is
+       unmounted (its menu closes) in the same render that opens the dialog,
+       so by the time Modal's own effect runs document.activeElement is
+       already <body>. The stable ~menu trigger~ button survives that
+       unmount, so it's captured here and handed to Modal as the fallback
+       invoker to restore focus to. */
+    const dialogInvokerRef = useRef(null);
     const [openTab, setOpenTab] = useState("local");
     const [openPaste, setOpenPaste] = useState("");
     const [funcNote, setFuncNote] = useState("");
@@ -2401,6 +3432,9 @@
     const [moreOpen, setMoreOpen] = useState(false);
     const [density, setDensity] = useState(function () { return readUiPref("wb-density", "compact"); });
     const [jobsRail, setJobsRail] = useState(function () { return readUiPref("wb-jobs-rail", "0") === "1"; });
+    const [classicLayout, setClassicLayout] = useState(function () { return readUiPref("wb-classic-layout", "0") === "1"; });
+    const [decompileOpenNarrow, setDecompileOpenNarrow] = useState(function () { return readUiPref("wb-decompile-open", "0") === "1"; });
+    const [lastDecompile, setLastDecompile] = useState(null);
     const [recentActionIds, setRecentActionIds] = useState(readRecentActionIds);
     const [checkedAddrs, setCheckedAddrs] = useState([]);
     const [checkAnchor, setCheckAnchor] = useState("");
@@ -2408,6 +3442,7 @@
     const jobsSnapshotRef = useRef(null);
     const ensureSeqRef = useRef(0);
     const funcSeqRef = useRef(0);
+    const evidenceSeqRef = useRef(0);
     const funcSlugRef = useRef(slug);
     const fileRef = useRef(null);
     const folderRef = useRef(null);
@@ -2452,27 +3487,39 @@
       });
     }, []);
 
+    const corpusStatusSequence = useRef(0);
     const loadCorpusStatus = useCallback(async function () {
-      try {
-        const res = await fetch(API.corpusStatus, { cache: "no-store" });
-        const data = await res.json();
-        setCorpusStatus(data);
-      } catch (err) {
-        setCorpusStatus({ ok: false, error: String(err && err.message || err) });
-      }
+      const sequence = ++corpusStatusSequence.current;
+      const result = await readCorpusStatus(function (url, init) { return fetch(url, init); }, API);
+      if (sequence !== corpusStatusSequence.current) return;
+      setCorpusStatus(result.status);
+      setCorpusIdentity(result.identity);
+      setCorpusRevision(function (value) { return value + 1; });
     }, []);
 
     const loadPreparations = useCallback(async function () {
+      if (preparationInFlight.current) return;
+      preparationInFlight.current = true;
+      const sequence = ++preparationSequence.current;
       try {
-        const res = await fetch(API.preparations, { cache: "no-store" });
+        const res = await fetch(API.preparations, { cache: "no-store", signal: AbortSignal.timeout(10000) });
+        if (!res.ok) throw new Error("Preparation request failed (" + res.status + ")");
         const data = await res.json();
-        setPreparationRuns(data.runs || []);
-      } catch (_err) {
-        /* Keep the last durable preparation receipt visible while reconnecting. */
+        const received = preparationResponse(data);
+        if (sequence !== preparationSequence.current) return;
+        setPreparationRuns(received);
+        setPreparationFeed({ receivedAt: Date.now(), error: "" });
+      } catch (err) {
+        if (sequence !== preparationSequence.current) return;
+        setPreparationFeed(function (previous) { return { receivedAt: previous.receivedAt, error: String(err && err.message || err) }; });
+      } finally {
+        preparationInFlight.current = false;
       }
     }, []);
 
     const loadFuncs = useCallback(async function (nextSlug, nextQuery) {
+      const seq = funcSeqRef.current + 1;
+      funcSeqRef.current = seq;
       const useSlug = nextSlug !== undefined ? nextSlug : slug;
       if (!useSlug && !program) {
         setRows([]);
@@ -2480,8 +3527,6 @@
         setFuncNote("");
         return;
       }
-      const seq = funcSeqRef.current + 1;
-      funcSeqRef.current = seq;
       const loc = (typeof currentLocator === "function" ? currentLocator() : "") || "";
       const url = API.functions + "?slug=" + encodeURIComponent(useSlug)
         + "&q=" + encodeURIComponent(nextQuery !== undefined ? nextQuery : query)
@@ -2491,12 +3536,18 @@
       const res = await fetch(url, { cache: "no-store" });
       const data = await res.json();
       if (seq !== funcSeqRef.current) return;
+      if (res.ok && data.ok === true && data.queued === true) {
+        setRows([]);
+        setTotal(0);
+        setFuncNote("Live function read queued. " + (data.sessionReason || "Waiting for the current Ghidra reader or writer."));
+        return;
+      }
       setRows(data.results || []);
       setTotal(data.total || 0);
       if (!data.ok && data.error) setFuncNote(humanError(data.error));
       else if (!(data.results || []).length) {
         setFuncNote(humanError(data.error) || (program
-          ? (program + " has no functions yet. Analyze → Analyze program.")
+          ? (program + " has no functions yet. The pipeline analyzes it automatically.")
           : (funcOffset ? "Past the end of this build. Go back a page." : "Pick a program in Explorer.")));
       } else setFuncNote("");
     }, [slug, query, program, funcOffset, funcLimit]);
@@ -2543,13 +3594,65 @@
       return applyWorkspace(data, row);
     }, [program, slug, selected, applyWorkspace]);
 
+    // The store listing carries only recovered C. Decompiler output comes from a
+    // Ghidra read the detail endpoint admits as a job, so poll it until it lands.
+    async function loadFunctionEvidence(row, evidenceSlug, loc, attempt) {
+      const seq = attempt ? evidenceSeqRef.current : ++evidenceSeqRef.current;
+      let data = null;
+      try {
+        const res = await fetch(
+          API.detail + "?slug=" + encodeURIComponent(evidenceSlug || "")
+            + "&addr=" + encodeURIComponent(row.addr)
+            + "&locator=" + encodeURIComponent(loc)
+            + "&program=" + encodeURIComponent(program),
+          { cache: "no-store" }
+        );
+        data = await res.json();
+      } catch (err) {
+        return;
+      }
+      if (seq !== evidenceSeqRef.current || !data) return;
+      const request = data.evidenceRequest || null;
+      let cause = "";
+      if (request && request.status === "failed" && request.jobId) {
+        try {
+          const job = await fetch(API.jobs + "/" + encodeURIComponent(request.jobId), { cache: "no-store" })
+            .then(function (res) { return res.json(); });
+          const record = (job && (job.job || job)) || {};
+          const output = String(record.log || record.output || "");
+          // The job log carries the tool's markdown error, or its JSON form.
+          const state = /\*\*State:\*\* `([^`]+)`/.exec(output) || /"state":\s*"([^"]+)"/.exec(output);
+          cause = state ? state[1] : "";
+        } catch (err) {
+          cause = "";
+        }
+        if (seq !== evidenceSeqRef.current) return;
+      }
+      setDetail(function (prev) {
+        const next = Object.assign({}, prev || {});
+        if (data.decompile && data.decompile.text) next.decompile = data.decompile;
+        if (data.assembly && data.assembly.text) next.assembly = data.assembly;
+        next.evidenceRequest = request ? Object.assign({}, request, { cause: cause }) : null;
+        return next;
+      });
+      const pending = request && (request.status === "running" || request.status === "queued" || request.status === "admitted");
+      if (pending && (attempt || 0) < 40) {
+        setTimeout(function () {
+          if (seq === evidenceSeqRef.current) loadFunctionEvidence(row, evidenceSlug, loc, (attempt || 0) + 1);
+        }, 3000);
+      }
+    }
+
     const selectRow = useCallback(async function (row) {
       setSelected(row);
       setContext(row);
       const loc = (typeof currentLocator === "function" ? currentLocator() : "") || "";
       if (loc && program) {
         const ws = await loadWorkspace(program, row);
-        if (ws && ws.ok) return;
+        if (ws && ws.ok) {
+          if (!(ws.decompile && ws.decompile.text)) loadFunctionEvidence(row, ws.slug || slug, loc, 0);
+          return;
+        }
       }
       const res = await fetch(
         API.detail + "?slug=" + encodeURIComponent(slug)
@@ -2705,13 +3808,13 @@
       setLogOpen(true);
     }
 
-    const putSessions = useCallback(async function (nextActive, nextSessions, revision) {
+    const putSessions = useCallback(async function (nextActive, nextSessions, revision, options) {
       const rev = revision !== undefined ? revision : sessionRevision;
       try {
         const res = await fetch(API.sessions, {
           method: "PUT",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ active: nextActive, sessions: nextSessions, revision: rev })
+          body: JSON.stringify({ active: nextActive, sessions: nextSessions, revision: rev, admitOpen: Boolean(options && options.admitOpen) })
         });
         const data = await res.json();
         if (!res.ok || data.ok === false) {
@@ -2779,6 +3882,8 @@
     }
 
     function resetTabState() {
+      ensureSeqRef.current += 1;
+      funcSeqRef.current += 1;
       setSlug("");
       setProgram("");
       setSelected(null);
@@ -2804,6 +3909,8 @@
 
     function selectProgram(name) {
       const picked = (name || "").trim();
+      ensureSeqRef.current += 1;
+      funcSeqRef.current += 1;
       setProgram(picked);
       patchActiveSession({ program: picked });
       if (currentSession && currentSession.projectSlug) {
@@ -2825,12 +3932,22 @@
       const seq = ensureSeqRef.current;
       if (!opts.quiet) showToast("Opening " + target + "…");
       try {
-        const res = await fetch(API.ensureProgram, {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ locator: locator, program: target })
-        });
-        const data = await res.json();
+        let res, data;
+        for (let attempt = 0; attempt < 6; attempt += 1) {
+          if (seq !== ensureSeqRef.current) return null;
+          res = await fetch(API.ensureProgram, {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ locator: locator, program: target })
+          });
+          data = await res.json();
+          if (seq !== ensureSeqRef.current) return null;
+          if (!res.ok || data.ok !== true || data.queued !== true) break;
+          setFuncNote("Live read queued for " + target + ". " + (data.sessionReason || "Waiting for the current Ghidra reader or writer."));
+          if (attempt === 5) return data;
+          const retryMs = Math.min(2000, Math.max(250, Number(data.retryAfterMs) || 500));
+          await new Promise(function (resolve) { window.setTimeout(resolve, retryMs); });
+        }
         if (!res.ok || data.ok !== true || data.ensured !== true) {
           const message = data.error || ("Could not open " + target + " in Ghidra.");
           if (!opts.quiet || opts.reportFailure) showToast(message, "error");
@@ -2869,6 +3986,7 @@
         if (data.error && !opts.quiet) showToast(data.error, data.next === "analyze-program" ? "" : "error");
         return data;
       } catch (err) {
+        if (seq !== ensureSeqRef.current) return null;
         if (!opts.quiet || opts.reportFailure) {
           showToast("Could not open " + target + " in Ghidra: " + String((err && err.message) || err), "error");
         }
@@ -2925,7 +4043,6 @@
       window.KotorXidUI = window.AgentDecompileUI;
       loadBinaries();
       loadCorpusStatus();
-      loadContext();
       loadActions();
       loadBrowse("");
       fetch(API.sessions, { cache: "no-store" }).then(function (res) { return res.json(); }).then(function (data) {
@@ -2989,20 +4106,20 @@
         } else if (key === "j") {
           ev.preventDefault();
           runCommand("view.jobs");
-        } else if (key === "a" && ev.shiftKey) {
-          ev.preventDefault();
-          runCommand("analyze.program");
-        } else if (key === "b" && ev.shiftKey) {
-          ev.preventDefault();
-          runCommand("analyze.bsim-ingest");
         }
       }
       window.addEventListener("keydown", onKey);
       return function () {
+        ensureSeqRef.current += 1;
+        funcSeqRef.current += 1;
         window.clearInterval(probeTimer);
         window.removeEventListener("keydown", onKey);
       };
-    }, [loadBinaries, loadContext, loadActions, loadBrowse, loadPreview]);
+    }, [loadBinaries, loadActions, loadBrowse, loadPreview]);
+
+    useEffect(function () {
+      loadContext();
+    }, [loadContext]);
 
     useEffect(function () {
       loadPreparations();
@@ -3207,9 +4324,32 @@
     }, [density]);
 
     useEffect(function () {
-      document.body.classList.toggle("wb-jobs-rail", jobsRail);
+      /* Decompile owns the right edge in the CodeBrowser grid, so the side rail
+         only applies in classic layout. The command and pref still work either way. */
+      document.body.classList.toggle("wb-jobs-rail", jobsRail && classicLayout);
       writeUiPref("wb-jobs-rail", jobsRail ? "1" : "0");
-    }, [jobsRail]);
+    }, [jobsRail, classicLayout]);
+
+    useEffect(function () {
+      document.body.classList.toggle("wb-classic-layout", classicLayout);
+      writeUiPref("wb-classic-layout", classicLayout ? "1" : "0");
+    }, [classicLayout]);
+
+    useEffect(function () {
+      writeUiPref("wb-decompile-open", decompileOpenNarrow ? "1" : "0");
+    }, [decompileOpenNarrow]);
+
+    useEffect(function () {
+      const text = detail && detail.decompile && detail.decompile.text;
+      if (text) {
+        setLastDecompile({
+          text: text,
+          name: (selected && selected.name) || (detail && detail.name) || "",
+          addr: (selected && selected.addr) || (detail && detail.addr) || "",
+          source: detail.decompile.source || ""
+        });
+      }
+    }, [detail, selected]);
 
     useEffect(function () {
       let last = "";
@@ -3344,7 +4484,10 @@
       }
       const regSlug = String(inspected.slug || newSlug || "").trim();
       let registered = { ok: true, binary: { slug: regSlug } };
-      if (!sameProject || !currentSession.projectSlug) {
+      // Projects and repository trees are opened, never registered as binaries;
+      // the server refuses that. Each program resolves its own corpus slug.
+      const projectKind = ["ghidra-project", "shared-fs", "shared-project"].indexOf(inspected.kind) >= 0;
+      if (!projectKind && (!sameProject || !currentSession.projectSlug)) {
         registered = await registerLocator(value, regSlug, { quiet: true });
         if (!registered.ok) {
           showToast(registered.error || "Could not register that project.", "error");
@@ -3398,8 +4541,13 @@
       setProgram(nextProgram);
       setSessions(list);
       setActiveSession(id);
-      await putSessions(id, list);
-      setIngestNote("Loaded " + nextTitle);
+      const saved = await putSessions(id, list, undefined, { admitOpen: true });
+      const admission = saved && saved.preparation;
+      setIngestNote("Loaded " + nextTitle + (admission
+        ? " · Recovery " + admission.status + " · run " + (admission.id || "unavailable")
+          + " · generation " + (admission.generation || "not recorded")
+          + " · queue " + (admission.queuePosition == null ? (admission.admissionPending ? "position pending" : "not queued") : admission.queuePosition)
+          + (admission.reason ? " · " + admission.reason : "") : ""));
       closeDialog();
       if (nextProgram) ensureGhidraProgram(nextProgram, { quiet: true, locator: value });
       return { ok: true, list: list, id: id, projectSlug: projectSlug || "", inspected: inspected };
@@ -3614,7 +4762,8 @@
         setDossier(data);
         setPreview(data);
       }
-      showToast("Saved as " + kindTitle(data.kind || saveAsTarget), "success");
+      showToast("Saved as " + kindTitle(data.kind || saveAsTarget) + (data.origin_note ? ". " + data.origin_note : ""), "success");
+      if (data.origin_note) setIngestNote(data.origin_note);
       return data;
     }
 
@@ -3751,7 +4900,6 @@
       return [
         { title: "Select program", run: function () { selectProgram(name); } },
         { title: "Open in Ghidra", run: function () { setProgram(name); ensureGhidraProgram(name, { locator: currentLocator() }); } },
-        { title: "Analyze program", run: function () { setProgram(name); startImportPipeline(name); } },
         { title: "Listing", id: "view.listing" },
         { title: "Match", id: "view.cross-match" },
         { title: "Recover", id: "view.recovery" },
@@ -3798,10 +4946,8 @@
         { title: "Data flow", run: function () { runTool("mcp.analyze-data-flow"); } },
         { title: "Bookmark…", run: function () { if (row) selectRow(row); openActionStrip("mcp.manage-bookmarks"); } },
         { title: "Rename / manage function…", run: function () { if (row) selectRow(row); openActionStrip("mcp.manage-function"); } },
-        { title: "Match function", run: function () { runTool("mcp.match-function"); } },
         "—",
         { title: "Run last action", id: "run.last" },
-        { title: "Run Cross-place", id: "run.cross-place" },
         "—",
         { title: "Copy address", run: function () { copyText(row && row.addr, "address"); } },
         { title: "Copy name", run: function () { copyText((row && row.name) || (row && row.addr), "name"); } }
@@ -3902,30 +5048,12 @@
       if (id === "view.density-comfortable") { setDensity("comfortable"); return; }
       if (id === "view.jobs-rail") { setJobsRail(true); return; }
       if (id === "view.jobs-bottom") { setJobsRail(false); return; }
-      if (id === "analyze.program") {
-        const target = program || "";
-        if (!target) { showToast("Select a program first", "error"); return; }
-        startImportPipeline(target);
-        return;
-      }
-      if (id === "analyze.bsim-ingest") {
-        executeAction("corpus.bsim-ingest", {}, { skipConfirm: true });
-        showToast("BSim ingest started");
-        return;
-      }
-      if (id === "analyze.bsim-report") {
-        executeAction("corpus.bsim-report", catalogParamsFor("corpus.bsim-report", {}), { skipConfirm: true });
-        showToast("BSim report started");
-        return;
-      }
-      if (id === "analyze.bsim-create") {
-        executeAction("corpus.bsim-createdatabase", {}, { skipConfirm: true });
-        showToast("Create BSim database started");
-        return;
-      }
-      if (id === "run.cross-place") {
-        jumpTo("wb-match");
-        executeAction("corpus.cross-place", {}, { skipConfirm: true });
+      if (id === "view.classic-layout") {
+        setClassicLayout(function (v) {
+          const next = !v;
+          showToast(next ? "Classic layout on" : "Classic layout off");
+          return next;
+        });
         return;
       }
       if (id === "run.last") {
@@ -3995,9 +5123,6 @@
         else if (key === "s") { ev.preventDefault(); runCommand("file.save"); }
         else if (key === "i") { ev.preventDefault(); runCommand("file.add-binaries"); }
         else if (key === "e" && ev.shiftKey) { ev.preventDefault(); runCommand("view.explorer"); }
-        else if (key === "x" && ev.shiftKey) { ev.preventDefault(); runCommand("run.cross-place"); }
-        else if (key === "a" && ev.shiftKey) { ev.preventDefault(); runCommand("analyze.program"); }
-        else if (key === "b" && ev.shiftKey) { ev.preventDefault(); runCommand("analyze.bsim-ingest"); }
         else if (key === "w") { ev.preventDefault(); runCommand("file.close-tab"); }
       }
       window.addEventListener("keydown", onCmd);
@@ -4178,6 +5303,108 @@
       return data;
     }
 
+    /* Pause, resume and stop are the only workflow controls (R4). They post the
+       same workbench.workflow-control action explorer-page.js already uses,
+       scoped to the run in view via preparation_id. */
+    function controlPreparation(preparationId, operation) {
+      if (["pause", "resume", "stop"].indexOf(operation) === -1) return Promise.resolve(null);
+      if (!preparationId || !operation) return Promise.resolve(null);
+      return executeAction("workbench.workflow-control", {
+        preparation_id: preparationId,
+        operation: operation
+      }, { skipConfirm: true, quiet: true }).then(function (data) {
+        loadPreparations();
+        return data;
+      });
+    }
+
+    /* Quiet, budget-bounded reader for catalog actions the Symbol Tree (slice 1)
+       and the continuous Listing rows (slice 2) use. Same POST-then-poll idiom
+       as executeAction/loadFunctionEvidence above, but: (1) refuses to run
+       anything the catalog doesn't mark danger:false, mutating:false --
+       belt-and-suspenders on top of these call sites only ever naming
+       read-only ids; (2) never opens the Jobs dock or shows a toast --
+       these fire on every tree expand / row scroll, which would otherwise
+       spam both; (3) gives up at `timeoutMs` (default 5000ms, per the
+       redesign spec's "too slow" escape hatch for listing rows) and reports
+       how long it actually waited so the caller can fall back to text and
+       say why. */
+    async function runReadAction(actionId, params, options) {
+      const opts = options || {};
+      const t0 = (window.performance && performance.now) ? performance.now() : Date.now();
+      const elapsed = function () { return ((window.performance && performance.now) ? performance.now() : Date.now()) - t0; };
+      const act = actions.find(function (item) { return item.id === actionId; });
+      if (!act) return { ok: false, error: "Unknown action " + actionId, elapsedMs: elapsed() };
+      if (act.danger || act.mutating || act.long_running) {
+        return { ok: false, error: actionId + " is not a confirmed read-only action; refusing to auto-run it.", elapsedMs: elapsed() };
+      }
+      const loc = (typeof currentLocator === "function" ? currentLocator() : "") || "";
+      const ctx = {
+        slug: toolContext.slug || "",
+        program: toolContext.program || "",
+        repo: toolContext.repo || "",
+        addr: params.addr || toolContext.addr || "",
+        name: params.name || toolContext.name || "",
+        db: toolContext.db || "",
+        work_dir: toolContext.work_dir || "",
+        kb: toolContext.kb || ""
+      };
+      const body = Object.assign({ confirm: true, context: ctx, locator: loc, program: toolContext.program || "" }, params);
+      let res, data;
+      try {
+        res = await fetch("/api/v1/actions/" + actionId.replace(/\./g, "/"), {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(body)
+        });
+        data = await res.json();
+      } catch (err) {
+        return { ok: false, error: String((err && err.message) || err), elapsedMs: elapsed() };
+      }
+      if (!res.ok || !data || data.ok === false) {
+        return { ok: false, error: (data && data.error) || "Action failed", elapsedMs: elapsed() };
+      }
+      if (!(data.job && data.job.id)) {
+        // A handful of actions answer synchronously; take that if it happens.
+        return { ok: true, data: data, elapsedMs: elapsed() };
+      }
+      const jobId = data.job.id;
+      const timeoutMs = opts.timeoutMs || 5000;
+      let job = data.job;
+      while (job.status === "running" || job.status === "queued" || job.status === "admitted" || !job.status) {
+        if (elapsed() >= timeoutMs) {
+          return { ok: false, timedOut: true, error: "Timed out waiting for " + actionId, elapsedMs: elapsed(), jobId: jobId };
+        }
+        await new Promise(function (resolve) { setTimeout(resolve, 250); });
+        try {
+          const jres = await fetch(API.jobs + "/" + encodeURIComponent(jobId), { cache: "no-store" });
+          const jdata = await jres.json();
+          job = (jdata && jdata.job) || job;
+        } catch (err) {
+          // Keep polling until the deadline; a transient fetch error isn't fatal.
+        }
+      }
+      if (job.status !== "ok") {
+        const log = String(job.log || "");
+        const stateMatch = /\*\*State:\*\* `([^`]+)`/.exec(log) || /"state":\s*"([^"]+)"/.exec(log) || /"cause":\s*"([^"]+)"/.exec(log);
+        const cause = stateMatch ? stateMatch[1] : "";
+        const friendly = cause === "authentication-failed"
+          ? "The Ghidra server refused the login for this repository."
+          : (job.error || cause || "Action failed");
+        return { ok: false, error: friendly, cause: cause, elapsedMs: elapsed() };
+      }
+      const log = String(job.log || "");
+      const nl = log.indexOf("\n");
+      const jsonText = nl >= 0 ? log.slice(nl + 1) : log;
+      let parsed = null;
+      try {
+        parsed = JSON.parse(jsonText);
+      } catch (err) {
+        return { ok: false, error: "Could not parse the response for " + actionId, elapsedMs: elapsed() };
+      }
+      return { ok: true, data: parsed, elapsedMs: elapsed() };
+    }
+
     useEffect(function () {
       window.AgentDecompileUI = Object.assign(window.AgentDecompileUI || {}, {
         getToolContext: function () { return toolContext; },
@@ -4194,42 +5421,6 @@
       });
       window.KotorXidUI = window.AgentDecompileUI;
     }, [toolContext, envDefaults, binaries, detail]);
-
-    function programAlreadyAnalyzed(data) {
-      if (!data) return false;
-      if (data.analysisComplete === true) return true;
-      if (data.results && data.results.length) return true;
-      if ((data.total || 0) > 0 && data.source === "ghidra-store") return true;
-      return false;
-    }
-
-    function startImportPipeline(programName, opts) {
-      const target = String(programName || "").trim();
-      if (!target) return;
-      const force = !!(opts && opts.force);
-      const targetContext = {
-        slug: toolContext.slug || "",
-        program: target,
-        repo: toolContext.repo || "",
-        locator: currentLocator()
-      };
-      Promise.resolve(ensureGhidraProgram(target, {
-        quiet: true,
-        reportFailure: true,
-        locator: targetContext.locator
-      })).then(function (data) {
-        if (!data) return;
-        if (!force && programAlreadyAnalyzed(data)) {
-          return;
-        }
-        return executeAction("mcp.analyze-program", {
-          program: target,
-          locator: targetContext.locator
-        }, { skipConfirm: true, targetContext: targetContext });
-      }).catch(function (err) {
-        showToast("Analyze request failed: " + String((err && err.message) || err), "error");
-      });
-    }
 
     function runFromActionStrip() {
       const act = actions.find(function (item) { return item.id === pendingActionId; });
@@ -4449,16 +5640,16 @@
         body.append("role", role || "member");
         const res = await fetch(API.binaries, { method: "POST", body: body });
         const data = await res.json();
-        if (!data.ok || !data.binary) {
+        // source_path is the immutable staged upload. binary.repo can be a
+        // reused virtual Ghidra row and binary.locator a project locator;
+        // neither is a file the project import can read.
+        const staged = data.source_path || "";
+        if (!staged) {
           setIngestNote(data.error || "upload failed");
           showToast(data.error || "Could not stage " + file.name, "error");
           continue;
         }
-        const staged = data.binary.locator || data.binary.repo || "";
-        if (!staged) {
-          showToast("Upload landed but has no path to import.", "error");
-          continue;
-        }
+        if (!data.ok) showToast("Staged " + file.name + ", but the corpus did not record it: " + (data.error || "unknown reason"), "error");
         await importPathIntoProject(staged, file.name);
       }
     }
@@ -4591,9 +5782,7 @@
     }
 
     function quickBar(setName) {
-      const items = setName === "pipeline"
-        ? pipelineQuickActions(QUICK_ACTION_SETS.pipeline, pipelineStages)
-        : (QUICK_ACTION_SETS[setName] || []);
+      const items = QUICK_ACTION_SETS[setName] || [];
       return html`<${QuickActions}
         items=${items}
         catalog=${actions}
@@ -4604,6 +5793,16 @@
     function onSearch(value) {
       setQuery(value);
       setFuncOffset(0);
+    }
+
+    /* Symbol Tree function leaves (and Listing xref jumps) select through the
+       existing wb-fnbrowse path, never a second row list: switch to the
+       Functions tab, narrow its own search so the row loads into view, then
+       reuse selectRow -- the same click handler the table itself uses. */
+    function selectFunctionLeaf(name, addr) {
+      jumpTo("wb-fnbrowse");
+      onSearch(name || addr || "");
+      selectRow({ name: name || "", addr: addr || "" });
     }
 
     function onIngestDragOver(ev) {
@@ -4675,7 +5874,7 @@
     const blockUrl = function (block) {
       let url = "/dashboard/browse-block?block=" + encodeURIComponent(block);
       if (slug) url += "&binary=" + encodeURIComponent(slug);
-      ["lq", "logical_q", "logical_after", "review_after", "q", "addr", "logical_id"].forEach(function (key) {
+      ["lq", "logical_q", "logical_after", "q", "addr", "logical_id"].forEach(function (key) {
         const val = start.get(key);
         if (val) url += "&" + encodeURIComponent(key) + "=" + encodeURIComponent(val);
       });
@@ -4717,14 +5916,6 @@
         }}>${label}</button>`;
     }
 
-    function runLadderStep(step) {
-      if (!step || !step.action_id) return;
-      executeAction(step.action_id, {
-        slug: step.action_slug || slug || "",
-        program: step.action_program || program || ""
-      }, { skipConfirm: !step.action_enabled, quiet: false });
-    }
-
     function renderEditorBody() {
       const tab = centerTab || "decompile";
       const recoveryRun = selectPreparationRun(preparationRuns, currentLocator(), program, slug);
@@ -4743,7 +5934,6 @@
           html`<button type="button" className="wb-btn wb-btn-mini" onClick=${function () { loadCorpusStatus(); }}>Refresh facts</button>`
         )}>
           ${quickBar("home")}
-          ${quickBar("project")}
           <${TabRoster}
             programs=${projectNames}
             imports=${importItems}
@@ -4758,8 +5948,8 @@
               showToast("Import " + ((row && row.slug) || ""));
             }} />
           <${HealthStrip} probes=${corpusStatus && corpusStatus.probes} atlasUrl=${atlasHref(corpusStatus)} />
-          <${CorpusHeadline} headline=${corpusStatus && corpusStatus.headline} claim=${corpusStatus && corpusStatus.claimBoundary} />
-          <${StepLadder} title="Corpus ladder" steps=${ladder.corpus_steps} onRun=${runLadderStep} />
+          <${CorpusHeadline} slug=${slug} version=${current.content_sha256||current.contentSha256||current.sha256||""} corpusIdentity=${corpusIdentity} revision=${corpusRevision} headline=${corpusStatus && corpusStatus.headline} claim=${corpusStatus && corpusStatus.claimBoundary} />
+          <${StepLadder} title="Corpus ladder" steps=${ladder.corpus_steps} />
           <${BinaryCompareTable} binaries=${ladder.binaries} onOpen=${function (b) {
             if (b && b.slug) { setSlug(b.slug); setCenterTab("wb-pipeline"); }
           }} />
@@ -4788,13 +5978,13 @@
         const ladder = (corpusStatus && corpusStatus.ladder) || {};
         const active = (ladder.binaries || []).find(function (b) { return b.slug === slug; }) || (ladder.binaries || [])[0];
         return html`<${Surface} id="wb-pipeline" title="Pipeline" actions=${panelActions(
-          runActionButton("corpus.run", "Run pipeline"),
           runActionButton("corpus.stages", "Stages"),
           html`<button type="button" className="wb-btn wb-btn-mini" onClick=${function () { loadCorpusStatus(); }}>Refresh facts</button>`
         )}>
           ${quickBar("pipeline")}
-          <${StepLadder} title="Corpus" steps=${ladder.corpus_steps} onRun=${runLadderStep} />
-          ${active ? html`<${StepLadder} title=${"Build " + active.slug} steps=${active.steps} onRun=${runLadderStep} />` : null}
+          <${StepLadder} title="Corpus" steps=${ladder.corpus_steps} />
+          ${active ? html`<${StepLadder} title=${"Build " + active.slug} steps=${active.steps} />` : null}
+          <${PreparationObservation} run=${recoveryRun} feed=${preparationFeed} now=${preparationNow} onControl=${controlPreparation} />
           ${recoveryRun ? html`<${StepLadder} title=${"Self-contained recovery · " + recoveryRun.status} steps=${recoveryRun.stages} />` : null}
         </${Surface}>`;
       }
@@ -4808,87 +5998,15 @@
         </${Surface}>`;
       }
       if (tab === "wb-match") {
-        const siblings = (detail && detail.siblings) || [];
-        const pair = matchPairParams(toolContext, binaries, siblings);
-        const canPair = pair.ok;
-        const canFn = Boolean(selected && selected.addr && program);
-        const canId = hasCorpusContext(toolContext);
-        const matchRunReady = canId ? canPair : canFn;
-        function runIdentity(actionId) {
-          if (!canId) {
-            showToast("Pick a program or corpus binary in Explorer first", "error");
-            return;
-          }
-          if (actionId === "corpus.apply-stabs" && !toolContext.slug) {
-            showToast("Pick a corpus binary slug for STABS apply", "error");
-            return;
-          }
-          if (actionId === "corpus.match-pair") {
-            if (!pair.src) {
-              showToast("No repo path for the active binary", "error");
-              return;
-            }
-            if (!pair.dst) {
-              showToast("Need a second binary for pair match", "error");
-              return;
-            }
-          }
-          executeAction(
-            actionId,
-            identityActionParams(actionId, toolContext, binaries, siblings),
-            { skipConfirm: true }
-          );
-        }
         return html`<${Surface} id="wb-match" title="Match" actions=${panelActions(
-          runActionButtonRun("corpus.bsim-ingest", "BSim ingest"),
-          runActionButtonRun("corpus.bsim-report", "BSim report"),
-          runActionButton("corpus.bsim-createdatabase", "Create BSim DB")
+          runActionButtonRun("corpus.bsim-report", "BSim report")
         )}>
           <${MatchWorkbench}
             program=${program}
             selected=${selected}
             detail=${detail}
             bsim=${bsimStatus}
-            canMatchPair=${matchRunReady}
-            canMatchFunction=${canFn}
-            canIdentity=${canId}
             onRefresh=${function () { loadMatchStatus(); showToast("BSim status refreshed"); }}
-            onRunMatch=${function () {
-              if (canId) {
-                runIdentity("corpus.match-pair");
-                return;
-              }
-              if (!canFn) {
-                showToast("Select a function first", "error");
-                return;
-              }
-              executeAction("mcp.match-function", {
-                addr: selected.addr,
-                name: selected.name || "",
-                program: program || ""
-              }, { skipConfirm: true });
-            }}
-            onRunMatchFunction=${function () {
-              if (!canFn) {
-                showToast("Select a function first", "error");
-                return;
-              }
-              executeAction("mcp.match-function", {
-                addr: selected.addr,
-                name: selected.name || "",
-                program: program || ""
-              }, { skipConfirm: true });
-            }}
-            onApplyStabs=${function () { runIdentity("corpus.apply-stabs"); }}
-            onLogicalBuild=${function () { runIdentity("corpus.logical-build"); }}
-            onMergeParts=${function () { runIdentity("corpus.merge-parts"); }}
-            onPropagate=${function () { runIdentity("corpus.propagate-source"); }}
-            onRunCrossPlace=${function () {
-              executeAction("corpus.cross-place", { program: program || "", slug: slug || "" }, { skipConfirm: true });
-            }}
-            onExtractStabs=${function () {
-              executeAction("corpus.extract-stabs", { program: program || "", slug: slug || "" }, { skipConfirm: true });
-            }}
             onPickSibling=${function (sib) {
               if (sib && sib.slug) setSlug(sib.slug);
             }} />
@@ -4898,7 +6016,6 @@
       }
       if (tab === "wb-recovery") {
         return html`<${Surface} id="wb-recovery" title="Recover" actions=${panelActions(
-          runActionButtonRun("corpus.genproject", "Genproject"),
           runActionButtonRun("recover.inspect", "Inspect recover")
         )}>
           <${RecoverWorkbench}
@@ -4906,74 +6023,16 @@
             selected=${selected}
             recover=${recoverInfo}
             recoveredRoot=${recoveredRoot}
-            onRefresh=${function () { loadRecoverStatus(); showToast("Recovery status refreshed"); }}
-            onDump=${function () {
-              if (!((recoverInfo && recoverInfo.leftoverCount) || 0)) {
-                showToast("No leftover functions. Ghidra bulk is the recover path.", "error");
-                return;
-              }
-              executeAction("corpus.genproject", {
-                program: program || "",
-                "leftover-only": true
-              }, { skipConfirm: true });
-            }}
-            onOneShot=${function () {
-              if (!((recoverInfo && recoverInfo.leftoverCount) || 0)) {
-                showToast("No leftover functions. Ghidra bulk is the recover path.", "error");
-                return;
-              }
-              executeAction("reconstruct.one-shot", {
-                program: program || ""
-              }, { skipConfirm: true });
-            }}
-            onGhidraBulk=${function () {
-              executeAction("corpus.ghidra-bulk", { program: program || "" }, { skipConfirm: true });
-            }}
-            onCrossPlace=${function () {
-              executeAction("corpus.cross-place", { program: program || "" }, { skipConfirm: true });
-            }}
-            onIngest=${function () {
-              executeAction("corpus.ingest-recovered", {}, { skipConfirm: true });
-            }}
-            onExportC=${function () {
-              const loc = (typeof currentLocator === "function" ? currentLocator() : "") || "";
-              const work = envDefaults.work_dir || "";
-              if (!work) {
-                showToast("Set AGENT_DECOMPILE_CORPUS_WORK_DIR on the server", "error");
-                return;
-              }
-              const dest = work.replace(/\/?$/, "/") + "export-c";
-              executeAction("corpus.export-c", {
-                "repo-path": loc,
-                "out-dir": dest,
-                program: program || ""
-              }, { skipConfirm: true });
-            }}
-            onDecompile=${function () {
-              if (!selected || !selected.addr) {
-                showToast("Select a function first", "error");
-                return;
-              }
-              if (selected.decomp === "c") {
-                showToast("This logical function already has real C. Ghidra bulk skips it.", "error");
-                return;
-              }
-              executeAction("mcp.decompile-function", {
-                addr: selected.addr,
-                name: selected.name || "",
-                program: program || ""
-              }, { skipConfirm: true });
-            }} />
+            onRefresh=${function () { loadRecoverStatus(); showToast("Recovery status refreshed"); }} />
         </${Surface}>`;
       }
       if (tab === "wb-stabs") {
         const bins = (corpusStatus && corpusStatus.ladder && corpusStatus.ladder.binaries) || [];
         return html`<${Surface} id="wb-stabs" title="STABS" actions=${panelActions(
-          runActionButton("corpus.extract-stabs", "Extract STABS"),
           runActionButton("corpus.stabs-manifest", "STABS manifest")
         )}>
           ${quickBar("stabs")}
-          <p className="wb-hint">Named counts come from the live corpus snapshot. Extract STABS writes the index the ladder reads.</p>
+          <p className="wb-hint">Named counts come from the live corpus snapshot. The pipeline extracts STABS automatically.</p>
           <${BinaryCompareTable} binaries=${bins} onOpen=${function (b) { if (b && b.slug) setSlug(b.slug); }} />
         </${Surface}>`;
       }
@@ -4982,10 +6041,9 @@
           return s.key === "calibrate-global" || s.key === "identify";
         });
         return html`<${Surface} id="wb-knowledge" title="Knowledge" actions=${panelActions(
-          runActionButton("corpus.bsim-ingest", "BSim ingest"),
           runActionButton("corpus.bsim-report", "BSim report")
         )}>
-          <${StepLadder} title="Identity and knowledge merge" steps=${steps} onRun=${runLadderStep} />
+          <${StepLadder} title="Identity and knowledge merge" steps=${steps} />
         </${Surface}>`;
       }
       if (tab === "wb-roundtrip") {
@@ -4995,20 +6053,16 @@
         const recoverySteps = recoveryRun ? (recoveryRun.stages || []).filter(function (stage) {
           return ["calibrate-global", "materialize-target", "assembly-floor", "recover-source", "apply-cross-build", "leftover-recover", "verify-byte-accuracy"].includes(stage.key);
         }) : [];
-        return html`<${Surface} id="wb-roundtrip" title="Roundtrip" actions=${panelActions(
-          runActionButton("reconstruct.run", "Reconstruct run"),
-          runActionButton("corpus.verify-legacy-recovered", "Verify legacy"),
-          runActionButton("corpus.external-bridge", "External bridge")
-        )}>
-          <${CorpusHeadline} headline=${corpusStatus && corpusStatus.headline} claim="Compile and byte-accuracy stay separate columns." />
+        return html`<${Surface} id="wb-roundtrip" title="Roundtrip" actions=${panelActions()}>
+          <${CorpusHeadline} slug=${slug} version=${current.content_sha256||current.contentSha256||current.sha256||""} corpusIdentity=${corpusIdentity} revision=${corpusRevision} headline=${corpusStatus && corpusStatus.headline} claim="Compile and byte-accuracy stay separate columns." />
+          <${PreparationObservation} run=${recoveryRun} feed=${preparationFeed} now=${preparationNow} onControl=${controlPreparation} />
           ${recoveryRun ? html`<${StepLadder} title=${"Self-contained recovery · " + (recoveryRun.program || program || slug || recoveryRun.status)} steps=${recoverySteps} />` : null}
-          <${StepLadder} title="Compile and verify" steps=${steps} onRun=${runLadderStep} />
+          <${StepLadder} title="Compile and verify" steps=${steps} />
         </${Surface}>`;
       }
       if (tab === "wb-processes") {
         return html`<${Surface} id="wb-processes" title="Process log" actions=${panelActions(
-          runActionButton("mcp.status", "MCP status"),
-          runActionButton("corpus.run", "Run pipeline")
+          runActionButton("mcp.status", "MCP status")
         )}>
           <${HealthStrip} probes=${corpusStatus && corpusStatus.probes} atlasUrl=${atlasHref(corpusStatus)} />
           <ul id="action-jobs" className="wb-job-list">
@@ -5086,13 +6140,10 @@
           </table>` : html`<div className="wb-empty wb-empty-surface">
             <p>${funcNote || "Select a program in Explorer to list its functions."}</p>
             <p className="wb-empty-actions">
-              <button type="button" className="wb-btn wb-btn-primary" data-cmd="analyze.program"
-                onClick=${function () { runCommand("analyze.program"); }}>Analyze program</button>
               <button type="button" className="wb-btn" data-cmd="file.open-program"
                 onClick=${function () { runCommand("file.open-program"); }}>Open in Ghidra</button>
-              <button type="button" className="wb-btn" data-cmd="analyze.bsim-ingest"
-                onClick=${function () { runCommand("analyze.bsim-ingest"); }}>Ingest into BSim</button>
             </p>
+            <p className="wb-hint">The pipeline analyzes and ingests new programs automatically.</p>
           </div>`}
           ${rows.length ? html`<${FuncPager} limit=${funcLimit} shown=${rows.length}
             total=${total}
@@ -5110,45 +6161,18 @@
         </${Surface}>`;
       }
       if (tab === "wb-logical") {
-        return html`<${Surface} id="wb-logical" title="Logical identities" actions=${panelActions(
-          runActionButton("corpus.logical-build", "Logical build"),
-          runActionButton("corpus.propagate-source", "Propagate source"),
-          runActionButton("corpus.cross-place", "Cross-place")
-        )}>
+        return html`<${Surface} id="wb-logical" title="Logical identities" actions=${panelActions()}>
           <p className="wb-hint">Same function across builds. Bound vs real C is the identity picture.</p>
+          <${LogicalMatrix} binaries=${binaries} corpusIdentity=${corpusIdentity} revision=${corpusRevision}/>
+          <${ExportBundles} slug=${slug} locator=${currentLocator()}/>
+          <p className="wb-hint">The pipeline builds and propagates identities across builds automatically.</p>
           <${BinaryCompareTable} binaries=${(corpusStatus && corpusStatus.ladder && corpusStatus.ladder.binaries) || []}
             onOpen=${function (b) { if (b && b.slug) setSlug(b.slug); }} />
         </${Surface}>`;
       }
       if (tab === "wb-review") {
-        return html`<${Surface} id="wb-review" title="Review" actions=${panelActions(
-          runActionButton("corpus.reclassify-matches", "Reclassify"),
-          runActionButton("corpus.match-pair", "Re-run match"),
-          runActionButton("corpus.evaluate-pair", "Evaluate pair"),
-          html`<button type="button" className="wb-btn wb-btn-mini"
-            onClick=${function () { batchReviewPage("accept"); }}>Accept page</button>`,
-          html`<button type="button" className="wb-btn wb-btn-mini"
-            onClick=${function () { batchReviewPage("reject"); }}>Reject page</button>`
-        )}>
-          <p className="wb-hint">Review-tier match rows ranked by score. Accept or reject from the row or the toolbar.</p>
-          <${ReviewReact} review=${corpusStatus && corpusStatus.review} onDecide=${function (row, decision) {
-            if (!row) return;
-            fetch(API.matchDecide, {
-              method: "POST",
-              headers: { "content-type": "application/json" },
-              body: JSON.stringify({
-                decision: decision,
-                src_addr: row.src_addr,
-                dst_addr: row.dst_addr,
-                src_binary_id: row.src_binary_id,
-                dst_binary_id: row.dst_binary_id
-              })
-            }).then(function (res) { return res.json(); }).then(function (data) {
-              showToast((decision === "accept" ? "Accepted" : "Rejected") + " match", "info");
-              loadCorpusStatus();
-              if (!data || data.ok === false) showToast((data && data.error) || "Decide failed", "error");
-            }).catch(function (e) { showToast(String(e && e.message || e), "error"); });
-          }} />
+        return html`<${Surface} id="wb-review" title="Review" actions=${panelActions()}>
+          <${ReviewReact} onRefresh=${loadCorpusStatus}/>
         </${Surface}>`;
       }
       if (tab === "wb-tools") {
@@ -5225,19 +6249,18 @@
         </section>`;
       }
       const decompileText = (detail && detail.decompile && detail.decompile.text) || "";
+      /* Classic layout keeps today's side-by-side Listing/Decompile split, unchanged.
+         The CodeBrowser layout lifts Decompile into its own persistent dock (see
+         decompileDock() below), so Listing here is always single-column there. */
+      const showInlineDecompile = classicLayout && Boolean(decompileText);
       const listingTitle = (selected && selected.name) || program || "Listing";
       return html`<${Surface} id="wb-inspect" title=${"Listing: " + (program || "—")}>
-        <div id="wb-inspect-body" className=${"wb-workspace-split" + (decompileText ? "" : " wb-listing-only")}>
+        <div id="wb-inspect-body" className=${"wb-workspace-split" + (showInlineDecompile ? "" : " wb-listing-only")}>
           <div className="wb-listing-pane">
           ${overview || selected || program ? html`<div>
             <h3>Listing ${listingTitle} ${(selected && selected.addr) ? html`<code>${selected.addr}</code>` : null}</h3>
             <p className="wb-hint">${(detail && detail.path) || (overview && overview.path) || ""}</p>
             <div className="wb-fn-tools" role="toolbar" aria-label="Listing tools">
-              <button type="button" id="wb-analyze" className="wb-btn wb-btn-mini wb-btn-primary" data-cmd="analyze.program"
-                onClick=${function () {
-                  if (!program) { showToast("Select a program first", "error"); return; }
-                  startImportPipeline(program);
-                }}>Analyze</button>
               <button type="button" id="wb-listing-decompile" className="wb-btn wb-btn-mini"
                 onClick=${function () {
                   if (!selected || !selected.addr) { showToast("Select a function first", "error"); return; }
@@ -5249,8 +6272,8 @@
                 onClick=${function () { jumpTo("wb-match"); }}>Match</button>
               <button type="button" id="wb-listing-recover" className="wb-btn wb-btn-mini"
                 onClick=${function () { jumpTo("wb-recovery"); }}>Recover</button>
-              <button type="button" id="wb-listing-fields" className="wb-btn wb-btn-mini"
-                onClick=${function () { openActionStrip(selected ? "mcp.manage-function" : "mcp.decompile-function"); }}>Fields…</button>
+              <button type="button" id="wb-listing-fields" className="wb-btn wb-btn-mini" disabled=${!selected}
+                onClick=${function () { if (selected) openActionStrip("mcp.manage-function"); }}>Fields…</button>
             </div>
             ${(detail && detail.siblings && detail.siblings.length) ? html`<ul className="wb-siblings">
               ${detail.siblings.map(function (sib) {
@@ -5260,16 +6283,22 @@
                 </li>`;
               })}
             </ul>` : null}
-            <pre className="wb-preview" id="wb-listing-preview">${(detail && detail.preview) || (program
-              ? ("Reading " + program + " from the Ghidra project on disk…")
-              : "Pick a program in Explorer.")}</pre>
+            ${selected && selected.addr
+              ? html`<${ListingRows} addr=${selected.addr} name=${selected.name} program=${program}
+                  runReadAction=${runReadAction}
+                  assemblyText=${detail && detail.assembly && detail.assembly.text}
+                  fallbackText=${(detail && detail.preview) || ("Reading " + program + " from the Ghidra project on disk…")}
+                  onJumpAddr=${function (target) { selectRow({ addr: target, name: target }); }} />`
+              : html`<pre className="wb-preview" id="wb-listing-preview">${(detail && detail.preview) || (program
+                  ? ("Reading " + program + " from the Ghidra project on disk…")
+                  : "Pick a program in Explorer.")}</pre>`}
           </div>` : html`<div className="wb-empty wb-empty-surface">
             <p>${hasProject
               ? "Pick a program in Explorer. Listing comes from that program."
               : "File → Open a Ghidra repository, then pick a program."}</p>
           </div>`}
           </div>
-          ${decompileText ? html`<div className="wb-decompile-pane">
+          ${showInlineDecompile ? html`<div className="wb-decompile-pane">
             <h3>Decompile: ${(selected && selected.name) || "function"}</h3>
             <p className="wb-hint">${(detail.decompile && detail.decompile.source === "recovered")
               ? "Recovered C for this function."
@@ -5292,6 +6321,60 @@
           </div>
         </div>
       </${Surface}>`;
+    }
+
+    /* Persistent Decompile dock (CodeBrowser layout only). Shows the selected
+       function's decompile from whichever center tab is active, not only
+       Listing. When nothing is selected, it keeps the last function that had
+       a decompile, per the guide's "connected views" behavior. */
+    function decompileDockBody() {
+      const liveText = detail && detail.decompile && detail.decompile.text;
+      const text = liveText || (lastDecompile && lastDecompile.text) || "";
+      const request = detail && detail.evidenceRequest;
+      let status = "";
+      if (!liveText && request) {
+        if (request.status === "running" || request.status === "queued" || request.status === "admitted") {
+          status = "Reading this function from Ghidra…";
+        } else if (request.status === "failed") {
+          status = request.cause === "authentication-failed"
+            ? "The Ghidra server refused the login, so this function could not be read. Open a local copy of the project to read it."
+            : "Ghidra could not read this function." + (request.cause ? " (" + request.cause + ")" : "");
+        }
+      }
+      if (!text) {
+        return html`<div className="wb-decompile-pane wb-decompile-empty">
+          <h3>Decompile</h3>
+          <p className="wb-hint" role="status">${status || "Pick a function to see its decompiled C."}</p>
+        </div>`;
+      }
+      const name = (liveText && selected && selected.name)
+        || (lastDecompile && lastDecompile.name)
+        || (selected && selected.name)
+        || "function";
+      const source = (liveText && detail.decompile && detail.decompile.source)
+        || (lastDecompile && lastDecompile.source)
+        || "";
+      return html`<div className="wb-decompile-pane">
+        <h3>Decompile: ${name}</h3>
+        <p className="wb-hint" role="status">${status
+          ? status + " Showing the last function read."
+          : (source === "recovered" ? "Recovered C for this function." : "Decompiler pane.")}</p>
+        <pre className="wb-preview" id="wb-decompile-preview">${text}</pre>
+      </div>`;
+    }
+
+    function decompileDock() {
+      if (classicLayout) return null;
+      return html`<aside className="wb-decompile-dock" aria-label="Decompile">
+        <button type="button" className="wb-decompile-dock-toggle"
+          aria-expanded=${decompileOpenNarrow} aria-controls="wb-decompile-dock-body"
+          onClick=${function () { setDecompileOpenNarrow(function (v) { return !v; }); }}>
+          ${decompileOpenNarrow ? "Hide Decompile" : "Show Decompile"}
+        </button>
+        <div id="wb-decompile-dock-body" className=${"wb-decompile-dock-body" + (decompileOpenNarrow ? " open" : "")}>
+          ${decompileDockBody()}
+        </div>
+      </aside>`;
     }
 
     return html`<div className="wb">
@@ -5353,7 +6436,6 @@
             ["Atlas", "view.atlas"],
             ["Jobs", "view.jobs"],
             ["—"],
-            ["Run Cross-place", "run.cross-place"],
             ["STABS", "view.stabs"],
             ["Knowledge", "view.knowledge"],
             ["Logical identities", "view.logical"],
@@ -5365,15 +6447,12 @@
             ["Use compact layout", "view.density-compact"],
             ["Use roomy layout", "view.density-comfortable"],
             ["Dock jobs on the side", "view.jobs-rail"],
-            ["Dock jobs at the bottom", "view.jobs-bottom"]
-          ]],
-          ["analyze", "Analyze", [
-            ["Analyze program", "analyze.program"],
-            ["Ingest repository into BSim", "analyze.bsim-ingest"],
-            ["Report BSim database", "analyze.bsim-report"],
-            ["Create BSim database", "analyze.bsim-create"]
+            ["Dock jobs at the bottom", "view.jobs-bottom"],
+            [classicLayout ? "Use new layout" : "Use classic layout", "view.classic-layout"]
           ]],
           ["server", "Server", [
+            ["Targeted AI settings…", null, function () { window.location.href = "/dashboard/settings/ai"; }],
+            ["—"],
             ["Restart server", null, restartServer],
             ["Shut down server", null, shutdownServer]
           ]],
@@ -5389,7 +6468,7 @@
           return html`<div key=${id} className=${"wb-menu" + (menu === id ? " on" : "")}
             onMouseEnter=${function () { if (menu) setMenu(id); }}>
             <button type="button" className="wb-menu-btn" aria-haspopup="true" aria-expanded=${menu === id}
-              onClick=${function () { setMenu(menu === id ? "" : id); }}>${label}</button>
+              onClick=${function (ev) { dialogInvokerRef.current = ev.currentTarget; setMenu(menu === id ? "" : id); }}>${label}</button>
             ${menu === id ? html`<ul className="wb-menu-list">${items.map(function (item, index) {
               if (item[0] === "—") return html`<li key=${id + "-s" + index} className="wb-menu-sep" />`;
               const cmdId = item[1];
@@ -5501,7 +6580,8 @@
         onPickSurface=${onPaletteSurface}
         onPickJob=${onPaletteJob}
         onPickCommand=${function (id) { setPaletteOpen(false); setPaletteQuery(""); runCommand(id); }}
-        onClose=${function () { setPaletteOpen(false); setPaletteQuery(""); }} />
+        onClose=${function () { setPaletteOpen(false); setPaletteQuery(""); }}
+        menuInvokerRef=${dialogInvokerRef} />
       <${ContextMenu} menu=${ctxMenu} onClose=${function () { setCtxMenu(null); }}
         onPick=${function (item) {
           setCtxMenu(null);
@@ -5521,7 +6601,7 @@
         onChange=${function (ev) { if (ev.target.files && ev.target.files.length) uploadFiles(ev.target.files); }} />
       <input id="wb-bin-folder-global" type="file" webkitdirectory="true" hidden ref=${folderRef}
         onChange=${function (ev) { if (ev.target.files && ev.target.files.length) uploadFiles(ev.target.files); }} />
-      <${Modal} open=${dialog === "open"} title="Open project" onClose=${closeDialog} error=${dialogError} footer=${html`
+      <${Modal} open=${dialog === "open"} title="Open project" onClose=${closeDialog} error=${dialogError} menuInvokerRef=${dialogInvokerRef} footer=${html`
         <button type="button" className="wb-btn" onClick=${closeDialog}>Cancel</button>
         <button type="button" className="wb-btn wb-btn-primary" id="wb-open-paste-go" onClick=${openPastedPath}>Open path</button>
       `}>
@@ -5587,7 +6667,7 @@
         </form>`}
       </${Modal}>
 
-      <${Modal} open=${dialog === "save-as"} title="Save As" onClose=${closeDialog} error=${dialogError}
+      <${Modal} open=${dialog === "save-as"} title="Save As" onClose=${closeDialog} error=${dialogError} menuInvokerRef=${dialogInvokerRef}
         footer=${html`
           <button type="button" className="wb-btn" onClick=${closeDialog}>Cancel</button>
           <button type="submit" form="wb-save-as-form" className="wb-btn wb-btn-primary">Save</button>
@@ -5610,11 +6690,13 @@
             <input value=${saveAsDest} placeholder="defaults to work directory"
               onInput=${function (ev) { setSaveAsDest(ev.target.value); }} />
           </label>`}
-          <p className="wb-hint">Save writes project metadata on disk. Ghidra databases are not copied.</p>
+          <p className="wb-hint">${saveAsTarget === "shared-project"
+            ? "Links a Ghidra Server URL. Program databases stay on the server and are not downloaded."
+            : "Copies the program databases and their version history that the source holds. Nothing is written to the source."}</p>
         </form>
       </${Modal}>
 
-      <${Modal} open=${dialog === "add-binary"} title="Add binary to this project" onClose=${closeDialog} error=${dialogError}
+      <${Modal} open=${dialog === "add-binary"} title="Add binary to this project" onClose=${closeDialog} error=${dialogError} menuInvokerRef=${dialogInvokerRef}
         footer=${html`
           <button type="button" className="wb-btn" onClick=${closeDialog}>Cancel</button>
           <button type="button" className="wb-btn" onClick=${triggerFileUpload}>Choose file…</button>
@@ -5632,7 +6714,7 @@
         </form>
       </${Modal}>
 
-      <${Modal} open=${dialog === "access"} title="Shortcuts and menus" onClose=${closeDialog}
+      <${Modal} open=${dialog === "access"} title="Shortcuts and menus" onClose=${closeDialog} menuInvokerRef=${dialogInvokerRef}
         footer=${html`<button type="button" className="wb-btn wb-btn-primary" onClick=${closeDialog}>Close</button>`}>
         <p className="wb-hint">Use the menu, the command palette, a right-click, a shortcut, or a button.</p>
         <table className="wb-access-table">
@@ -5651,7 +6733,22 @@
         </table>
       </${Modal}>
 
-      <div className="wb-app-shell" style=${{ "--wb-side-w": sideW + "px" }}>
+      <div className=${"wb-app-shell" + (classicLayout ? " wb-shell-classic" : "")} style=${{ "--wb-side-w": sideW + "px" }}>
+        <${GuideRail} chapters=${GUIDE_CHAPTERS} centerTab=${centerTab}
+          reachable=${GUIDE_CHAPTERS.map(function (chapter) {
+            return chapter.target === "wb-sidebar" ? Boolean(dossier && dossier.ok) : Boolean(program);
+          })}
+          evidence=${[
+            Boolean(dossier && dossier.ok && (dossier.programs || []).length > 0),
+            rows.length > 0,
+            Boolean(detail && (detail.preview || (detail.decompile && detail.decompile.text))),
+            Boolean(graph && (graph.center || (graph.callers && graph.callers.length) || (graph.callees && graph.callees.length))),
+            Boolean(selected && selected.addr),
+            false,
+            false,
+            Boolean(detail && detail.decompile && detail.decompile.text)
+          ]}
+          onJump=${jumpTo} />
         <aside id="wb-sidebar" className="wb-sidebar" style=${{ width: sideW + "px", flexBasis: sideW + "px" }}
           onContextMenu=${function (ev) {
             const items = [
@@ -5746,7 +6843,6 @@
                     run: function () { setCheckedAddrs([]); setCheckAnchor(""); } },
                   "—",
                   { id: "run.last" },
-                  { id: "run.cross-place" },
                   "—",
                   { id: "view.listing" },
                   { id: "view.graph" }
@@ -5775,9 +6871,16 @@
                 onClick=${function () { runCommand("view.browse"); }}>Browse all functions</button>
             </p>
           </div>
+          <${SymbolTree} program=${program}
+            hint=${dossier && dossier.error ? "Symbols need a readable project. " + dossier.error : ""}
+            runReadAction=${runReadAction}
+            onOpenFunctions=${function () { jumpTo("wb-fnbrowse"); }}
+            onSelectFunction=${function (fn) { selectFunctionLeaf(fn.name, fn.addr); }} />
         </aside>
         <${SplitHandle} axis="x" label="Resize explorer"
-          onDrag=${function (ev) { beginResize(ev, sideW, setSideW, "wb-side-w", "x", 180, 900, false); }} />
+          value=${sideW} min=${180} max=${900}
+          onDrag=${function (ev) { beginResize(ev, sideW, setSideW, "wb-side-w", "x", 180, 900, false); }}
+          onStep=${function (delta) { clampResize(sideW + delta, 180, 900, setSideW, "wb-side-w"); }} />
 
       <div className="wb-editor"
         onContextMenu=${function (ev) {
@@ -5786,7 +6889,6 @@
             "—",
             { id: "view.palette" },
             { id: "view.cross-match" },
-            { id: "run.cross-place" },
             "—",
             { id: "file.open" },
             { id: "file.add-binaries" }
@@ -5806,6 +6908,7 @@
           ${renderEditorBody()}
         </div>
       </div>
+      ${decompileDock()}
       </div>
       <${LogDock}
         entries=${logEntries}
@@ -5822,7 +6925,8 @@
         onCancel=${cancelJob}
         actions=${actions}
         height=${logH}
-        onResize=${function (ev) { beginResize(ev, logH, setLogH, "wb-log-h", "y", 72, 640, true); }} />
+        onResize=${function (ev) { beginResize(ev, logH, setLogH, "wb-log-h", "y", 72, 640, true); }}
+        onKeyResize=${function (delta) { clampResize(logH + delta, 72, 640, setLogH, "wb-log-h"); }} />
         <input id="wb-bin-slug" type="hidden" value=${newSlug} />
         <input id="wb-bin-role" type="hidden" value=${role} />
         <input id="wb-bin-label" type="hidden" value=${label} />
@@ -5839,7 +6943,7 @@
           ? html`<span id="wb-status-error" className="wb-status-error" role="alert">${statusError}
               <button type="button" className="wb-status-dismiss" aria-label="Dismiss error"
                 onClick=${function () { setStatusError(""); }}>×</button></span>`
-          : html`<span id="wb-last-action" className="wb-hint">${lastNote}</span>`}
+          : html`<span id="wb-last-action" className="wb-hint" aria-live="polite" aria-atomic="true">${lastNote}</span>`}
       </footer>
     </div>`;
   }

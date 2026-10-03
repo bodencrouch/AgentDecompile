@@ -1,7 +1,6 @@
 """Deterministic child-lifetime regressions; no real child processes are needed."""
 from __future__ import annotations
 
-import io
 import queue
 import signal
 import threading
@@ -12,6 +11,7 @@ from types import SimpleNamespace
 import pytest
 
 from agentdecompile_recovery.corpus.dashboard.actions import jobs
+from agentdecompile_recovery.corpus import supervision
 
 pytestmark = pytest.mark.unit
 
@@ -20,7 +20,7 @@ pytestmark = pytest.mark.unit
 def test_early_stdout_eof_keeps_cancellation_and_deadline_active(monkeypatch, trigger):
     cancel = threading.Event()
     clock = SimpleNamespace(now=0.0)
-    proc = SimpleNamespace(pid=12345, stdout=io.StringIO(""), returncode=None)
+    proc = SimpleNamespace(pid=12345, stdout=SimpleNamespace(fileno=lambda: 17, close=lambda: None), returncode=None)
     proc.poll = lambda: proc.returncode
     signals = []
 
@@ -43,6 +43,9 @@ def test_early_stdout_eof_keeps_cancellation_and_deadline_active(monkeypatch, tr
         def start(self):
             self.target()
 
+        def join(self, **kwargs):
+            pass
+
     class OutputQueue:
         def __init__(self, **kwargs):
             self.items = deque()
@@ -62,7 +65,10 @@ def test_early_stdout_eof_keeps_cancellation_and_deadline_active(monkeypatch, tr
     monkeypatch.setattr(jobs, "threading", SimpleNamespace(Event=threading.Event, Thread=InlineThread))
     monkeypatch.setattr(jobs, "queue", SimpleNamespace(Queue=OutputQueue, Empty=queue.Empty, Full=queue.Full))
     monkeypatch.setattr(jobs, "time", SimpleNamespace(monotonic=lambda: clock.now))
-    monkeypatch.setattr(jobs, "os", SimpleNamespace(name="posix", killpg=killpg))
+    monkeypatch.setattr(jobs, "os", SimpleNamespace(name="posix", killpg=killpg,
+                                             set_blocking=lambda *_: None, read=lambda *_: b""))
+    monkeypatch.setattr(supervision, "process_identity", lambda pid: {"pid": pid, "start_ticks": "1", "boot_id": "fake"})
+    monkeypatch.setattr(supervision, "session_clearance", lambda _: "clear" if proc.returncode is not None else "occupied")
     monkeypatch.setattr(jobs, "isolated_job_env", lambda argv: {})
     monkeypatch.setattr(jobs.subprocess, "Popen", lambda *args, **kwargs: proc)
 
@@ -87,11 +93,15 @@ def test_unresolved_child_retains_admission_until_exact_handle_exit(monkeypatch,
     store._identity_held = {}
     store._pair_held = {}
     store._ghidra_held = {}
+    store._external_held = {}
+    store._cross_active = set()
+    store._cross_leases = {}
+    store._restore_reservations_locked = lambda: None
     store.executor = None
     job = jobs.JobRecord(id="owner", action_id="synthetic.writer", title="Writer", argv=["fake-child"])
     store._jobs = {job.id: job}
     store._persist_locked = lambda *args, **kwargs: None
-    action = SimpleNamespace(identity_scope="database", ghidra_exclusive=True, backend="cli", mutating=True)
+    action = SimpleNamespace(id=job.action_id, identity_scope="database", ghidra_exclusive=True, backend="cli", mutating=True)
     monkeypatch.setattr(jobs, "action_by_id", lambda _: action)
     monkeypatch.setattr(jobs, "identity_lock_key", lambda _: "same-db")
     monkeypatch.setattr(jobs, "ghidra_lock_key", lambda _: "same-project")
@@ -104,8 +114,8 @@ def test_unresolved_child_retains_admission_until_exact_handle_exit(monkeypatch,
         assert store._running == 1
         assert store._identity_held == {"same-db": job.id}
         assert store._ghidra_held == {"same-project": job.id}
-        assert job.ownership_unresolved
-        assert job.worker_pid == proc.pid
+        assert job.to_dict()["ownershipUnresolved"]
+        assert job.to_dict()["workerPid"] == proc.pid
         assert job.status == "cancelling"
         assert job.finished_at is None
 
@@ -139,7 +149,7 @@ def test_unresolved_child_retains_admission_until_exact_handle_exit(monkeypatch,
     else:
         assert len(polls) == 3
         assert len(sleeps) == 2
-        assert not job.ownership_unresolved
+        assert not job.to_dict()["ownershipUnresolved"]
         assert job.finished_at == 100.0
         assert job.status == "failed"
         assert store._running == 0

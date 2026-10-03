@@ -204,3 +204,31 @@ def iter_rows(buffer_file: BufferFile, table: TableRecord) -> Iterator[dict[str,
         for name, value in zip(schema.field_names, values):
             row[name] = value
         yield row
+
+
+def find_row(buffer_file, table, key):
+    """Decode the one row stored under a long key, or None when it is absent."""
+
+    from agentdecompile_recovery.ghidra_db.btree import find_long_key_record
+
+    schema = table.schema()
+    record_bytes = find_long_key_record(buffer_file, table.root_buffer_id, schema, key)
+    if record_bytes is None:
+        return None
+    row = {schema.key_name: key}
+    for name, value in zip(schema.field_names, decode_record(schema, record_bytes)):
+        row[name] = value
+    return row
+
+
+def iter_rows_in_range(buffer_file, table, low, high):
+    """Decoded rows whose long key falls in [low, high)."""
+
+    from agentdecompile_recovery.ghidra_db.btree import iter_long_key_range
+
+    schema = table.schema()
+    for key, record_bytes in iter_long_key_range(buffer_file, table.root_buffer_id, schema, low, high):
+        row = {schema.key_name: key}
+        for name, value in zip(schema.field_names, decode_record(schema, record_bytes)):
+            row[name] = value
+        yield row

@@ -449,10 +449,9 @@ class AgentDecompileMcpProxyServer:
             for gone_sid in removed_sids:
                 SESSION_CONTEXTS.evict_to_grace(gone_sid)
 
-        # Optionally wrap with auth (experimental, off by default).
+        # Route first, then apply the same authentication boundary to MCP and
+        # dashboard mutations. Health remains exempt in AuthMiddleware.
         mcp_app: Callable[[dict[str, Any], Any, Any], Awaitable[None]] = _mcp_asgi
-        if self.auth_config is not None:
-            mcp_app = AuthMiddleware(_mcp_asgi, self.auth_config)
 
         inner_app = self.app
         mcp_paths = self._MCP_PATHS
@@ -501,7 +500,8 @@ class AgentDecompileMcpProxyServer:
                         return
                 await inner_app(scope, receive, send)
 
-        self.app = _MCPRoutingMiddleware()  # type: ignore[assignment]
+        routing = _MCPRoutingMiddleware()
+        self.app = AuthMiddleware(routing, self.auth_config) if self.auth_config is not None else routing  # type: ignore[assignment]
 
     def _is_port_available(self, host: str, port: int) -> bool:
         logger.debug("diag.enter %s", "mcp_server/proxy_server.py:AgentDecompileMcpProxyServer._is_port_available")

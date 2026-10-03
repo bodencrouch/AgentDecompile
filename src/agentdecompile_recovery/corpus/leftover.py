@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from . import asm_seed
+from .coverage_evidence import source_file_binding
 
 
 def is_leftover(
@@ -68,20 +69,33 @@ def count_leftovers(root: Path | None, *, limit: int = 500) -> int:
 
 
 def leftover_store_sets(con) -> tuple[set[int], set[int]]:
-    """real_c logical_ids, then logical_ids that already tried C."""
+    """Currently source-bound real-C ids, then historical attempted-C ids.
+
+    Legacy rows without producer digests cannot suppress outstanding work merely
+    through DB presence. This read does not migrate or alter the corpus.
+    """
     real_c: set[int] = set()
     tried: set[int] = set()
     try:
-        for row in con.execute(
-            "SELECT DISTINCT logical_id FROM recovered_function "
-            "WHERE real_c=1 AND logical_id IS NOT NULL"
-        ):
-            real_c.add(int(row["logical_id"]))
+        columns = {r[1] for r in con.execute("PRAGMA table_info(recovered_function)")}
+        if "source_sha256" in columns:
+            for row in con.execute(
+                "SELECT logical_id, path, source_sha256 FROM recovered_function "
+                "WHERE real_c=1 AND logical_id IS NOT NULL"
+            ):
+                if source_file_binding(dict(row))["current"]:
+                    try:
+                        real_c.add(int(row["logical_id"]))
+                    except (TypeError, ValueError):
+                        continue
         for row in con.execute(
             "SELECT DISTINCT logical_id FROM recovered_function "
             "WHERE logical_id IS NOT NULL AND (real_c=0 OR real_c IS NULL)"
         ):
-            tried.add(int(row["logical_id"]))
+            try:
+                tried.add(int(row["logical_id"]))
+            except (TypeError, ValueError):
+                continue
     except sqlite3.Error:
         return set(), set()
     return real_c, tried

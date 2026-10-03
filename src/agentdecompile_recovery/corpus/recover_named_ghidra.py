@@ -13,17 +13,20 @@ from __future__ import annotations
 import argparse
 import os
 import json
+import hashlib
+import tempfile
 import pathlib
 import re
 import sqlite3
 import time
 
+from .coverage_evidence import bind_source
 from . import canon
 from . import permuter_harness as ph
 from .export_types import definitions_for
-from .genproject import pe_va_mapper
+from .exact_universal import mapper_for
 from .source_claims import is_real_c
-from .seed_validation import destination_bytes
+from .seed_validation import target_observation
 
 RECOVERED = pathlib.Path(os.environ.get("AGENT_DECOMPILE_EXTERNAL_RECOVERY_ROOT") or ".") / "recovered-source"
 COVERAGE = pathlib.Path(os.environ.get("AGENT_DECOMPILE_EXTERNAL_RECOVERY_ROOT") or ".") / "reports" / "coverage"
@@ -86,6 +89,19 @@ def knowledge_c(program: str, addr: int) -> tuple[str, str] | None:
 
 def candidates(con, repo_path: str, limit: int, min_size: int = 16) -> list[dict]:
     program = program_for_repo(repo_path)
+    from .coverage_evidence import source_file_binding
+    current_recovered = set()
+    try:
+        for recovered in con.execute(
+            "SELECT r.binary_id,r.addr,r.path,r.source_sha256 FROM recovered_function r "
+            "JOIN binary b ON b.id=r.binary_id WHERE b.repo_path=? AND r.real_c=1",
+            (repo_path,),
+        ):
+            if source_file_binding({"path": recovered[2], "source_sha256": recovered[3]})["current"]:
+                current_recovered.add((recovered[0], recovered[1]))
+    except sqlite3.Error:
+        # Legacy schema does not authenticate any current source observation.
+        pass
     rows = con.execute(
         """
         SELECT l.id AS lid, l.canon_key, l.canon_class, l.source_file,
@@ -101,18 +117,14 @@ def candidates(con, repo_path: str, limit: int, min_size: int = 16) -> list[dict
            AND f.is_thunk = 0
            AND f.n_instr >= 1
            AND l.canon_key IS NOT NULL
-           AND NOT EXISTS (
-                 SELECT 1 FROM recovered_function r
-                  WHERE r.binary_id = i.binary_id
-                    AND r.addr = i.addr
-                    AND r.real_c = 1
-               )
          ORDER BY f.size ASC, l.id
         """,
         (repo_path, min_size),
     ).fetchall()
     out = []
     for r in rows:
+        if (r["binary_id"], r["addr"]) in current_recovered:
+            continue
         key = r["canon_key"]
         if PLACEHOLDER.match(key or "") or canon.is_default_name(key or "") \
                 or canon.is_library(key):
@@ -140,7 +152,7 @@ def write_recovered(program: str, name: str, text: str) -> pathlib.Path:
     dest_dir = RECOVERED / program
     dest_dir.mkdir(parents=True, exist_ok=True)
     dest = dest_dir / f"{name}.c"
-    dest.write_text(text)
+    dest.write_bytes(text.encode("utf-8"))
     return dest
 
 
@@ -442,13 +454,13 @@ def compiled_bytes_timeout(
     with tempfile.TemporaryDirectory() as td:
         obj = pathlib.Path(td) / "o.o"
         try:
-            subprocess.run(
+            run = subprocess.run(
                 [str(ph.COMPILERS[compiler]), str(cfile), str(obj), f"_{name}"],
                 capture_output=True, text=True, timeout=timeout,
             )
         except subprocess.TimeoutExpired:
             return None
-        if not obj.exists():
+        if run.returncode != 0 or not obj.exists():
             return None
         import importlib.util
         spec = importlib.util.spec_from_file_location(
@@ -496,6 +508,14 @@ def prepare_context(repo_path: str, compiler: str) -> None:
     print("  using minimal context (no 10k-line ctx repair)", flush=True)
 
 
+def _compile_source_snapshot(source: bytes, name: str, compiler: str) -> bytes | None:
+    """Compile one private byte snapshot; later source edits cannot rebind it."""
+    with tempfile.TemporaryDirectory(prefix="ad-named-source-") as folder:
+        candidate = pathlib.Path(folder) / "candidate.c"
+        candidate.write_bytes(source)
+        return compiled_bytes_timeout(candidate, name, compiler)
+
+
 def evaluate_one(case: dict, compiler: str, permuter_seconds: int,
                  raw_cache: dict) -> dict:
     rec = knowledge_c(case["program"], case["addr"])
@@ -507,10 +527,10 @@ def evaluate_one(case: dict, compiler: str, permuter_seconds: int,
                 "accepted": False}
     try:
         raw_dir = pathlib.Path(os.environ.get("AGENT_DECOMPILE_CORPUS_WORK_DIR") or ".") / "extract" / "raw"
-        target = destination_bytes(
+        target, observation = target_observation(
             case["slug"], f"{case['addr']:08x}", case["size"], raw_cache,
             raw_dir=raw_dir,
-            mapper_for=lambda raw: ((m, "pe") if (m := pe_va_mapper(raw)) else (None, None)),
+            mapper_for=mapper_for,
         )
     except ValueError as exc:
         return {**case, "outcome": "no_target_bytes", "detail": str(exc),
@@ -521,21 +541,18 @@ def evaluate_one(case: dict, compiler: str, permuter_seconds: int,
     built = ph.build_case(case["repo_path"], case["addr"], case["size"],
                           ghidra_name or case["name"], base_c, compiler, work)
     if built is None:
-        return {**case, "outcome": "build_case_failed", "ghidra_name": ghidra_name,
+        return {**case, **observation, "outcome": "build_case_failed", "ghidra_name": ghidra_name,
                 "accepted": False}
 
     name = (built / "function.txt").read_text().strip().lstrip("_")
     src_path = built / "base.c"
     src = src_path.read_text()
-    got = compiled_bytes_timeout(src_path, name, compiler)
+    got = _compile_source_snapshot(src.encode("utf-8"), name, compiler)
     compiles = got is not None
     exact = False
     if got is not None:
-        raw = got[:len(target)]
-        exact = raw == target or (
-            len(got) >= len(target)
-            and mask_x86_rel32(raw) == mask_x86_rel32(target)
-        )
+        exact = got == target
+    masked_match = got is not None and len(got) == len(target) and mask_x86_rel32(got) == mask_x86_rel32(target)
     outcome = "ghidra_c_matched" if exact else (
         "base_compiles" if compiles else "base_c_does_not_compile"
     )
@@ -554,12 +571,14 @@ def evaluate_one(case: dict, compiler: str, permuter_seconds: int,
     accepted = bool(exact and is_real_c(used_src))
     result = {
         **case,
+        **observation,
         "ghidra_name": ghidra_name,
         "defined_name": name,
         "outcome": outcome,
         "accepted": accepted,
         "base_compiles": compiles,
         "byte_exact": exact,
+        "masked_match": masked_match,
         "real_c": is_real_c(used_src),
     }
     if not accepted:
@@ -567,12 +586,17 @@ def evaluate_one(case: dict, compiler: str, permuter_seconds: int,
 
     file_name = name if name else (ghidra_name or case["name"])
     file_name = re.sub(r"[^A-Za-z0-9_]", "_", file_name)
-    dest = write_recovered(
-        case["program"], file_name,
-        header(file_name, case["program"], case["size"], case["convention"],
-               target.hex(), case["canon_key"]) + used_src,
-    )
-    merge_coverage(case["program"], {
+    persisted_source = (header(file_name, case["program"], case["size"], case["convention"],
+                               target.hex(), case["canon_key"]) + used_src).encode("utf-8")
+    # Permuter scores and relocation-masked comparisons are not exact receipts.
+    # Compile the exact bytes to be persisted, including their emitted header.
+    final_bytes = _compile_source_snapshot(persisted_source, name, compiler)
+    if final_bytes != target:
+        return {**result, "accepted": False, "byte_exact": False,
+                "outcome": "persisted_source_not_byte_exact"}
+    dest = write_recovered(case["program"], file_name, persisted_source.decode("utf-8"))
+    merge_coverage(case["program"], bind_source({
+        **observation,
         "batch": "ghidra-c-named-recovery-2026-08-15",
         "byteExact": True,
         "byteExactVerified": True,
@@ -581,12 +605,13 @@ def evaluate_one(case: dict, compiler: str, permuter_seconds: int,
         "function": file_name,
         "matched": True,
         "originalBytes": target.hex(),
+        "originalBytesSha256": hashlib.sha256(target).hexdigest(),
         "size": case["size"],
         "symbol": f"_{name}",
         "canonicalName": case["canon_key"],
         "readableC": True,
         "path": str(dest),
-    })
+    }, persisted_source))
     result["path"] = str(dest)
     return result
 

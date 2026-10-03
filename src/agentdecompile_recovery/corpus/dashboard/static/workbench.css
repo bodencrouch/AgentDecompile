@@ -1478,7 +1478,7 @@ body.workbench-page.wb-resizing-y * {
 .workbench-page .wb-field-hint {
   display: block;
   font-size: .75rem;
-  color: var(--text-dim);
+  color: var(--text-muted);
   line-height: 1.35;
 }
 

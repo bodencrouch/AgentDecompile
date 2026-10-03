@@ -60,6 +60,6 @@ def test_leftover_store_sets_and_empty_reason(tmp_path: Path) -> None:
     )
     con.commit()
     real_c, tried = leftover_store_sets(con)
-    assert 9 in real_c
+    assert 9 not in real_c  # unbound historical DB presence is not current proof
     assert 9 not in tried
     assert "bound logical_id" in explain_empty()

@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from .artifact_layout import is_objdiff_zero_accept
-from .autonomy_budget import AutonomyBudget, remaining_attempts, remaining_rewrite_requests
+from .autonomy_budget import DEFAULT_MAX_REWRITE_REQUESTS_PER_FUNCTION, AutonomyBudget, remaining_attempts, remaining_rewrite_requests
 from .proof_tier_router import enrich_policy_with_proof_tier
 from .mismatch_classify import (
     CLASS_BOUNDARY_SUSPECT,
@@ -16,6 +16,7 @@ from .mismatch_classify import (
     routed_playbook_for_class,
 )
 from . import rewrite_queue
+from .targeted_ai import resolve_targeted_ai
 
 NEAR_MISS_MAX_DIFF = 8
 
@@ -146,6 +147,8 @@ def choose_next_action(
                 reason = f"insert/delete near-miss with {near_miss_magnitude} difference(s); branch-shape playbook"
             else:
                 reason = f"candidate is close to match with {near_miss_magnitude} difference(s); near-miss is not promote"
+            if has_mismatch_evidence and shape_search_exhausted and not resolve_targeted_ai().enabled:
+                reason += "; targeted AI disabled by operator"
     elif context.get("compilerProfiles") in (None, [], ()):
         action = "block-on-compiler-profile-evidence"
         reason = "large mismatch without compiler-profile evidence"
@@ -221,9 +224,11 @@ def _coerce_budget(budget: AutonomyBudget | dict[str, Any] | None) -> AutonomyBu
         max_campaigns=int(budget.get("max_campaigns") or budget.get("maxCampaigns") or 1),
         stop_on_accept=bool(budget.get("stop_on_accept") or budget.get("stopOnAccept")),
         max_rewrite_requests_per_function=int(
-            budget.get("max_rewrite_requests_per_function")
-            or budget.get("maxRewriteRequestsPerFunction")
-            or 0
+            budget["max_rewrite_requests_per_function"]
+            if budget.get("max_rewrite_requests_per_function") is not None
+            else budget["maxRewriteRequestsPerFunction"]
+            if budget.get("maxRewriteRequestsPerFunction") is not None
+            else DEFAULT_MAX_REWRITE_REQUESTS_PER_FUNCTION
         ),
     )
 

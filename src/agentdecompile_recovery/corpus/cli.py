@@ -3,14 +3,74 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
+import sqlite3
 import sys
 from pathlib import Path
 
+from ..targeted_ai import resolve_targeted_ai
 from .archive import check_extraction, list_archive, summarize_entries
 from .contract import STAGE_ALIASES, stages_catalog, resolve_stage
 from .pipeline import run_corpus_pipeline, write_calibrate_global_receipt
 from .registry import add_binary, load_corpus, new_corpus, save_corpus
+
+
+def _hashed(slug: object) -> str:
+    """A build name for a message: ``sha256(slug)[:12]``, never the slug."""
+    return hashlib.sha256(str(slug).encode("utf-8")).hexdigest()[:12]
+
+
+def _refusal_line(exc: BaseException) -> str | None:
+    """One named line for a keyed verb's refusal, or None when *exc* is not one.
+
+    The three refusal classes the keyed verbs (``export-hookpack``,
+    ``verify-determinism``, ``logical-build``, ``backfill``) share:
+
+    * ``BasisError`` -- the store cannot declare one basis.
+    * ``ContentHashError`` -- a build the cascade keys on has no usable
+      ``content_sha256``. Its message names slugs; only the count and the
+      hashed names are printed.
+    * ``sqlite3.OperationalError`` for a lock/busy/read-only condition --
+      the write lock was held past ``busy_timeout``; reported as ``locked``
+      rather than as a traceback. Any other operational error is a real
+      failure and propagates.
+    """
+    from .determinism_basis import BasisError
+    from .logical import BACKFILL_HINT, ContentHashError
+    from .store import _is_lock_or_readonly
+
+    if isinstance(exc, ContentHashError):
+        names = ", ".join(_hashed(slug) for slug in exc.slugs)
+        detail = "shared by" if exc.kind == "duplicate" else "missing for"
+        return (
+            f"error: ContentHashError: content_sha256 {detail} {len(exc.slugs)} build(s) [{names}]; "
+            f"{BACKFILL_HINT}"
+        )
+    if isinstance(exc, BasisError):
+        return f"error: {exc}"
+    if isinstance(exc, sqlite3.OperationalError) and _is_lock_or_readonly(exc):
+        return f"error: locked: {exc} (write lock held past busy_timeout)"
+    return None
+
+
+#: Returned by :func:`_run_keyed_verb` when the verb refused; the caller exits 2.
+REFUSED = object()
+
+
+def _run_keyed_verb(action):
+    """Run *action*; on a refusal print one named line to stderr and return ``REFUSED``."""
+    from .determinism_basis import BasisError
+    from .logical import ContentHashError
+
+    try:
+        return action()
+    except (BasisError, ContentHashError, sqlite3.OperationalError) as exc:
+        line = _refusal_line(exc)
+        if line is None:
+            raise
+        print(line, file=sys.stderr)
+        return REFUSED
 
 
 def run_list_archive_command(args: argparse.Namespace) -> int:
@@ -75,9 +135,159 @@ def run_check_extraction_command(args: argparse.Namespace) -> int:
     return 0 if report.is_complete else 1
 
 
-def build_parser() -> argparse.ArgumentParser:
+def default_batch_threads() -> int:
+    import os
+
+    return max(1, min(os.cpu_count() or 1, 8))
+
+
+def render_batch_markdown(summary: dict) -> str:
+    """Markdown table for a decompile-batch run (plain rows, no prose)."""
+    rows = [
+        ("repo_path", summary.get("repo_path")),
+        ("want", summary.get("want")),
+        ("already stored", summary.get("already_done")),
+        ("pending", summary.get("pending")),
+        ("attempted", summary.get("attempted")),
+        ("completed", summary.get("completed")),
+        ("timed out", summary.get("timed_out")),
+        ("errored", summary.get("errored")),
+        ("cancelled", summary.get("cancelled")),
+        ("threads", summary.get("threads")),
+        ("timeout_s", summary.get("timeout_s")),
+        ("wall_s", f"{summary.get('wall_s', 0.0):.2f}"),
+        ("fn_per_s", f"{summary.get('fn_per_s', 0.0):.2f}"),
+        ("stale", summary.get("stale")),
+        ("options_sha256", summary.get("options_sha256")),
+        ("persisted", summary.get("persisted")),
+        ("pending after", summary.get("pending_after")),
+    ]
+    lines = ["| field | value |", "|---|---|"]
+    lines.extend(f"| {k} | {v} |" for k, v in rows)
+    return "\n".join(lines) + "\n"
+
+
+def select_decompile_batch_pending(
+    by_addr: dict[int, object],
+    ctext_con,
+    repo_path: str,
+    *,
+    store_con=None,
+    binary_id: int | None = None,
+    min_instr: int = 1,
+    retry_failed: bool = False,
+) -> tuple[list[int], set[int], list[int]]:
+    """Select the actual CLI batch want/done/pending sets in one filtering pass."""
+    from agentdecompile_recovery.corpus.decompile_text import done_addrs, pending_from, wanted_addrs
+
+    if store_con is not None and binary_id is not None:
+        want = [addr for addr in wanted_addrs(store_con, binary_id, min_instr=min_instr) if addr in by_addr]
+    else:
+        want = list(by_addr)
+    done = done_addrs(ctext_con, repo_path, include_failed=not retry_failed)
+    return want, done, pending_from(want, done)
+
+
+def run_decompile_batch_command(args: argparse.Namespace) -> int:
+    """Open the program read-only, decompile pending addresses with the private parallel pool, persist to ctext."""
+    from agentdecompile_recovery.corpus.decompile_text import connect_ctext, done_addrs, pending_from, persist_batch_results
+
+    if args.binary is None and not (args.project_location and args.project_name and args.program_name):
+        print("error: --binary or (--project-location, --project-name, --program) is required", file=sys.stderr)
+        return 2
+    binary = args.binary.resolve() if args.binary is not None else None
+    project_location = args.project_location or (args.ctext_db.resolve().parent / "pyghidra-project")
+    project_name = args.project_name or (binary.name if binary is not None else "corpus")
+    repo_path = args.repo_path or (str(binary) if binary is not None else f"{project_name}/{args.program_name}")
+    threads = max(1, int(args.threads))
+
+    import pyghidra
+    from pyghidra.launcher import HeadlessPyGhidraLauncher
+
+    if not pyghidra.started():
+        launcher = HeadlessPyGhidraLauncher(verbose=False)
+        launcher.add_vmargs(f"-Xmx{args.jvm_xmx}", f"-Dcpu.core.limit={threads}")
+        launcher.start()
+
+    from agentdecompile_cli.mcp_utils.parallel_decompile import batch_candidates, decompile_functions_iter, function_addr
+
+    ctext_con = connect_ctext(args.ctext_db)
+    project_location.mkdir(parents=True, exist_ok=True)
+    summary: dict = {"repo_path": repo_path, "threads": threads, "timeout_s": int(args.timeout_s)}
+    with pyghidra.open_program(
+        binary,
+        project_location=project_location,
+        project_name=project_name,
+        analyze=bool(args.analyze),
+        program_name=args.program_name,
+    ) as flat_api:
+        program = flat_api.getCurrentProgram()
+        candidates = batch_candidates(program)
+        by_addr = {function_addr(f): f for f in candidates}
+        if args.db is not None and args.binary_id is not None:
+            from agentdecompile_recovery.corpus.store import connect as store_connect
+
+            store_con = store_connect(args.db)
+            try:
+                want, done, pending = select_decompile_batch_pending(
+                    by_addr,
+                    ctext_con,
+                    repo_path,
+                    store_con=store_con,
+                    binary_id=args.binary_id,
+                    min_instr=args.min_instr,
+                    retry_failed=args.retry_failed,
+                )
+            finally:
+                store_con.close()
+        else:
+            want, done, pending = select_decompile_batch_pending(
+                by_addr, ctext_con, repo_path, retry_failed=args.retry_failed
+            )
+        want_total = len(want)
+        if args.limit is not None:
+            pending = pending[: max(0, int(args.limit))]
+        summary.update({"want": want_total, "already_done": len([a for a in want if a in done]), "pending": len(pending)})
+        persisted = 0
+        batch = None
+        gen = decompile_functions_iter(program, [by_addr[a] for a in pending], threads=threads, timeout_s=int(args.timeout_s))
+        try:
+            pending_results = []
+            while True:
+                try:
+                    result = next(gen)
+                except StopIteration as stop:
+                    batch = stop.value
+                    break
+                pending_results.append(result)
+                if len(pending_results) >= 64:
+                    persisted += persist_batch_results(ctext_con, repo_path, pending_results)
+                    pending_results = []
+            persisted += persist_batch_results(ctext_con, repo_path, pending_results)
+        finally:
+            gen.close()
+        summary["persisted"] = persisted
+        if batch is not None:
+            summary.update(batch.to_dict())
+            summary["fn_per_s"] = (batch.completed / batch.wall_s) if batch.wall_s > 0 else 0.0
+        summary["pending_after"] = len(pending_from(want, done_addrs(ctext_con, repo_path, include_failed=not args.retry_failed)))
+    ctext_con.close()
+    if args.json_out is not None:
+        args.json_out.parent.mkdir(parents=True, exist_ok=True)
+        args.json_out.write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    print(render_batch_markdown(summary))
+    if summary.get("stale"):
+        print("warning: program modification number changed during the batch (stale)", file=sys.stderr)
+        return 1
+    return 0
+
+
+DEFAULT_PROG = "agentdecompile-corpus"
+
+
+def build_parser(prog: str | None = None) -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="agentdecompile-corpus",
+        prog=prog or DEFAULT_PROG,
         description=(
             "Corpus-wide semantic decompilation. First priority is linking one "
             "STABS/DWARF donor project to a complete executable. Adding a binary "
@@ -139,9 +349,11 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument(
         "--llm",
         action="store_true",
+        default=None,
         help=(
             "After preparse+compile still fail, edit that Ghidra C with the local "
-            "claude CLI and retry once. The model is given `agentdecompile-cli get-function` output."
+            "claude CLI and retry once, only when targeted AI policy enables it. "
+            "Defaults to the shared targeted AI policy."
         ),
     )
     run.add_argument("--llm-model", default=None, help="Optional claude --model for cleanup")
@@ -198,6 +410,84 @@ def build_parser() -> argparse.ArgumentParser:
     )
     hookpack.add_argument("--db", type=Path, required=True)
     hookpack.add_argument("--out", type=Path, required=True)
+    hookpack.add_argument("--format", choices=("v1", "v2"), default="v1",
+                          help="Pack format; v1 preserves the existing consumer contract.")
+    hookpack.add_argument(
+        "--site-policy", type=Path, default=None,
+        help="Optional validated site-kind/field policy for emitted hook sites.",
+    )
+    hookpack.add_argument(
+        "--adapter-map", type=Path, default=None,
+        help="Optional validated mapping from exported site names to runtime adapter roles.",
+    )
+    hookpack.add_argument(
+        "--operation-contract", type=Path, default=None,
+        help="Validated target-bound native operation declarations to include in the hook pack.",
+    )
+
+    lua = sub.add_parser("export-lua-bindings", help="Generate deterministic Lua bindings from a v2 hook pack")
+    lua.add_argument("--pack", type=Path, required=True)
+    lua.add_argument("--out", type=Path, required=True)
+
+    readiness = sub.add_parser("readiness-report", help="Explain per-entity/build readiness from a v2 hook pack")
+    readiness.add_argument("--pack", type=Path, required=True)
+    readiness.add_argument("--out", type=Path, required=True)
+
+    progress = sub.add_parser("export-progress-report", help="Write an objdiff-shaped corpus inventory report without publishing")
+    progress.add_argument("--db", type=Path, required=True)
+    progress.add_argument("--binary-id", type=int, required=True)
+    progress.add_argument("--version", required=True)
+    progress.add_argument("--out", type=Path, required=True)
+
+    divergence = sub.add_parser("divergence-report", help="Explain recorded cross-build structural divergence")
+    divergence.add_argument("--pack", type=Path, required=True)
+    divergence.add_argument("--out", type=Path, required=True)
+
+    bundle = sub.add_parser("export-bundle", help="Publish a verified content-addressed export bundle")
+    bundle.add_argument("--db", type=Path, required=True)
+    bundle.add_argument("--out", type=Path, required=True)
+    bundle.add_argument("--site-policy", type=Path)
+    bundle.add_argument("--adapter-map", type=Path)
+    bundle.add_argument("--operation-contract", type=Path)
+
+    verify_det = sub.add_parser(
+        "verify-determinism",
+        help="Export the hook pack from two temp copies of a store and byte-diff the results",
+    )
+    verify_det.add_argument("--db", type=Path, required=True)
+
+    rebaseline = sub.add_parser(
+        "rebaseline",
+        help="Record a package-basis change as a supersession and re-stamp every binary row",
+    )
+    rebaseline.add_argument("--db", type=Path, required=True)
+    rebaseline.add_argument(
+        "--receipts", type=Path, required=True,
+        help="Receipts directory. The receipt lands under rebaseline/ inside it.",
+    )
+    rebaseline.add_argument("--reason", default=None, help="Why the basis changed. Stored with the supersession.")
+    rebaseline.add_argument(
+        "--export-out", type=Path, default=None,
+        help="Write a hook pack under the new basis into this directory.",
+    )
+    rebaseline.add_argument(
+        "--prior-pack", type=Path, default=None,
+        help="Diff the new pack against this pack. The prior pack is not changed.",
+    )
+    rebaseline.add_argument("--dry-run", action="store_true", help="Show the supersession. Write nothing.")
+    rebaseline.add_argument(
+        "--deadline-s", type=float, default=None,
+        help="Stop between phases after this many seconds. Exit 4.",
+    )
+
+    backfill = sub.add_parser(
+        "backfill",
+        help="Re-derive binary columns from raw images; one receipt per (pass, binary) makes it resumable",
+    )
+    backfill.add_argument("--db", type=Path, required=True)
+    backfill.add_argument("--pass", dest="passes", action="append", required=True, metavar="NAME")
+    backfill.add_argument("--receipts", type=Path, required=True)
+    backfill.add_argument("--no-resume", dest="resume", action="store_false")
 
     match_pair = sub.add_parser("match-pair", help="Run the store matcher on one directed pair")
     match_pair.identity_scope = "pair"
@@ -353,12 +643,14 @@ def build_parser() -> argparse.ArgumentParser:
                        help="Wine prefix for a direct MSVC/Wine link")
     clink.add_argument("--no-entrypoint", dest="entrypoint", action="store_false")
 
-    xplace = sub.add_parser("cross-place", help="Copy compiling C onto bound sibling binaries")
+    xplace = sub.add_parser("cross-place", help="Publish separately admitted recipient candidates; never replace accepted source")
     xplace.long_running = True
+    xplace.mutating = True
     xplace.add_argument("--from", dest="program", required=True)
     xplace.add_argument("--db", type=Path, required=True)
     xplace.add_argument("--out-dir", type=Path, required=True)
     xplace.add_argument("--repo", required=True)
+    xplace.add_argument("--raw-dir", type=Path, required=True, help="Current original images by binary slug")
     xplace.add_argument("--watch", action="store_true")
     xplace.add_argument("--interval", type=float, default=8.0)
     xplace.add_argument("--no-compile-gate", action="store_true")
@@ -383,15 +675,14 @@ def build_parser() -> argparse.ArgumentParser:
     vbx.add_argument("--workers", type=int, default=3)
     vbx.add_argument("--limit", type=int, default=None)
     vbx.add_argument("--no-incremental", action="store_true",
-                     help="ignore the mtime/size cache and recompile every file "
-                          "(use after a transient-failure spike to purge bad cached results)")
+                     help="ignore cached results and freshly recompile every selected file")
+
+    vbx.add_argument("--cache-input-manifest", type=Path, help="Declared compiler/header/library input closure for verified cache reuse")
+    vbx.add_argument("--transient-retry-seconds", type=float, default=300.0)
 
     vpd = sub.add_parser(
         "verify-periodic",
-        help="Self-healing verify-byteexact wrapper: runs incremental most of the "
-             "time, but every Nth invocation forces a --no-incremental full pass "
-             "to purge any cache contamination from a transient compile failure "
-             "-- no human needs to notice a plateau and intervene.",
+        help="Content-aware incremental verification with bounded time-based full audits",
     )
     vpd.add_argument("--verified-dir", type=Path, required=True)
     vpd.add_argument("--raw", type=Path, required=True)
@@ -403,7 +694,12 @@ def build_parser() -> argparse.ArgumentParser:
     vpd.add_argument("--compiler", type=Path)
     vpd.add_argument("--workers", type=int, default=3)
     vpd.add_argument("--limit", type=int, default=None)
-    vpd.add_argument("--full-every", type=int, default=6)
+    vpd.add_argument("--full-every", type=int, default=0, help="Legacy explicit pass-count audit; zero disables")
+    vpd.add_argument("--full-interval-seconds", type=float, default=86400.0)
+    vpd.add_argument("--force-full", action="store_true")
+    vpd.add_argument("--counter-file", type=Path)
+    vpd.add_argument("--cache-input-manifest", type=Path)
+    vpd.add_argument("--transient-retry-seconds", type=float, default=300.0)
 
     vfi = sub.add_parser(
         "verify-full-image-receipt",
@@ -518,9 +814,13 @@ def build_parser() -> argparse.ArgumentParser:
 
     orch = sub.add_parser(
         "recovery-orchestrator",
-        help="Autonomous supervisor: keep cascade + permuter + verify + "
-             "matching-watch + cross-place all running, relaunch any that exit",
+        help="Durable bounded recovery supervision; failed-stage budgets survive restart",
     )
+    # The aggregate command launches mutable providers; CLI exposure alone does
+    # not reserve corpus/Ghidra state. Status inspection is read-only at admission.
+    orch.mutating = orch.long_running = True
+    orch.identity_scope = "database"
+    orch.ghidra_exclusive = True
     orch.add_argument("--program", required=True)
     orch.add_argument("--repo", required=True)
     orch.add_argument("--db", required=True)
@@ -530,8 +830,8 @@ def build_parser() -> argparse.ArgumentParser:
     orch.add_argument("--binary-id", type=int, required=True)
     orch.add_argument("--compiler")
     orch.add_argument("--extract-raw")
-    orch.add_argument("--cascade-workers", type=int, default=2)
-    orch.add_argument("--verify-workers", type=int, default=2)
+    orch.add_argument("--cascade-workers", type=int, default=1)
+    orch.add_argument("--verify-workers", type=int, default=1)
     orch.add_argument("--no-cascade", dest="cascade", action="store_false", default=True)
     orch.add_argument("--no-verify", dest="verify", action="store_false", default=True)
     orch.add_argument("--no-nearmiss", dest="nearmiss", action="store_false", default=True)
@@ -539,6 +839,50 @@ def build_parser() -> argparse.ArgumentParser:
     orch.add_argument("--no-cross-place", dest="cross_place", action="store_false", default=True)
     orch.add_argument("--poll", type=float, default=20.0)
     orch.add_argument("--log-dir", default="/tmp")
+    orch.add_argument("--nearmiss-workers", type=int, default=1)
+    orch.add_argument("--cache-input-manifest", type=Path)
+    orch.add_argument("--transient-retry-seconds", type=float, default=300.0)
+    orch.add_argument("--full-interval-seconds", type=float, default=86400.0)
+    orch.add_argument("--input-basis", help="Verified semantic input manifest identity; required to launch")
+    orch.add_argument("--max-failed-exits", type=int, default=3)
+    orch.add_argument("--backoff", type=float, default=30.0)
+    orch.add_argument("--success-backoff", type=float, default=300.0)
+    orch.add_argument("--stagger", type=float, default=5.0)
+    orch.add_argument("--status", action="store_true", help="Read persisted supervision status without launching")
+    orch.add_argument("--once", action="store_true", help="One reconciliation/admission cycle; not goal completion")
+
+    external = sub.add_parser("normalize-validation-report", help="Read external diagnostics as unaccepted proposals; no provider execution")
+    external.add_argument("--provider", choices=("reagent-benchmark", "reccmp-compare"), required=True)
+    external.add_argument("--report", type=Path, required=True)
+
+    snapshot = sub.add_parser("export-reagent-snapshot", help="Export selected cached Ghidra evidence for ReAgent without new analysis")
+    snapshot.mutating = True  # creates a new private destination, never edits the cache
+    snapshot.add_argument("--kb", type=Path, required=True)
+    snapshot.add_argument("--program", required=True)
+    snapshot.add_argument("--address", action="append", required=True)
+    snapshot.add_argument("--destination", type=Path, required=True)
+    snapshot.add_argument("--max-functions", type=int, default=100)
+
+    dbatch = sub.add_parser(
+        "decompile-batch",
+        help="Decompile pending functions in parallel into the ctext sqlite (never decompiles an address twice)",
+    )
+    dbatch.add_argument("--binary", type=Path, help="Binary to import (omit to open an existing program from the project)")
+    dbatch.add_argument("--project-location", type=Path, help="Ghidra project directory (default: <ctext-db dir>/pyghidra-project)")
+    dbatch.add_argument("--project-name", help="Ghidra project name (default: derived from the binary name)")
+    dbatch.add_argument("--program", dest="program_name", help="Program name inside the project when --binary is omitted")
+    dbatch.add_argument("--ctext-db", type=Path, required=True, help="ctext sqlite (schema from decompile_text.connect_ctext; rows via INSERT OR REPLACE like persist_text)")
+    dbatch.add_argument("--repo-path", help="ctext key (default: resolved binary path, or <project>/<program>)")
+    dbatch.add_argument("--threads", type=int, default=default_batch_threads(), help="Private decompiler pool size (default: min(cpu, 8))")
+    dbatch.add_argument("--timeout-s", type=int, default=60, help="Per-function decompile timeout in seconds")
+    dbatch.add_argument("--limit", type=int, help="Decompile at most this many pending functions")
+    dbatch.add_argument("--db", type=Path, help="Identity store; with --binary-id the want-list comes from its func table")
+    dbatch.add_argument("--binary-id", type=int, help="binary.id in --db")
+    dbatch.add_argument("--min-instr", type=int, default=1, help="Store want-list filter (n_instr >= N)")
+    dbatch.add_argument("--retry-failed", action="store_true", help="Treat ok=0 rows as pending again")
+    dbatch.add_argument("--no-analyze", dest="analyze", action="store_false", help="Do not run auto-analysis on import")
+    dbatch.add_argument("--jvm-xmx", default="2g", help="JVM max heap passed as -Xmx (default 2g)")
+    dbatch.add_argument("--json", dest="json_out", type=Path, help="Also write the summary as JSON to this path")
 
     from . import kx_cli
 
@@ -549,9 +893,28 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def main(argv: list[str] | None = None) -> int:
-    parser = build_parser()
+def main(argv: list[str] | None = None, prog: str | None = None) -> int:
+    parser = build_parser(prog)
     args = parser.parse_args(argv)
+    if args.cmd == "export-reagent-snapshot":
+        from .export_reagent_snapshot import export_reagent_snapshot
+        try:
+            result = export_reagent_snapshot(knowledge_db=args.kb, program=args.program,
+                addresses=args.address, output_dir=args.destination, max_functions=args.max_functions)
+        except (ValueError, OSError, sqlite3.Error) as exc:
+            print(json.dumps({"ok": False, "recovery_accepted": False, "error": str(exc)}))
+            return 2
+        print(json.dumps(result, sort_keys=True, allow_nan=False))
+        return 0
+    if args.cmd == "normalize-validation-report":
+        from .external_validation import InvalidReport, read_report
+        try:
+            result = read_report(args.report, args.provider)
+        except (InvalidReport, OSError) as exc:
+            print(json.dumps({"report_state": "invalid_output", "recovery_accepted": False, "error": str(exc)}))
+            return 2
+        print(json.dumps(result, sort_keys=True, allow_nan=False))
+        return 0
     if args.cmd == "init":
         save_corpus(args.out, new_corpus(args.corpus_id))
         print(args.out)
@@ -630,7 +993,7 @@ def main(argv: list[str] | None = None) -> int:
             snapshot_dir=args.snapshot_dir,
             stop_after=stop_after,
             compiler=args.compiler,
-            llm=bool(args.llm),
+            llm=resolve_targeted_ai().enabled,
             llm_model=args.llm_model,
         )
         print(json.dumps(summary, indent=2))
@@ -693,7 +1056,20 @@ def main(argv: list[str] | None = None) -> int:
         from .evaluate import evaluate
         from .store import connect
 
-        print(json.dumps(evaluate(connect(args.db), args.src, args.dst, mode=args.mode), indent=2))
+        con = connect(args.db)
+        try:
+            result = evaluate(con, args.src, args.dst, mode=args.mode)
+        except KeyError:
+            missing = [
+                path
+                for path in (args.src, args.dst)
+                if con.execute("SELECT 1 FROM binary WHERE repo_path=?", (path,)).fetchone() is None
+            ]
+            if not missing:
+                raise
+            print(f"error: not in database: {', '.join(missing)}", file=sys.stderr)
+            return 2
+        print(json.dumps(result, indent=2))
         return 0
     if args.cmd == "export-siblings":
         from .sibling_conflicts import export_sibling_conflicts
@@ -705,7 +1081,149 @@ def main(argv: list[str] | None = None) -> int:
         from .export_hookpack import export_hookpack
         from .store import connect
 
-        print(json.dumps(export_hookpack(connect(args.db), args.out)))
+        # A refusal (basis, content hash, lock) is exit 2 with one named
+        # line; the basis check runs before the site loop so it costs
+        # milliseconds, not the loop's minutes. Nothing was written.
+        summary = _run_keyed_verb(
+            lambda: export_hookpack(
+                connect(args.db), args.out,
+                site_policy=args.site_policy,
+                adapter_map=args.adapter_map,
+                operation_contract=args.operation_contract,
+                format=args.format,
+            )
+        )
+        if summary is REFUSED:
+            return 2
+        print(json.dumps(summary))
+        return 0
+    if args.cmd == "export-lua-bindings":
+        from .export_lua_bindings import export_lua_bindings
+
+        try:
+            result = export_lua_bindings(args.pack, args.out)
+        except (OSError, ValueError) as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 2
+        print(json.dumps(result))
+        return 0
+    if args.cmd == "readiness-report":
+        from .readiness_report import export_readiness_report
+
+        try:
+            result = export_readiness_report(args.pack, args.out)
+        except (OSError, ValueError) as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 2
+        print(json.dumps(result))
+        return 0
+    if args.cmd == "export-progress-report":
+        from .objdiff_report import export_report
+        from .store import connect
+
+        con = connect(args.db)
+        try:
+            result = export_report(con, args.binary_id, args.out, version=args.version)
+        except (OSError, ValueError) as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 2
+        finally:
+            con.close()
+        print(json.dumps(result))
+        return 0
+    if args.cmd == "divergence-report":
+        from .divergence_report import export_divergence_report
+
+        try:
+            result = export_divergence_report(args.pack, args.out)
+        except (OSError, ValueError) as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 2
+        print(json.dumps(result))
+        return 0
+    if args.cmd == "export-bundle":
+        from .export_bundle import export_bundle
+        from .store import connect
+
+        con = connect(args.db)
+        try:
+            result = _run_keyed_verb(lambda: export_bundle(
+                con, args.out, site_policy=args.site_policy,
+                adapter_map=args.adapter_map, operation_contract=args.operation_contract,
+            ))
+        except (OSError, ValueError) as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 2
+        finally:
+            con.close()
+        if result is REFUSED:
+            return 2
+        print(json.dumps(result))
+        return 0
+    if args.cmd == "verify-determinism":
+        from .determinism_basis import verify_export
+        from .export_hookpack import export_hookpack
+
+        result = _run_keyed_verb(lambda: verify_export(args.db, export_hookpack))
+        if result is REFUSED:
+            return 2
+        print(json.dumps(result))
+        return 0 if result["identical"] else 1
+    if args.cmd == "rebaseline":
+        from .determinism_basis import BasisError
+        from .logical import ContentHashError
+        from .rebaseline import rebaseline as run_rebaseline
+        from .store import connect
+
+        def run_it():
+            try:
+                return run_rebaseline(
+                    connect(args.db),
+                    receipts_dir=args.receipts,
+                    reason=args.reason,
+                    export_out=args.export_out,
+                    prior_pack=args.prior_pack,
+                    dry_run=args.dry_run,
+                    deadline_s=args.deadline_s,
+                )
+            except (BasisError, ContentHashError):
+                raise
+            except ValueError as exc:
+                raise SystemExit(f"error: {exc}") from exc
+
+        # Refusals (basis, content hash, lock) are exit 2 with one named
+        # line and nothing written. A deadline is exit 4: the re-stamp is
+        # one transaction, so it either landed whole or not at all; the
+        # summary says which. An export that refused after the re-stamp
+        # landed keeps exit 0: the supersession stands, and the refusal is
+        # recorded under run.export and named once on stderr.
+        result = _run_keyed_verb(run_it)
+        if result is REFUSED:
+            return 2
+        print(json.dumps(result, sort_keys=True, indent=2))
+        if result["status"] == "deadline":
+            return 4
+        export = (result.get("run") or {}).get("export") or {}
+        if export.get("status") == "refused":
+            print(f"error: export refused after re-stamp: {export.get('error')}", file=sys.stderr)
+        return 0
+    if args.cmd == "backfill":
+        from .backfill import run as run_backfill
+        from .logical import ContentHashError
+        from .store import connect
+
+        def run_it():
+            try:
+                return run_backfill(connect(args.db), args.passes, receipts_dir=args.receipts, resume=args.resume)
+            except ContentHashError:
+                raise
+            except ValueError as exc:
+                raise SystemExit(f"error: {exc}") from exc
+
+        result = _run_keyed_verb(run_it)
+        if result is REFUSED:
+            return 2
+        print(json.dumps(result, sort_keys=True))
         return 0
     if args.cmd == "match-pair":
         from .propagate import run_pair
@@ -723,7 +1241,10 @@ def main(argv: list[str] | None = None) -> int:
         from .logical import build
         from .store import connect
 
-        print(json.dumps(build(connect(args.db))))
+        result = _run_keyed_verb(lambda: build(connect(args.db)))
+        if result is REFUSED:
+            return 2
+        print(json.dumps(result))
         return 0
     if args.cmd == "package":
         from .package_project import package_project
@@ -921,6 +1442,7 @@ def main(argv: list[str] | None = None) -> int:
             "--db", str(args.db),
             "--out-dir", str(args.out_dir),
             "--repo", args.repo,
+            "--raw-dir", str(args.raw_dir),
         ]
         if args.watch:
             argv.append("--watch")
@@ -948,6 +1470,9 @@ def main(argv: list[str] | None = None) -> int:
             argv += ["--limit", str(args.limit)]
         if getattr(args, "no_incremental", False):
             argv += ["--no-incremental"]
+        if args.cache_input_manifest:
+            argv += ["--cache-input-manifest", str(args.cache_input_manifest)]
+        argv += ["--transient-retry-seconds", str(args.transient_retry_seconds)]
         return vbx_main(argv)
     if args.cmd == "verify-periodic":
         from .verify_periodic import main as vpd_main
@@ -966,6 +1491,14 @@ def main(argv: list[str] | None = None) -> int:
             argv += ["--maxc-bin-dir", str(args.maxc_bin_dir)]
         if args.limit is not None:
             argv += ["--limit", str(args.limit)]
+        argv += ["--full-interval-seconds", str(args.full_interval_seconds),
+                 "--transient-retry-seconds", str(args.transient_retry_seconds)]
+        if args.force_full:
+            argv.append("--force-full")
+        if args.counter_file:
+            argv += ["--counter-file", str(args.counter_file)]
+        if args.cache_input_manifest:
+            argv += ["--cache-input-manifest", str(args.cache_input_manifest)]
         return vpd_main(argv)
     if args.cmd == "verify-full-image-receipt":
         from .verify_full_image_receipt import main as vfi_main
@@ -1077,7 +1610,23 @@ def main(argv: list[str] | None = None) -> int:
             argv.append("--no-verify")
         if not args.nearmiss:
             argv.append("--no-nearmiss")
+        argv += ["--nearmiss-workers", str(args.nearmiss_workers),
+                 "--max-failed-exits", str(args.max_failed_exits),
+                 "--backoff", str(args.backoff), "--success-backoff", str(args.success_backoff),
+                 "--stagger", str(args.stagger)]
+        argv += ["--transient-retry-seconds", str(args.transient_retry_seconds),
+                 "--full-interval-seconds", str(args.full_interval_seconds)]
+        if args.cache_input_manifest:
+            argv += ["--cache-input-manifest", str(args.cache_input_manifest)]
+        if args.input_basis:
+            argv += ["--input-basis", args.input_basis]
+        if args.status:
+            argv.append("--status")
+        if args.once:
+            argv.append("--once")
         return orch_main(argv)
+    if args.cmd == "decompile-batch":
+        return run_decompile_batch_command(args)
     from . import kx_cli
 
     code = kx_cli.dispatch(args)

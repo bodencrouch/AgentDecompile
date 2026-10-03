@@ -28,43 +28,140 @@ IMAGE_SYM_CLASS_EXTERNAL = 2
 IMAGE_SYM_CLASS_STATIC = 3
 IMAGE_SYM_DTYPE_FUNCTION = 0x20
 IMAGE_REL_I386_REL32 = 0x14
+IMAGE_REL_AMD64_REL32 = 0x04
 RELOCATION_ENTRY_SIZE = 10
+
+# The PC-relative 32-bit relocation type for each machine. Both are applied as
+# S + A - (P + 4), where A is the field's existing content.
+REL32_TYPE = {
+    MACHINE["coff-i386"]: IMAGE_REL_I386_REL32,
+    MACHINE["coff-x86-64"]: IMAGE_REL_AMD64_REL32,
+}
+OBJDUMP_ARCH = {
+    MACHINE["coff-i386"]: "i386",
+    MACHINE["coff-x86-64"]: "i386:x86-64",
+}
+
+# Opcode bytes that start a direct branch: jcc rel8, loop/jcxz, call/jmp rel32,
+# jmp rel8, and the 0F escape of jcc rel32. A region containing none of them
+# has no direct branch at all.
+_BRANCH_BYTES = frozenset([*range(0x70, 0x80), 0xE0, 0xE1, 0xE2, 0xE3, 0xE8, 0xE9, 0xEB, 0x0F])
+
+_INSN = re.compile(r"^\s*([0-9a-f]+):\t([0-9a-f]{2}(?: [0-9a-f]{2})*)[ \t]*(.*)$")
+_BRANCH_MNEMONIC = re.compile(r"(?:call|jmp|j[a-z]+|loop[a-z]*|xbegin)[lqw]?")
+_HEX_OPERAND = re.compile(r"(?:0x)?([0-9a-f]+)")
+_RIP_TARGET = re.compile(r"#\s*(?:0x)?([0-9a-f]+)")
+
+
+class MkobjRefusal(ValueError):
+    """A named reason mkobj will not write an object. ``reason`` is the name.
+
+    Raised instead of writing an object whose PC-relative references were not
+    all found, since such an object reproduces its region only where it was cut.
+    """
+
+    def __init__(self, reason: str, detail: str = ""):
+        super().__init__(f"mkobj refused: {reason}" + (f": {detail}" if detail else ""))
+        self.reason = reason
+
+
+def _pc_relative_impossible(code: bytes, machine: int) -> bool:
+    """True when no byte could start a direct branch or (AMD64) a RIP-relative ModRM."""
+    if any(b in _BRANCH_BYTES for b in code):
+        return False
+    if machine == MACHINE["coff-x86-64"] and any((b & 0xC7) == 0x05 for b in code):
+        return False
+    return True
+
+
+def _run_objdump(code: bytes, machine: int) -> str:
+    try:
+        with tempfile.NamedTemporaryFile(suffix=".bin") as tf:
+            tf.write(code)
+            tf.flush()
+            p = subprocess.run(
+                ["objdump", "-D", "-w", "-z", "-b", "binary", "-m", OBJDUMP_ARCH[machine], tf.name],
+                capture_output=True,
+                text=True,
+            )
+    except OSError as exc:
+        raise MkobjRefusal("call_target_discovery_unavailable", f"objdump: {exc}") from exc
+    if p.returncode != 0:
+        raise MkobjRefusal(
+            "call_target_discovery_unavailable",
+            f"objdump exited {p.returncode}: {(p.stderr or '').strip()[:200]}",
+        )
+    return p.stdout
+
+
+def _outside(target: int, size: int) -> bool:
+    return not 0 <= target < size
 
 
 def find_call_targets(code: bytes, machine: int) -> dict[int, int]:
     """{byte offset of the displacement field: target offset (may be outside code)}.
 
-    Only ``call rel32`` (E8) and ``jmp rel32`` (E9) whose target lands outside
-    this function's own byte range get a relocation. Returns {} when objdump
-    is unavailable or the machine is not i386.
+    Every direct branch whose target lands outside this region must be a
+    plain ``call``/``jmp rel32`` (E8/E9) or ``jcc rel32`` (0F 8x); each gets a
+    REL32 relocation. Anything else that reaches outside the region raises
+    ``MkobjRefusal``: a short or prefixed external branch
+    (``external_branch_unrelocatable``) or an AMD64 RIP-relative operand
+    (``rip_relative_unsupported``). So does a missing or failing objdump
+    (``call_target_discovery_unavailable``), a listing that does not decode
+    the whole region, and an unsupported machine.
+
+    Returns {} without running objdump only when the region contains no byte
+    that could begin such a reference.
     """
-    if machine != MACHINE["coff-i386"]:
+    if machine not in REL32_TYPE:
+        raise MkobjRefusal("unsupported_machine", f"0x{machine:04x}")
+    if _pc_relative_impossible(code, machine):
         return {}
-    fmt = "coff-i386"
-    try:
-        with tempfile.NamedTemporaryFile(suffix=".o") as tf:
-            tf.write(build_object(code, "_probe", machine))
-            tf.flush()
-            p = subprocess.run(
-                ["objdump", "-b", fmt, "-d", tf.name],
-                capture_output=True,
-                text=True,
-            )
-    except OSError:
-        return {}
+    size = len(code)
     out: dict[int, int] = {}
-    for line in p.stdout.splitlines():
-        m = re.match(r"^\s*([0-9a-f]+):\s*((?:[0-9a-f]{2} )+)\s*(call|jmp)\s", line)
+    covered = 0
+    for line in _run_objdump(code, machine).splitlines():
+        m = _INSN.match(line)
         if not m:
             continue
         off = int(m.group(1), 16)
         raw = bytes.fromhex(m.group(2).replace(" ", ""))
-        if not raw or raw[0] not in (0xE8, 0xE9) or len(raw) < 5:
+        text = m.group(3).strip()
+        if off != covered or code[off:off + len(raw)] != raw:
+            raise MkobjRefusal("decode_incomplete", f"listing out of step at offset {off}")
+        covered = off + len(raw)
+        if not text or "(bad)" in text:
+            raise MkobjRefusal("undecodable_instruction", f"offset {off}")
+        if "%rip" in text:
+            t = _RIP_TARGET.search(text)
+            if t is None:
+                raise MkobjRefusal("rip_relative_unsupported", f"offset {off}: no target in {text!r}")
+            if _outside(int(t.group(1), 16), size):
+                raise MkobjRefusal("rip_relative_unsupported", f"offset {off}: {text}")
+        tokens = text.split()
+        for i, tok in enumerate(tokens):
+            if _BRANCH_MNEMONIC.fullmatch(tok):
+                break
+        else:
             continue
-        disp = int.from_bytes(raw[1:5], "little", signed=True)
-        target = off + 5 + disp
-        if target < 0 or target >= len(code):
-            out[off + 1] = target
+        operand = tokens[i + 1] if i + 1 < len(tokens) else ""
+        h = _HEX_OPERAND.fullmatch(operand)
+        if h is None:
+            continue  # indirect (*...) or register operand
+        if not _outside(int(h.group(1), 16), size):
+            continue
+        if len(raw) == 5 and raw[0] in (0xE8, 0xE9):
+            field = off + 1
+        elif len(raw) == 6 and raw[0] == 0x0F and 0x80 <= raw[1] <= 0x8F:
+            field = off + 2
+        else:
+            raise MkobjRefusal("external_branch_unrelocatable", f"offset {off}: {raw.hex()} {text}")
+        target = field + 4 + int.from_bytes(code[field:field + 4], "little", signed=True)
+        if not _outside(target, size):
+            raise MkobjRefusal("decode_incomplete", f"objdump and bytes disagree at offset {off}")
+        out[field] = target
+    if covered != size:
+        raise MkobjRefusal("decode_incomplete", f"decoded {covered} of {size} bytes")
     return out
 
 
@@ -86,9 +183,13 @@ def build_object(
 ) -> bytes:
     """``call_targets`` is ``{displacement-field offset: target offset}``.
 
-    None/empty reproduces the original zero-relocation layout.
+    None/empty reproduces the original zero-relocation layout. This is the
+    raw layout primitive: callers that cut a region should use
+    ``write_object``, which refuses rather than drop a relocation.
     """
     size = len(code)
+    if call_targets and machine not in REL32_TYPE:
+        raise MkobjRefusal("unsupported_machine", f"0x{machine:04x}")
     data_off = FILE_HEADER_SIZE + SECTION_HEADER_SIZE
 
     call_targets = call_targets or {}
@@ -131,7 +232,7 @@ def build_object(
     target_index = {addr: 3 + i for i, addr in enumerate(targets)}
     for disp_off in sorted(call_targets):
         sym_idx = target_index[call_targets[disp_off]]
-        out += struct.pack("<IIH", disp_off, sym_idx, IMAGE_REL_I386_REL32)
+        out += struct.pack("<IIH", disp_off, sym_idx, REL32_TYPE[machine])
     assert len(out) == symtab_off, (len(out), symtab_off)
 
     out += b".text".ljust(8, b"\0")
@@ -162,7 +263,11 @@ def write_object(
     symbol_prefix: str = "_",
     format: str = "coff-i386",
 ) -> pathlib.Path:
-    """Slice *binary* and write a COFF object to *output*. All paths required."""
+    """Slice *binary* and write a COFF object to *output*. All paths required.
+
+    Raises ``MkobjRefusal`` (a ValueError) and writes nothing when the
+    region's external references cannot all be found and relocated.
+    """
     if size <= 0:
         raise ValueError(f"mkobj: refusing zero/negative size {size}")
     if format not in MACHINE:

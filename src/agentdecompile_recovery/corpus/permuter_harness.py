@@ -540,6 +540,12 @@ def build_case(repo_path: str, addr: int, size: int, name: str, base_c: str,
          "--symbol-prefix", "_", "--format", "coff-i386",
          "-o", str(d / "target.o")], capture_output=True, text=True)
     if not (d / "target.o").exists():
+        # mkobj refuses (exit 2, reason on stderr) rather than write an object
+        # whose external references were not relocated. Keep the reason where
+        # the caller can report it instead of "no_target_bytes".
+        reason = (r.stderr or "").strip() or f"mkobj exited {r.returncode}"
+        (d / "mkobj_refusal.txt").write_text(reason + "\n")
+        print(f"mkobj failed for {name}: {reason}", file=sys.stderr)
         return None
 
     # Anything the body calls needs a prototype, or MSVC treats the extern data
@@ -750,6 +756,8 @@ def run_from_ghidra_bulk(args) -> int:
             capture_output=True, text=True)
         if not (d / "target.o").exists():
             results.append({**info, "outcome": "mkobj_failed",
+                            "mkobj_refusal": (r.stderr or "").strip()
+                            or f"mkobj exited {r.returncode}",
                             "real_c_and_byte_exact": False})
             continue
         cc = COMPILERS[args.compiler]
@@ -826,8 +834,14 @@ def main(argv: list[str] | None = None) -> int:
         d = build_case(c["repo_path"], c["addr"], c["size"], c["name"], base,
                        args.compiler, wd)
         if d is None:
-            results.append({**c, "outcome": "no_target_bytes",
-                            "real_c_and_byte_exact": False})
+            refusal = wd / f"{c['addr']:08x}" / "mkobj_refusal.txt"
+            if refusal.exists():
+                results.append({**c, "outcome": "mkobj_failed",
+                                "mkobj_refusal": refusal.read_text().strip(),
+                                "real_c_and_byte_exact": False})
+            else:
+                results.append({**c, "outcome": "no_target_bytes",
+                                "real_c_and_byte_exact": False})
             continue
         try:
             r = evaluate(d, c["name"], args.compiler, args.seconds)

@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ideation: Frontends redesign — CodeBrowser parity and a pipeline workstation</title>
+<style>
+  :root { --bg:#fbfaf7; --fg:#1f2328; --muted:#57606a; --line:#d8dee4; --card:#ffffff;
+          --accent:#0b5cad; --accent-soft:#e7f0fa; --ok-soft:#e8f5ec; --ok:#1a7f37;
+          --warn-soft:#fff4e0; --warn:#9a6700; --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#16181c; --fg:#e6e8eb; --muted:#a8b0b8; --line:#353b43; --card:#1d2026;
+            --accent:#6cb2ff; --accent-soft:#1c2b3d; --ok-soft:#18301f; --ok:#6fd48a;
+            --warn-soft:#352a14; --warn:#e6b450; }
+  }
+  body { margin:0; background:var(--bg); color:var(--fg);
+         font: 15px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 920px; margin-inline:auto; padding: 2.5rem 1.25rem 4rem; }
+  p, li, dd { max-width: 72ch; }
+  h1 { font-size: 1.6rem; margin: .2rem 0 .6rem; }
+  h2 { font-size: 1.3rem; margin-top: 2.4rem; border-bottom:1px solid var(--line); padding-bottom:.3rem; }
+  h3 { font-size: 1.08rem; margin: 0 0 .4rem; }
+  .eyebrow { font-size:.72rem; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); }
+  .meta { display:flex; flex-wrap:wrap; gap:.5rem 1.2rem; font-size:.85rem; color:var(--muted); margin-bottom:1rem; }
+  .meta b { color:var(--fg); font-weight:600; }
+  .stats { display:flex; gap:.6rem; flex-wrap:wrap; margin:1rem 0 .5rem; }
+  .stat { background:var(--card); border:1px solid var(--line); border-radius:8px; padding:.5rem .8rem; font-size:.85rem; }
+  .stat b { font-size:1.15rem; display:block; }
+  article.idea { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:1rem 1.2rem; margin:1rem 0; }
+  article.idea dl { display:grid; grid-template-columns: 8.5rem 1fr; gap:.35rem .8rem; margin:.6rem 0 0; }
+  article.idea dt { font-size:.72rem; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); padding-top:.2rem; }
+  article.idea dd { margin:0; }
+  .chips { display:flex; gap:.4rem; flex-wrap:wrap; margin:.2rem 0 .4rem; }
+  .chip { font-size:.75rem; border-radius:999px; padding:.1rem .6rem; background:var(--accent-soft); color:var(--accent); border:1px solid transparent; }
+  .chip.ok { background:var(--ok-soft); color:var(--ok); }
+  .chip.warn { background:var(--warn-soft); color:var(--warn); }
+  code { font-family:var(--mono); font-size:.86em; }
+  table { border-collapse:collapse; width:100%; font-size:.9rem; }
+  th, td { text-align:left; border-bottom:1px solid var(--line); padding:.4rem .5rem; vertical-align:top; }
+  th { font-size:.75rem; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); }
+  .callout { background:var(--warn-soft); border-radius:8px; padding:.7rem 1rem; margin:1rem 0; }
+  .callout .eyebrow { color:var(--warn); }
+  figure { margin:.8rem 0; }
+  figcaption { font-size:.8rem; color:var(--muted); }
+  svg text { font: 12px system-ui, sans-serif; fill: var(--fg); }
+  svg .box { fill: var(--card); stroke: var(--line); stroke-width:1.5; }
+  svg .hl { fill: var(--accent-soft); stroke: var(--accent); stroke-width:1.5; }
+  svg .edge { stroke: var(--accent); stroke-width:1.6; fill:none; }
+  svg .soft { stroke: var(--muted); stroke-width:1.2; fill:none; stroke-dasharray:4 3; }
+  strong { color: inherit; }
+  ul.jump { columns: 2; font-size:.9rem; }
+  footer.composition-signal { margin-top:3rem; font-size:.8rem; color:var(--muted); border-top:1px solid var(--line); padding-top:.8rem; }
+</style>
+</head>
+<body>
+<main>
+<div class="eyebrow">Ideation</div>
+<h1>Frontends redesign: CodeBrowser parity on 8080, a pipeline workstation in Vite</h1>
+<div class="meta">
+  <span><b>Date</b> <time datetime="2026-09-28">2026-09-28</time></span>
+  <span><b>Topic</b> frontends-redesign</span>
+  <span><b>Focus</b> remove pipeline-owned buttons; exact CodeBrowser parity with one tab per multi-binary project; Vite with objdiff-web-class parity; progress publishing later</span>
+  <span><b>Mode</b> repo-grounded</span>
+</div>
+<div class="stats">
+  <div class="stat"><b>48</b>raw ideas from 6 frames</div>
+  <div class="stat"><b>13</b>merged clusters</div>
+  <div class="stat"><b>6</b>survivors</div>
+  <div class="stat"><b>5 / 5</b>axes covered</div>
+</div>
+
+<section id="grounding-context">
+<h2>Grounding Context</h2>
+<div class="eyebrow">Codebase Context</div>
+<p>One FastAPI backend serves both frontends. The action catalog holds 233 actions flagged danger, mutating or long-running. A single <code>workbench.prepare</code> run already automates the whole ladder, with 13 stages from project inspection to the byte audit. Adding a program to an open project admits that run automatically. Registering a bare binary or opening a locator does not.</p>
+<p>The static 8080 UI still carries more than 25 action buttons that trigger work the pipeline does itself. It also shows a second "Compile and verify" ladder with Run buttons over the same stage keys, and a "Run pipeline" Start button that the frontend intent bans. A third surface, the explorer page, has its own "Start workflow" button. Pause, resume and stop are live in the Vite workstation, but not on 8080 or the explorer.</p>
+<p>For CodeBrowser parity, the Decompiler and one-hop call trees exist today, and the Listing and Symbol Tree are partial. The Data Type Manager, Memory Map, Symbol Table and Bytes views have backing data but no panel. Program Trees, Defined Strings, Console, Function Comparison, Equates and Relocations have none yet. Nothing links the panels across windows: no shared cursor, no back or forward history, no go-to, no overview bar.</p>
+<p>The corpus already links binaries:</p>
+<ul>
+  <li>291,302 identity bindings across 29 of 90 binaries;</li>
+  <li>975,077 match rows across 89 directed pairs, 568,688 of them awaiting review;</li>
+  <li>a query-time "cross-build reach" join on the call graph.</li>
+</ul>
+<p>Sessions allow only one visible project. The MCP bridge keeps one active locator process-wide, behind a global lock.</p>
+<p>In Vite, the live root mounts the workstation only. A richer objdiff-audit tree is unreachable, and the served bundle is stale. Progress numbers disagree by source: 1,372 local recovered rows against 7,233 of 24,242 in a reconciliation snapshot. The whole-image compiler receipt evaluator is a deliberate stub.</p>
+<p>External research covered five sources:</p>
+<ul>
+  <li><strong>Ghidra CodeBrowser:</strong> the stock tool layout and its help pages. Version Tracking is two tool windows joined by a Matches panel, and only one active program drives the cursor.</li>
+  <li><strong>objdiff and objdiff-web:</strong> a unit list and a two-column diff with live re-diff and no Run button.</li>
+  <li><strong>decomp.dev:</strong> per-version report files, solid versus hatched bars, a size-weighted treemap and history charts.</li>
+  <li><strong>decomp.me:</strong> function scratches with a live match score.</li>
+  <li><strong>Dogbolt, RzWeb, r2web and APKMan:</strong> multi-decompiler panes, WASM engines in workers, panels named after the command behind them, and one engine serving both the UI and MCP.</li>
+</ul>
+<p>No external tool chains stages, matches identity across builds, distributes compute, or keeps verifiable receipts per region.</p>
+</section>
+
+<section id="topic-axes">
+<h2>Topic Axes</h2>
+<ol>
+  <li>Pipeline-owned controls vs pipeline-state display</li>
+  <li>CodeBrowser parity panels and cross-window behaviour</li>
+  <li>Project-as-tab: many binaries as peers, call graph and matcher shown together</li>
+  <li>Vite workstation views of the pipeline</li>
+  <li>Progress and claim publishing</li>
+</ol>
+</section>
+
+<section id="ranked-ideas">
+<h2>Ranked Ideas</h2>
+<ul class="jump">
+  <li><a href="#idea-1">1. Match and call graph in context over one join</a></li>
+  <li><a href="#idea-2">2. Zero-trigger contract</a></li>
+  <li><a href="#idea-3">3. Project-tab CodeBrowser on one location bus</a></li>
+  <li><a href="#idea-4">4. Full CodeBrowser provider set from existing data</a></li>
+  <li><a href="#idea-5">5. Vite as objdiff-web over the pipeline</a></li>
+  <li><a href="#idea-6">6. One report spine with honest, tier-split progress</a></li>
+</ul>
+
+<article class="idea" id="idea-1">
+<div class="eyebrow">Idea 1</div>
+<h3>1. Match and call graph in context over one join</h3>
+<div class="chips"><span class="chip">project-tab</span><span class="chip ok">Confidence 80%</span><span class="chip">Complexity Medium</span></div>
+<dl>
+  <dt>Description</dt>
+  <dd>
+    <p>Replace the Match tab and its Run match / Re-run / Match function buttons with four linked parts:</p>
+    <ul>
+      <li>A project-aggregate endpoint that joins binaries, identities, match status and preparations once.</li>
+      <li>A cross-binary call graph that promotes the existing identity join to a multi-hop, identity-keyed endpoint.</li>
+      <li>A binary-by-binary pair matrix: 89 computed cells, with every other cell reading "not scheduled", distinct from "failed".</li>
+      <li>Match decisions drawn in place: as edges on the same call-graph canvas, and as badges at the function header in Listing and Decompile.</li>
+    </ul>
+    <p>Review keeps Version Tracking's columns (status, type, score, confidence, algorithm). It adds batch decide by pair and score band through the existing batch route. Byte-level objdiff matches and name/signature matches stay labeled differently.</p>
+  </dd>
+  <dt>Axis</dt><dd>project-tab</dd>
+  <dt>Basis</dt><dd><code>direct:</code> the call-graph panel docstring "cross-build reach on every node … exists in up to 24 builds at once" (<code>panels/callgraph.py:1-29</code>); live counts of 975,077 match rows, 568,688 in review and 89 directed pairs; <code>router.py:683</code> match-decide-batch; <code>decomp_match.py:765-767</code> <code>bytecodeMatchTool: objdiff</code> vs <code>notBytecodeMatch: match-function</code>. <code>external:</code> Version Tracking's Matches and Markup tables.</dd>
+  <dt>Rationale</dt><dd>This is the user's headline ask, and "Match (especially)" is the tab they singled out. The backend already computes the join, so the move is exposure and layout rather than new analysis. The batch path turns more than half a million pending reviews into a decision per pair and score band.</dd>
+  <dt>Downsides</dt><dd>The join's performance across 90 binaries is unmeasured, so check the query plan before committing to synchronous fetches. Only 29 of 90 binaries carry identity bindings, and the rest must render as explicitly unbound, which takes honest empty states.</dd>
+  <dt>Confidence</dt><dd>80%</dd>
+  <dt>Complexity</dt><dd>Medium</dd>
+</dl>
+<figure>
+<svg viewBox="0 0 640 190" width="100%" role="img" aria-label="Pair matrix beside a cross-binary call graph sharing one selection">
+  <rect class="box" x="10" y="20" width="200" height="150" rx="8"/>
+  <text x="22" y="40">Pair matrix (binaries × binaries)</text>
+  <rect class="hl" x="30" y="55" width="30" height="24"/><rect class="box" x="64" y="55" width="30" height="24"/><rect class="hl" x="98" y="55" width="30" height="24"/>
+  <rect class="box" x="30" y="83" width="30" height="24"/><rect class="hl" x="64" y="83" width="30" height="24"/><rect class="box" x="98" y="83" width="30" height="24"/>
+  <text x="22" y="135">shaded = computed</text><text x="22" y="152">outline = not scheduled</text>
+  <rect class="box" x="260" y="20" width="370" height="150" rx="8"/>
+  <text x="272" y="40">Call graph across builds (one selection)</text>
+  <rect class="hl" x="290" y="70" width="90" height="28" rx="6"/><text x="300" y="89">build A: fn</text>
+  <rect class="box" x="420" y="55" width="90" height="28" rx="6"/><text x="430" y="74">build B: fn</text>
+  <rect class="box" x="420" y="110" width="90" height="28" rx="6"/><text x="430" y="129">build C: fn</text>
+  <path class="edge" d="M380,84 L420,69"/><path class="soft" d="M380,84 L420,124"/>
+  <text x="520" y="74">match: objdiff</text><text x="520" y="129">match: name only</text>
+  <path class="soft" d="M210,95 L260,95"/>
+</svg>
+<figcaption>Illustrative: selecting a matrix cell and a function drives one shared view; the edge style keeps the two match kinds apart.</figcaption>
+</figure>
+</article>
+
+<article class="idea" id="idea-2">
+<div class="eyebrow">Idea 2</div>
+<h3>2. Zero-trigger contract</h3>
+<div class="chips"><span class="chip">pipeline-controls</span><span class="chip ok">Confidence 85%</span><span class="chip">Complexity Medium</span></div>
+<dl>
+  <dt>Description</dt>
+  <dd>
+    <p>Make every open, add and register path admit the preparation run on the server. Show a one-line admission receipt: generation and queue position.</p>
+    <p>Then remove every trigger for work the pipeline owns, across all three surfaces:</p>
+    <ul>
+      <li>the more than 25 action buttons on 8080;</li>
+      <li>the shadow "Compile and verify" ladder;</li>
+      <li>"Run pipeline";</li>
+      <li>the explorer page's "Start workflow";</li>
+      <li>the Vite "Prepare analysis…" offer.</li>
+    </ul>
+    <p>Port the live Vite pause/resume/stop control to 8080 and the explorer as the only workflow control, pre-filled from the selected run.</p>
+    <p>Enforce the rule per mode from the MCP layer's mutating-action classification, so pipeline triggers cannot creep back.</p>
+    <p>Keep what the pipeline never does: rename, bookmarks, comments, match decisions and the expert command palette.</p>
+  </dd>
+  <dt>Axis</dt><dd>pipeline-controls</dd>
+  <dt>Basis</dt><dd><code>direct:</code> two ladders over the same stage keys, the second with <code>onRun=${runLadderStep}</code> (<code>workbench-app.js:6079-6093</code>); <code>runActionButton("corpus.run","Run pipeline")</code>; the explorer page's <code>"Start workflow"</code> button (<code>explorer-page.js:721</code>); auto-admission only on add-program (<code>workbench.py:1131-1136</code>); pause/resume live in <code>PreparationActivity.tsx:43-46</code>, mounted by the workstation.</dd>
+  <dt>Rationale</dt><dd>This is the user's rule stated directly: "anything in the pipeline shouldn't be a button". The frontend intent requires pause/resume as the single control. Fixing admission first keeps the removal from stranding a path with no way to start work.</dd>
+  <dt>Downsides</dt><dd>The admission and dispatch code (<code>jobs.py</code>, <code>protection.py</code>, <code>preparation.py</code>, <code>catalog.py</code>) carries another owner's uncommitted edits, which the work must coordinate with. Removing buttons from a 7,000-line file needs careful checks of the surviving command IDs and deep links.</dd>
+  <dt>Confidence</dt><dd>85%</dd>
+  <dt>Complexity</dt><dd>Medium</dd>
+</dl>
+</article>
+
+<article class="idea" id="idea-3">
+<div class="eyebrow">Idea 3</div>
+<h3>3. Project-tab CodeBrowser on one location bus</h3>
+<div class="chips"><span class="chip">codebrowser-parity</span><span class="chip ok">Confidence 70%</span><span class="chip warn">Complexity High</span></div>
+<dl>
+  <dt>Description</dt>
+  <dd>
+    <p>A browser tab holds a project and shows its binaries as peers, not one active program with hidden siblings. Each binary carries a readiness stamp: local and readable, or blocked on server credentials, with the backend's own next step.</p>
+    <p>One program-location object drives every connected panel: Listing, Decompile, Symbol Tree, call trees and cross-references. It brings Ghidra's behaviours: back and forward history, go-to, token highlight sync, and a warm/cold indicator in the location header.</p>
+    <p>A logical-coordinate ruler syncs peer Listings to the same identity where one is bound, and shows empty lanes where none is.</p>
+    <p>The Listing reads the lock-free database reader and is virtualized. The decompiler stays a lazy, per-function call.</p>
+  </dd>
+  <dt>Axis</dt><dd>codebrowser-parity</dd>
+  <dt>Basis</dt><dd><code>direct:</code> today's navigation is "switch to the Functions tab, narrow its own search … then reuse selectRow" (<code>workbench-app.js:5685-5689</code>); the command list has only tab switches, with no back/forward; <code>_dedupe_project_sessions</code> "leave[s] one project visibly loaded" (<code>ghidra_project.py:1445-1495</code>); the single <code>_ACTIVE_LOCATOR</code> global (<code>mcp_bridge.py:20-26</code>). <code>external:</code> CodeBrowser location sync, where one program drives every provider.</dd>
+  <dt>Rationale</dt><dd>Ghidra's real limit is one active program per cursor. A project tab with a shared bus removes that limit, which is exactly the user's reason for projects as tabs. It also gives the panels in idea 4 one integration point, instead of per-panel synchronization.</dd>
+  <dt>Downsides</dt><dd>It needs a backend correctness fix first: the single active locator must be scoped per call before peers can read at once. Rapid cursor moves must be debounced against the serialized decompiler bridge and cold reads of 27–55 seconds.</dd>
+  <dt>Confidence</dt><dd>70%</dd>
+  <dt>Complexity</dt><dd>High</dd>
+</dl>
+<figure>
+<svg viewBox="0 0 640 170" width="100%" role="img" aria-label="Before and after: one active program versus a project tab of peers sharing a cursor">
+  <text x="10" y="18">Before: one active program</text>
+  <rect class="hl" x="10" y="28" width="120" height="40" rx="6"/><text x="22" y="52">active binary</text>
+  <rect class="box" x="140" y="28" width="80" height="40" rx="6"/><text x="150" y="52">hidden</text>
+  <rect class="box" x="230" y="28" width="80" height="40" rx="6"/><text x="240" y="52">hidden</text>
+  <text x="340" y="18">After: project tab, peers on one bus</text>
+  <rect class="hl" x="340" y="28" width="90" height="40" rx="6"/><text x="350" y="52">build A</text>
+  <rect class="hl" x="440" y="28" width="90" height="40" rx="6"/><text x="450" y="52">build B</text>
+  <rect class="hl" x="540" y="28" width="90" height="40" rx="6"/><text x="550" y="52">build C</text>
+  <rect class="box" x="340" y="110" width="290" height="36" rx="6"/><text x="352" y="133">location bus: address · identity · history</text>
+  <path class="edge" d="M385,68 L420,110"/><path class="edge" d="M485,68 L485,110"/><path class="edge" d="M585,68 L550,110"/>
+</svg>
+<figcaption>Illustrative: peers replace hidden siblings; one location object feeds every panel of every peer.</figcaption>
+</figure>
+</article>
+
+<article class="idea" id="idea-4">
+<div class="eyebrow">Idea 4</div>
+<h3>4. Full CodeBrowser provider set from existing data</h3>
+<div class="chips"><span class="chip">codebrowser-parity</span><span class="chip">Confidence 65%</span><span class="chip warn">Complexity High</span></div>
+<dl>
+  <dt>Description</dt>
+  <dd>
+    <p>Build the missing providers through one read-only panel factory, docked where Ghidra's stock CodeBrowser tool puts them:</p>
+    <ul>
+      <li>Program Trees;</li>
+      <li>Data Type Manager, from the composite types the reader already exposes;</li>
+      <li>Memory Map, from memory blocks;</li>
+      <li>Bytes;</li>
+      <li>Defined Strings;</li>
+      <li>Symbol Table and References;</li>
+      <li>Function Graph;</li>
+      <li>call trees and the call graph;</li>
+      <li>Bookmarks;</li>
+      <li>a read-only Console log;</li>
+      <li>Function Comparison;</li>
+      <li>Equates;</li>
+      <li>Relocations.</li>
+    </ul>
+    <p>Mutating providers (structure editors, byte patching) stay explicit user edits, never pipeline triggers.</p>
+  </dd>
+  <dt>Axis</dt><dd>codebrowser-parity</dd>
+  <dt>Basis</dt><dd><code>direct:</code> the Symbol Tree already restricts itself to actions that are not dangerous, mutating or long-running (<code>workbench-app.js:2405-2410</code>); the reader's <code>composite_data_types()</code> and <code>memory_blocks()</code> have no panel consumer. <code>external:</code> the stock CodeBrowser tool layout and the guide's chapters on symbols, types, listing, call trees, memory map, signatures, structures and diagnosis.</dd>
+  <dt>Rationale</dt><dd>The user asked for "exact 1:1 full feature parity". Most missing providers lack only a panel, not data, so a factory turns each one into wiring work rather than design work.</dd>
+  <dt>Downsides</dt><dd>Parity is wide. Some providers, like Function Graph and Program Trees, need data the reader does not yet expose. The mutating classification lives in the MCP layer's per-tool action lists, not the catalog file, so gating needs care.</dd>
+  <dt>Confidence</dt><dd>65%</dd>
+  <dt>Complexity</dt><dd>High</dd>
+</dl>
+</article>
+
+<article class="idea" id="idea-5">
+<div class="eyebrow">Idea 5</div>
+<h3>5. Vite as objdiff-web over the pipeline</h3>
+<div class="chips"><span class="chip">vite-views</span><span class="chip ok">Confidence 72%</span><span class="chip warn">Complexity High</span></div>
+<dl>
+  <dt>Description</dt>
+  <dd>
+    <p>Rebuild the Vite workstation around objdiff-web's loop:</p>
+    <ul>
+      <li>A unit list with live fuzzy-match percentages, from the objdiff report parser already in the codebase, refreshed over the existing event stream, with no Verify button.</li>
+      <li>A two-column diff.</li>
+      <li>A decomp.me-style candidate scratch with a small wall of recent attempts.</li>
+      <li>A stage graph drawn from observed state, where retry appears only on a failed node.</li>
+      <li>A Dogbolt-style multi-decompiler comparison wherever the backend holds several outputs.</li>
+    </ul>
+    <p>It also carries:</p>
+    <ul>
+      <li>a spectator view for any caller, human or agent;</li>
+      <li>a roster of distributed-compute workers;</li>
+      <li>cached decompiler text labeled as advisory, with its generation;</li>
+      <li>a version stamp on the served bundle.</li>
+    </ul>
+    <p>Reuse the phase model and stage trace from the unreachable tree by extracting components, never by nesting the old roots.</p>
+  </dd>
+  <dt>Axis</dt><dd>vite-views</dd>
+  <dt>Basis</dt><dd><code>direct:</code> <code>decomp_match.py:128-137</code> parses report units and measures; the event stream in <code>activity.ts</code>; the menu entry <code>corpus.objdiff-check</code> "Verify compiled bytes" (<code>App.tsx:846</code>) duplicates the byte-audit stage; <code>main.tsx</code> mounts only the workstation. <code>external:</code> objdiff-web's watcher-driven re-diff, decomp.me scratches, Dogbolt panes, and RzWeb's one engine serving both UI and MCP.</dd>
+  <dt>Rationale</dt><dd>The user named objdiff-web "especially". The data it needs is already parsed server-side. No surveyed tool chains stages or shows distributed workers, which is where this workstation is specific to this project.</dd>
+  <dt>Downsides</dt><dd>The served bundle is stale, so nothing lands without a rebuild, which needs a package install. The extraction work touches components with no live importer.</dd>
+  <dt>Confidence</dt><dd>72%</dd>
+  <dt>Complexity</dt><dd>High</dd>
+</dl>
+</article>
+
+<article class="idea" id="idea-6">
+<div class="eyebrow">Idea 6</div>
+<h3>6. One report spine with honest, tier-split progress</h3>
+<div class="chips"><span class="chip">progress-publishing</span><span class="chip">Confidence 60%</span><span class="chip">Complexity Medium</span></div>
+<dl>
+  <dt>Description</dt>
+  <dd>
+    <p>Generate one objdiff-shaped report per binary and version, automatically. Feed it into:</p>
+    <ul>
+      <li>a decomp.dev-style project card: solid for verified byte-exact, hatched for advisory, with version pills and a size-weighted treemap;</li>
+      <li>a coverage strip under the Listing;</li>
+      <li>per-run splits, instead of a verdict banner that can only ever read "no receipt".</li>
+    </ul>
+    <p>Every number shows its source and generation, through one shared claim badge. Publishing to decomp.dev stays an explicit, separately approved step while its license is unclear.</p>
+  </dd>
+  <dt>Axis</dt><dd>progress-publishing</dd>
+  <dt>Basis</dt><dd><code>direct:</code> the claim boundary "Source availability, compilation, and byte verification are separate claims" (<code>recovery_status.py:152</code>); the two-tier index that is "never merged into a single 'recovered' number" (<code>package_readable_index.py</code>); the stub receipt evaluator (<code>byte_parity.py:93-95</code>). <code>external:</code> decomp.dev's report shape, bars, treemap and history.</dd>
+  <dt>Rationale</dt><dd>The codebase already refuses a single progress number, and the UI should draw the same tiers. A single report artifact also becomes the input for the eventual automatic publishing.</dd>
+  <dt>Downsides</dt><dd>Two sources disagree today: 1,372 local recovered rows against 7,233 of 24,242 in a snapshot. That has to be reconciled before any card is published. Otherwise the spine publishes the disagreement.</dd>
+  <dt>Confidence</dt><dd>60%</dd>
+  <dt>Complexity</dt><dd>Medium</dd>
+</dl>
+</article>
+</section>
+
+<section id="rejection-summary">
+<h2>Rejection Summary</h2>
+<table>
+<thead><tr><th>#</th><th>Idea</th><th>Reason Rejected</th></tr></thead>
+<tbody>
+<tr><td>1</td><td>Standalone logical-coordinate ruler</td><td>Merged into idea 3; weak on its own, since it is a rendering mode of the peer tab.</td></tr>
+<tr><td>2</td><td>Standalone database-reader Listing</td><td>Merged into idea 3; it is the data-source detail behind the location bus.</td></tr>
+<tr><td>3</td><td>Standalone cached decompiler text</td><td>Merged into idea 5.</td></tr>
+<tr><td>4</td><td>Derive the dock set from data availability</td><td>Contradicts the exact CodeBrowser parity constraint. The catalog basis was also misattributed and has been re-scoped to the MCP layer's classification.</td></tr>
+<tr><td>5</td><td>No server at all, static files only</td><td>The dashboards need live state. The useful part, pre-generated reports, is kept in idea 6.</td></tr>
+<tr><td>6</td><td>Zero numbers, receipt log only</td><td>Too extreme for the progress surface. Its honesty rule survives in idea 6 as source stamps and a receipt log.</td></tr>
+<tr><td>7</td><td>No client state across 100 tabs</td><td>Merged into idea 5 as the event-stream projection principle.</td></tr>
+<tr><td>8</td><td>Candidate wall, stage graph, worker roster, dead-tree extraction</td><td>Merged into idea 5.</td></tr>
+<tr><td>9</td><td>Andon rows and strip board</td><td>Merged into ideas 2 and 3.</td></tr>
+<tr><td>10</td><td>Grounding claim that pause/resume is missing in Vite</td><td>Refuted: it is live there. It is missing only on 8080 and the explorer.</td></tr>
+</tbody>
+</table>
+</section>
+
+<footer class="composition-signal">Composed <time datetime="2026-09-28T13:08Z">2026-09-28T13:08Z</time> by ce-ideate from the user's 2026-09-28 frontend directive and repository grounding.</footer>
+</main>
+</body>
+</html>

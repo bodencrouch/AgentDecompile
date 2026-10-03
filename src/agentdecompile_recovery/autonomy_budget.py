@@ -12,6 +12,7 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
+from .targeted_ai import resolve_targeted_ai
 from .state import atomic_write_json, now
 
 SCHEMA = "agentdecompile.autonomy-budget.v1"
@@ -226,4 +227,6 @@ def remaining_attempts(*, attempts_seen: int, budget: AutonomyBudget) -> int:
 
 
 def remaining_rewrite_requests(*, requests_seen: int, budget: AutonomyBudget) -> int:
+    if not resolve_targeted_ai().enabled:
+        return 0
     return max(0, budget.max_rewrite_requests_per_function - max(0, requests_seen))

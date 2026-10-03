@@ -10,6 +10,7 @@ import hashlib
 import inspect
 import json
 import os
+import re
 import threading
 import time
 import traceback
@@ -753,45 +754,39 @@ def render_corpus_status() -> dict:
         "ladder": ladder,
         "report": recovery_report_json(),
         "mission": _mission_json(),
-        "review": review_queue_json(),
         "errors": errors,
     }
 
 
-def review_queue_json(limit: int = 40) -> dict:
-    """Review-tier match rows for the React review tab."""
-    out = {"ok": True, "by_status": {}, "rows": [], "errors": []}
-    counts, err = query_db("SELECT status, COUNT(*) FROM match GROUP BY status")
-    if err:
-        out["ok"] = False
-        out["errors"].append(err)
-        return out
-    out["by_status"] = {str(s or ""): int(n or 0) for s, n in counts}
-    rows, rerr = query_db(
-        "SELECT src_binary, src_addr, dst_binary, dst_addr, score, status, id, evidence "
-        "FROM match WHERE status='review' ORDER BY score DESC LIMIT ?",
-        (int(limit),),
-        ignore_missing=True,
-    )
-    if rerr:
-        out["errors"].append(rerr)
-        return out
-    out["rows"] = [
-        {
-            "match_id": r[6],
-            "evidence": r[7],
-            "src_binary_id": r[0],
-            "src_addr": r[1],
-            "dst_binary_id": r[2],
-            "dst_addr": r[3],
-            "score": r[4],
-            "status": r[5],
-            "src_name": "",
-            "dst_name": "",
-        }
-        for r in rows
-    ]
-    return out
+def review_queue_json(limit: int = 40, after_id: int = 0) -> dict:
+    """Compatibility shape over the same coherent, token-bearing review service.
+
+    Rows are ordered by match ID and paged with `after_id`/`nextAfterId`, as the
+    review service returns them. The old score ranking is not reproduced.
+    """
+    from .common import list_match_review, review_error_status
+    from ..match_review import ReviewError
+    try:
+        page = list_match_review(after_id=after_id, limit=limit)
+    except ReviewError as exc:
+        return {**exc.result(), "status": review_error_status(exc), "by_status": {},
+                "rows": [], "errors": [exc.code]}
+    rows = []
+    for item in page["rows"]:
+        row = item["match"]
+        src, dst = ((binary or {}).get("row") or {} for binary in item["binaries"])
+        rows.append({"match_id": row["id"], "token": item["token"],
+                     "selection": page["selection"], "evidence": row.get("evidence"),
+                     "src_binary_id": row["src_binary"], "src_addr": row["src_addr"],
+                     "dst_binary_id": row["dst_binary"], "dst_addr": row["dst_addr"],
+                     "src_slug": src.get("slug") or "", "dst_slug": dst.get("slug") or "",
+                     "score": row["score"], "margin": row["margin"], "run": row["run"],
+                     "relation": row.get("relation"), "status": row["status"],
+                     "src_name": "", "dst_name": ""})
+    return {"ok": True, "rows": rows, "errors": [], "selection": page["selection"],
+            "total": page["total"], "by_status": {"review": page["total"]},
+            "counts_scope": "review_only", "order": "match_id",
+            "afterId": after_id, "nextAfterId": page["nextAfterId"]}
 
 
 def logical_listing_json(q: str = "", after: int = 0, limit: int | str = "all", expected_corpus: str = "") -> dict:
@@ -1201,7 +1196,21 @@ def browse_block_json(block: str, query: dict) -> tuple[dict, int]:
         )
         return payload, 200 if payload.get("ok") else payload.get("status", 503)
     if name == "review":
-        return review_queue_json(), 200
+        # The score-ranked `review_after=score:id` cursor has no equivalent in
+        # the review service, which pages by match ID. Refuse it by name.
+        # `after` is also the function-list cursor; only its old `score:id` shape is refused.
+        if params.get("review_after") or re.fullmatch(r"-?[0-9.]+(?:[eE]-?[0-9]+)?:[0-9]+", str(params.get("after") or "")):
+            return {"ok": False, "error": "ranked_cursor_retired", "refreshRequired": False,
+                    "detail": "Review rows are listed by match ID. Use after_id, or open the first page.",
+                    "rows": [], "by_status": {}, "errors": ["ranked_cursor_retired"]}, 400
+        raw_after = str(params.get("after_id") or "0")
+        raw_limit = str(params.get("limit") or "40")
+        if (len(raw_after) > 19 or len(raw_limit) > 3 or not raw_after.isascii() or not raw_after.isdecimal()
+                or not raw_limit.isascii() or not raw_limit.isdecimal() or not 1 <= int(raw_limit) <= 100):
+            return {"ok": False, "error": "malformed_request", "refreshRequired": False,
+                    "rows": [], "by_status": {}, "errors": ["malformed_request"]}, 400
+        payload = review_queue_json(limit=int(raw_limit), after_id=int(raw_after))
+        return payload, 200 if payload.get("ok") else payload.get("status", 503)
     if name == "builds":
         from agentdecompile_recovery.corpus.dashboard.panels import steps
         return {"ok": True, "block": name, "binaries": (steps.as_payload() or {}).get("binaries") or []}, 200

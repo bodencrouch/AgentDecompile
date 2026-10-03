@@ -68,6 +68,7 @@ def enrich_evidence(
         band = "unresolved"
     ev["status_band"] = band
     if alternatives is not None:
+        # Producer-ranked (best first); the order is a value, keep it.
         ev["alternatives"] = list(alternatives)
     elif "alternatives" not in ev:
         ev["alternatives"] = []
@@ -84,7 +85,9 @@ def enrich_evidence(
     if stage:
         ev["stage"] = stage
     if dependencies is not None:
-        ev["dependencies"] = list(dependencies)
+        # Persisted into ``match.evidence`` and consumed as a set: sort so the
+        # stored row does not inherit the producer's iteration order.
+        ev["dependencies"] = sorted(dependencies, key=str)
     return ev
 
 

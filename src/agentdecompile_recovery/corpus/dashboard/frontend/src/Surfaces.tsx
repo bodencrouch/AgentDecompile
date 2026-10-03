@@ -3,6 +3,7 @@ import {PreparationFeedProvider,usePreparationFeed} from './preparationFeed';
 import {matchingStageSummary,stageDisplayProgress,stageProgressDetail,stageProgressLabel} from './preparationProgress';
 import {SourceEditor,sourceWitness,sourceExtent,useFunctionEvidence} from './SourceEditor';
 import { AtlasAnalysis } from "./AtlasAnalysis";
+import { MatchReview } from "./workstation/MatchReview";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { API, query, request, type Data, type SurfaceProps } from "./contracts";
 import {
@@ -1202,56 +1203,10 @@ function Review({
   data: Data;
   catalog: Data[];
 }) {
+  // Rows, tokens and paging come from the review service itself. The
+  // corpus-status snapshot supplies only the counts by review state.
+  // MatchReview confirms each decision and shows it only on its job result.
   const review = data.review || {};
-  const rows: Data[] = review.rows || [];
-  const [pending, setPending] = useState<{
-    row: Data;
-    decision: "accept" | "reject";
-  } | null>(null);
-  const [decisions, setDecisions] = useState<Record<string, string>>({});
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-  useEffect(() => {
-    if (pending) {
-      const panel = document.querySelector<HTMLElement>(
-        "#review .review-confirm",
-      );
-      panel?.scrollIntoView({ block: "nearest" });
-      panel
-        ?.querySelector<HTMLButtonElement>("button")
-        ?.focus({ preventScroll: true });
-    }
-  }, [pending]);
-  const matchId = (row: Data) => {
-    const id = row.match_id ?? row.id;
-    return Number.isSafeInteger(Number(id)) && Number(id) > 0
-      ? Number(id)
-      : null;
-  };
-  async function decide() {
-    if (!pending || busy) return;
-    const id = matchId(pending.row);
-    if (id === null) return;
-    setBusy(true);
-    setError("");
-    try {
-      const result = await request(`${API}/match-decide`, {
-        method: "POST",
-        body: JSON.stringify({ match_id: id, decision: pending.decision }),
-      });
-      setDecisions((previous) => ({ ...previous, [id]: result.status }));
-      props.notify(
-        pending.decision === "accept"
-          ? `Match ${id} sent for verification. This is not a verified match.`
-          : `Match ${id} rejected.`,
-      );
-      setPending(null);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setBusy(false);
-    }
-  }
   return (
     <Section
       id="review"
@@ -1269,119 +1224,7 @@ function Review({
       }
     >
       <Messages data={review} />
-      <p>
-        Review candidates with their evidence. Accept moves a candidate to
-        verification; it does not establish byte parity.
-      </p>
-      {rows.length ? (
-        <div className="surface-table">
-          <table>
-            <thead>
-              <tr>
-                <th>Source build</th>
-                <th>Address</th>
-                <th>Target build</th>
-                <th>Address</th>
-                <th>Score</th>
-                <th>State</th>
-                <th>Decision</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row, index) => {
-                const id = matchId(row);
-                const status = (id ? decisions[id] : null) || row.status;
-                return (
-                  <tr key={id || index}>
-                    <td>{row.src_slug || row.src_binary_id}</td>
-                    <td>{addr(row.src_addr)}</td>
-                    <td>{row.dst_slug || row.dst_binary_id}</td>
-                    <td>{addr(row.dst_addr)}</td>
-                    <td>{shown(row.score)}</td>
-                    <td>
-                      {status === "verify" ? "Awaiting verification" : status}
-                    </td>
-                    <td>
-                      <details>
-                        <summary>Inspect evidence</summary>
-                        {row.evidence ? (
-                          <RecordView value={evidenceValue(row.evidence)} />
-                        ) : (
-                          <p>
-                            No evidence details were supplied for this
-                            candidate.
-                          </p>
-                        )}
-                      </details>
-                      {id !== null && status === "review" ? (
-                        <>
-                          <button
-                            disabled={busy}
-                            onClick={() => {
-                              setError("");
-                              setPending({
-                                row: { ...row },
-                                decision: "accept",
-                              });
-                            }}
-                          >
-                            Accept for verification
-                          </button>
-                          <button
-                            disabled={busy}
-                            onClick={() => {
-                              setError("");
-                              setPending({
-                                row: { ...row },
-                                decision: "reject",
-                              });
-                            }}
-                          >
-                            Reject candidate
-                          </button>
-                        </>
-                      ) : id === null ? (
-                        <span className="muted">
-                          Decision unavailable: match ID not supplied.
-                        </span>
-                      ) : null}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      ) : (
-        <p>No review candidates reported.</p>
-      )}
-      {pending && (
-        <div
-          className="review-confirm"
-          role="group"
-          aria-label="Confirm match decision"
-        >
-          <p>
-            {pending.decision === "accept" ? "Send" : "Reject"} match{" "}
-            {matchId(pending.row)}:{" "}
-            {pending.row.src_slug || pending.row.src_binary_id}{" "}
-            {addr(pending.row.src_addr)} →{" "}
-            {pending.row.dst_slug || pending.row.dst_binary_id}{" "}
-            {addr(pending.row.dst_addr)}
-            {pending.decision === "accept" ? " for verification." : "."}
-          </p>
-          <button disabled={busy} onClick={() => setPending(null)}>
-            Cancel decision
-          </button>
-          <button disabled={busy} onClick={decide}>
-            {busy ? "Saving…" : "Confirm decision"}
-          </button>
-          <ErrorLine error={error} />
-        </div>
-      )}
-      {rows.length >= 40 && (
-        <p>Showing the first 40 review candidates reported by the server.</p>
-      )}
+      <MatchReview active revision={props.revision} heading={false} notify={props.notify} />
       <details>
         <summary>Counts by review state at last refresh</summary>
         <RecordView value={review.by_status || {}} />

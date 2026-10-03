@@ -70,9 +70,10 @@ def relsim(x, y) -> float:
 def cosine(a: dict, b: dict) -> float:
     if not a or not b:
         return 0.0
-    keys = set(a) | set(b)
-    na = math.sqrt(sum(v * v for v in a.values()))
-    nb = math.sqrt(sum(v * v for v in b.values()))
+    # Sorted iteration: float accumulation order must not follow hash order.
+    keys = sorted(set(a) | set(b))
+    na = math.sqrt(sum(v * v for _, v in sorted(a.items())))
+    nb = math.sqrt(sum(v * v for _, v in sorted(b.items())))
     if not na or not nb:
         return 0.0
     return sum(a.get(k, 0) * b.get(k, 0) for k in keys) / (na * nb)
@@ -538,7 +539,7 @@ def match_binaries(
             best = second = 0.0
             best_b: str | None = None
             best_ev: dict[str, float] = {}
-            for bid in cands:
+            for bid in sorted(cands):
                 score, ev = score_features(fa, index.funcs[bid], same_arch=same_arch, mapping=mapping)
                 if score > best:
                     second, best, best_b, best_ev = best, score, bid, ev
@@ -548,7 +549,7 @@ def match_binaries(
                 margin = candidate_margin(best, second, len(cands))
                 scored.append((best, margin, sid, best_b, best_ev))
 
-        scored.sort(key=lambda row: (-row[0], -row[1]))
+        scored.sort(key=lambda row: (-row[0], -row[1], row[2], row[3]))
         new = 0
         for best, margin, sid, bid, ev in scored:
             if sid in mapping or bid in taken:

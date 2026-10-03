@@ -1,0 +1,978 @@
+<!--SEC:Canvas background-->
+<svg xmlns="http://www.w3.org/2000/svg" width="4400" height="3110" viewBox="0 0 4400 3110">
+<defs>
+</defs>
+<rect x="0" y="0" width="4400" height="3110" rx="0" fill="#16181c" stroke="#16181c" stroke-width="0" opacity="1"/>
+<!--SEC:Header-->
+<text x="40" y="52" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="30" fill="#f2f4f7" font-weight="bold" text-anchor="start">AgentDecompile — the recovery pipeline, end to end</text>
+<text x="40" y="84" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="14" fill="#98a0ad" font-weight="normal" text-anchor="start">Reading order: named stages retain prerequisites; evidence feeds back and verification starts early. Every card answers: what we&#x27;re trying to do · how · what goes in and comes out · what gates it.</text>
+<rect x="2700" y="22" width="1660" height="96" rx="6" fill="#20232a" stroke="#f0c060" stroke-width="1.2" opacity="1"/>
+<text x="2712" y="44" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="12" fill="#f0c060" font-weight="bold" text-anchor="start">HOW TO READ THIS IN 20 SECONDS</text>
+<text x="2712" y="64" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11.5" fill="#d8dbe0" font-weight="normal" text-anchor="start">1. Follow prerequisites; identity/calibration iterate and parity runs continuously.</text>
+<text x="2712" y="80" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11.5" fill="#d8dbe0" font-weight="normal" text-anchor="start">2. Lanes may overlap within ownership, resource and snapshot-dependency limits.</text>
+<text x="2712" y="96" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11.5" fill="#d8dbe0" font-weight="normal" text-anchor="start">3. Try applicable lookups; exports state capabilities, uncertainty and evidence.</text>
+<text x="40" y="108" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="14" fill="#f0c060" font-weight="normal" text-anchor="start" font-style="italic">Design target: recover from the best evidence, reuse only what transfers, verify at the level of use — packs, generated bindings, headers and readiness reports with explicit capability limits.</text>
+<text x="40" y="128" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="12.5" fill="#98a0ad" font-weight="normal" text-anchor="start" font-style="italic">Runs on a laptop; scales by concurrency, then by donated idle compute and free cloud nodes; task-specific budgets and isolated storage probes; complete prepared inputs enable independent continuation; see execution-contracts companion.</text>
+<!--SEC:Row 0 - intake and the 8-stage ladder-->
+<rect x="40" y="140" width="4320" height="34" rx="4" fill="#25503e" opacity="0.85"/>
+<text x="52" y="162" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="14" fill="#f2f4f7" font-weight="bold" text-anchor="start">MAIN PIPELINE — compatible reuse · validated reconstruction · independent claim gates</text>
+<text x="4348" y="162" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11.5" fill="#7fd6a4" font-weight="normal" text-anchor="end" font-style="italic">0 + eight named stages · feedback allowed · reuse valid unchanged receipts</text>
+<rect x="40" y="190" width="400" height="380" rx="6" fill="#20232a" stroke="#3a3f4a" stroke-width="1.2" opacity="1"/>
+<rect x="40" y="190" width="400" height="30" rx="6" fill="#2c2f36"/>
+<rect x="40" y="212" width="400" height="8" fill="#2c2f36"/>
+<text x="50" y="210" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="13" fill="#f2f4f7" font-weight="bold" text-anchor="start">0</text>
+<text x="84" y="210" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="13.5" fill="#f2f4f7" font-weight="bold" text-anchor="start">Open · add · resume (priority-zero)</text>
+<text x="50" y="238" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#b0b6c2" font-weight="bold" text-anchor="start">Trying to:</text>
+<text x="50" y="253" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11.5" fill="#d8dbe0" font-weight="normal" text-anchor="start">Start from the actual project, never a setup ritual:</text>
+<text x="50" y="268" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11.5" fill="#d8dbe0" font-weight="normal" text-anchor="start">open, add or resume admits only missing eligible work;</text>
+<text x="50" y="283" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11.5" fill="#d8dbe0" font-weight="normal" text-anchor="start">pause/resume controls admission — no Start ritual.</text>
+<text x="50" y="302" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#b0b6c2" font-weight="bold" text-anchor="start">How:</text>
+<text x="50" y="317.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">• reconcile bindings; reuse dependency-valid receipts</text>
+<text x="50" y="331.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">• gate writes; reads use stable versioned snapshots</text>
+<text x="50" y="346.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">• the one control is pause/resume (+ scope), never start</text>
+<text x="50" y="360.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">• checkpoint-trusting; repair only on detected breakage:</text>
+<text x="50" y="375.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">•   NULL content_sha256 / mixed basis_hash → receipted</text>
+<text x="50" y="389.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">•   backfill, never auto-run</text>
+<text x="50" y="404.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">• revisit affected evidence only; no blanket reanalysis</text>
+<text x="50" y="418.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">• reopen reuses valid work; changed evidence re-keys work</text>
+<text x="50" y="437.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#b0b6c2" font-weight="bold" text-anchor="start">In → out:</text>
+<text x="50" y="452.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#98a0ad" font-weight="normal" text-anchor="start">in: .gpr / repo / binaries / prior receipts</text>
+<text x="50" y="466.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#98a0ad" font-weight="normal" text-anchor="start">out: one active project, known state, no duplicate work</text>
+<text x="50" y="485.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#f0c060" font-weight="bold" text-anchor="start">Gate: </text>
+<text x="86" y="485.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#f0c060" font-weight="normal" text-anchor="start">mutation-admission only (real owner state)</text>
+<line x1="440" y1="380.0" x2="474" y2="380.0" stroke="#98a0ad" stroke-width="2"/>
+<polygon points="474.0,380.0 464.0,384.0 464.0,376.0" fill="#98a0ad"/>
+<rect x="474" y="190" width="400" height="380" rx="6" fill="#20232a" stroke="#3a3f4a" stroke-width="1.2" opacity="1"/>
+<rect x="474" y="190" width="400" height="30" rx="6" fill="#2b4a7a"/>
+<rect x="474" y="212" width="400" height="8" fill="#2b4a7a"/>
+<text x="484" y="210" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="13" fill="#f2f4f7" font-weight="bold" text-anchor="start">1</text>
+<text x="518" y="210" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="13.5" fill="#f2f4f7" font-weight="bold" text-anchor="start">Identity</text>
+<text x="864" y="227" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="9.5" fill="#8cbaff" font-weight="bold" text-anchor="end">∥ extraction + indexing run in parallel</text>
+<text x="484" y="238" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#8cbaff" font-weight="bold" text-anchor="start">Trying to:</text>
+<text x="484" y="253" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11.5" fill="#d8dbe0" font-weight="normal" text-anchor="start">Decide which functions/entities across builds are</text>
+<text x="484" y="268" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11.5" fill="#d8dbe0" font-weight="normal" text-anchor="start">logical entity, implementation variant and instance;</text>
+<text x="484" y="283" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11.5" fill="#d8dbe0" font-weight="normal" text-anchor="start">similarity does not prove interchangeable behavior.</text>
+<text x="484" y="302" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#8cbaff" font-weight="bold" text-anchor="start">How:</text>
+<text x="484" y="317.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">• extract facts once; short-circuit identical images</text>
+<text x="484" y="331.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">• cheap-first cascade: symbols/provenance → exact &amp;</text>
+<text x="484" y="346.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">•   reloc-normalized hashes → rare refs / C++ meta →</text>
+<text x="484" y="360.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">•   neighborhood → CFG/SPP → BSim → ABI → optional</text>
+<text x="484" y="375.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">•   BinDiff/BinExport → optional emulation on residue</text>
+<text x="484" y="389.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">• require uniqueness + margin; keep ambiguity;</text>
+<text x="484" y="404.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">•   withdraw bad seeds + unsupported descendants</text>
+<text x="484" y="422.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#8cbaff" font-weight="bold" text-anchor="start">In → out:</text>
+<text x="484" y="437.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#98a0ad" font-weight="normal" text-anchor="start">in: analyzed programs, debug info, formats</text>
+<text x="484" y="452.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#98a0ad" font-weight="normal" text-anchor="start">out: entity / variant / instance + evidence lineage</text>
+<text x="484" y="470.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#f0c060" font-weight="bold" text-anchor="start">Gate: </text>
+<text x="520" y="470.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#f0c060" font-weight="normal" text-anchor="start">candidate ≠ acceptance</text>
+<line x1="874" y1="380.0" x2="908" y2="380.0" stroke="#98a0ad" stroke-width="2"/>
+<polygon points="908.0,380.0 898.0,384.0 898.0,376.0" fill="#98a0ad"/>
+<rect x="908" y="190" width="400" height="380" rx="6" fill="#20232a" stroke="#3a3f4a" stroke-width="1.2" opacity="1"/>
+<rect x="908" y="190" width="400" height="30" rx="6" fill="#25503e"/>
+<rect x="908" y="212" width="400" height="8" fill="#25503e"/>
+<text x="918" y="210" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="13" fill="#f2f4f7" font-weight="bold" text-anchor="start">2</text>
+<text x="952" y="210" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="13.5" fill="#f2f4f7" font-weight="bold" text-anchor="start">Incremental calibration</text>
+<text x="918" y="238" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#7fd6a4" font-weight="bold" text-anchor="start">Trying to:</text>
+<text x="918" y="253" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11.5" fill="#d8dbe0" font-weight="normal" text-anchor="start">Establish minimum platform facts, then refine</text>
+<text x="918" y="268" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11.5" fill="#d8dbe0" font-weight="normal" text-anchor="start">compiler, ABI and layout hypotheses with</text>
+<text x="918" y="283" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11.5" fill="#d8dbe0" font-weight="normal" text-anchor="start">identity and function evidence; version each input.</text>
+<text x="918" y="302" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#7fd6a4" font-weight="bold" text-anchor="start">How:</text>
+<text x="918" y="317.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">• compiler/linker + headers/libs + macros + FP mode</text>
+<text x="918" y="331.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">• scope: build / library / TU / function overrides</text>
+<text x="918" y="346.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">• group fragments into TUs/LTCG as required</text>
+<text x="918" y="360.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">• probe legacy switches; record scoped dependencies</text>
+<text x="918" y="379.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#7fd6a4" font-weight="bold" text-anchor="start">In → out:</text>
+<text x="918" y="394.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#98a0ad" font-weight="normal" text-anchor="start">in: identified builds + toolchain evidence</text>
+<text x="918" y="408.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#98a0ad" font-weight="normal" text-anchor="start">out: calibration record (part of the basis)</text>
+<line x1="1308" y1="380.0" x2="1342" y2="380.0" stroke="#98a0ad" stroke-width="2"/>
+<polygon points="1342.0,380.0 1332.0,384.0 1332.0,376.0" fill="#98a0ad"/>
+<rect x="1342" y="190" width="400" height="380" rx="6" fill="#20232a" stroke="#3a3f4a" stroke-width="1.2" opacity="1"/>
+<rect x="1342" y="190" width="400" height="30" rx="6" fill="#25503e"/>
+<rect x="1342" y="212" width="400" height="8" fill="#25503e"/>
+<text x="1352" y="210" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="13" fill="#f2f4f7" font-weight="bold" text-anchor="start">3</text>
+<text x="1386" y="210" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="13.5" fill="#f2f4f7" font-weight="bold" text-anchor="start">Validated linkable regions</text>
+<text x="1352" y="238" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#7fd6a4" font-weight="bold" text-anchor="start">Trying to:</text>
+<text x="1352" y="253" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11.5" fill="#d8dbe0" font-weight="normal" text-anchor="start">Reconstruct objects and placement from the image;</text>
+<text x="1352" y="268" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11.5" fill="#d8dbe0" font-weight="normal" text-anchor="start">keep uncertain boundaries in larger regions;</text>
+<text x="1352" y="283" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11.5" fill="#d8dbe0" font-weight="normal" text-anchor="start">prove reconstruction before scaling source work.</text>
+<text x="1352" y="302" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#7fd6a4" font-weight="bold" text-anchor="start">How:</text>
+<text x="1352" y="317.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">• bytes + fixups + refs + data + unwind metadata</text>
+<text x="1352" y="331.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">• architecture-specific objects / external assembly</text>
+<text x="1352" y="346.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">• extract → emit → place → compare original bytes</text>
+<text x="1352" y="360.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">• then prove a compiled replacement actually contributes</text>
+<text x="1352" y="379.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#7fd6a4" font-weight="bold" text-anchor="start">In → out:</text>
+<text x="1352" y="394.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#98a0ad" font-weight="normal" text-anchor="start">in: calibration + donor build</text>
+<text x="1352" y="408.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#98a0ad" font-weight="normal" text-anchor="start">out: validated region scaffold; floor ≠ recovered C</text>
+<text x="1352" y="427.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#f0c060" font-weight="bold" text-anchor="start">Gate: </text>
+<text x="1388" y="427.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#f0c060" font-weight="normal" text-anchor="start">round trip + independent linked-image oracle</text>
+<line x1="1742" y1="380.0" x2="1776" y2="380.0" stroke="#98a0ad" stroke-width="2"/>
+<polygon points="1776.0,380.0 1766.0,384.0 1766.0,376.0" fill="#98a0ad"/>
+<rect x="1776" y="190" width="400" height="380" rx="6" fill="#20232a" stroke="#3a3f4a" stroke-width="1.2" opacity="1"/>
+<rect x="1776" y="190" width="400" height="30" rx="6" fill="#25503e"/>
+<rect x="1776" y="212" width="400" height="8" fill="#25503e"/>
+<text x="1786" y="210" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="13" fill="#f2f4f7" font-weight="bold" text-anchor="start">4</text>
+<text x="1820" y="210" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="13.5" fill="#f2f4f7" font-weight="bold" text-anchor="start">C/C++ candidates</text>
+<text x="2166" y="227" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="9.5" fill="#7fd6a4" font-weight="bold" text-anchor="end">isolated mutable outputs / PDB / Wine state</text>
+<text x="1786" y="238" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#7fd6a4" font-weight="bold" text-anchor="start">Trying to:</text>
+<text x="1786" y="253" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11.5" fill="#d8dbe0" font-weight="normal" text-anchor="start">Produce readable candidates; preserve the floor</text>
+<text x="1786" y="268" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11.5" fill="#d8dbe0" font-weight="normal" text-anchor="start">until replacement acceptance passes.</text>
+<text x="1786" y="287" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#7fd6a4" font-weight="bold" text-anchor="start">How:</text>
+<text x="1786" y="302.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">• recovery unit ≠ compilation unit ≠ comparison unit</text>
+<text x="1786" y="316.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">• compile pass → candidate (real_c is compile-only)</text>
+<text x="1786" y="331.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">• fail → deterministic helpers (sanitizer/preparse) →</text>
+<text x="1786" y="345.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">•   retry → ONE bounded LLM cleanup → retry → keep asm</text>
+<text x="1786" y="360.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">• never repeat valid unchanged work</text>
+<text x="1786" y="374.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">• repair explains preserved machine behavior</text>
+<text x="1786" y="393.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#7fd6a4" font-weight="bold" text-anchor="start">In → out:</text>
+<text x="1786" y="408.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#98a0ad" font-weight="normal" text-anchor="start">in: scaffold + decompiler output</text>
+<text x="1786" y="422.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#98a0ad" font-weight="normal" text-anchor="start">out: compiled candidates + scoped compile receipts</text>
+<text x="1786" y="441.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#f0c060" font-weight="bold" text-anchor="start">Gate: </text>
+<text x="1822" y="441.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#f0c060" font-weight="normal" text-anchor="start">compile admits candidate, not replacement</text>
+<line x1="2176" y1="380.0" x2="2210" y2="380.0" stroke="#98a0ad" stroke-width="2"/>
+<polygon points="2210.0,380.0 2200.0,384.0 2200.0,376.0" fill="#98a0ad"/>
+<path d="M2076,570 V596 H1856 V570" fill="none" stroke="#ef968b" stroke-width="2" stroke-dasharray="6 4"/>
+<polygon points="1856.0,570.0 1860.0,580.0 1852.0,580.0" fill="#ef968b"/>
+<text x="1966" y="612" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#ef968b" font-weight="normal" text-anchor="middle" font-style="italic">compile fails → helpers → bounded LLM → retry (dashed = failover, never blocks siblings)</text>
+<rect x="2210" y="190" width="400" height="380" rx="6" fill="#20232a" stroke="#3a3f4a" stroke-width="1.2" opacity="1"/>
+<rect x="2210" y="190" width="400" height="30" rx="6" fill="#25503e"/>
+<rect x="2210" y="212" width="400" height="8" fill="#25503e"/>
+<text x="2220" y="210" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="13" fill="#f2f4f7" font-weight="bold" text-anchor="start">5</text>
+<text x="2254" y="210" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="13.5" fill="#f2f4f7" font-weight="bold" text-anchor="start">Propagation (cross-place)</text>
+<text x="2600" y="227" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="9.5" fill="#7fd6a4" font-weight="bold" text-anchor="end">the cross-match tier</text>
+<text x="2220" y="238" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#7fd6a4" font-weight="bold" text-anchor="start">Trying to:</text>
+<text x="2220" y="253" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11.5" fill="#d8dbe0" font-weight="normal" text-anchor="start">Reuse a donor candidate only for compatible</text>
+<text x="2220" y="268" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11.5" fill="#d8dbe0" font-weight="normal" text-anchor="start">recipient implementation variants;</text>
+<text x="2220" y="283" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11.5" fill="#d8dbe0" font-weight="normal" text-anchor="start">each recipient earns its own acceptance.</text>
+<text x="2220" y="302" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#7fd6a4" font-weight="bold" text-anchor="start">How:</text>
+<text x="2220" y="317.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">• compile + variant/ABI/layout compatibility gate</text>
+<text x="2220" y="331.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">• then byte-exact verify → permuter → LLM last</text>
+<text x="2220" y="346.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">• a logical_id bind alone NEVER authorizes copying</text>
+<text x="2220" y="360.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">• ABI-sensitive types re-validated per recipient</text>
+<text x="2220" y="375.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">• field-level knowledge fusion runs alongside (lane A)</text>
+<text x="2220" y="393.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#7fd6a4" font-weight="bold" text-anchor="start">In → out:</text>
+<text x="2220" y="408.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#98a0ad" font-weight="normal" text-anchor="start">in: compile receipts + identity table</text>
+<text x="2220" y="423.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#98a0ad" font-weight="normal" text-anchor="start">out: recipient candidates; separate verification</text>
+<text x="2220" y="441.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#f0c060" font-weight="bold" text-anchor="start">Gate: </text>
+<text x="2256" y="441.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#f0c060" font-weight="normal" text-anchor="start">candidate distribution ≠ accepted source</text>
+<line x1="2610" y1="380.0" x2="2644" y2="380.0" stroke="#98a0ad" stroke-width="2"/>
+<polygon points="2644.0,380.0 2634.0,384.0 2634.0,376.0" fill="#98a0ad"/>
+<polygon points="2193.0,302.0 2211.0,320.0 2193.0,338.0 2175.0,320.0" fill="#16181c" stroke="#f0c060" stroke-width="2"/>
+<text x="2193.0" y="324.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#f0c060" font-weight="bold" text-anchor="middle">G</text>
+<text x="2193.0" y="352.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#f0c060" font-weight="bold" text-anchor="middle">candidate</text>
+<text x="2193.0" y="365.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10" fill="#98a0ad" font-weight="normal" text-anchor="middle" font-style="italic">compile + compatibility</text>
+<rect x="2644" y="190" width="400" height="380" rx="6" fill="#20232a" stroke="#3a3f4a" stroke-width="1.2" opacity="1"/>
+<rect x="2644" y="190" width="400" height="30" rx="6" fill="#25503e"/>
+<rect x="2644" y="212" width="400" height="8" fill="#25503e"/>
+<text x="2654" y="210" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="13" fill="#f2f4f7" font-weight="bold" text-anchor="start">6</text>
+<text x="2688" y="210" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="13.5" fill="#f2f4f7" font-weight="bold" text-anchor="start">Targeted AI (leftovers only)</text>
+<text x="2654" y="238" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#7fd6a4" font-weight="bold" text-anchor="start">Trying to:</text>
+<text x="2654" y="253" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11.5" fill="#d8dbe0" font-weight="normal" text-anchor="start">Spend model effort ONLY on what deterministic</text>
+<text x="2654" y="268" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11.5" fill="#d8dbe0" font-weight="normal" text-anchor="start">methods left behind — leaves before callers.</text>
+<text x="2654" y="287" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#7fd6a4" font-weight="bold" text-anchor="start">How:</text>
+<text x="2654" y="302.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">• residue queue, tagged with WHY AI was needed</text>
+<text x="2654" y="316.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">• diagnose behavior/types → ABI → context → codegen</text>
+<text x="2654" y="331.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">• LLM output is a candidate — never a trusted edge</text>
+<text x="2654" y="345.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">• ReAgent checker; record exact proposals + bounds</text>
+<text x="2654" y="360.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">• binary-derived text is evidence, never instructions</text>
+<text x="2654" y="378.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#7fd6a4" font-weight="bold" text-anchor="start">In → out:</text>
+<text x="2654" y="393.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#98a0ad" font-weight="normal" text-anchor="start">in: residue after 4–5</text>
+<text x="2654" y="408.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#98a0ad" font-weight="normal" text-anchor="start">out: candidate C for review + provenance</text>
+<text x="2654" y="426.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#f0c060" font-weight="bold" text-anchor="start">Gate: </text>
+<text x="2690" y="426.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#f0c060" font-weight="normal" text-anchor="start">candidate only</text>
+<line x1="3044" y1="380.0" x2="3078" y2="380.0" stroke="#98a0ad" stroke-width="2"/>
+<polygon points="3078.0,380.0 3068.0,384.0 3068.0,376.0" fill="#98a0ad"/>
+<rect x="3078" y="190" width="400" height="380" rx="6" fill="#20232a" stroke="#3a3f4a" stroke-width="1.2" opacity="1"/>
+<rect x="3078" y="190" width="400" height="30" rx="6" fill="#452a5a"/>
+<rect x="3078" y="212" width="400" height="8" fill="#452a5a"/>
+<text x="3088" y="210" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="13" fill="#f2f4f7" font-weight="bold" text-anchor="start">7</text>
+<text x="3122" y="210" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="13.5" fill="#f2f4f7" font-weight="bold" text-anchor="start">Continuous parity</text>
+<text x="3088" y="238" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#c9a4f0" font-weight="bold" text-anchor="start">Trying to:</text>
+<text x="3088" y="253" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11.5" fill="#d8dbe0" font-weight="normal" text-anchor="start">Compare emitted code/data against validated</text>
+<text x="3088" y="268" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11.5" fill="#d8dbe0" font-weight="normal" text-anchor="start">targets and independently against linked bytes.</text>
+<text x="3088" y="287" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#c9a4f0" font-weight="bold" text-anchor="start">How:</text>
+<text x="3088" y="302.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">• objdiff local + linked-region checks (LTCG aware)</text>
+<text x="3088" y="316.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">• reccmp: supported MSVC / PDB diagnostics</text>
+<text x="3088" y="331.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">• compile / ABI / tested behavior / local / linked</text>
+<text x="3088" y="345.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">• a function-level zero is NOT whole-image proof</text>
+<text x="3088" y="364.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#c9a4f0" font-weight="bold" text-anchor="start">In → out:</text>
+<text x="3088" y="379.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#98a0ad" font-weight="normal" text-anchor="start">in: emitted regions + validated original references</text>
+<text x="3088" y="393.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#98a0ad" font-weight="normal" text-anchor="start">out: separate facts with mapping, bounds + evidence</text>
+<text x="3088" y="412.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#f0c060" font-weight="bold" text-anchor="start">Gate: </text>
+<text x="3124" y="412.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#f0c060" font-weight="normal" text-anchor="start">local zero ≠ full-image or behavior proof</text>
+<line x1="3478" y1="380.0" x2="3512" y2="380.0" stroke="#98a0ad" stroke-width="2"/>
+<polygon points="3512.0,380.0 3502.0,384.0 3502.0,376.0" fill="#98a0ad"/>
+<rect x="3512" y="190" width="400" height="380" rx="6" fill="#20232a" stroke="#3a3f4a" stroke-width="1.2" opacity="1"/>
+<rect x="3512" y="190" width="400" height="30" rx="6" fill="#452a5a"/>
+<rect x="3512" y="212" width="400" height="8" fill="#452a5a"/>
+<text x="3522" y="210" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="13" fill="#f2f4f7" font-weight="bold" text-anchor="start">8</text>
+<text x="3556" y="210" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="13.5" fill="#f2f4f7" font-weight="bold" text-anchor="start">Whole-image byte identity</text>
+<text x="3902" y="227" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="9.5" fill="#c9a4f0" font-weight="bold" text-anchor="end">terminal</text>
+<text x="3522" y="238" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#c9a4f0" font-weight="bold" text-anchor="start">Trying to:</text>
+<text x="3522" y="253" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11.5" fill="#d8dbe0" font-weight="normal" text-anchor="start">The terminal goal: relink into a file whose</text>
+<text x="3522" y="268" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11.5" fill="#d8dbe0" font-weight="normal" text-anchor="start">whole-file hash EQUALS the shipped binary.</text>
+<text x="3522" y="287" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#c9a4f0" font-weight="bold" text-anchor="start">How:</text>
+<text x="3522" y="302.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">• early stage-3 round trips; fresh terminal compilation</text>
+<text x="3522" y="316.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">• reproduce section order, padding, headers, IAT, relocs</text>
+<text x="3522" y="331.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">• prove replacement use → whole-file byte/hash check</text>
+<text x="3522" y="345.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">• two variants measured separately: byte-accurate+floor</text>
+<text x="3522" y="360.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">•   vs max-C; never borrow a receipt between them</text>
+<text x="3522" y="374.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">• reconstruction ≠ original-style rebuild; record method</text>
+<text x="3522" y="393.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#c9a4f0" font-weight="bold" text-anchor="start">In → out:</text>
+<text x="3522" y="408.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#98a0ad" font-weight="normal" text-anchor="start">in: scoped parity + contribution map + layout recipe</text>
+<text x="3522" y="422.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#98a0ad" font-weight="normal" text-anchor="start">out: rebuilt image + whole-file hash receipt</text>
+<text x="3522" y="441.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#f0c060" font-weight="bold" text-anchor="start">Gate: </text>
+<text x="3558" y="441.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#f0c060" font-weight="normal" text-anchor="start">whole-file hash equality</text>
+<line x1="1080" y1="582" x2="674" y2="582" stroke="#8cbaff" stroke-width="2" stroke-dasharray="4 4"/>
+<polygon points="674.0,582.0 684.0,578.0 684.0,586.0" fill="#8cbaff"/>
+<text x="860" y="598" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#8cbaff" font-weight="normal" text-anchor="middle">1 ↔ 2: refine scoped hypotheses</text>
+<line x1="3200" y1="582" x2="1560" y2="582" stroke="#c9a4f0" stroke-width="2" stroke-dasharray="4 4"/>
+<polygon points="1560.0,582.0 1570.0,578.0 1570.0,586.0" fill="#c9a4f0"/>
+<text x="2880" y="599" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#c9a4f0" font-weight="normal" text-anchor="middle">7–8 verify early scaffold and candidates</text>
+<!--SEC:Row 1 - concurrent lanes-->
+<path d="M44,640 H30 V2090 H44" fill="none" stroke="#f0c060" stroke-width="2.5"/>
+<text transform="translate(22,1365.0) rotate(-90)" font-family="Inter, system-ui, sans-serif" font-size="12.5" font-weight="bold" fill="#f0c060" text-anchor="middle">RUNS CONCURRENTLY WITH STAGES 1–8 (where ownership permits)</text>
+<rect x="60" y="640" width="4300" height="34" rx="4" fill="#5a4420" opacity="0.85"/>
+<text x="72" y="662" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="14" fill="#f2f4f7" font-weight="bold" text-anchor="start">LANE A · Knowledge fusion — bidirectional, per field</text>
+<text x="4348" y="662" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11.5" fill="#f0c060" font-weight="normal" text-anchor="end" font-style="italic">labels · comments · structs/types · debug-info names flow between every build sharing a logical id; strongest source per field wins; a build donates a FIELD, never everything</text>
+<rect x="3835.2" y="624" width="524.8" height="18" rx="3" fill="#16181c" stroke="#f0c060"/>
+<text x="4355" y="637" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#f0c060" font-weight="bold" text-anchor="end">consumes stage 1 identity · runs beside stages 4–5 · feeds every sibling build</text>
+<rect x="60" y="682" width="500" height="216" rx="6" fill="#20232a" stroke="#3a3f4a" stroke-width="1.2" opacity="1"/>
+<rect x="60" y="682" width="500" height="30" rx="6" fill="#5a4420"/>
+<rect x="60" y="704" width="500" height="8" fill="#5a4420"/>
+<text x="70" y="702" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="13.5" fill="#f2f4f7" font-weight="bold" text-anchor="start">Name precedence (per field)</text>
+<text x="550" y="719" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="9.5" fill="#f0c060" font-weight="bold" text-anchor="end">field-level</text>
+<text x="70" y="730" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#f0c060" font-weight="bold" text-anchor="start">Trying to:</text>
+<text x="70" y="745" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11.5" fill="#d8dbe0" font-weight="normal" text-anchor="start">Keep the strongest name for every field,</text>
+<text x="70" y="760" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11.5" fill="#d8dbe0" font-weight="normal" text-anchor="start">never let a placeholder win.</text>
+<text x="70" y="779" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#f0c060" font-weight="bold" text-anchor="start">How:</text>
+<text x="70" y="794.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">• human annotation → debug info / STABS →</text>
+<text x="70" y="808.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">•   authentic symbols → analysis names → placeholders</text>
+<text x="70" y="823.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">• provenance + rejected alternatives retained</text>
+<text x="70" y="841.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#f0c060" font-weight="bold" text-anchor="start">In → out:</text>
+<text x="70" y="856.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#98a0ad" font-weight="normal" text-anchor="start">in: all builds&#x27; names</text>
+<text x="70" y="871.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#98a0ad" font-weight="normal" text-anchor="start">out: merged names with origin</text>
+<rect x="574" y="682" width="500" height="216" rx="6" fill="#20232a" stroke="#3a3f4a" stroke-width="1.2" opacity="1"/>
+<rect x="574" y="682" width="500" height="30" rx="6" fill="#5a4420"/>
+<rect x="574" y="704" width="500" height="8" fill="#5a4420"/>
+<text x="584" y="702" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="13.5" fill="#f2f4f7" font-weight="bold" text-anchor="start">Types &amp; layouts</text>
+<text x="584" y="730" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#f0c060" font-weight="bold" text-anchor="start">Trying to:</text>
+<text x="584" y="745" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11.5" fill="#d8dbe0" font-weight="normal" text-anchor="start">Merge struct/type knowledge only where</text>
+<text x="584" y="760" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11.5" fill="#d8dbe0" font-weight="normal" text-anchor="start">compatibility gates allow.</text>
+<text x="584" y="779" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#f0c060" font-weight="bold" text-anchor="start">How:</text>
+<text x="584" y="794.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">• types/layouts keep their own gates (never auto-copied)</text>
+<text x="584" y="808.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">• platform-gated donors: (arch, bits, endian, compiler)</text>
+<text x="584" y="823.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">• per-build layouts; unknown spans opaque; no scaling</text>
+<text x="584" y="841.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#f0c060" font-weight="bold" text-anchor="start">In → out:</text>
+<text x="584" y="856.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#98a0ad" font-weight="normal" text-anchor="start">in: per-build type rows</text>
+<text x="584" y="871.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#98a0ad" font-weight="normal" text-anchor="start">out: logical structs + field correspondence</text>
+<text x="584" y="889.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#f0c060" font-weight="bold" text-anchor="start">Gate: </text>
+<text x="620" y="889.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#f0c060" font-weight="normal" text-anchor="start">compatibility gate</text>
+<rect x="1088" y="682" width="500" height="216" rx="6" fill="#20232a" stroke="#3a3f4a" stroke-width="1.2" opacity="1"/>
+<rect x="1088" y="682" width="500" height="30" rx="6" fill="#5a4420"/>
+<rect x="1088" y="704" width="500" height="8" fill="#5a4420"/>
+<text x="1098" y="702" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="13.5" fill="#f2f4f7" font-weight="bold" text-anchor="start">Comments · bookmarks · evidence</text>
+<text x="1098" y="730" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#f0c060" font-weight="bold" text-anchor="start">Trying to:</text>
+<text x="1098" y="745" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11.5" fill="#d8dbe0" font-weight="normal" text-anchor="start">Nothing authored is lost; conflicts stay visible.</text>
+<text x="1098" y="764" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#f0c060" font-weight="bold" text-anchor="start">How:</text>
+<text x="1098" y="779.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">• per-field precedence merge, never wholesale</text>
+<text x="1098" y="793.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">• conflicts and human edits preserved</text>
+<text x="1098" y="808.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">• receipt per merged field</text>
+<text x="1098" y="826.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#f0c060" font-weight="bold" text-anchor="start">In → out:</text>
+<text x="1098" y="841.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#98a0ad" font-weight="normal" text-anchor="start">in: annotations</text>
+<text x="1098" y="856.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#98a0ad" font-weight="normal" text-anchor="start">out: merged annotations + conflicts</text>
+<rect x="1602" y="682" width="500" height="216" rx="6" fill="#20232a" stroke="#3a3f4a" stroke-width="1.2" opacity="1"/>
+<rect x="1602" y="682" width="500" height="30" rx="6" fill="#5a4420"/>
+<rect x="1602" y="704" width="500" height="8" fill="#5a4420"/>
+<text x="1612" y="702" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="13.5" fill="#f2f4f7" font-weight="bold" text-anchor="start">Runs alongside recovery</text>
+<text x="2092" y="719" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="9.5" fill="#f0c060" font-weight="bold" text-anchor="end">concurrent</text>
+<text x="1612" y="730" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#f0c060" font-weight="bold" text-anchor="start">Trying to:</text>
+<text x="1612" y="745" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11.5" fill="#d8dbe0" font-weight="normal" text-anchor="start">Fusion never waits for source recovery</text>
+<text x="1612" y="760" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11.5" fill="#d8dbe0" font-weight="normal" text-anchor="start">and never blocks it.</text>
+<text x="1612" y="779" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#f0c060" font-weight="bold" text-anchor="start">How:</text>
+<text x="1612" y="794.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">• overlaps when transactions don&#x27;t collide</text>
+<text x="1612" y="808.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">• serialized only at the shared corpus mutation point</text>
+<text x="1612" y="823.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">• resource-aware admission (measured memory/swap)</text>
+<text x="1612" y="841.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#f0c060" font-weight="bold" text-anchor="start">In → out:</text>
+<text x="1612" y="856.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#98a0ad" font-weight="normal" text-anchor="start"></text>
+<text x="1612" y="871.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#98a0ad" font-weight="normal" text-anchor="start"></text>
+<rect x="2116" y="682" width="2244" height="216" rx="6" fill="#16181c" stroke="#f0c060" stroke-width="1.2" stroke-dasharray="5 4" opacity="1"/>
+<text x="2130" y="706" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="12" fill="#f0c060" font-weight="bold" text-anchor="start">OUTPUTS  →  who consumes them</text>
+<text x="2130" y="730" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11.5" fill="#d8dbe0" font-weight="normal" text-anchor="start">→ merged names / types / comments PER FIELD, each with origin and rejected alternatives</text>
+<text x="2130" y="747" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11.5" fill="#d8dbe0" font-weight="normal" text-anchor="start">→ consumed by stage 5 placement (type-compatibility gate) and by the ABI + struct blocks of the pack</text>
+<text x="2130" y="764" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11.5" fill="#d8dbe0" font-weight="normal" text-anchor="start">→ surfaces in the readiness report as which build donated which field</text>
+<text x="2130" y="781" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11.5" fill="#d8dbe0" font-weight="normal" text-anchor="start">→ never overwrites a stronger field; conflicts stay visible for review</text>
+<rect x="60" y="914" width="4300" height="34" rx="4" fill="#5a4420" opacity="0.85"/>
+<text x="72" y="936" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="14" fill="#f2f4f7" font-weight="bold" text-anchor="start">LANE B · Cross-build entity unification &amp; export — every entity, not just functions</text>
+<text x="4348" y="936" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11.5" fill="#f0c060" font-weight="normal" text-anchor="end" font-style="italic">portable signatures · entity catalog · data-root locator families with fallbacks · divergence · codecaves · ABI — feeds the runtime pack</text>
+<rect x="3881.4" y="898" width="478.59999999999997" height="18" rx="3" fill="#16181c" stroke="#f0c060"/>
+<text x="4355" y="911" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#f0c060" font-weight="bold" text-anchor="end">consumes stages 1–2 (+ raw images) · feeds lane C and the export bundle</text>
+<rect x="60" y="956" width="500" height="248" rx="6" fill="#20232a" stroke="#3a3f4a" stroke-width="1.2" opacity="1"/>
+<rect x="60" y="956" width="500" height="30" rx="6" fill="#5a4420"/>
+<rect x="60" y="978" width="500" height="8" fill="#5a4420"/>
+<text x="70" y="976" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="13.5" fill="#f2f4f7" font-weight="bold" text-anchor="start">Portable signatures (identity ≠ locator)</text>
+<text x="550" y="993" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="9.5" fill="#f0c060" font-weight="bold" text-anchor="end">deterministic</text>
+<text x="70" y="1004" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#f0c060" font-weight="bold" text-anchor="start">Trying to:</text>
+<text x="70" y="1019" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11.5" fill="#d8dbe0" font-weight="normal" text-anchor="start">Discover supported entities across related builds;</text>
+<text x="70" y="1034" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11.5" fill="#d8dbe0" font-weight="normal" text-anchor="start">record absent, ambiguous and unsupported outcomes.</text>
+<text x="70" y="1053" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#f0c060" font-weight="bold" text-anchor="start">How:</text>
+<text x="70" y="1068.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">• identity evidence cascade ≠ runtime locator search</text>
+<text x="70" y="1082.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">• runtime LOCATOR family: reloc-masked window →</text>
+<text x="70" y="1097.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">•   anchor-relative (import/export/string) → verify hash</text>
+<text x="70" y="1111.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">• corpus-computed uniqueness + margin shipped in pack</text>
+<text x="70" y="1126.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">• library/CRT excluded; identical bodies → anchors</text>
+<text x="70" y="1144.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#f0c060" font-weight="bold" text-anchor="start">In → out:</text>
+<text x="70" y="1159.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#98a0ad" font-weight="normal" text-anchor="start">in: raw image + decode + reloc table</text>
+<text x="70" y="1174.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#98a0ad" font-weight="normal" text-anchor="start">out: logical_signature per entity + coverage</text>
+<rect x="574" y="956" width="500" height="248" rx="6" fill="#20232a" stroke="#3a3f4a" stroke-width="1.2" opacity="1"/>
+<rect x="574" y="956" width="500" height="30" rx="6" fill="#5a4420"/>
+<rect x="574" y="978" width="500" height="8" fill="#5a4420"/>
+<text x="584" y="976" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="13.5" fill="#f2f4f7" font-weight="bold" text-anchor="start">Entity catalog</text>
+<text x="1064" y="993" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="9.5" fill="#f0c060" font-weight="bold" text-anchor="end">30 kinds (pack enum)</text>
+<text x="584" y="1004" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#f0c060" font-weight="bold" text-anchor="start">Trying to:</text>
+<text x="584" y="1019" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11.5" fill="#d8dbe0" font-weight="normal" text-anchor="start">Everything a mod could want, unified:</text>
+<text x="584" y="1038" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#f0c060" font-weight="bold" text-anchor="start">How:</text>
+<text x="584" y="1053.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">• functions · patch points · immediates · call sites</text>
+<text x="584" y="1067.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">• globals · singletons · structs &amp; fields · vtables · RTTI</text>
+<text x="584" y="1082.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">• strings · tables · enums · imports/exports · dispatch</text>
+<text x="584" y="1096.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">• TLS · unwind · sections · resources · integrity checks</text>
+<text x="584" y="1115.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#f0c060" font-weight="bold" text-anchor="start">In → out:</text>
+<text x="584" y="1130.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#98a0ad" font-weight="normal" text-anchor="start">in: analysis + formats</text>
+<text x="584" y="1144.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#98a0ad" font-weight="normal" text-anchor="start">out: entities[] with kind, shape, locators</text>
+<rect x="1088" y="956" width="500" height="248" rx="6" fill="#20232a" stroke="#3a3f4a" stroke-width="1.2" opacity="1"/>
+<rect x="1088" y="956" width="500" height="30" rx="6" fill="#5a4420"/>
+<rect x="1088" y="978" width="500" height="8" fill="#5a4420"/>
+<text x="1098" y="976" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="13.5" fill="#f2f4f7" font-weight="bold" text-anchor="start">Data-root locator families</text>
+<text x="1098" y="1004" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#f0c060" font-weight="bold" text-anchor="start">Trying to:</text>
+<text x="1098" y="1019" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11.5" fill="#d8dbe0" font-weight="normal" text-anchor="start">Known build: identity → RVA → live check.</text>
+<text x="1098" y="1034" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11.5" fill="#d8dbe0" font-weight="normal" text-anchor="start">Unknown build: applicable discovery + refusal.</text>
+<text x="1098" y="1053" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#f0c060" font-weight="bold" text-anchor="start">How:</text>
+<text x="1098" y="1068.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">• symbol → xref-from-identified-function → anchor-rel</text>
+<text x="1098" y="1082.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">•   → masked adjacency → pointer chain → vtable/RTTI</text>
+<text x="1098" y="1097.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">•   known-build RVA is preferred; portable:false</text>
+<text x="1098" y="1111.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">• resolver: verify · memoize per build hash · report</text>
+<text x="1098" y="1126.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">•   member · REFUSE, never zero</text>
+<text x="1098" y="1144.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#f0c060" font-weight="bold" text-anchor="start">In → out:</text>
+<text x="1098" y="1159.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#98a0ad" font-weight="normal" text-anchor="start">in: entities + xrefs</text>
+<text x="1098" y="1174.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#98a0ad" font-weight="normal" text-anchor="start">out: per-root recipes + per-build coverage</text>
+<text x="1098" y="1192.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#f0c060" font-weight="bold" text-anchor="start">Gate: </text>
+<text x="1134" y="1192.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#f0c060" font-weight="normal" text-anchor="start">verify before trust</text>
+<rect x="1602" y="956" width="500" height="248" rx="6" fill="#20232a" stroke="#3a3f4a" stroke-width="1.2" opacity="1"/>
+<rect x="1602" y="956" width="500" height="30" rx="6" fill="#5a4420"/>
+<rect x="1602" y="978" width="500" height="8" fill="#5a4420"/>
+<text x="1612" y="976" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="13.5" fill="#f2f4f7" font-weight="bold" text-anchor="start">Divergence (3-way, never forced)</text>
+<text x="1612" y="1004" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#f0c060" font-weight="bold" text-anchor="start">Trying to:</text>
+<text x="1612" y="1019" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11.5" fill="#d8dbe0" font-weight="normal" text-anchor="start">When the surrounding logic is too different,</text>
+<text x="1612" y="1034" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11.5" fill="#d8dbe0" font-weight="normal" text-anchor="start">SAY so and SHOW it — never fake a match.</text>
+<text x="1612" y="1053" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#f0c060" font-weight="bold" text-anchor="start">How:</text>
+<text x="1612" y="1068.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">• CFG delta + neighborhood symmetric difference</text>
+<text x="1612" y="1082.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">• integer components, rational thresholds (no floats)</text>
+<text x="1612" y="1097.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">• 1↔1 · split-or-inlined · diverged</text>
+<text x="1612" y="1111.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">• review lane shows why; nothing propagates silently</text>
+<text x="1612" y="1130.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#f0c060" font-weight="bold" text-anchor="start">In → out:</text>
+<text x="1612" y="1145.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#98a0ad" font-weight="normal" text-anchor="start">in: cross-build pairs</text>
+<text x="1612" y="1159.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#98a0ad" font-weight="normal" text-anchor="start">out: relation + class + evidence</text>
+<rect x="2116" y="956" width="500" height="248" rx="6" fill="#20232a" stroke="#3a3f4a" stroke-width="1.2" opacity="1"/>
+<rect x="2116" y="956" width="500" height="30" rx="6" fill="#5a4420"/>
+<rect x="2116" y="978" width="500" height="8" fill="#5a4420"/>
+<text x="2126" y="976" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="13.5" fill="#f2f4f7" font-weight="bold" text-anchor="start">Codecaves &amp; ABI (Lua-ready)</text>
+<text x="2126" y="1004" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#f0c060" font-weight="bold" text-anchor="start">Trying to:</text>
+<text x="2126" y="1019" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11.5" fill="#d8dbe0" font-weight="normal" text-anchor="start">Export what injection needs, portable:</text>
+<text x="2126" y="1034" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11.5" fill="#d8dbe0" font-weight="normal" text-anchor="start">caves as plan templates, ABI as data.</text>
+<text x="2126" y="1053" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#f0c060" font-weight="bold" text-anchor="start">How:</text>
+<text x="2126" y="1068.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">• cave = anchor-sig + offset + capacity REQUIREMENT +</text>
+<text x="2126" y="1082.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">•   relocation rules + originals + restoration + claim</text>
+<text x="2126" y="1097.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">• ABI: convention · this-kind · per-arg storage · sret</text>
+<text x="2126" y="1111.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">• allocation policy + lifetime checks; refusal supported</text>
+<text x="2126" y="1130.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#f0c060" font-weight="bold" text-anchor="start">In → out:</text>
+<text x="2126" y="1145.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#98a0ad" font-weight="normal" text-anchor="start">in: entities + validation rules</text>
+<text x="2126" y="1159.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#98a0ad" font-weight="normal" text-anchor="start">out: caves[] + abi blocks in pack v2</text>
+<text x="2126" y="1178.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#f0c060" font-weight="bold" text-anchor="start">Gate: </text>
+<text x="2162" y="1178.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#f0c060" font-weight="normal" text-anchor="start">exported plan ≠ live detour permission</text>
+<rect x="2630" y="956" width="500" height="248" rx="6" fill="#20232a" stroke="#3a3f4a" stroke-width="1.2" opacity="1"/>
+<rect x="2630" y="956" width="500" height="30" rx="6" fill="#5a4420"/>
+<rect x="2630" y="978" width="500" height="8" fill="#5a4420"/>
+<text x="2640" y="976" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="13.5" fill="#f2f4f7" font-weight="bold" text-anchor="start">Generic core · adapters</text>
+<text x="3120" y="993" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="9.5" fill="#f0c060" font-weight="bold" text-anchor="end">3 layers</text>
+<text x="2640" y="1004" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#f0c060" font-weight="bold" text-anchor="start">Trying to:</text>
+<text x="2640" y="1019" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11.5" fill="#d8dbe0" font-weight="normal" text-anchor="start">No product ever in the core.</text>
+<text x="2640" y="1038" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#f0c060" font-weight="bold" text-anchor="start">How:</text>
+<text x="2640" y="1053.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">• L1 core: any PE/ELF/Mach-O/XBE — masks, CFG, caves</text>
+<text x="2640" y="1067.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">• L2 arch adapter: detour width, relocs, reach</text>
+<text x="2640" y="1082.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">• L3 engine adapter + build profile: script API, this-kind</text>
+<text x="2640" y="1096.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">• names live in external data packs only</text>
+<text x="2640" y="1111.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">• pack.json + sha256 in the basis; missing pack →</text>
+<text x="2640" y="1125.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">•   missing_adapter, never a default</text>
+<text x="2640" y="1144.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#f0c060" font-weight="bold" text-anchor="start">In → out:</text>
+<text x="2640" y="1159.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#98a0ad" font-weight="normal" text-anchor="start"></text>
+<text x="2640" y="1173.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#98a0ad" font-weight="normal" text-anchor="start"></text>
+<rect x="3144" y="956" width="1216" height="248" rx="6" fill="#16181c" stroke="#f0c060" stroke-width="1.2" stroke-dasharray="5 4" opacity="1"/>
+<text x="3158" y="980" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="12" fill="#f0c060" font-weight="bold" text-anchor="start">OUTPUTS  →  who consumes them</text>
+<text x="3158" y="1004" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11.5" fill="#d8dbe0" font-weight="normal" text-anchor="start">→ logical_signature per entity + per-build coverage · entities[] catalog (30 kinds, pack enum)</text>
+<text x="3158" y="1021" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11.5" fill="#d8dbe0" font-weight="normal" text-anchor="start">→ data-root recipes with ordered fallbacks · divergence class per pair · caves[] + ABI blocks</text>
+<text x="3158" y="1038" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11.5" fill="#d8dbe0" font-weight="normal" text-anchor="start">→ all of it lands in hookpack v2 → consumed by lane C (runtime) and the export bundle</text>
+<text x="3158" y="1055" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11.5" fill="#d8dbe0" font-weight="normal" text-anchor="start">→ generic core + adapters: a new engine adds an L3 data pack, never core code</text>
+<rect x="60" y="1220" width="4300" height="34" rx="4" fill="#1f4d4f" opacity="0.85"/>
+<text x="72" y="1242" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="14" fill="#f2f4f7" font-weight="bold" text-anchor="start">LANE C · Runtime reuse &amp; learn-the-build — branches after identity/ABI evidence, before whole-image recovery</text>
+<text x="4348" y="1242" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11.5" fill="#67d3d0" font-weight="normal" text-anchor="end" font-style="italic">calling original code never counts as recovered source; observations feed back as evidence with provenance</text>
+<rect x="3729.6" y="1204" width="630.4" height="18" rx="3" fill="#16181c" stroke="#67d3d0"/>
+<text x="4355" y="1217" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#67d3d0" font-weight="bold" text-anchor="end">branches after stages 1–2 evidence · consumes lane B&#x27;s pack · feeds evidence back into stage 1</text>
+<rect x="60" y="1262" width="500" height="216" rx="6" fill="#20232a" stroke="#3a3f4a" stroke-width="1.2" opacity="1"/>
+<rect x="60" y="1262" width="500" height="30" rx="6" fill="#1f4d4f"/>
+<rect x="60" y="1284" width="500" height="8" fill="#1f4d4f"/>
+<text x="70" y="1282" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="13.5" fill="#f2f4f7" font-weight="bold" text-anchor="start">Pack → resolve</text>
+<text x="70" y="1310" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#67d3d0" font-weight="bold" text-anchor="start">Trying to:</text>
+<text x="70" y="1325" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11.5" fill="#d8dbe0" font-weight="normal" text-anchor="start">Verify build identity and live evidence before</text>
+<text x="70" y="1340" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11.5" fill="#d8dbe0" font-weight="normal" text-anchor="start">authorizing each requested runtime operation.</text>
+<text x="70" y="1359" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#67d3d0" font-weight="bold" text-anchor="start">How:</text>
+<text x="70" y="1374.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">• try members in order; verify each; memoize by image hash</text>
+<text x="70" y="1388.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">• known: recorded RVA first → expected live bytes</text>
+<text x="70" y="1403.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">• unknown: bounded discovery; report uncertainty</text>
+<text x="70" y="1421.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#67d3d0" font-weight="bold" text-anchor="start">In → out:</text>
+<text x="70" y="1436.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#98a0ad" font-weight="normal" text-anchor="start">in: hookpack v2 + live image</text>
+<text x="70" y="1451.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#98a0ad" font-weight="normal" text-anchor="start">out: located/readable/callable/detourable/writable</text>
+<text x="70" y="1469.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#f0c060" font-weight="bold" text-anchor="start">Gate: </text>
+<text x="106" y="1469.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#f0c060" font-weight="normal" text-anchor="start">verify or refuse</text>
+<rect x="574" y="1262" width="500" height="216" rx="6" fill="#20232a" stroke="#3a3f4a" stroke-width="1.2" opacity="1"/>
+<rect x="574" y="1262" width="500" height="30" rx="6" fill="#1f4d4f"/>
+<rect x="574" y="1284" width="500" height="8" fill="#1f4d4f"/>
+<text x="584" y="1282" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="13.5" fill="#f2f4f7" font-weight="bold" text-anchor="start">Preflight → controlled call/install</text>
+<text x="584" y="1310" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#67d3d0" font-weight="bold" text-anchor="start">Trying to:</text>
+<text x="584" y="1325" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11.5" fill="#d8dbe0" font-weight="normal" text-anchor="start">Never write into a process blind.</text>
+<text x="584" y="1344" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#67d3d0" font-weight="bold" text-anchor="start">How:</text>
+<text x="584" y="1359.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">• capacity + originals + page protection checked live</text>
+<text x="584" y="1373.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">• tested install/remove + safe trampoline reclamation</text>
+<text x="584" y="1388.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">• ABI / object lifetime / thread / policy / owner checked</text>
+<text x="584" y="1402.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">• byte journal rollback ≠ undo of executed side effects</text>
+<text x="584" y="1421.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#67d3d0" font-weight="bold" text-anchor="start">In → out:</text>
+<text x="584" y="1436.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#98a0ad" font-weight="normal" text-anchor="start">in: resolved sites</text>
+<text x="584" y="1450.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#98a0ad" font-weight="normal" text-anchor="start">out: installed hooks / typed calls</text>
+<text x="584" y="1469.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#f0c060" font-weight="bold" text-anchor="start">Gate: </text>
+<text x="620" y="1469.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#f0c060" font-weight="normal" text-anchor="start">quiescence + claim</text>
+<rect x="1088" y="1262" width="500" height="216" rx="6" fill="#20232a" stroke="#3a3f4a" stroke-width="1.2" opacity="1"/>
+<rect x="1088" y="1262" width="500" height="30" rx="6" fill="#1f4d4f"/>
+<rect x="1088" y="1284" width="500" height="8" fill="#1f4d4f"/>
+<text x="1098" y="1282" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="13.5" fill="#f2f4f7" font-weight="bold" text-anchor="start">Observe → evidence</text>
+<text x="1098" y="1310" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#67d3d0" font-weight="bold" text-anchor="start">Trying to:</text>
+<text x="1098" y="1325" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11.5" fill="#d8dbe0" font-weight="normal" text-anchor="start">Turn runtime behavior into corpus evidence.</text>
+<text x="1098" y="1344" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#67d3d0" font-weight="bold" text-anchor="start">How:</text>
+<text x="1098" y="1359.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">• traces: calls, args, returns, field changes</text>
+<text x="1098" y="1373.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">• provenance-bearing; refines names/types/behavior</text>
+<text x="1098" y="1388.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">• never promotes source parity</text>
+<text x="1098" y="1406.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#67d3d0" font-weight="bold" text-anchor="start">In → out:</text>
+<text x="1098" y="1421.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#98a0ad" font-weight="normal" text-anchor="start">in: live behavior</text>
+<text x="1098" y="1436.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#98a0ad" font-weight="normal" text-anchor="start">out: observations with provenance</text>
+<rect x="1602" y="1262" width="500" height="216" rx="6" fill="#20232a" stroke="#3a3f4a" stroke-width="1.2" opacity="1"/>
+<rect x="1602" y="1262" width="500" height="30" rx="6" fill="#1f4d4f"/>
+<rect x="1602" y="1284" width="500" height="8" fill="#1f4d4f"/>
+<text x="1612" y="1282" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="13.5" fill="#f2f4f7" font-weight="bold" text-anchor="start">Learn the build</text>
+<text x="2092" y="1299" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="9.5" fill="#67d3d0" font-weight="bold" text-anchor="end">records uncertainty</text>
+<text x="1612" y="1310" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#67d3d0" font-weight="bold" text-anchor="start">Trying to:</text>
+<text x="1612" y="1325" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11.5" fill="#d8dbe0" font-weight="normal" text-anchor="start">Each new build contributes provisional evidence;</text>
+<text x="1612" y="1340" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11.5" fill="#d8dbe0" font-weight="normal" text-anchor="start">contradictions may lower accepted coverage.</text>
+<text x="1612" y="1359" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#67d3d0" font-weight="bold" text-anchor="start">How:</text>
+<text x="1612" y="1374.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">• export per-member resolution results as a build report</text>
+<text x="1612" y="1388.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">• corpus ingests runtime_claim rows — never identity;</text>
+<text x="1612" y="1403.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">•   bind_identities promotes or rejects (receipt + delete)</text>
+<text x="1612" y="1417.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">• residue re-attacked offline (BSim, emulation)</text>
+<text x="1612" y="1436.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#67d3d0" font-weight="bold" text-anchor="start">In → out:</text>
+<text x="1612" y="1451.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#98a0ad" font-weight="normal" text-anchor="start">in: build report</text>
+<text x="1612" y="1465.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#98a0ad" font-weight="normal" text-anchor="start">out: accepted/rejected evidence; updated coverage</text>
+<rect x="2116" y="1262" width="2244" height="216" rx="6" fill="#16181c" stroke="#67d3d0" stroke-width="1.2" stroke-dasharray="5 4" opacity="1"/>
+<text x="2130" y="1286" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="12" fill="#67d3d0" font-weight="bold" text-anchor="start">OUTPUTS  →  who consumes them</text>
+<text x="2130" y="1310" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11.5" fill="#d8dbe0" font-weight="normal" text-anchor="start">→ resolved sites per build + WHICH ladder member resolved each (feeds coverage + readiness)</text>
+<text x="2130" y="1327" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11.5" fill="#d8dbe0" font-weight="normal" text-anchor="start">→ observations → runtime_claim + observed_status; promotion only through bind_identities</text>
+<text x="2130" y="1344" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11.5" fill="#d8dbe0" font-weight="normal" text-anchor="start">→ build reports → provisional claims → independent acceptance or named unresolved outcomes</text>
+<text x="2130" y="1361" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11.5" fill="#d8dbe0" font-weight="normal" text-anchor="start">→ never promotes source parity; never counts original bytes as recovered C</text>
+<rect x="60" y="1494" width="4300" height="34" rx="4" fill="#452a5a" opacity="0.85"/>
+<text x="72" y="1516" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="14" fill="#f2f4f7" font-weight="bold" text-anchor="start">LANE D · Verification &amp; determinism — same inputs → byte-identical outputs, under a declared basis</text>
+<text x="4348" y="1516" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11.5" fill="#c9a4f0" font-weight="normal" text-anchor="end" font-style="italic">replay recorded proposals and observations under a versioned basis; discovery itself need not be deterministic</text>
+<rect x="4039.8" y="1478" width="320.2" height="18" rx="3" fill="#16181c" stroke="#c9a4f0"/>
+<text x="4355" y="1491" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#c9a4f0" font-weight="bold" text-anchor="end">wraps every stage and lane · gates every export</text>
+<rect x="60" y="1536" width="500" height="248" rx="6" fill="#20232a" stroke="#3a3f4a" stroke-width="1.2" opacity="1"/>
+<rect x="60" y="1536" width="500" height="30" rx="6" fill="#452a5a"/>
+<rect x="60" y="1558" width="500" height="8" fill="#452a5a"/>
+<text x="70" y="1556" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="13.5" fill="#f2f4f7" font-weight="bold" text-anchor="start">Determinism basis</text>
+<text x="550" y="1573" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="9.5" fill="#c9a4f0" font-weight="bold" text-anchor="end">recorded</text>
+<text x="70" y="1584" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#c9a4f0" font-weight="bold" text-anchor="start">Trying to:</text>
+<text x="70" y="1599" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11.5" fill="#d8dbe0" font-weight="normal" text-anchor="start">Make &#x27;same result&#x27; meaningful.</text>
+<text x="70" y="1618" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#c9a4f0" font-weight="bold" text-anchor="start">How:</text>
+<text x="70" y="1633.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">• decoder/analyzer revision + option set + cspec id</text>
+<text x="70" y="1647.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">• algorithm / masking / threshold versions</text>
+<text x="70" y="1662.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">• toolchain identity per build; filler set; seeds</text>
+<text x="70" y="1676.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">• data-pack hashes; per-binary basis_hash</text>
+<text x="70" y="1691.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">• refuse on unknown / empty / mixed basis</text>
+<text x="70" y="1705.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">• corpus hash only for corpus-dependent work</text>
+<text x="70" y="1724.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#c9a4f0" font-weight="bold" text-anchor="start">In → out:</text>
+<text x="70" y="1739.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#98a0ad" font-weight="normal" text-anchor="start">in: environment</text>
+<text x="70" y="1753.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#98a0ad" font-weight="normal" text-anchor="start">out: basis object in every pack</text>
+<rect x="574" y="1536" width="500" height="248" rx="6" fill="#20232a" stroke="#3a3f4a" stroke-width="1.2" opacity="1"/>
+<rect x="574" y="1536" width="500" height="30" rx="6" fill="#452a5a"/>
+<rect x="574" y="1558" width="500" height="8" fill="#452a5a"/>
+<text x="584" y="1556" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="13.5" fill="#f2f4f7" font-weight="bold" text-anchor="start">Two gates</text>
+<text x="584" y="1584" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#c9a4f0" font-weight="bold" text-anchor="start">Trying to:</text>
+<text x="584" y="1599" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11.5" fill="#d8dbe0" font-weight="normal" text-anchor="start">Prove reproducibility, don&#x27;t assume it.</text>
+<text x="584" y="1618" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#c9a4f0" font-weight="bold" text-anchor="start">How:</text>
+<text x="584" y="1633.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">• export byte-diff: export twice → identical bytes</text>
+<text x="584" y="1647.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">• cascade harness: three layouts (canonical · shuffled</text>
+<text x="584" y="1662.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">•   rows + shuffled binary order · + VACUUM/ANALYZE)</text>
+<text x="584" y="1676.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">•   + key-stability run → identity, match (incl. id),</text>
+<text x="584" y="1691.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">•   logical_function, recovery_family equal as sorted row-sets</text>
+<text x="584" y="1709.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#c9a4f0" font-weight="bold" text-anchor="start">In → out:</text>
+<text x="584" y="1724.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#98a0ad" font-weight="normal" text-anchor="start">in: store</text>
+<text x="584" y="1739.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#98a0ad" font-weight="normal" text-anchor="start">out: pass / first differing key</text>
+<text x="584" y="1757.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#f0c060" font-weight="bold" text-anchor="start">Gate: </text>
+<text x="620" y="1757.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#f0c060" font-weight="normal" text-anchor="start">both must pass</text>
+<rect x="1088" y="1536" width="500" height="248" rx="6" fill="#20232a" stroke="#3a3f4a" stroke-width="1.2" opacity="1"/>
+<rect x="1088" y="1536" width="500" height="30" rx="6" fill="#452a5a"/>
+<rect x="1088" y="1558" width="500" height="8" fill="#452a5a"/>
+<text x="1098" y="1556" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="13.5" fill="#f2f4f7" font-weight="bold" text-anchor="start">Ordering discipline</text>
+<text x="1098" y="1584" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#c9a4f0" font-weight="bold" text-anchor="start">Trying to:</text>
+<text x="1098" y="1599" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11.5" fill="#d8dbe0" font-weight="normal" text-anchor="start">No hidden order can reach a persisted value.</text>
+<text x="1098" y="1618" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#c9a4f0" font-weight="bold" text-anchor="start">How:</text>
+<text x="1098" y="1633.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">• every SELECT feeding a decision has a total ORDER BY</text>
+<text x="1098" y="1647.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">• every &#x27;best/first&#x27; pick has a total tie-break</text>
+<text x="1098" y="1662.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">• sets/dicts sorted before hashing or serializing</text>
+<text x="1098" y="1676.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">• floats rounded before persistence</text>
+<text x="1098" y="1695.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#c9a4f0" font-weight="bold" text-anchor="start">In → out:</text>
+<text x="1098" y="1710.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#98a0ad" font-weight="normal" text-anchor="start"></text>
+<text x="1098" y="1724.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#98a0ad" font-weight="normal" text-anchor="start"></text>
+<rect x="1602" y="1536" width="500" height="248" rx="6" fill="#20232a" stroke="#3a3f4a" stroke-width="1.2" opacity="1"/>
+<rect x="1602" y="1536" width="500" height="30" rx="6" fill="#452a5a"/>
+<rect x="1602" y="1558" width="500" height="8" fill="#452a5a"/>
+<text x="1612" y="1556" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="13.5" fill="#f2f4f7" font-weight="bold" text-anchor="start">Receipts &amp; re-baseline</text>
+<text x="1612" y="1584" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#c9a4f0" font-weight="bold" text-anchor="start">Trying to:</text>
+<text x="1612" y="1599" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11.5" fill="#d8dbe0" font-weight="normal" text-anchor="start">Change the basis deliberately, never silently.</text>
+<text x="1612" y="1618" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#c9a4f0" font-weight="bold" text-anchor="start">How:</text>
+<text x="1612" y="1633.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">• receipts hash relevant dependencies + snapshot</text>
+<text x="1612" y="1647.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">• changed input → invalidate affected descendants</text>
+<text x="1612" y="1662.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">• acceptance rejects stale versions; old packs readable</text>
+<text x="1612" y="1680.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#c9a4f0" font-weight="bold" text-anchor="start">In → out:</text>
+<text x="1612" y="1695.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#98a0ad" font-weight="normal" text-anchor="start"></text>
+<text x="1612" y="1710.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#98a0ad" font-weight="normal" text-anchor="start"></text>
+<rect x="2116" y="1536" width="2244" height="248" rx="6" fill="#16181c" stroke="#c9a4f0" stroke-width="1.2" stroke-dasharray="5 4" opacity="1"/>
+<text x="2130" y="1560" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="12" fill="#c9a4f0" font-weight="bold" text-anchor="start">OUTPUTS  →  who consumes them</text>
+<text x="2130" y="1584" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11.5" fill="#d8dbe0" font-weight="normal" text-anchor="start">→ the basis object stamped into every pack, header, report and receipt</text>
+<text x="2130" y="1601" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11.5" fill="#d8dbe0" font-weight="normal" text-anchor="start">→ two pass/fail gates in CI: export byte-diff and the cascade harness</text>
+<text x="2130" y="1618" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11.5" fill="#d8dbe0" font-weight="normal" text-anchor="start">→ content-addressed receipts → identical-basis re-runs are cache hits</text>
+<text x="2130" y="1635" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11.5" fill="#d8dbe0" font-weight="normal" text-anchor="start">→ basis change → deliberate re-baseline with a recorded supersession, never silent drift</text>
+<rect x="60" y="1800" width="4300" height="34" rx="4" fill="#2c2f36" opacity="0.85"/>
+<text x="72" y="1822" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="14" fill="#f2f4f7" font-weight="bold" text-anchor="start">LANE E · Distributed compute (agentdecompile_grid) — laptop → concurrency → donated idle compute and free cloud nodes</text>
+<text x="4348" y="1822" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11.5" fill="#b0b6c2" font-weight="normal" text-anchor="end" font-style="italic">content-addressed objects · per-partition logs · every result a proposal · capability by canary, never by role · SQLite as a materialized view</text>
+<rect x="3868.2" y="1784" width="491.79999999999995" height="18" rx="3" fill="#16181c" stroke="#b0b6c2"/>
+<text x="4355" y="1797" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#b0b6c2" font-weight="bold" text-anchor="end">wraps every stage and lane · one-command join · fleet of free cloud nodes</text>
+<rect x="60" y="1842" width="500" height="248" rx="6" fill="#20232a" stroke="#3a3f4a" stroke-width="1.2" opacity="1"/>
+<rect x="60" y="1842" width="500" height="30" rx="6" fill="#2c2f36"/>
+<rect x="60" y="1864" width="500" height="8" fill="#2c2f36"/>
+<text x="70" y="1862" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="13.5" fill="#f2f4f7" font-weight="bold" text-anchor="start">Objects &amp; logs</text>
+<text x="550" y="1879" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="9.5" fill="#b0b6c2" font-weight="bold" text-anchor="end">substrate</text>
+<text x="70" y="1890" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#b0b6c2" font-weight="bold" text-anchor="start">Trying to:</text>
+<text x="70" y="1905" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11.5" fill="#d8dbe0" font-weight="normal" text-anchor="start">Working state supports independent replicas:</text>
+<text x="70" y="1920" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11.5" fill="#d8dbe0" font-weight="normal" text-anchor="start">content-addressed, log-structured, network-capable.</text>
+<text x="70" y="1939" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#b0b6c2" font-weight="bold" text-anchor="start">How:</text>
+<text x="70" y="1954.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">• sha256 objects, write-once (If-None-Match / atomic rename)</text>
+<text x="70" y="1968.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">• per-partition append-only logs of signed, chained records</text>
+<text x="70" y="1983.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">• heads = one CAS pointer per partition; rebuilt by chain scan</text>
+<text x="70" y="1997.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">• adapters: local · S3-compatible · static mirror · peer HTTP</text>
+<text x="70" y="2012.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">• compaction: signed checkpoints; peers prune below them</text>
+<text x="70" y="2030.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#b0b6c2" font-weight="bold" text-anchor="start">In → out:</text>
+<text x="70" y="2045.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#98a0ad" font-weight="normal" text-anchor="start">in: inputs, sources, objects, receipts</text>
+<text x="70" y="2060.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#98a0ad" font-weight="normal" text-anchor="start">out: immutable objects + verifiable partition chains</text>
+<text x="70" y="2078.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#f0c060" font-weight="bold" text-anchor="start">Gate: </text>
+<text x="106" y="2078.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#f0c060" font-weight="normal" text-anchor="start">write-once; chain verifies offline</text>
+<rect x="574" y="1842" width="500" height="248" rx="6" fill="#20232a" stroke="#3a3f4a" stroke-width="1.2" opacity="1"/>
+<rect x="574" y="1842" width="500" height="30" rx="6" fill="#2c2f36"/>
+<rect x="574" y="1864" width="500" height="8" fill="#2c2f36"/>
+<text x="584" y="1862" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="13.5" fill="#f2f4f7" font-weight="bold" text-anchor="start">Tasks &amp; frontier</text>
+<text x="1064" y="1879" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="9.5" fill="#b0b6c2" font-weight="bold" text-anchor="end">never awaited</text>
+<text x="584" y="1890" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#b0b6c2" font-weight="bold" text-anchor="start">Trying to:</text>
+<text x="584" y="1905" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11.5" fill="#d8dbe0" font-weight="normal" text-anchor="start">Jobs bounded and addressable; resume where inputs exist;</text>
+<text x="584" y="1920" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11.5" fill="#d8dbe0" font-weight="normal" text-anchor="start">result exists ≠ independently accepted claim.</text>
+<text x="584" y="1939" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#b0b6c2" font-weight="bold" text-anchor="start">How:</text>
+<text x="584" y="1954.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">• task_id = sha256(kind, version, inputs, params, basis projection)</text>
+<text x="584" y="1968.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">• frontier from log; admission checks live resources separately</text>
+<text x="584" y="1983.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">• expired lease fences publication; uncertain resources quarantine</text>
+<text x="584" y="1997.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">• persistent input-scoped retry budget; deadline ≠ termination</text>
+<text x="584" y="2012.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">• a basis field change re-keys only the kinds that consume it</text>
+<text x="584" y="2030.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#b0b6c2" font-weight="bold" text-anchor="start">In → out:</text>
+<text x="584" y="2045.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#98a0ad" font-weight="normal" text-anchor="start">in: partition chain + checkpoint index</text>
+<text x="584" y="2060.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#98a0ad" font-weight="normal" text-anchor="start">out: offered tasks · result objects · timeout records</text>
+<text x="584" y="2078.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#f0c060" font-weight="bold" text-anchor="start">Gate: </text>
+<text x="620" y="2078.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#f0c060" font-weight="normal" text-anchor="start">basis projection admitted</text>
+<rect x="1088" y="1842" width="500" height="248" rx="6" fill="#20232a" stroke="#3a3f4a" stroke-width="1.2" opacity="1"/>
+<rect x="1088" y="1842" width="500" height="30" rx="6" fill="#2c2f36"/>
+<rect x="1088" y="1864" width="500" height="8" fill="#2c2f36"/>
+<text x="1098" y="1862" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="13.5" fill="#f2f4f7" font-weight="bold" text-anchor="start">Join (one command)</text>
+<text x="1578" y="1879" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="9.5" fill="#b0b6c2" font-weight="bold" text-anchor="end">capability-only</text>
+<text x="1098" y="1890" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#b0b6c2" font-weight="bold" text-anchor="start">Trying to:</text>
+<text x="1098" y="1905" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11.5" fill="#d8dbe0" font-weight="normal" text-anchor="start">Any machine, one verb: laptop, donated idle box,</text>
+<text x="1098" y="1920" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11.5" fill="#d8dbe0" font-weight="normal" text-anchor="start">free cloud node, browser tab.</text>
+<text x="1098" y="1939" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#b0b6c2" font-weight="bold" text-anchor="start">How:</text>
+<text x="1098" y="1954.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">• attach-first: find the running local agent, never a second start</text>
+<text x="1098" y="1968.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">• canaries prove capability: python · parity · toolchain · analyzer</text>
+<text x="1098" y="1983.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">• capability decides lanes and fetches — a role never does</text>
+<text x="1098" y="1997.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">• roles decide only mirrors + who signs invites / verifies / applies</text>
+<text x="1098" y="2012.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">• outbound HTTPS only; no inbound port; --idle-only, --cores N</text>
+<text x="1098" y="2030.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#b0b6c2" font-weight="bold" text-anchor="start">In → out:</text>
+<text x="1098" y="2045.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#98a0ad" font-weight="normal" text-anchor="start">in: invite URL + what the node can prove</text>
+<text x="1098" y="2060.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#98a0ad" font-weight="normal" text-anchor="start">out: lanes offered by canary; inputs fetched by task</text>
+<text x="1098" y="2078.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#f0c060" font-weight="bold" text-anchor="start">Gate: </text>
+<text x="1134" y="2078.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#f0c060" font-weight="normal" text-anchor="start">canary hash = pinned value</text>
+<rect x="1602" y="1842" width="500" height="248" rx="6" fill="#20232a" stroke="#3a3f4a" stroke-width="1.2" opacity="1"/>
+<rect x="1602" y="1842" width="500" height="30" rx="6" fill="#2c2f36"/>
+<rect x="1602" y="1864" width="500" height="8" fill="#2c2f36"/>
+<text x="1612" y="1862" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="13.5" fill="#f2f4f7" font-weight="bold" text-anchor="start">Verify (every result a proposal)</text>
+<text x="2092" y="1879" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="9.5" fill="#b0b6c2" font-weight="bold" text-anchor="end">H8</text>
+<text x="1612" y="1890" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#b0b6c2" font-weight="bold" text-anchor="start">Trying to:</text>
+<text x="1612" y="1905" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11.5" fill="#d8dbe0" font-weight="normal" text-anchor="start">Trust the hash, never the key — fleet nodes included.</text>
+<text x="1612" y="1924" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#b0b6c2" font-weight="bold" text-anchor="start">How:</text>
+<text x="1612" y="1939.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">• acceptance requires independent evidence roots, not just keys</text>
+<text x="1612" y="1953.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">• recompute or hash-lookup; byte-exact = recompile + parity</text>
+<text x="1612" y="1968.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">• no quorum, no credit, no reputation; a liar wastes ≤ 4 verifies</text>
+<text x="1612" y="1982.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">• donated .obj / .bin never evidence (byte-emitter refuted)</text>
+<text x="1612" y="1997.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">• verification ordered before generation (no livelock)</text>
+<text x="1612" y="2015.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#b0b6c2" font-weight="bold" text-anchor="start">In → out:</text>
+<text x="1612" y="2030.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#98a0ad" font-weight="normal" text-anchor="start">in: proposals from any key</text>
+<text x="1612" y="2045.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#98a0ad" font-weight="normal" text-anchor="start">out: result-verified / result-refuted records</text>
+<text x="1612" y="2063.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#f0c060" font-weight="bold" text-anchor="start">Gate: </text>
+<text x="1648" y="2063.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#f0c060" font-weight="normal" text-anchor="start">independent evidence lineage</text>
+<rect x="2116" y="1842" width="500" height="248" rx="6" fill="#20232a" stroke="#3a3f4a" stroke-width="1.2" opacity="1"/>
+<rect x="2116" y="1842" width="500" height="30" rx="6" fill="#2c2f36"/>
+<rect x="2116" y="1864" width="500" height="8" fill="#2c2f36"/>
+<text x="2126" y="1862" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="13.5" fill="#f2f4f7" font-weight="bold" text-anchor="start">Views (SQLite as a materialized view)</text>
+<text x="2606" y="1879" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="9.5" fill="#b0b6c2" font-weight="bold" text-anchor="end">H1 / H11</text>
+<text x="2126" y="1890" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#b0b6c2" font-weight="bold" text-anchor="start">Trying to:</text>
+<text x="2126" y="1905" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11.5" fill="#d8dbe0" font-weight="normal" text-anchor="start">The corpus store and the similarity index are replays of</text>
+<text x="2126" y="1920" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11.5" fill="#d8dbe0" font-weight="normal" text-anchor="start">verified records: deletable, rebuildable, never locked by work.</text>
+<text x="2126" y="1939" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#b0b6c2" font-weight="bold" text-anchor="start">How:</text>
+<text x="2126" y="1954.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">• one applier per view; bounded transactions; ack after commit</text>
+<text x="2126" y="1968.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">• identity / logical / match / knowledge / receipts from deltas</text>
+<text x="2126" y="1983.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">• view-stale is a named state with an age (H11), never a stall</text>
+<text x="2126" y="1997.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">• no worker ever opens a view for writing (H1 by construction)</text>
+<text x="2126" y="2012.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">• adgrid view materialize rebuilds from record 1</text>
+<text x="2126" y="2030.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#b0b6c2" font-weight="bold" text-anchor="start">In → out:</text>
+<text x="2126" y="2045.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#98a0ad" font-weight="normal" text-anchor="start">in: result-verified records</text>
+<text x="2126" y="2060.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#98a0ad" font-weight="normal" text-anchor="start">out: grid_* tables · similarity index · receipts</text>
+<text x="2126" y="2078.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#f0c060" font-weight="bold" text-anchor="start">Gate: </text>
+<text x="2162" y="2078.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#f0c060" font-weight="normal" text-anchor="start">materialize twice → identical dump</text>
+<rect x="2630" y="1842" width="500" height="248" rx="6" fill="#20232a" stroke="#3a3f4a" stroke-width="1.2" opacity="1"/>
+<rect x="2630" y="1842" width="500" height="30" rx="6" fill="#2c2f36"/>
+<rect x="2630" y="1864" width="500" height="8" fill="#2c2f36"/>
+<text x="2640" y="1862" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="13.5" fill="#f2f4f7" font-weight="bold" text-anchor="start">Fleet (free cloud nodes)</text>
+<text x="3120" y="1879" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="9.5" fill="#b0b6c2" font-weight="bold" text-anchor="end">conditional host failover</text>
+<text x="2640" y="1890" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#b0b6c2" font-weight="bold" text-anchor="start">Trying to:</text>
+<text x="2640" y="1905" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11.5" fill="#d8dbe0" font-weight="normal" text-anchor="start">The operator never depends on volunteers: rented</text>
+<text x="2640" y="1920" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11.5" fill="#d8dbe0" font-weight="normal" text-anchor="start">free-tier nodes join with the same command in cloud-init.</text>
+<text x="2640" y="1939" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#b0b6c2" font-weight="bold" text-anchor="start">How:</text>
+<text x="2640" y="1954.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">• adgrid fleet up / down / status / replace; manifest as objects</text>
+<text x="2640" y="1968.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">• providers: manual · ssh · declared cloud adapters</text>
+<text x="2640" y="1983.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">• lane placement by canary, never by tier or role</text>
+<text x="2640" y="1997.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">• host failover needs independent replica + capable worker</text>
+<text x="2640" y="2012.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">• host loss: continue only with complete surviving input closure</text>
+<text x="2640" y="2030.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#b0b6c2" font-weight="bold" text-anchor="start">In → out:</text>
+<text x="2640" y="2045.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#98a0ad" font-weight="normal" text-anchor="start">in: provider credentials via the secret path; an invite</text>
+<text x="2640" y="2060.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#98a0ad" font-weight="normal" text-anchor="start">out: nodes that joined; fleet manifest objects</text>
+<text x="2640" y="2078.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#f0c060" font-weight="bold" text-anchor="start">Gate: </text>
+<text x="2676" y="2078.5" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#f0c060" font-weight="normal" text-anchor="start">user-data = the join command only</text>
+<rect x="3144" y="1842" width="1216" height="248" rx="6" fill="#16181c" stroke="#b0b6c2" stroke-width="1.2" stroke-dasharray="5 4" opacity="1"/>
+<text x="3158" y="1866" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="12" fill="#b0b6c2" font-weight="bold" text-anchor="start">OUTPUTS  →  who consumes them</text>
+<text x="3158" y="1890" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11.5" fill="#d8dbe0" font-weight="normal" text-anchor="start">→ one package (CLI adgrid) reusable for any CPU/IO-heavy work; the pipeline&#x27;s lanes are adapters over it</text>
+<text x="3158" y="1907" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11.5" fill="#d8dbe0" font-weight="normal" text-anchor="start">→ planned grid contracts; implementation status belongs to delivery evidence, not this design diagram</text>
+<text x="3158" y="1924" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11.5" fill="#d8dbe0" font-weight="normal" text-anchor="start">→ every stage runs as grid tasks: compile / parity / decompile / cascade / export lanes, each a proposal</text>
+<text x="3158" y="1941" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11.5" fill="#d8dbe0" font-weight="normal" text-anchor="start">→ timeouts record attempt outcomes, not termination; resource release requires evidence; independent acceptance only</text>
+<!--SEC:Row 2 - exhaustive resolution ladders-->
+<text x="40" y="2168" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="15" fill="#f2f4f7" font-weight="bold" text-anchor="start">BOUNDED RESOLUTION — try applicable methods; stop with absent / inlined-only / ambiguous / unsupported / insufficient evidence / budget exhausted.</text>
+<rect x="40" y="2186" width="400" height="470" rx="6" fill="#20232a" stroke="#3a3f4a" stroke-width="1.2" opacity="1"/>
+<rect x="40" y="2186" width="400" height="30" rx="6" fill="#2b4a7a"/>
+<rect x="40" y="2208" width="400" height="8" fill="#2b4a7a"/>
+<text x="50" y="2206" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="13" fill="#f2f4f7" font-weight="bold" text-anchor="start">A · Function whose bytes changed</text>
+<circle cx="58" cy="2228" r="9" fill="#2b4a7a" stroke="#8cbaff" stroke-width="1.2"/>
+<text x="58" y="2232" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10" fill="#f2f4f7" font-weight="bold" text-anchor="middle">1</text>
+<text x="74" y="2232" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">[anchor_rel] anchor-relative (import/export/string)</text>
+<line x1="58" y1="2238" x2="58" y2="2250" stroke="#ef968b" stroke-width="1.5" stroke-dasharray="3 3"/>
+<circle cx="58" cy="2252" r="9" fill="#2b4a7a" stroke="#8cbaff" stroke-width="1.2"/>
+<text x="58" y="2256" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10" fill="#f2f4f7" font-weight="bold" text-anchor="middle">2</text>
+<text x="74" y="2256" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">[caller_callsite] via a resolved CALLER (decode its call)</text>
+<line x1="58" y1="2262" x2="58" y2="2274" stroke="#ef968b" stroke-width="1.5" stroke-dasharray="3 3"/>
+<circle cx="58" cy="2276" r="9" fill="#2b4a7a" stroke="#8cbaff" stroke-width="1.2"/>
+<text x="58" y="2280" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10" fill="#f2f4f7" font-weight="bold" text-anchor="middle">3</text>
+<text x="74" y="2280" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">[callee_order] via resolved CALLEES (order match)</text>
+<line x1="58" y1="2286" x2="58" y2="2298" stroke="#ef968b" stroke-width="1.5" stroke-dasharray="3 3"/>
+<circle cx="58" cy="2300" r="9" fill="#2b4a7a" stroke="#8cbaff" stroke-width="1.2"/>
+<text x="58" y="2304" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10" fill="#f2f4f7" font-weight="bold" text-anchor="middle">4</text>
+<text x="74" y="2304" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">[data_xref] via data it references (inverse xref)</text>
+<line x1="58" y1="2310" x2="58" y2="2322" stroke="#ef968b" stroke-width="1.5" stroke-dasharray="3 3"/>
+<circle cx="58" cy="2324" r="9" fill="#2b4a7a" stroke="#8cbaff" stroke-width="1.2"/>
+<text x="58" y="2328" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10" fill="#f2f4f7" font-weight="bold" text-anchor="middle">5</text>
+<text x="74" y="2328" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">[vtable_slot] via its vtable slot</text>
+<line x1="58" y1="2334" x2="58" y2="2346" stroke="#ef968b" stroke-width="1.5" stroke-dasharray="3 3"/>
+<circle cx="58" cy="2348" r="9" fill="#2b4a7a" stroke="#8cbaff" stroke-width="1.2"/>
+<text x="58" y="2352" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10" fill="#f2f4f7" font-weight="bold" text-anchor="middle">6</text>
+<text x="74" y="2352" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">[neighbour_position] positional neighbour (order-preserving)</text>
+<line x1="58" y1="2358" x2="58" y2="2370" stroke="#ef968b" stroke-width="1.5" stroke-dasharray="3 3"/>
+<circle cx="58" cy="2372" r="9" fill="#2b4a7a" stroke="#8cbaff" stroke-width="1.2"/>
+<text x="58" y="2376" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10" fill="#f2f4f7" font-weight="bold" text-anchor="middle">7</text>
+<text x="74" y="2376" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">[structural] structural match (embedded decoder)</text>
+<line x1="58" y1="2382" x2="58" y2="2394" stroke="#ef968b" stroke-width="1.5" stroke-dasharray="3 3"/>
+<circle cx="58" cy="2396" r="9" fill="#2b4a7a" stroke="#8cbaff" stroke-width="1.2"/>
+<text x="58" y="2400" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10" fill="#f2f4f7" font-weight="bold" text-anchor="middle">8</text>
+<text x="74" y="2400" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">[region · review-only] region match (inlined / split)</text>
+<line x1="58" y1="2406" x2="58" y2="2418" stroke="#ef968b" stroke-width="1.5" stroke-dasharray="3 3"/>
+<circle cx="58" cy="2420" r="9" fill="#2b4a7a" stroke="#8cbaff" stroke-width="1.2"/>
+<text x="58" y="2424" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10" fill="#f2f4f7" font-weight="bold" text-anchor="middle">9</text>
+<text x="74" y="2424" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">[symbol] symbol/debug info at runtime</text>
+<line x1="58" y1="2430" x2="58" y2="2442" stroke="#ef968b" stroke-width="1.5" stroke-dasharray="3 3"/>
+<circle cx="58" cy="2444" r="9" fill="#2b4a7a" stroke="#8cbaff" stroke-width="1.2"/>
+<text x="58" y="2448" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10" fill="#f2f4f7" font-weight="bold" text-anchor="middle">10</text>
+<text x="74" y="2448" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">[offline] emulation, BSim on residue</text>
+<line x1="58" y1="2454" x2="58" y2="2466" stroke="#ef968b" stroke-width="1.5" stroke-dasharray="3 3"/>
+<circle cx="58" cy="2468" r="9" fill="#2b4a7a" stroke="#8cbaff" stroke-width="1.2"/>
+<text x="58" y="2472" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10" fill="#f2f4f7" font-weight="bold" text-anchor="middle">11</text>
+<text x="74" y="2472" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">[annotation] annotation with provenance (a claim, never resolved)</text>
+<text x="50" y="2642" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#ef968b" font-weight="bold" text-anchor="start">two verified hits disagree → contested</text>
+<text x="50" y="2628" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#ef968b" font-weight="bold" text-anchor="start">then: unresolved (per-member reasons)</text>
+<rect x="454" y="2186" width="400" height="470" rx="6" fill="#20232a" stroke="#3a3f4a" stroke-width="1.2" opacity="1"/>
+<rect x="454" y="2186" width="400" height="30" rx="6" fill="#5a4420"/>
+<rect x="454" y="2208" width="400" height="8" fill="#5a4420"/>
+<text x="464" y="2206" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="13" fill="#f2f4f7" font-weight="bold" text-anchor="start">B · Cave missing or too small</text>
+<circle cx="472" cy="2228" r="9" fill="#5a4420" stroke="#f0c060" stroke-width="1.2"/>
+<text x="472" y="2232" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10" fill="#f2f4f7" font-weight="bold" text-anchor="middle">1</text>
+<text x="488" y="2232" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">N candidate caves per anchor</text>
+<line x1="472" y1="2238" x2="472" y2="2250" stroke="#ef968b" stroke-width="1.5" stroke-dasharray="3 3"/>
+<circle cx="472" cy="2252" r="9" fill="#5a4420" stroke="#f0c060" stroke-width="1.2"/>
+<text x="472" y="2256" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10" fill="#f2f4f7" font-weight="bold" text-anchor="middle">2</text>
+<text x="488" y="2256" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">live cave discovery (validated)</text>
+<line x1="472" y1="2262" x2="472" y2="2274" stroke="#ef968b" stroke-width="1.5" stroke-dasharray="3 3"/>
+<circle cx="472" cy="2276" r="9" fill="#5a4420" stroke="#f0c060" stroke-width="1.2"/>
+<text x="472" y="2280" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10" fill="#f2f4f7" font-weight="bold" text-anchor="middle">3</text>
+<text x="488" y="2280" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">section slack only with expendability proof</text>
+<line x1="472" y1="2286" x2="472" y2="2298" stroke="#ef968b" stroke-width="1.5" stroke-dasharray="3 3"/>
+<circle cx="472" cy="2300" r="9" fill="#5a4420" stroke="#f0c060" stroke-width="1.2"/>
+<text x="472" y="2304" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10" fill="#f2f4f7" font-weight="bold" text-anchor="middle">4</text>
+<text x="488" y="2304" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">header / stub space only with explicit proof</text>
+<line x1="472" y1="2310" x2="472" y2="2322" stroke="#ef968b" stroke-width="1.5" stroke-dasharray="3 3"/>
+<circle cx="472" cy="2324" r="9" fill="#5a4420" stroke="#f0c060" stroke-width="1.2"/>
+<text x="472" y="2328" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10" fill="#f2f4f7" font-weight="bold" text-anchor="middle">5</text>
+<text x="488" y="2328" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">executable allocation if process policy permits</text>
+<line x1="472" y1="2334" x2="472" y2="2346" stroke="#ef968b" stroke-width="1.5" stroke-dasharray="3 3"/>
+<circle cx="472" cy="2348" r="9" fill="#5a4420" stroke="#f0c060" stroke-width="1.2"/>
+<text x="472" y="2352" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10" fill="#f2f4f7" font-weight="bold" text-anchor="middle">6</text>
+<text x="488" y="2352" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">image extension (on-disk patches)</text>
+<text x="464" y="2642" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#ef968b" font-weight="bold" text-anchor="start">then: no_placement / unsupported_dynamic_code</text>
+<rect x="868" y="2186" width="400" height="470" rx="6" fill="#20232a" stroke="#3a3f4a" stroke-width="1.2" opacity="1"/>
+<rect x="868" y="2186" width="400" height="30" rx="6" fill="#5a4420"/>
+<rect x="868" y="2208" width="400" height="8" fill="#5a4420"/>
+<text x="878" y="2206" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="13" fill="#f2f4f7" font-weight="bold" text-anchor="start">C · Data root unresolved</text>
+<circle cx="886" cy="2228" r="9" fill="#5a4420" stroke="#f0c060" stroke-width="1.2"/>
+<text x="886" y="2232" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10" fill="#f2f4f7" font-weight="bold" text-anchor="middle">1</text>
+<text x="902" y="2232" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">[known build] identity → RVA → live check</text>
+<line x1="886" y1="2238" x2="886" y2="2250" stroke="#ef968b" stroke-width="1.5" stroke-dasharray="3 3"/>
+<circle cx="886" cy="2252" r="9" fill="#5a4420" stroke="#f0c060" stroke-width="1.2"/>
+<text x="886" y="2256" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10" fill="#f2f4f7" font-weight="bold" text-anchor="middle">2</text>
+<text x="902" y="2256" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">[unknown] symbol / debug info</text>
+<line x1="886" y1="2262" x2="886" y2="2274" stroke="#ef968b" stroke-width="1.5" stroke-dasharray="3 3"/>
+<circle cx="886" cy="2276" r="9" fill="#5a4420" stroke="#f0c060" stroke-width="1.2"/>
+<text x="886" y="2280" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10" fill="#f2f4f7" font-weight="bold" text-anchor="middle">3</text>
+<text x="902" y="2280" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">[xref_from_function] xref from identified function</text>
+<line x1="886" y1="2286" x2="886" y2="2298" stroke="#ef968b" stroke-width="1.5" stroke-dasharray="3 3"/>
+<circle cx="886" cy="2300" r="9" fill="#5a4420" stroke="#f0c060" stroke-width="1.2"/>
+<text x="886" y="2304" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10" fill="#f2f4f7" font-weight="bold" text-anchor="middle">4</text>
+<text x="902" y="2304" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">[data_xref] inverse access-instruction scan</text>
+<line x1="886" y1="2310" x2="886" y2="2322" stroke="#ef968b" stroke-width="1.5" stroke-dasharray="3 3"/>
+<circle cx="886" cy="2324" r="9" fill="#5a4420" stroke="#f0c060" stroke-width="1.2"/>
+<text x="886" y="2328" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10" fill="#f2f4f7" font-weight="bold" text-anchor="middle">5</text>
+<text x="902" y="2328" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">[anchor_rel] relative to import/export/string</text>
+<line x1="886" y1="2334" x2="886" y2="2346" stroke="#ef968b" stroke-width="1.5" stroke-dasharray="3 3"/>
+<circle cx="886" cy="2348" r="9" fill="#5a4420" stroke="#f0c060" stroke-width="1.2"/>
+<text x="886" y="2352" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10" fill="#f2f4f7" font-weight="bold" text-anchor="middle">6</text>
+<text x="902" y="2352" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">[masked_window] data-section adjacency</text>
+<line x1="886" y1="2358" x2="886" y2="2370" stroke="#ef968b" stroke-width="1.5" stroke-dasharray="3 3"/>
+<circle cx="886" cy="2372" r="9" fill="#5a4420" stroke="#f0c060" stroke-width="1.2"/>
+<text x="886" y="2376" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10" fill="#f2f4f7" font-weight="bold" text-anchor="middle">7</text>
+<text x="902" y="2376" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">[pointer_chain] from a resolved root</text>
+<line x1="886" y1="2382" x2="886" y2="2394" stroke="#ef968b" stroke-width="1.5" stroke-dasharray="3 3"/>
+<circle cx="886" cy="2396" r="9" fill="#5a4420" stroke="#f0c060" stroke-width="1.2"/>
+<text x="886" y="2400" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10" fill="#f2f4f7" font-weight="bold" text-anchor="middle">8</text>
+<text x="902" y="2400" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">via constructor / initializer</text>
+<line x1="886" y1="2406" x2="886" y2="2418" stroke="#ef968b" stroke-width="1.5" stroke-dasharray="3 3"/>
+<circle cx="886" cy="2420" r="9" fill="#5a4420" stroke="#f0c060" stroke-width="1.2"/>
+<text x="886" y="2424" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10" fill="#f2f4f7" font-weight="bold" text-anchor="middle">9</text>
+<text x="902" y="2424" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">[vtable_slot] vtable / RTTI-derived</text>
+<line x1="886" y1="2430" x2="886" y2="2442" stroke="#ef968b" stroke-width="1.5" stroke-dasharray="3 3"/>
+<circle cx="886" cy="2444" r="9" fill="#5a4420" stroke="#f0c060" stroke-width="1.2"/>
+<text x="886" y="2448" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10" fill="#f2f4f7" font-weight="bold" text-anchor="middle">10</text>
+<text x="902" y="2448" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">value-shape probe + independent confirmation</text>
+<text x="878" y="2642" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#ef968b" font-weight="bold" text-anchor="start">then: unresolved — never a silent zero</text>
+<rect x="1282" y="2186" width="400" height="470" rx="6" fill="#20232a" stroke="#3a3f4a" stroke-width="1.2" opacity="1"/>
+<rect x="1282" y="2186" width="400" height="30" rx="6" fill="#5a4420"/>
+<rect x="1282" y="2208" width="400" height="8" fill="#5a4420"/>
+<text x="1292" y="2206" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="13" fill="#f2f4f7" font-weight="bold" text-anchor="start">D · Struct field moved / stripped build</text>
+<circle cx="1300" cy="2228" r="9" fill="#5a4420" stroke="#f0c060" stroke-width="1.2"/>
+<text x="1300" y="2232" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10" fill="#f2f4f7" font-weight="bold" text-anchor="middle">1</text>
+<text x="1316" y="2232" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">name / debug-info donor</text>
+<line x1="1300" y1="2238" x2="1300" y2="2250" stroke="#ef968b" stroke-width="1.5" stroke-dasharray="3 3"/>
+<circle cx="1300" cy="2252" r="9" fill="#5a4420" stroke="#f0c060" stroke-width="1.2"/>
+<text x="1300" y="2256" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10" fill="#f2f4f7" font-weight="bold" text-anchor="middle">2</text>
+<text x="1316" y="2256" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">ACCESSOR DECODE → exact per-build offset</text>
+<line x1="1300" y1="2262" x2="1300" y2="2274" stroke="#ef968b" stroke-width="1.5" stroke-dasharray="3 3"/>
+<circle cx="1300" cy="2276" r="9" fill="#5a4420" stroke="#f0c060" stroke-width="1.2"/>
+<text x="1300" y="2280" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10" fill="#f2f4f7" font-weight="bold" text-anchor="middle">3</text>
+<text x="1316" y="2280" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">constructor initializer sequence</text>
+<line x1="1300" y1="2286" x2="1300" y2="2298" stroke="#ef968b" stroke-width="1.5" stroke-dasharray="3 3"/>
+<circle cx="1300" cy="2300" r="9" fill="#5a4420" stroke="#f0c060" stroke-width="1.2"/>
+<text x="1300" y="2304" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10" fill="#f2f4f7" font-weight="bold" text-anchor="middle">4</text>
+<text x="1316" y="2304" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">field-access fingerprint match</text>
+<line x1="1300" y1="2310" x2="1300" y2="2322" stroke="#ef968b" stroke-width="1.5" stroke-dasharray="3 3"/>
+<circle cx="1300" cy="2324" r="9" fill="#5a4420" stroke="#f0c060" stroke-width="1.2"/>
+<text x="1300" y="2328" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10" fill="#f2f4f7" font-weight="bold" text-anchor="middle">5</text>
+<text x="1316" y="2328" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">sibling-field anchoring</text>
+<line x1="1300" y1="2334" x2="1300" y2="2346" stroke="#ef968b" stroke-width="1.5" stroke-dasharray="3 3"/>
+<circle cx="1300" cy="2348" r="9" fill="#5a4420" stroke="#f0c060" stroke-width="1.2"/>
+<text x="1300" y="2352" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10" fill="#f2f4f7" font-weight="bold" text-anchor="middle">6</text>
+<text x="1316" y="2352" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">pointer-width hints only; verify actual layout</text>
+<text x="1292" y="2642" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#ef968b" font-weight="bold" text-anchor="start">then: ambiguous / insufficient_evidence / absent</text>
+<rect x="1696" y="2186" width="400" height="470" rx="6" fill="#20232a" stroke="#3a3f4a" stroke-width="1.2" opacity="1"/>
+<rect x="1696" y="2186" width="400" height="30" rx="6" fill="#5a4420"/>
+<rect x="1696" y="2208" width="400" height="8" fill="#5a4420"/>
+<text x="1706" y="2206" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="13" fill="#f2f4f7" font-weight="bold" text-anchor="start">E · VTable / dispatch slots</text>
+<circle cx="1714" cy="2228" r="9" fill="#5a4420" stroke="#f0c060" stroke-width="1.2"/>
+<text x="1714" y="2232" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10" fill="#f2f4f7" font-weight="bold" text-anchor="middle">1</text>
+<text x="1730" y="2232" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">RTTI</text>
+<line x1="1714" y1="2238" x2="1714" y2="2250" stroke="#ef968b" stroke-width="1.5" stroke-dasharray="3 3"/>
+<circle cx="1714" cy="2252" r="9" fill="#5a4420" stroke="#f0c060" stroke-width="1.2"/>
+<text x="1714" y="2256" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10" fill="#f2f4f7" font-weight="bold" text-anchor="middle">2</text>
+<text x="1730" y="2256" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">constructor vtable-store decode</text>
+<line x1="1714" y1="2262" x2="1714" y2="2274" stroke="#ef968b" stroke-width="1.5" stroke-dasharray="3 3"/>
+<circle cx="1714" cy="2276" r="9" fill="#5a4420" stroke="#f0c060" stroke-width="1.2"/>
+<text x="1714" y="2280" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10" fill="#f2f4f7" font-weight="bold" text-anchor="middle">3</text>
+<text x="1730" y="2280" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">slot matched by METHOD identity</text>
+<line x1="1714" y1="2286" x2="1714" y2="2298" stroke="#ef968b" stroke-width="1.5" stroke-dasharray="3 3"/>
+<circle cx="1714" cy="2300" r="9" fill="#5a4420" stroke="#f0c060" stroke-width="1.2"/>
+<text x="1714" y="2304" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10" fill="#f2f4f7" font-weight="bold" text-anchor="middle">4</text>
+<text x="1730" y="2304" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">dispatch entries by HANDLER identity</text>
+<text x="1706" y="2642" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#ef968b" font-weight="bold" text-anchor="start">then: per-slot unresolved</text>
+<rect x="2110" y="2186" width="400" height="470" rx="6" fill="#20232a" stroke="#3a3f4a" stroke-width="1.2" opacity="1"/>
+<rect x="2110" y="2186" width="400" height="30" rx="6" fill="#1f4d4f"/>
+<rect x="2110" y="2208" width="400" height="8" fill="#1f4d4f"/>
+<text x="2120" y="2206" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="13" fill="#f2f4f7" font-weight="bold" text-anchor="start">F · Unknown build</text>
+<circle cx="2128" cy="2228" r="9" fill="#1f4d4f" stroke="#67d3d0" stroke-width="1.2"/>
+<text x="2128" y="2232" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10" fill="#f2f4f7" font-weight="bold" text-anchor="middle">1</text>
+<text x="2144" y="2232" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">admit in signature-only mode</text>
+<line x1="2128" y1="2238" x2="2128" y2="2250" stroke="#ef968b" stroke-width="1.5" stroke-dasharray="3 3"/>
+<circle cx="2128" cy="2252" r="9" fill="#1f4d4f" stroke="#67d3d0" stroke-width="1.2"/>
+<text x="2128" y="2256" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10" fill="#f2f4f7" font-weight="bold" text-anchor="middle">2</text>
+<text x="2144" y="2256" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">run applicable ladders within declared budget</text>
+<line x1="2128" y1="2262" x2="2128" y2="2274" stroke="#ef968b" stroke-width="1.5" stroke-dasharray="3 3"/>
+<circle cx="2128" cy="2276" r="9" fill="#1f4d4f" stroke="#67d3d0" stroke-width="1.2"/>
+<text x="2128" y="2280" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10" fill="#f2f4f7" font-weight="bold" text-anchor="middle">3</text>
+<text x="2144" y="2280" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">record every resolution + residue</text>
+<line x1="2128" y1="2286" x2="2128" y2="2298" stroke="#ef968b" stroke-width="1.5" stroke-dasharray="3 3"/>
+<circle cx="2128" cy="2300" r="9" fill="#1f4d4f" stroke="#67d3d0" stroke-width="1.2"/>
+<text x="2128" y="2304" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10" fill="#f2f4f7" font-weight="bold" text-anchor="middle">4</text>
+<text x="2144" y="2304" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">ingest as runtime_claim → bind_identities confirms → KNOWN</text>
+<line x1="2128" y1="2310" x2="2128" y2="2322" stroke="#ef968b" stroke-width="1.5" stroke-dasharray="3 3"/>
+<circle cx="2128" cy="2324" r="9" fill="#1f4d4f" stroke="#67d3d0" stroke-width="1.2"/>
+<text x="2128" y="2328" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10" fill="#f2f4f7" font-weight="bold" text-anchor="middle">5</text>
+<text x="2144" y="2328" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">residue re-attacked offline</text>
+<text x="2120" y="2642" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#ef968b" font-weight="bold" text-anchor="start">coverage may regress when collisions are found</text>
+<!--SEC:Row 2 - locks and failover rules-->
+<rect x="2544" y="2186" width="1816" height="200" rx="6" fill="#20232a" stroke="#3a3f4a" stroke-width="1.2" opacity="1"/>
+<text x="2556" y="2210" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="12.5" fill="#ef968b" font-weight="bold" text-anchor="start">OWNERSHIP IS RESOURCE-SCOPED (eligible independent work overlaps)</text>
+<rect x="2557" y="2232" width="18" height="14" rx="2" fill="#ef968b" opacity="0.9"/>
+<path d="M2561,2232 V2228 A5,5 0 0 1 2571,2228 V2232" fill="none" stroke="#ef968b" stroke-width="2.2"/>
+<text x="2580" y="2242" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#ef968b" font-weight="bold" text-anchor="start">writes to one Ghidra program&#x27;s analysis DB</text>
+<rect x="2557" y="2256" width="18" height="14" rx="2" fill="#ef968b" opacity="0.9"/>
+<path d="M2561,2256 V2252 A5,5 0 0 1 2571,2252 V2256" fill="none" stroke="#ef968b" stroke-width="2.2"/>
+<text x="2580" y="2266" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#ef968b" font-weight="bold" text-anchor="start">shared corpus mutation / conflict resolution</text>
+<rect x="2557" y="2280" width="18" height="14" rx="2" fill="#ef968b" opacity="0.9"/>
+<path d="M2561,2280 V2276 A5,5 0 0 1 2571,2276 V2280" fill="none" stroke="#ef968b" stroke-width="2.2"/>
+<text x="2580" y="2290" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#ef968b" font-weight="bold" text-anchor="start">shared mutable compiler outputs / Wine context (private outputs may overlap)</text>
+<rect x="2557" y="2304" width="18" height="14" rx="2" fill="#ef968b" opacity="0.9"/>
+<path d="M2561,2304 V2300 A5,5 0 0 1 2571,2300 V2304" fill="none" stroke="#ef968b" stroke-width="2.2"/>
+<text x="2580" y="2314" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#ef968b" font-weight="bold" text-anchor="start">one scenario bundle: staged tree + saves + Wine + display + ports + harness</text>
+<rect x="2557" y="2328" width="18" height="14" rx="2" fill="#ef968b" opacity="0.9"/>
+<path d="M2561,2328 V2324 A5,5 0 0 1 2571,2324 V2328" fill="none" stroke="#ef968b" stroke-width="2.2"/>
+<text x="2580" y="2338" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#ef968b" font-weight="bold" text-anchor="start">short acceptance commit: current basis + generation + independent proof</text>
+<text x="2556" y="2368" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#98a0ad" font-weight="normal" text-anchor="start" font-style="italic">Atomic resource-set admission; measured process-tree budgets and pressure; external owners remain external.</text>
+<rect x="2544" y="2402" width="1816" height="150" rx="6" fill="#20232a" stroke="#ef968b" stroke-width="1.2" stroke-dasharray="6 4" opacity="1"/>
+<text x="2556" y="2426" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="12.5" fill="#ef968b" font-weight="bold" text-anchor="start">FAILOVER RULE</text>
+<text x="2556" y="2448" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">The affected branch stops VISIBLY at its real unmet dependency;</text>
+<text x="2556" y="2463" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">every eligible sibling lane continues.</text>
+<text x="2556" y="2478" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">Show the named owner/provider failure, last evidence, chosen fallback,</text>
+<text x="2556" y="2493" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">one retry owner and persistent budget; deterministic negatives require changed basis.</text>
+<text x="2556" y="2508" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">Deadline ends attempt, not objective; expired ownership does not free resources;</text>
+<text x="2556" y="2523" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">quarantine uncertain resources; show wake conditions, progress unknown and aging.</text>
+<!--SEC:Terminal band - what you get-->
+<rect x="40" y="2686" width="4320" height="34" rx="4" fill="#5a4420" opacity="0.85"/>
+<text x="52" y="2708" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="14" fill="#f2f4f7" font-weight="bold" text-anchor="start">EXPORT TARGET — reusable recovery projects + vanilla-game bindings; capabilities and unknowns explicit</text>
+<text x="4348" y="2708" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11.5" fill="#f0c060" font-weight="normal" text-anchor="end" font-style="italic">re-run under the same basis → byte-identical bundle</text>
+<rect x="40" y="2730" width="603.4285714285714" height="150" rx="6" fill="#20232a" stroke="#f0c060" stroke-width="1.6" opacity="1"/>
+<text x="52" y="2756" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="14" fill="#f2f4f7" font-weight="bold" text-anchor="start">hookpack v2</text>
+<text x="52" y="2782" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11.5" fill="#d8dbe0" font-weight="normal" text-anchor="start">every entity kind, locator families,</text>
+<text x="52" y="2799" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11.5" fill="#d8dbe0" font-weight="normal" text-anchor="start">per-build coverage, ABI blocks, caves,</text>
+<text x="52" y="2816" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11.5" fill="#d8dbe0" font-weight="normal" text-anchor="start">integrity ranges, basis, pack hash</text>
+<rect x="659.4285714285714" y="2730" width="603.4285714285714" height="150" rx="6" fill="#20232a" stroke="#f0c060" stroke-width="1.6" opacity="1"/>
+<text x="671.4285714285714" y="2756" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="14" fill="#f2f4f7" font-weight="bold" text-anchor="start">Generated Lua bindings</text>
+<text x="671.4285714285714" y="2782" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11.5" fill="#d8dbe0" font-weight="normal" text-anchor="start">roots by name · typed struct accessors</text>
+<text x="671.4285714285714" y="2799" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11.5" fill="#d8dbe0" font-weight="normal" text-anchor="start">table/handle/bitfield/string helpers</text>
+<text x="671.4285714285714" y="2816" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11.5" fill="#d8dbe0" font-weight="normal" text-anchor="start">typed call stubs only for ABIs the</text>
+<text x="671.4285714285714" y="2833" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11.5" fill="#d8dbe0" font-weight="normal" text-anchor="start">descriptor layer expresses; else refuse</text>
+<text x="671.4285714285714" y="2850" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11.5" fill="#d8dbe0" font-weight="normal" text-anchor="start">NO literal address</text>
+<rect x="1278.857142857143" y="2730" width="603.4285714285714" height="150" rx="6" fill="#20232a" stroke="#f0c060" stroke-width="1.6" opacity="1"/>
+<text x="1290.857142857143" y="2756" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="14" fill="#f2f4f7" font-weight="bold" text-anchor="start">Per-build C/C++ headers</text>
+<text x="1290.857142857143" y="2782" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11.5" fill="#d8dbe0" font-weight="normal" text-anchor="start">evidenced per-build layouts;</text>
+<text x="1290.857142857143" y="2799" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11.5" fill="#d8dbe0" font-weight="normal" text-anchor="start">opaque unknown spans · prototypes with</text>
+<text x="1290.857142857143" y="2816" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11.5" fill="#d8dbe0" font-weight="normal" text-anchor="start">conventions + storage · build manifest</text>
+<rect x="1898.2857142857142" y="2730" width="603.4285714285714" height="150" rx="6" fill="#20232a" stroke="#f0c060" stroke-width="1.6" opacity="1"/>
+<text x="1910.2857142857142" y="2756" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="14" fill="#f2f4f7" font-weight="bold" text-anchor="start">Readiness report</text>
+<text x="1910.2857142857142" y="2782" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11.5" fill="#d8dbe0" font-weight="normal" text-anchor="start">per entity × build: resolved(member) /</text>
+<text x="1910.2857142857142" y="2799" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11.5" fill="#d8dbe0" font-weight="normal" text-anchor="start">pinned(member) / degraded(member, reason) /</text>
+<text x="1910.2857142857142" y="2816" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11.5" fill="#d8dbe0" font-weight="normal" text-anchor="start">ambiguous / unresolved / contested</text>
+<text x="1910.2857142857142" y="2833" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11.5" fill="#d8dbe0" font-weight="normal" text-anchor="start">observed_status separate · what a mod</text>
+<text x="1910.2857142857142" y="2850" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11.5" fill="#d8dbe0" font-weight="normal" text-anchor="start">can do here</text>
+<rect x="2517.714285714286" y="2730" width="603.4285714285714" height="150" rx="6" fill="#20232a" stroke="#f0c060" stroke-width="1.6" opacity="1"/>
+<text x="2529.714285714286" y="2756" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="14" fill="#f2f4f7" font-weight="bold" text-anchor="start">Divergence report</text>
+<text x="2529.714285714286" y="2782" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11.5" fill="#d8dbe0" font-weight="normal" text-anchor="start">1↔1 · split-or-inlined · diverged</text>
+<text x="2529.714285714286" y="2799" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11.5" fill="#d8dbe0" font-weight="normal" text-anchor="start">field-map, slot and table deltas</text>
+<text x="2529.714285714286" y="2816" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11.5" fill="#d8dbe0" font-weight="normal" text-anchor="start">between any two builds</text>
+<rect x="3137.1428571428573" y="2730" width="603.4285714285714" height="150" rx="6" fill="#20232a" stroke="#f0c060" stroke-width="1.6" opacity="1"/>
+<text x="3149.1428571428573" y="2756" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="14" fill="#f2f4f7" font-weight="bold" text-anchor="start">Receipts</text>
+<text x="3149.1428571428573" y="2782" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11.5" fill="#d8dbe0" font-weight="normal" text-anchor="start">content-addressed, keyed by</text>
+<text x="3149.1428571428573" y="2799" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11.5" fill="#d8dbe0" font-weight="normal" text-anchor="start">hash(inputs+basis) · every artifact</text>
+<text x="3149.1428571428573" y="2816" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11.5" fill="#d8dbe0" font-weight="normal" text-anchor="start">identical-basis re-run = cache hit</text>
+<rect x="3756.571428571429" y="2730" width="603.4285714285714" height="150" rx="6" fill="#20232a" stroke="#f0c060" stroke-width="1.6" opacity="1"/>
+<text x="3768.571428571429" y="2756" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="14" fill="#f2f4f7" font-weight="bold" text-anchor="start">Source + comparison projects</text>
+<text x="3768.571428571429" y="2782" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11.5" fill="#d8dbe0" font-weight="normal" text-anchor="start">byte-accurate C+floor and max-C</text>
+<text x="3768.571428571429" y="2799" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11.5" fill="#d8dbe0" font-weight="normal" text-anchor="start">with manifests</text>
+<text x="3768.571428571429" y="2816" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11.5" fill="#d8dbe0" font-weight="normal" text-anchor="start">reccmp reports + independent image receipts</text>
+<!--SEC:Footer - legend and determinism basis-->
+<rect x="40" y="2904" width="4320" height="70" rx="6" fill="#20232a" stroke="#3a3f4a" stroke-width="1.2" opacity="1"/>
+<text x="52" y="2928" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="12.5" fill="#f2f4f7" font-weight="bold" text-anchor="start">LEGEND</text>
+<line x1="130" y1="2924" x2="190" y2="2924" stroke="#98a0ad" stroke-width="2"/>
+<polygon points="190.0,2924.0 180.0,2928.0 180.0,2920.0" fill="#98a0ad"/>
+<text x="198" y="2928" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">data / dependency flow</text>
+<line x1="370" y1="2924" x2="430" y2="2924" stroke="#ef968b" stroke-width="2" stroke-dasharray="6 4"/>
+<polygon points="430.0,2924.0 420.0,2928.0 420.0,2920.0" fill="#ef968b"/>
+<text x="438" y="2928" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">failover / fallback</text>
+<polygon points="560,2906 578,2924 560,2942 542,2924" fill="#16181c" stroke="#f0c060" stroke-width="2"/>
+<text x="560" y="2928" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#f0c060" font-weight="bold" text-anchor="middle">G</text>
+<text x="560" y="2956" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#f0c060" font-weight="bold" text-anchor="middle"></text>
+<text x="586" y="2928" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">gate — must pass (compile receipt, verify, hash)</text>
+<rect x="911" y="2920" width="18" height="14" rx="2" fill="#ef968b" opacity="0.9"/>
+<path d="M915,2920 V2916 A5,5 0 0 1 925,2916 V2920" fill="none" stroke="#ef968b" stroke-width="2.2"/>
+<text x="934" y="2930" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="10.5" fill="#ef968b" font-weight="bold" text-anchor="start">serialized — one owner</text>
+<path d="M1144,2912 H1130 V2936 H1144" fill="none" stroke="#f0c060" stroke-width="2.5"/>
+<text x="1152" y="2928" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">bracket — eligible independent work may overlap</text>
+<rect x="1520" y="2914" width="18" height="18" rx="3" fill="#2b4a7a" stroke="#8cbaff"/>
+<text x="1544" y="2928" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">identity</text>
+<rect x="1780" y="2914" width="18" height="18" rx="3" fill="#25503e" stroke="#7fd6a4"/>
+<text x="1804" y="2928" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">source recovery</text>
+<rect x="2040" y="2914" width="18" height="18" rx="3" fill="#5a4420" stroke="#f0c060"/>
+<text x="2064" y="2928" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">cross-build unification &amp; export</text>
+<rect x="2300" y="2914" width="18" height="18" rx="3" fill="#1f4d4f" stroke="#67d3d0"/>
+<text x="2324" y="2928" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">runtime reuse / learn</text>
+<rect x="2560" y="2914" width="18" height="18" rx="3" fill="#452a5a" stroke="#c9a4f0"/>
+<text x="2584" y="2928" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">verification &amp; determinism</text>
+<rect x="2820" y="2914" width="18" height="18" rx="3" fill="#2c2f36" stroke="#b0b6c2"/>
+<text x="2844" y="2928" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11" fill="#d8dbe0" font-weight="normal" text-anchor="start">intake / cross-cutting</text>
+<text x="52" y="2956" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="11.5" fill="#98a0ad" font-weight="normal" text-anchor="start" font-style="italic">DESIGN ONLY · future checks NOT RUN. Companions: execution-contracts.svg — evidence/admission; resilience-contracts.svg — prevention, containment, recovery. Replay records observations + dependencies.</text>
+</svg>

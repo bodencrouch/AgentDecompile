@@ -16,6 +16,8 @@ import sqlite3
 from collections import defaultdict
 
 from .source_claims import is_real_c
+from .coverage_evidence import source_binding, target_binding
+from .semantic_identity import bind_candidates
 
 SHRINK_FLOOR = 0.7
 HDR_SIZE = re.compile(r"size:\s*(\d+)\s*bytes", re.I)
@@ -25,7 +27,7 @@ HDR_EVID = re.compile(r"evidence:\s*(\S+)")
 ADDR_IN_NAME = re.compile(r"(?:FUN|sub|LAB)_([0-9a-fA-F]{6,16})")
 ADDR_SUFFIX = re.compile(r"_([0-9a-fA-F]{6,16})$")
 
-RECOVERED_SCHEMA = """
+RECOVERED_FUNCTION_DDL = """
 CREATE TABLE IF NOT EXISTS recovered_function (
     program      TEXT NOT NULL,
     binary_id    INTEGER,
@@ -38,10 +40,17 @@ CREATE TABLE IF NOT EXISTS recovered_function (
     logical_id   INTEGER,
     path         TEXT NOT NULL,
     evidence     TEXT,
-    PRIMARY KEY (program, name)
+    source_sha256 TEXT,
+    target_sha256 TEXT,
+    semantic_status TEXT,
+    semantic_reason TEXT,
+    semantic_evidence TEXT,
+    PRIMARY KEY (program, name, binary_id, addr, path, source_sha256)
 );
 CREATE INDEX IF NOT EXISTS ix_recovered_logical ON recovered_function(logical_id);
+"""
 
+REUSE_CANDIDATE_DDL = """
 CREATE TABLE IF NOT EXISTS reuse_candidate (
     src_program   TEXT NOT NULL,
     src_name      TEXT NOT NULL,
@@ -56,14 +65,137 @@ CREATE TABLE IF NOT EXISTS reuse_candidate (
 CREATE INDEX IF NOT EXISTS ix_reuse_dst ON reuse_candidate(dst_binary_id, dst_addr);
 """
 
+RECOVERED_SCHEMA = RECOVERED_FUNCTION_DDL + REUSE_CANDIDATE_DDL
+
+_RECOVERED_FUNCTION_STATEMENTS = (
+    RECOVERED_FUNCTION_DDL.split(";", 1)[0],
+    "CREATE INDEX IF NOT EXISTS ix_recovered_logical ON recovered_function(logical_id)",
+)
+
+RECOVERED_FUNCTION_ADDED_COLUMNS = (
+    ("binary_id", "INTEGER"),
+    ("machine_code", "TEXT"),
+    ("source_sha256", "TEXT"),
+    ("target_sha256", "TEXT"),
+    ("semantic_status", "TEXT"),
+    ("semantic_reason", "TEXT"),
+    ("semantic_evidence", "TEXT"),
+)
+
+
+def ensure_recovered_function(con: sqlite3.Connection) -> None:
+    """Create or upgrade only the shared ``recovered_function`` table.
+
+    Export and bridge readers use this narrow helper so command order cannot
+    leave them with the historical report-only shape. A canonical table is a
+    read-only fast path. Schema work joins a caller transaction through a
+    savepoint; otherwise it owns one ``BEGIN IMMEDIATE`` transaction.
+    """
+    info = list(con.execute("PRAGMA table_info(recovered_function)"))
+    columns = {row[1] for row in info}
+    key = [row[1] for row in sorted(info, key=lambda row: row[5]) if row[5]]
+    target_key = ["program", "name", "binary_id", "addr", "path", "source_sha256"]
+    if info and all(column in columns for column, _decl in RECOVERED_FUNCTION_ADDED_COLUMNS) and key == target_key:
+        return
+
+    def upgrade() -> None:
+        current = list(con.execute("PRAGMA table_info(recovered_function)"))
+        if not current:
+            for statement in _RECOVERED_FUNCTION_STATEMENTS:
+                con.execute(statement)
+            return
+
+        current_columns = {row[1] for row in current}
+        for column, declaration in RECOVERED_FUNCTION_ADDED_COLUMNS:
+            if column not in current_columns:
+                con.execute(f"ALTER TABLE recovered_function ADD COLUMN {column} {declaration}")
+
+        # An empty legacy table can take the exact current constraints. A
+        # populated legacy table is rebuilt only when its rows satisfy the
+        # current NOT NULL contract; otherwise retain every historical row and
+        # leave the table additive rather than deleting evidence.
+        has_rows = con.execute("SELECT 1 FROM recovered_function LIMIT 1").fetchone() is not None
+        if not has_rows:
+            con.execute("DROP TABLE recovered_function")
+            for statement in _RECOVERED_FUNCTION_STATEMENTS:
+                con.execute(statement)
+            return
+        invalid = con.execute(
+            "SELECT 1 FROM recovered_function "
+            "WHERE program IS NULL OR name IS NULL OR real_c IS NULL OR path IS NULL LIMIT 1"
+        ).fetchone()
+        if invalid is None:
+            _migrate_recovered_candidate_key(con)
+        con.execute("CREATE INDEX IF NOT EXISTS ix_recovered_logical ON recovered_function(logical_id)")
+
+    if con.in_transaction:
+        con.execute("SAVEPOINT recovered_function_upgrade")
+        try:
+            upgrade()
+        except BaseException:
+            con.execute("ROLLBACK TO recovered_function_upgrade")
+            con.execute("RELEASE recovered_function_upgrade")
+            raise
+        con.execute("RELEASE recovered_function_upgrade")
+        return
+
+    con.execute("BEGIN IMMEDIATE")
+    try:
+        upgrade()
+        con.execute("COMMIT")
+    except BaseException:
+        con.execute("ROLLBACK")
+        raise
+
 
 def ensure_recovered_schema(con: sqlite3.Connection) -> None:
-    con.executescript(RECOVERED_SCHEMA)
+    ensure_recovered_function(con)
+    con.executescript(REUSE_CANDIDATE_DDL)
     con.commit()
 
 
+def _migrate_recovered_candidate_key(con: sqlite3.Connection) -> None:
+    """Preserve same-label candidates by target location and source provenance.
+
+    SQLite cannot extend a primary key in place. Rebuild only the known legacy
+    key (or the keyless report schema), transactionally preserving DDL, rows, indexes and
+    triggers. Historical null addresses/binary IDs remain unknown, not invented.
+    """
+    info = list(con.execute("PRAGMA table_info(recovered_function)"))
+    key = [row[1] for row in sorted(info, key=lambda row: row[5]) if row[5]]
+    if key not in ([], ["program", "name"], ["program", "name", "binary_id", "addr"]):
+        return
+    ddl = con.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name='recovered_function'").fetchone()[0]
+    if key:
+        pattern = r"PRIMARY\s+KEY\s*\(\s*" + r"\s*,\s*".join(key) + r"\s*\)"
+        changed, count = re.subn(pattern,
+                                 "PRIMARY KEY (program, name, binary_id, addr, path, source_sha256)", ddl, flags=re.I)
+        if count != 1:
+            raise sqlite3.DatabaseError("cannot safely migrate recovered_function candidate key")
+    else:
+        end = ddl.rindex(')')
+        changed = ddl[:end] + ", PRIMARY KEY (program, name, binary_id, addr, path, source_sha256)" + ddl[end:]
+    dependents = [row[0] for row in con.execute(
+        "SELECT sql FROM sqlite_master WHERE tbl_name='recovered_function' "
+        "AND type IN ('index','trigger') AND sql IS NOT NULL")]
+    columns = ", ".join('"' + row[1].replace('"', '""') + '"' for row in info)
+    con.execute("SAVEPOINT recovered_candidate_key")
+    try:
+        con.execute('CREATE TABLE "recovered_function_candidate_migration" ' + changed[changed.index('('):])
+        con.execute(f'INSERT INTO recovered_function_candidate_migration ({columns}) SELECT {columns} FROM recovered_function')
+        con.execute("DROP TABLE recovered_function")
+        con.execute("ALTER TABLE recovered_function_candidate_migration RENAME TO recovered_function")
+        for statement in dependents:
+            con.execute(statement)
+        con.execute("RELEASE recovered_candidate_key")
+    except Exception:
+        con.execute("ROLLBACK TO recovered_candidate_key")
+        con.execute("RELEASE recovered_candidate_key")
+        raise
+
+
 def load_coverage_index(coverage_dir: pathlib.Path) -> dict[tuple[str, str], dict]:
-    """Return authoritative byte-exact rows keyed by program and function."""
+    """Return historical positive observations; consumers must check source binding."""
     verified: dict[tuple[str, str], dict] = {}
     coverage_dir = pathlib.Path(coverage_dir)
     if not coverage_dir.is_dir():
@@ -76,9 +208,15 @@ def load_coverage_index(coverage_dir: pathlib.Path) -> dict[tuple[str, str], dic
                     row = json.loads(line)
                 except (ValueError, TypeError):
                     continue
+                if not isinstance(row, dict):
+                    continue
                 name = row.get("function")
-                if name and row.get("byteExact") is True:
-                    verified[(program, str(name))] = row
+                if name:
+                    key = (program, str(name))
+                    # Later negative observations supersede earlier positives.
+                    verified.pop(key, None)
+                    if row.get("byteExact") is True:
+                        verified[key] = row
     return verified
 
 
@@ -87,22 +225,47 @@ def load_verified_coverage(coverage_dir: pathlib.Path) -> set[tuple[str, str]]:
     return set(load_coverage_index(coverage_dir))
 
 
+def _region_bytes_reason(row: dict, field: str) -> str | None:
+    """Check recorded comparison bytes against the already-validated region."""
+    value = row.get(field)
+    if not isinstance(value, str) or re.fullmatch(r"(?:[0-9a-fA-F]{2})+", value) is None:
+        return "missing_or_invalid_comparison_bytes"
+    data = bytes.fromhex(value)
+    region = row["targetRegion"]
+    if type(row.get("size")) is not int or len(data) != region["size"] or row["size"] != region["size"]:
+        return "comparison_size_mismatch"
+    if hashlib.sha256(data).hexdigest() != region["sha256"]:
+        return "comparison_bytes_digest_mismatch"
+    recorded = row.get("originalBytesSha256")
+    if recorded is not None and recorded != region["sha256"]:
+        return "comparison_recorded_digest_mismatch"
+    return None
+
+
 def parse_recovered(
     recovered_dir: pathlib.Path,
     coverage_dir: pathlib.Path,
+    *,
+    rejected: list[dict] | None = None,
 ) -> list[dict]:
-    """Read only files backed by ``byteExact=true`` in the coverage ledger."""
+    """Read local positive observations bound to the current exact source bytes.
+
+    Legacy/unbound files remain on disk for revalidation. Optional diagnostics
+    explain exclusions without fabricating replacement provenance.
+    """
     rows = []
     recovered_dir = pathlib.Path(recovered_dir)
     if not recovered_dir.is_dir():
         return rows
     verified = load_coverage_index(coverage_dir)
+    target_cache: dict = {}
     for pdir in sorted(recovered_dir.iterdir()):
         if not pdir.is_dir():
             continue
         for f in sorted(pdir.glob("*.c")) + sorted(pdir.glob("*.cpp")):
             try:
-                text = f.read_text(errors="replace")
+                source_bytes = f.read_bytes()
+                text = source_bytes.decode("utf-8", errors="replace")
             except OSError:
                 continue
             head = text[:1200]
@@ -112,26 +275,50 @@ def parse_recovered(
             evid = HDR_EVID.search(head)
             name = f.stem
             coverage = verified.get((pdir.name, name))
-            if coverage is None:
+            binding = source_binding(coverage or {}, source_bytes)
+            if coverage is None or not binding["current"]:
+                if rejected is not None:
+                    rejected.append({"path": str(f), "program": pdir.name,
+                                     "function": name, "reason": binding["reason"], "binding": "source"})
                 continue
             m = ADDR_IN_NAME.search(name) or ADDR_SUFFIX.search(name)
-            machine_code = code.group(1).lower() if code else None
-            if not machine_code:
-                ledger_code = coverage.get("originalBytes")
-                if isinstance(ledger_code, str) and re.fullmatch(
-                    r"[0-9a-fA-F]+", ledger_code
-                ):
-                    machine_code = ledger_code.lower()
+            expected_address = int(m.group(1), 16) if m else None
+            target = target_binding(coverage, expected_address=expected_address, cache=target_cache)
+            reason = None if target["current"] else target["reason"]
+            if reason is None:
+                reason = _region_bytes_reason(coverage, "originalBytes")
+            if reason is None and coverage.get("address") is not None:
+                try:
+                    address = coverage["address"]
+                    ledger_address = address if type(address) is int else int(address, 16)
+                    if ledger_address != coverage["targetRegion"]["address"]:
+                        reason = "ledger_target_address_mismatch"
+                except (TypeError, ValueError):
+                    reason = "invalid_ledger_target_address"
+            if reason is None and size and int(size.group(1)) != coverage["targetRegion"]["size"]:
+                reason = "header_target_size_mismatch"
+            if reason is None and code and code.group(1).lower() != coverage["originalBytes"].lower():
+                reason = "header_target_bytes_mismatch"
+            if reason is not None:
+                if rejected is not None:
+                    rejected.append({"path": str(f), "program": pdir.name,
+                                     "function": name, "reason": reason, "binding": "target"})
+                continue
+            region = coverage["targetRegion"]
+            machine_code = coverage["originalBytes"].lower()
             rows.append({
                 "program": pdir.name,
                 "name": name,
-                "addr": int(m.group(1), 16) if m else None,
-                "size": int(size.group(1)) if size else None,
-                "convention": conv.group(1) if conv else None,
+                "addr": region["address"],
+                "size": region["size"],
+                "convention": conv.group(1) if conv else coverage.get("convention"),
                 "machine_code": machine_code,
                 "evidence": evid.group(1) if evid else None,
                 "real_c": 1 if is_real_c(text) else 0,
                 "path": str(f),
+                "source_sha256": coverage["sourceSha256"],
+                "target_sha256": coverage["targetSnapshot"]["sha256"],
+                "target_offset": region["offset"],
             })
     return rows
 
@@ -173,6 +360,7 @@ def load_seed_promotions(
         for row in con.execute("SELECT id, slug, repo_path FROM binary")
     }
     promotions = []
+    target_cache: dict = {}
     with results_path.open() as fh:
         for line in fh:
             if not line.strip():
@@ -180,7 +368,8 @@ def load_seed_promotions(
             row = json.loads(line)
             if row.get("static_status") != "identity_linked" \
                     or row.get("compile_status") != "byte_exact" \
-                    or row.get("real_c") is not True:
+                    or row.get("real_c") is not True \
+                    or row.get("comparisonPolicy") != "raw-region-v1":
                 continue
             binary = binaries.get(row.get("dst_slug"))
             if binary is None:
@@ -199,10 +388,25 @@ def load_seed_promotions(
                 continue
             seed_path = pathlib.Path(row["seed"])
             try:
-                seed_text = seed_path.read_text(errors="replace")
+                seed_bytes = seed_path.read_bytes()
+                seed_text = seed_bytes.decode("utf-8", errors="replace")
             except OSError:
                 continue
-            if not is_real_c(seed_text):
+            if not source_binding(row, seed_bytes)["current"] or not is_real_c(seed_text):
+                continue
+            target = target_binding(row, expected_address=addr, cache=target_cache)
+            if not target["current"] or _region_bytes_reason(row, "destination_bytes") is not None:
+                continue
+            # Seed original-machine-code headers describe the donor. Only an
+            # explicit destination header is checked against recipient metadata.
+            destination_header = re.search(r"^ \* dst=(\S+) @ 0x([0-9a-fA-F]+)$", seed_text, re.M)
+            if destination_header and (destination_header.group(1) != repo_path
+                                       or int(destination_header.group(2), 16) != addr):
+                continue
+            destination_size = re.search(r"^ \* dst_name=.+ size=(\d+)$", seed_text, re.M)
+            if destination_size and int(destination_size.group(1)) != row["size"]:
+                continue
+            if row.get("dst_repo") is not None and row["dst_repo"] != repo_path:
                 continue
             promotions.append({
                 "program": row["dst_slug"].split("__", 1)[-1],
@@ -215,6 +419,9 @@ def load_seed_promotions(
                 "real_c": 1,
                 "logical_id": int(destination[0]),
                 "path": str(seed_path),
+                "source_sha256": row["sourceSha256"],
+                "target_sha256": row["targetSnapshot"]["sha256"],
+                "target_offset": row["targetRegion"]["offset"],
                 "evidence": f"seed-validation-byte-exact:{results_path}",
             })
     return promotions
@@ -222,35 +429,56 @@ def load_seed_promotions(
 
 def apply_seed_promotions(con, promotions: list[dict]) -> int:
     ensure_recovered_schema(con)
-    con.executemany(
-        "INSERT OR REPLACE INTO recovered_function"
-        "(program, binary_id, addr, name, size, convention, machine_code,"
-        " real_c, logical_id, path, evidence) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
-        [(r["program"], r["binary_id"], r["addr"], r["name"], r["size"],
-          r["convention"], r["machine_code"], r["real_c"], r["logical_id"],
-          r["path"], r["evidence"]) for r in promotions],
-    )
+    # This compatibility route has no independently supplied corpus target path.
+    # Preserve candidates, but never inherit a caller's named acceptance fields.
+    bind_candidates(con, promotions, None)
+    _insert_recovered(con, promotions)
     con.commit()
     return len(promotions)
 
 
+def _insert_recovered(con, rows: list[dict]) -> None:
+    con.executemany(
+        "INSERT OR REPLACE INTO recovered_function"
+        "(program, binary_id, addr, name, size, convention, machine_code,"
+        " real_c, logical_id, path, evidence, source_sha256, target_sha256,"
+        " semantic_status, semantic_reason, semantic_evidence) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        [(r["program"], r["binary_id"], r["addr"], r["name"], r["size"],
+          r["convention"], r["machine_code"], r["real_c"], r.get("logical_id"),
+          r["path"], r["evidence"], r.get("source_sha256"), r.get("target_sha256"),
+          r.get("semantic_status"), r.get("semantic_reason"), r.get("semantic_evidence")) for r in rows],
+    )
+
+
 def prune_unverified(con, verified_rows: list[dict]) -> tuple[int, int]:
-    """Remove stale DB rows whose source lacks an authoritative verdict."""
-    keep = {(r["program"], r["name"]) for r in verified_rows}
-    stale = [
-        (program, name)
-        for program, name in con.execute(
-            "SELECT program, name FROM recovered_function"
-        )
-        if (program, name) not in keep
-    ]
+    """Remove stale candidates without collapsing same-name source evidence."""
+    identity_columns = (
+        "program", "name", "binary_id", "addr", "path", "source_sha256",
+    )
+    keep = {
+        tuple(row.get(column) for column in identity_columns)
+        for row in verified_rows
+    }
+    persisted = [tuple(row) for row in con.execute(
+        "SELECT program, name, binary_id, addr, path, source_sha256 "
+        "FROM recovered_function"
+    )]
+    stale = [candidate for candidate in persisted if candidate not in keep]
     if stale:
         con.executemany(
-            "DELETE FROM recovered_function WHERE program=? AND name=?", stale
+            "DELETE FROM recovered_function "
+            "WHERE program IS ? AND name IS ? AND binary_id IS ? AND addr IS ? "
+            "AND path IS ? AND source_sha256 IS ?",
+            stale,
         )
-        con.executemany(
-            "DELETE FROM reuse_candidate WHERE src_program=? AND src_name=?", stale
-        )
+    # Reuse proposals have a coarser source identity by schema design. Retain
+    # them while any candidate bearing that source program/name remains.
+    con.execute(
+        "DELETE FROM reuse_candidate WHERE NOT EXISTS ("
+        "SELECT 1 FROM recovered_function "
+        "WHERE program=reuse_candidate.src_program "
+        "AND name=reuse_candidate.src_name)"
+    )
     con.commit()
     return len(stale), len(keep)
 
@@ -382,7 +610,8 @@ def ingest(
 ) -> dict:
     """Parse recovered trees, bind existing identities, write reuse summary."""
     ensure_recovered_schema(con)
-    rows = parse_recovered(recovered_dir, coverage_dir)
+    rejected: list[dict] = []
+    rows = parse_recovered(recovered_dir, coverage_dir, rejected=rejected)
     if seed_results and reuse_candidates:
         rows = rows + load_seed_promotions(con, seed_results, reuse_candidates)
     have = con.execute(
@@ -403,7 +632,10 @@ def ingest(
     mapping = program_to_repo or {}
     for r in rows:
         repo = mapping.get(r["program"])
-        r["binary_id"] = repo_ids.get(repo) if repo else None
+        mapped_id = repo_ids.get(repo) if repo else None
+        r["binary_id"] = mapped_id if mapped_id is not None else r.get("binary_id")
+
+    bind_candidates(con, rows, raw_dir)
 
     address_identity, named_identity = recovery_identity_indexes(con, rows)
     index: dict = {}
@@ -422,13 +654,7 @@ def ingest(
         r["logical_id"] = logical_from_indexes(r, address_identity, named_identity)
         bound += r["logical_id"] is not None
 
-    con.executemany(
-        "INSERT OR REPLACE INTO recovered_function"
-        "(program, binary_id, addr, name, size, convention, machine_code,"
-        " real_c, logical_id, path, evidence) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
-        [(r["program"], r["binary_id"], r["addr"], r["name"], r["size"],
-          r["convention"], r["machine_code"], r["real_c"], r.get("logical_id"),
-          r["path"], r["evidence"]) for r in rows])
+    _insert_recovered(con, rows)
     con.executemany(
         "INSERT OR REPLACE INTO reuse_candidate"
         "(src_program, src_name, dst_binary_id, dst_addr, dst_name, size,"
@@ -436,6 +662,7 @@ def ingest(
     con.commit()
     summary = print_summary(con, pathlib.Path(out_dir))
     summary["linked"] = bound
+    summary["source_binding_rejections"] = rejected
     return summary
 
 
@@ -452,7 +679,10 @@ def print_summary(con, out_dir: pathlib.Path) -> dict:
         "recovered_real_c": real,
         "recovered_asm_shim": total - real,
         "recovered_bound_to_logical": boundn,
-        "recovered_without_identity": total - boundn,
+        "recovered_without_identity": one("SELECT COUNT(*) FROM recovered_function WHERE semantic_status IS NULL OR semantic_status!='accepted-target-pe-export'"),
+        "recovered_named_target_exports": one("SELECT COUNT(*) FROM recovered_function WHERE semantic_status='accepted-target-pe-export'"),
+        "recovered_target_local_only": one("SELECT COUNT(*) FROM recovered_function WHERE semantic_status='target-local-only'"),
+        "recovered_identity_unverified": one("SELECT COUNT(*) FROM recovered_function WHERE semantic_status IS NULL"),
         "real_c_bound_to_logical": one(
             "SELECT COUNT(*) FROM recovered_function WHERE real_c=1 AND logical_id IS NOT NULL"
         ),
@@ -460,8 +690,8 @@ def print_summary(con, out_dir: pathlib.Path) -> dict:
         "reuse_rows_real_c": one("SELECT COUNT(*) FROM reuse_candidate WHERE real_c=1"),
         "reuse_target_binaries": one("SELECT COUNT(DISTINCT dst_binary_id) FROM reuse_candidate"),
         "identity_rule": (
-            "recovered source inherits only a pre-existing identity at "
-            "its own independently resolved source address or name"
+            "named acceptance requires target-pe-export-name-at-va-v1; "
+            "logical_id is advisory cross-build correlation"
         ),
     }
     dest = pathlib.Path(out_dir)

@@ -159,23 +159,44 @@ CREATE TABLE IF NOT EXISTS eval (
 """
 
 
-def connect(path: pathlib.Path | str) -> sqlite3.Connection:
-    """Open (or create) a corpus identity store at *path*. Path is required."""
+def connect(path: pathlib.Path | str, *, read_only: bool = False) -> sqlite3.Connection:
+    """Open (or create) a corpus identity store at *path*. Path is required.
+
+    Schema lives in ``migrations``: the first connection to a new or legacy
+    file brings it to ``migrations.SCHEMA_VERSION``; every later connection
+    only reads ``PRAGMA user_version`` and touches nothing. The one data step
+    that stays per-connect is the ``recovery_family`` backfill, which is
+    read-checked, writes only when a row needs it, and commits that write
+    itself: the connection returned here holds no transaction.
+
+    ``read_only=True`` opens a ``mode=ro`` handle. It never migrates; on a
+    store that has not been migrated yet it raises.
+    """
+    from . import migrations
+
     dest = pathlib.Path(path)
-    dest.parent.mkdir(parents=True, exist_ok=True)
-    con = sqlite3.connect(dest, timeout=30)
+    if read_only:
+        con = sqlite3.connect(dest.resolve().as_uri() + "?mode=ro", uri=True, timeout=30)
+    else:
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        con = sqlite3.connect(dest, timeout=30)
     try:
         con.execute("PRAGMA busy_timeout=30000")
         con.row_factory = sqlite3.Row
-        con.executescript(SCHEMA)
-        # Keep additive upgrades and their data backfill in one committed
-        # boundary; callers may immediately close this connection after init.
-        with con:
-            con.execute("BEGIN")
-            ensure_func_columns(con)
-            ensure_match_columns(con)
+        if not read_only:
+            # Cannot run inside a transaction, so it stays out of the migration.
+            con.execute("PRAGMA journal_mode=WAL")
+        migrations.apply_pending(con)
+        backfill_recovery_family(con)
     except BaseException:
-        con.close()
+        # This function owns the newly opened handle until it returns.  Failed
+        # initialization must not leak it through a retained traceback, even
+        # for interruption-like exceptions or when rollback itself fails.
+        try:
+            if con.in_transaction:
+                con.rollback()
+        finally:
+            con.close()
         raise
     return con
 
@@ -197,9 +218,11 @@ def remove_binary(
         raise SystemExit(f"no binary matching {repo_path or slug!r}")
     bid = int(row["id"])
     deleted: dict[str, int] = {}
-    for table in ("calledge", "identity", "func", "stabs_type"):
+    for table in ("calledge", "identity", "func_param", "ghidra_field", "func", "stabs_type"):
         cur = con.execute(f"DELETE FROM {table} WHERE binary_id=?", (bid,))
         deleted[table] = cur.rowcount
+    for table in ("bsim_hit", "bsim_query"):
+        deleted[table] = con.execute(f"DELETE FROM {table} WHERE src_binary=? OR dst_binary=?", (bid, bid)).rowcount
     deleted["match"] = con.execute(
         "DELETE FROM match WHERE src_binary=? OR dst_binary=?", (bid, bid)
     ).rowcount
@@ -239,39 +262,130 @@ def ensure_match_columns(con: sqlite3.Connection) -> None:
         ("relation", "TEXT NOT NULL DEFAULT 'one_to_one'"),
         ("src_end", "INTEGER"),
         ("dst_end", "INTEGER"),
+        ("kind", "TEXT"),
+        ("confidence", "REAL"),
+        ("algorithm", "TEXT"),
     ):
         if col not in cols:
             con.execute(f"ALTER TABLE match ADD COLUMN {col} {decl}")
 
 
+# Primary SQLite result codes meaning "the write cannot run right now". Use
+# numeric fallbacks because sqlite3 did not expose the named constants on every
+# supported Python 3.10 build.
+_BACKFILL_SKIP_CODES = frozenset(
+    {
+        getattr(sqlite3, "SQLITE_BUSY", 5),
+        getattr(sqlite3, "SQLITE_LOCKED", 6),
+        getattr(sqlite3, "SQLITE_READONLY", 8),
+    }
+)
+
+
 def ensure_binary_columns(con: sqlite3.Connection) -> None:
+    """Additive binary columns, then the recovery_family data backfill.
+
+    Idempotent: column adds are guarded by ``PRAGMA table_info`` and the
+    backfill is read-checked. Callers that hold a connection not opened via
+    ``connect()`` may call this directly.
+    """
     cols = {row[1] for row in con.execute("PRAGMA table_info(binary)")}
     if "content_sha256" not in cols:
         con.execute("ALTER TABLE binary ADD COLUMN content_sha256 TEXT")
     if "recovery_family" not in cols:
         con.execute("ALTER TABLE binary ADD COLUMN recovery_family TEXT")
+    backfill_recovery_family(con)
+
+
+def backfill_recovery_family(con: sqlite3.Connection) -> int:
+    """Give every unclassified binary an isolating family. Data, not schema.
+
+    The family is ``'unclassified:' || substr(content_sha256, 1, 16)``: a
+    function of the image bytes, so it is identical however the build rows
+    were ingested. Rows still carrying the older rowid form
+    (``'unclassified:' || id``) are rewritten; that value moved with build
+    order and was never a classification. A row with no ``content_sha256``
+    cannot be classified: it is left as it is and counted.
+
+    Returns the number of rows that could not be classified.
+
+    The write owns its transaction. Inside a caller's transaction (migration
+    1 runs this under ``BEGIN IMMEDIATE``) it participates and the caller
+    commits; otherwise it runs ``BEGIN IMMEDIATE`` / ``UPDATE`` / ``COMMIT``
+    itself, so a ``connect()`` never returns holding the write lock and the
+    rewrite is durable before the verb starts. Python's implicit transaction
+    used to hold that lock for the verb's whole run and roll the rewrite
+    back on close (attestation A2).
+    """
     # Existing inventories predate explicit recovery-family catalog entries.
     # Keep each such build isolated until an operator supplies a catalog map;
     # format, architecture, and game names are intentionally not classifiers.
     # Read-check first: this runs on every connect(), and an unconditional
     # write here made every concurrent connection contend for the write lock
     # (orchestrator: 5 processes connecting at once -> "database is locked").
+    stale = (
+        "(recovery_family IS NULL OR trim(recovery_family)='' "
+        "OR recovery_family = 'unclassified:' || id)"
+    )
+    has_hash = "(content_sha256 IS NOT NULL AND trim(content_sha256)<>'')"
+    unclassifiable = con.execute(
+        f"SELECT COUNT(*) FROM binary WHERE {stale} AND NOT {has_hash}"
+    ).fetchone()
     needs = con.execute(
-        "SELECT 1 FROM binary WHERE recovery_family IS NULL "
-        "OR trim(recovery_family)='' LIMIT 1"
+        f"SELECT 1 FROM binary WHERE {stale} AND {has_hash} LIMIT 1"
     ).fetchone()
     if needs:
         # Best-effort backfill. This is data, not schema -- reads work without
         # it -- so a read-only consumer that cannot get the write lock (many
         # concurrent orchestrator watchers hold WAL read locks) must proceed
-        # rather than crash. Whichever connection wins the lock backfills it.
+        # rather than crash. Whichever connection wins the lock backfills it;
+        # the value is a function of each row's own content hash, so the
+        # winner and the visit order cannot change what gets written. Only
+        # the lock/read-only cases are tolerated; any other failure surfaces.
+        owns = not con.in_transaction
         try:
+            if owns:
+                con.execute("BEGIN IMMEDIATE")
             con.execute(
-                "UPDATE binary SET recovery_family='unclassified:' || id "
-                "WHERE recovery_family IS NULL OR trim(recovery_family)=''"
+                "UPDATE binary SET recovery_family='unclassified:' || substr(trim(content_sha256), 1, 16) "
+                f"WHERE {stale} AND {has_hash}"
             )
-        except sqlite3.OperationalError:
-            pass
+            if owns:
+                con.execute("COMMIT")
+        except sqlite3.OperationalError as exc:
+            if owns and con.in_transaction:
+                con.execute("ROLLBACK")
+            if not _is_lock_or_readonly(exc):
+                raise
+        except BaseException:
+            if owns and con.in_transaction:
+                con.execute("ROLLBACK")
+            raise
+    return int(unclassifiable[0]) if unclassifiable else 0
+
+
+def _is_lock_or_readonly(exc: sqlite3.OperationalError) -> bool:
+    code = getattr(exc, "sqlite_errorcode", None)
+    if code is not None:
+        # Extended result codes retain their primary class in the low byte.
+        return (int(code) & 0xFF) in _BACKFILL_SKIP_CODES
+
+    # Python 3.10 did not attach sqlite_errorcode. Match only SQLite's complete
+    # canonical messages; arbitrary identifiers containing "busy" or "locked"
+    # are schema errors and must propagate.
+    text = str(exc).lower()
+    if text in {
+        "database is locked",
+        "database table is locked",
+        "database schema is locked",
+        "database is busy",
+        "attempt to write a readonly database",
+        "attempt to write a read-only database",
+        "readonly database",
+        "read-only database",
+    }:
+        return True
+    return text.startswith(("database table is locked: ", "database schema is locked: "))
 
 
 def ensure_priority_index(con: sqlite3.Connection) -> None:

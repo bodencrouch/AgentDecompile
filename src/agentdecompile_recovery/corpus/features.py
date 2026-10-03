@@ -79,7 +79,26 @@ def _demangler():
     return GnuDemangler()
 
 
+def cpp_reference_metadata(program, address) -> list[dict]:
+    """Observed named RTTI/vtable references, never guessed from raw addresses."""
+    records = []
+    for symbol in program.getSymbolTable().getSymbols(address):
+        name = str(symbol.getName(True))
+        source = str(symbol.getSource())
+        if source == "DEFAULT":
+            continue
+        lower = name.lower()
+        kind = ("vtable" if any(marker in lower for marker in ("vtable", "vftable", "_ztv", "??_7"))
+                else "rtti" if any(marker in lower for marker in ("typeinfo", "rtti", "_zti", "_zts", "??_r"))
+                else None)
+        if kind:
+            records.append({"kind": kind, "name": name, "source": source})
+    return sorted(records, key=lambda item: (item["kind"], item["name"], item["source"]))
+
+
 def tier1(program) -> list[dict]:
+    from agentdecompile_cli.mcp_server.providers.guide_function import storage_pieces
+
     dem = _demangler()
     fm = program.getFunctionManager()
     rows = []
@@ -129,6 +148,21 @@ def tier1(program) -> list[dict]:
                 "return_type": str(f.getReturnType().getName()),
                 "param_count": int(f.getParameterCount()),
                 "param_types": [str(p.getDataType().getName()) for p in f.getParameters()],
+                "parameters": [
+                    {"ordinal": int(p.getOrdinal()), "name": str(p.getName()),
+                     "dataType": str(p.getDataType().getName()),
+                     "storage": storage_pieces(program, p.getVariableStorage())}
+                    for p in f.getParameters()
+                ],
+                "return_storage": storage_pieces(program, f.getReturn().getVariableStorage()),
+                "function_properties": {
+                    "customStorage": bool(f.hasCustomVariableStorage()),
+                    "varArgs": bool(f.hasVarArgs()),
+                    "noReturn": bool(f.hasNoReturn()),
+                    "inline": bool(f.isInline()),
+                    "callFixup": str(f.getCallFixup() or ""),
+                    "signatureSource": str(f.getSignatureSource()),
+                },
                 "stack_frame_size": int(f.getStackFrame().getFrameSize()),
                 "stack_param_size": int(f.getStackFrame().getParameterSize()),
                 "stack_local_size": int(f.getStackFrame().getLocalSize()),
@@ -166,6 +200,7 @@ def tier2(program, monitor, addrs=None) -> dict[int, dict]:
         n_instr = 0
         callees: list[int] = []
         strings: list[str] = []
+        cpp_metadata: dict[tuple[str, str], dict] = {}
         consts: Counter[int] = Counter()
         data_refs = 0
         ext_calls: list[str] = []
@@ -203,6 +238,8 @@ def tier2(program, monitor, addrs=None) -> dict[int, dict]:
                         indirect_calls += 1
                 elif rt.isData():
                     data_refs += 1
+                    for metadata in cpp_reference_metadata(program, to):
+                        cpp_metadata[(metadata["kind"], metadata["name"])] = metadata
                     d = data_at(to)
                     if d is not None and d.hasStringValue():
                         try:
@@ -265,6 +302,7 @@ def tier2(program, monitor, addrs=None) -> dict[int, dict]:
             "indirect_calls": indirect_calls,
             "ext_calls": sorted(set(ext_calls)),
             "strings": sorted(set(strings)),
+            "cpp_metadata": [cpp_metadata[key] for key in sorted(cpp_metadata)],
             "consts": sorted(consts),
             "data_refs": data_refs,
             "block_hashes": block_hashes,
@@ -283,6 +321,9 @@ def merge_tiers(t1: list[dict], t2: dict[int, dict]) -> list[dict]:
         merged = dict(row)
         extra = t2.get(int(row["addr"])) or {}
         merged.update(extra)
+        if "cpp_metadata" in extra:
+            merged["function_properties"] = {**(row.get("function_properties") or {}),
+                                              "cppMetadata": extra["cpp_metadata"]}
         if extra.get("mnemonic_counts") and "mnem" not in merged:
             merged["mnem"] = extra["mnemonic_counts"]
         merged["id"] = f"0x{int(row['addr']):x}"

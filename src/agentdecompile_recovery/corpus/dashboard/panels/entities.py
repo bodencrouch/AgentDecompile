@@ -292,17 +292,6 @@ def _logical_href(logical_id) -> str:
     return logical_url(value) if value > 0 else "#"
 
 
-def _review_href(after=None, **filters) -> str:
-    params = {}
-    for key, val in filters.items():
-        if val not in (None, False, ""):
-            params[key] = "1" if val is True else str(val)
-    if after is not None:
-        params["review_after"] = after
-    params["window"] = "wb-review"
-    return "/dashboard?" + urlencode(params)
-
-
 def _fnbrowse_href(slug, addr, bits) -> str:
     return "/dashboard?" + urlencode({
         "window": "wb-fnbrowse",
@@ -312,8 +301,12 @@ def _fnbrowse_href(slug, addr, bits) -> str:
 
 
 def _review_row_actions(match_id, src_slug, src_a, src_bits, src_repo,
-                        dst_slug, dst_a, dst_bits, dst_repo) -> str:
-    """Per-row shortcuts: open each side in Functions, evaluate the directed pair."""
+                        dst_slug, dst_a, dst_bits, dst_repo, *, token="", selection="") -> str:
+    """Per-row shortcuts: open each side in Functions, evaluate the directed pair.
+
+    Accept and Reject carry the review token and selection the review service
+    issued for this row. Without both, no decision control is rendered.
+    """
     mid = int(match_id)
     parts = [
         (f'<a href="{_fnbrowse_href(src_slug, src_a, src_bits)}" '
@@ -332,12 +325,14 @@ def _review_row_actions(match_id, src_slug, src_a, src_bits, src_repo,
             f'style="color:{LINK}" title="Evaluate {esc(src_slug)} → {esc(dst_slug)}">'
             f'Evaluate</a>'
         )
-    parts.extend([
-        (f'<a class="wb-match-decide" href="#" data-match-id="{mid}" data-decision="accept" '
-         f'style="color:{LINK}" title="Accept match #{mid}">Accept</a>'),
-        (f'<a class="wb-match-decide" href="#" data-match-id="{mid}" data-decision="reject" '
-         f'style="color:{LINK}" title="Reject match #{mid}">Reject</a>'),
-    ])
+    if token and selection:
+        basis = f'data-match-id="{mid}" data-token="{esc(token)}" data-selection="{esc(selection)}"'
+        parts.extend([
+            (f'<a class="wb-match-decide" href="#" {basis} data-decision="accept" '
+             f'style="color:{LINK}" title="Move match #{mid} to verification">Accept</a>'),
+            (f'<a class="wb-match-decide" href="#" {basis} data-decision="reject" '
+             f'style="color:{LINK}" title="Reject match #{mid}">Reject</a>'),
+        ])
     return " · ".join(parts)
 
 
@@ -1428,18 +1423,24 @@ def _resolver_warning() -> str:
 
 
 # ---------------------------------------------------------------------------
-# review queue — match.status = 'review', ranked by score
+# review queue — match.status = 'review', paged by match ID
 # ---------------------------------------------------------------------------
 
 # These rows are a human worklist, not names to apply. `output/ghidra_import/`
 # only contains auto-tier matches; review-tier stays here until someone
-# promotes or rejects them. The list is keyset-paged on (score DESC, id DESC)
-# so a request never OFFSET-scans the match table.
+# promotes or rejects them. Rows, their review tokens and the selection come
+# from one `list_match_review` read, the same service the workstation and the
+# JSON endpoint use. That service pages on `id > after_id ORDER BY id` and caps
+# a page at REVIEW_PAGE_MAX, so this panel does too. The earlier score-ranked
+# `review_after=score:id` cursor has no equivalent there and is refused.
 REVIEW_STATUSES = ("auto", "verify", "review", "unresolved", "rejected")
+REVIEW_PAGE_MAX = 100
+REVIEW_PAGE_CHOICES = (25, 50, 100)
+REVIEW_CURSOR = "review_after_id"
 
 
 def _parse_review_cursor(raw):
-    """`score:id` from the previous page's last row. None = start of the list."""
+    """Legacy `score:id` cursor. Recognised only so it can be refused."""
     if not raw:
         return None
     text = str(raw).strip()
@@ -1452,129 +1453,161 @@ def _parse_review_cursor(raw):
         return None
 
 
-def _review_cursor_of(score, match_id) -> str:
-    return f"{float(score):.6f}:{int(match_id)}"
+def _review_after_id(params):
+    """Match-ID cursor. Returns (after_id, valid)."""
+    raw = _one(params, REVIEW_CURSOR)
+    if raw in (None, ""):
+        return 0, True
+    text = str(raw).strip()
+    if not text.isascii() or not text.isdecimal() or len(text) > 19:
+        return 0, False
+    return int(text), True
+
+
+def _legacy_review_cursor(params) -> bool:
+    """True when a retired score-ranked cursor arrived.
+
+    `review_after` belonged only to this list. `after` is shared with the
+    function list, so it counts only when it has the old `score:id` shape.
+    """
+    if _one(params, "review_after") not in (None, ""):
+        return True
+    return _parse_review_cursor(_one(params, "after")) is not None
+
+
+def _review_page_size(params) -> tuple[int, bool]:
+    """Return (rows, capped). The review service serves at most 100 rows."""
+    raw = _one(params, "review_page_size") or _one(params, "page_size")
+    size, show_all = _page_size({"page_size": raw})
+    if raw in (None, ""):
+        size = 50
+    if show_all or size > REVIEW_PAGE_MAX:
+        return REVIEW_PAGE_MAX, True
+    return size, False
+
+
+def _review_href_id(after_id=None, **filters) -> str:
+    params = {k: str(v) for k, v in filters.items() if v not in (None, False, "")}
+    if after_id:
+        params[REVIEW_CURSOR] = str(int(after_id))
+    params["window"] = "wb-review"
+    return "/dashboard?" + urlencode(params)
 
 
 def render_review(params) -> str:
-    """Paged review-tier matches, highest score first. Never raises. Never reads `func`."""
+    """Review-tier matches in match-ID order, with review tokens. Never raises. Never reads `func`."""
     try:
-        params = params or {}
-        cursor = _parse_review_cursor(_one(params, "review_after") or _one(params, "after"))
-        page_size, show_all = _page_size({
-            "page_size": _one(params, "review_page_size") or _one(params, "page_size"),
-        })
-        binaries, err = _binaries()
-        if err:
-            return missing(err)
-
-        counts, err = query_db(
-            "SELECT status, COUNT(*) FROM match GROUP BY status"
+        from agentdecompile_recovery.corpus.dashboard.common import (
+            list_match_review, review_error_status,
         )
-        if err:
-            return missing(f"match table unavailable: {err}")
-        by_status = {str(s or ""): int(n or 0) for s, n in counts}
-        review_n = by_status.get("review", 0)
+        from agentdecompile_recovery.corpus.match_review import ReviewError
 
-        chips = []
-        for st in REVIEW_STATUSES:
-            n = by_status.get(st, 0)
-            if st == "review":
-                chips.append(f'<b>{esc(st)}</b> {fnum(n)}')
-            else:
-                chips.append(f'{esc(st)} {fnum(n)}')
-
-        keep = {"page_size": "all"} if show_all else (
-            {"page_size": page_size} if page_size != PAGE else {}
+        params = params or {}
+        page_size, capped = _review_page_size(params)
+        keep = {"review_page_size": page_size} if page_size != 50 else {}
+        size_options = "".join(
+            f'<option value="{n}"{" selected" if n == page_size else ""}>{n}</option>'
+            for n in REVIEW_PAGE_CHOICES
         )
         head = (
             '<p class="note">These are <b>review-tier</b> rows from the '
-            '<code>match</code> table — ranked by score, with a margin, and '
-            '<em>not</em> applied to Ghidra. Auto-tier names live in '
-            '<a href="/artifact?p=output/ghidra_import">output/ghidra_import/</a>. '
-            'Click a source or destination address to open that function.</p>'
-            f'<p class="note">{" · ".join(chips)}</p>'
-            + '<form class="search-form" method="get" action="/dashboard?window=wb-review">'
+            '<code>match</code> table. They are <em>not</em> applied to Ghidra. '
+            'Accept moves a row to verification. It does not prove matching source '
+            'or runtime behaviour. Auto-tier names live in '
+            '<a href="/artifact?p=output/ghidra_import">output/ghidra_import/</a>.</p>'
+            + '<form class="search-form" method="get" action="/dashboard">'
+            + '<input type="hidden" name="window" value="wb-review">'
             + _carry_fields(params)
-            + _page_size_control(page_size, show_all, control_id="review-page-size")
-            + '<button type="submit">Update rows</button></form>'
+            + '<label for="review-page-size">Rows per page</label>'
+            + f'<select id="review-page-size" name="review_page_size">{size_options}</select>'
+            + '<button type="submit">Show rows</button></form>'
         )
-        if review_n == 0:
-            return head + missing("no review-tier matches in the match table.")
-
-        if cursor is None:
-            sql = (
-                "SELECT id, score, margin, src_binary, src_addr, dst_binary, dst_addr "
-                "FROM match WHERE status='review' "
-                "ORDER BY score DESC, id DESC LIMIT ?"
+        notes = []
+        if capped:
+            notes.append(f"A review page holds at most {REVIEW_PAGE_MAX} rows. "
+                         f"Showing {REVIEW_PAGE_MAX}.")
+        if _legacy_review_cursor(params):
+            return head + (
+                '<p class="callout warn" role="alert">This link used the old score-ranked '
+                'page cursor. Review rows are now listed by match ID so each row can carry '
+                'its review token. '
+                f'<a href="{_review_href_id(**keep)}">Open the first page</a>.</p>'
             )
-            qparams = (page_size + 1,)
-        else:
-            cs, cid = cursor
-            sql = (
-                "SELECT id, score, margin, src_binary, src_addr, dst_binary, dst_addr "
-                "FROM match WHERE status='review' AND "
-                "(score < ? OR (score = ? AND id < ?)) "
-                "ORDER BY score DESC, id DESC LIMIT ?"
+        after_id, valid = _review_after_id(params)
+        if not valid:
+            return head + (
+                '<p class="callout warn" role="alert">The page cursor is not a match ID. '
+                f'<a href="{_review_href_id(**keep)}">Open the first page</a>.</p>'
             )
-            qparams = (cs, cs, cid, page_size + 1)
 
-        rows, err = query_db(sql, qparams)
-        if err:
-            return head + missing(f"review list unavailable: {err}")
-        if not rows:
-            return head + missing("no matches past this cursor — end of the queue.")
+        try:
+            page = list_match_review(after_id=after_id, limit=page_size)
+        except ReviewError as exc:
+            status = review_error_status(exc)
+            return head + missing(f"review list unavailable: {exc.code} (HTTP {status}). "
+                                  "Refresh after the database is available.")
 
-        more = len(rows) > page_size
-        window = rows[:page_size]
+        counts, err = query_db("SELECT status, COUNT(*) FROM match GROUP BY status")
+        by_status = {} if err else {str(s or ""): int(n or 0) for s, n in counts}
+        chips = []
+        for st in REVIEW_STATUSES:
+            n = page["total"] if st == "review" else by_status.get(st, 0)
+            chips.append(f'<b>{esc(st)}</b> {fnum(n)}' if st == "review" else f'{esc(st)} {fnum(n)}')
+        head += f'<p class="note">{" · ".join(chips)}</p>'
+        head += "".join(f'<p class="note">{esc(n)}</p>' for n in notes)
+
+        if not page["rows"]:
+            if page["total"] == 0:
+                return head + missing("no review-tier matches in the match table.")
+            return head + (
+                '<p class="note">No review rows after this match ID. '
+                f'<a href="{_review_href_id(**keep)}">Open the first page</a>.</p>'
+            )
+
+        selection = page["selection"]
         out = []
-        for mid, score, margin, src_b, src_a, dst_b, dst_a in window:
-            src = binaries.get(src_b) or {}
-            dst = binaries.get(dst_b) or {}
-            src_slug = src.get("slug") or f"binary:{src_b}"
-            dst_slug = dst.get("slug") or f"binary:{dst_b}"
+        for item in page["rows"]:
+            row = item["match"]
+            src = (item["binaries"][0] or {}).get("row") or {}
+            dst = (item["binaries"][1] or {}).get("row") or {}
+            mid, score, margin = row["id"], row["score"], row["margin"]
+            src_a, dst_a = row["src_addr"], row["dst_addr"]
+            src_slug = src.get("slug") or f"binary:{row['src_binary']}"
+            dst_slug = dst.get("slug") or f"binary:{row['dst_binary']}"
             src_bits = src.get("bits") or 32
             dst_bits = dst.get("bits") or 32
-            src_hex = _hex(src_a, src_bits)
-            dst_hex = _hex(dst_a, dst_bits)
             src_link = (
                 f'<a href="{_function_href(src_slug, src_a, src_bits)}">'
-                f'{esc(src_slug)} {_mono("0x" + src_hex)}</a>'
+                f'{esc(src_slug)} {_mono("0x" + _hex(src_a, src_bits))}</a>'
             )
             dst_link = (
                 f'<a href="{_function_href(dst_slug, dst_a, dst_bits)}">'
-                f'{esc(dst_slug)} {_mono("0x" + dst_hex)}</a>'
+                f'{esc(dst_slug)} {_mono("0x" + _hex(dst_a, dst_bits))}</a>'
             )
-            src_repo = str(src.get("repo_path") or "")
-            dst_repo = str(dst.get("repo_path") or "")
             out.append([
                 f'<span style="color:{FG_ANNOT}" data-match-id="{int(mid)}">#{int(mid)}</span>',
-                f'{float(score):.3f}' if score is not None else "—",
-                f'{float(margin):.3f}' if margin is not None else "—",
+                f'{float(score):.3f}',
+                f'{float(margin):.3f}',
                 src_link,
                 dst_link,
                 _review_row_actions(
-                    mid, src_slug, src_a, src_bits, src_repo,
-                    dst_slug, dst_a, dst_bits, dst_repo,
+                    mid, src_slug, src_a, src_bits, str(src.get("repo_path") or ""),
+                    dst_slug, dst_a, dst_bits, str(dst.get("repo_path") or ""),
+                    token=item["token"], selection=selection,
                 ),
             ])
 
-        nxt = None
-        if more:
-            last = window[-1]
-            nxt = _review_href(_review_cursor_of(last[1], last[0]), **keep)
         nav = []
-        if cursor is not None:
-            nav.append(f'<a href="{_review_href(**keep)}">‹ first page</a>')
-        if nxt:
-            next_label = "all remaining" if show_all else f"next {page_size}"
-            nav.append(f'<a href="{nxt}">{next_label} ›</a>')
+        if after_id:
+            nav.append(f'<a href="{_review_href_id(**keep)}">Go to first page</a>')
+        if page["nextAfterId"] is not None:
+            nav.append(f'<a href="{_review_href_id(page["nextAfterId"], **keep)}">'
+                       f'Show next {page_size} rows</a>')
+        first_id, last_id = page["rows"][0]["match"]["id"], page["rows"][-1]["match"]["id"]
         nav_html = (
             f'<p class="note">{" · ".join(nav) if nav else "end of the queue."} '
-            f'Keyset on <code>(score DESC, id DESC)</code> where '
-            f'<code>status=review</code>. Showing {fnum(len(window))} rows from '
-            f'{float(window[0][1]):.3f} down to {float(window[-1][1]):.3f}; '
-            f'{fnum(review_n)} rows in the queue.</p>'
+            f'Ordered by match ID. Showing {fnum(len(out))} rows, match #{int(first_id)} '
+            f'to #{int(last_id)}, of {fnum(page["total"])} in the queue.</p>'
         )
         return (
             head

@@ -1,11 +1,13 @@
 """Export Ghidra struct/union/enum definitions so decompiled C can compile.
 
 Emitted C is ``#pragma pack(1)`` with explicit padding at every gap. Nested
-composites become byte arrays; pointers become ``void *``.
+composites retain inline layouts in C and typed references in field rows.
+Known pointer targets are retained; unknown types retain their layout fallback.
 """
 
 from __future__ import annotations
 
+import json
 import re
 import sqlite3
 
@@ -64,35 +66,95 @@ _IDENT_OK = re.compile(r"^[A-Za-z_]\w*$")
 def c_ident(name: str) -> str:
     """Ghidra type names carry `::`, spaces, templates and punctuation."""
     text = re.sub(r"::", "__", str(name))
-    text = re.sub(r"\W+", "_", text).strip("_")
-    return text or "anon"
+    text = re.sub(r"[^A-Za-z0-9_]+", "_", text).strip("_") or "anon"
+    keywords = {"auto", "break", "case", "char", "const", "continue", "default", "do", "double",
+                "else", "enum", "extern", "float", "for", "goto", "if", "inline", "int", "long",
+                "register", "restrict", "return", "short", "signed", "sizeof", "static", "struct",
+                "switch", "typedef", "union", "unsigned", "void", "volatile", "while", "class",
+                "delete", "new", "private", "protected", "public", "template", "this", "virtual"}
+    return "type_" + text if text[0].isdigit() or text in keywords else text
+
+
+def describe_field_type(dt, depth: int = 0) -> dict:
+    """Keep semantic type references separately from conservative C storage.
+
+    References use original Ghidra names so namespace/name sanitization never
+    merges distinct type identities. Composite references terminate recursion.
+    """
+    from ghidra.program.model.data import Array, Enum, Pointer, Structure, TypeDef, Union  # type: ignore
+
+    if dt is None or depth >= 32:
+        return {"kind": "unknown"}
+    name = str(dt.getName())
+    result = {"name": name, "size": int(dt.getLength())}
+    if isinstance(dt, Pointer):
+        return dict(result, kind="pointer", pointee=describe_field_type(dt.getDataType(), depth + 1))
+    if isinstance(dt, TypeDef):
+        return dict(result, kind="typedef", base=describe_field_type(dt.getBaseDataType(), depth + 1))
+    if isinstance(dt, Array):
+        return dict(result, kind="array", count=int(dt.getNumElements()),
+                    element=describe_field_type(dt.getDataType(), depth + 1))
+    if isinstance(dt, (Structure, Union)):
+        return dict(result, kind="union" if isinstance(dt, Union) else "struct")
+    if isinstance(dt, Enum):
+        return dict(result, kind="enum")
+    return dict(result, kind="primitive" if name.lower() in _PRIM else "unknown")
+
+
+def field_rows(dt) -> list[dict]:
+    """Export every component, including overlapping union/bitfield storage."""
+    rows = []
+    for ordinal, comp in enumerate(dt.getComponents()):
+        descriptor = describe_field_type(comp.getDataType())
+        effective = descriptor
+        while effective.get("kind") == "typedef":
+            effective = effective["base"]
+        rows.append({
+            "ordinal": ordinal, "offset": int(comp.getOffset()),
+            "size": int(comp.getLength()),
+            "name": str(comp.getFieldName() or f"field_{int(comp.getOffset()):x}"),
+            "dt_kind": effective["kind"],
+            "pointee_type": effective.get("pointee", {}).get("name"),
+            "composite_type": effective.get("name") if effective["kind"] in {"struct", "union"} else None,
+            "element_type": effective.get("element", {}).get("name"),
+            "array_count": effective.get("count"), "type": descriptor,
+        })
+    return rows
 
 
 def render_field_type(dt, depth: int = 0) -> str:
-    """Render a Ghidra DataType as a C type, conservatively."""
-    from ghidra.program.model.data import Array, Enum, Pointer, Structure, TypeDef, Union  # type: ignore
+    """Render known scalars and pointers without inventing composite layouts."""
+    from ghidra.program.model.data import Enum, Pointer, Structure, TypeDef, Union  # type: ignore
 
-    if dt is None:
+    if dt is None or depth >= 32:
         return ""
     if isinstance(dt, Pointer):
-        return "void *"
+        target = dt.getDataType()
+        while isinstance(target, TypeDef) and depth < 32:
+            target = target.getBaseDataType()
+            depth += 1
+        if isinstance(target, (Structure, Union)):
+            tag = "union" if isinstance(target, Union) else "struct"
+            return f"{tag} {c_ident(target.getName())} *"
+        pointee = render_field_type(target, depth + 1)
+        return f"{pointee} *" if pointee else "void *"
     if isinstance(dt, TypeDef):
         return render_field_type(dt.getBaseDataType(), depth + 1)
-    nm = str(dt.getName())
-    low = nm.lower()
+    low = str(dt.getName()).lower()
     if low in _PRIM:
-        return _PRIM[low]
+        return _PRIM[low] if low != "void" else ""
     if isinstance(dt, Enum):
-        return "int" if dt.getLength() == 4 else "int"
-    if isinstance(dt, (Structure, Union, Array)):
-        return ""
+        return {1: "unsigned char", 2: "unsigned short", 4: "unsigned int",
+                8: "unsigned long long"}.get(int(dt.getLength()), "")
     return ""
 
 
-def emit_struct(dt) -> tuple[str, int] | None:
+def emit_struct(dt, depth: int = 0) -> tuple[str, int] | None:
     """Emit one struct/union as packed C with explicit gap padding."""
-    from ghidra.program.model.data import Union  # type: ignore
+    from ghidra.program.model.data import Array, Structure, TypeDef, Union  # type: ignore
 
+    if depth >= 32:
+        return None
     name = c_ident(dt.getName())
     if not _IDENT_OK.match(name):
         return None
@@ -100,32 +162,64 @@ def emit_struct(dt) -> tuple[str, int] | None:
     if length <= 0:
         return None
 
-    lines = [f"typedef struct {name} {{"]
+    is_union = isinstance(dt, Union)
+    tag = "union" if is_union else "struct"
+    lines = [f"typedef {tag} {name} {{"]
+    if is_union:
+        lines.append(f"  unsigned char _storage[0x{length:x}];")
     n_fields = 0
-
-    if isinstance(dt, Union):
-        lines = [f"typedef struct {name} {{", f"  unsigned char _u[0x{length:x}];"]
-    else:
-        cursor = 0
-        for comp in dt.getComponents():
-            off = int(comp.getOffset())
-            clen = int(comp.getLength() or 0)
-            if off < cursor or clen <= 0:
-                continue
-            if off > cursor:
-                lines.append(f"  unsigned char _pad{cursor:x}[0x{off - cursor:x}];")
-            fname = comp.getFieldName()
-            fname = c_ident(fname) if fname else f"field_{off:x}"
-            ctype = render_field_type(comp.getDataType())
-            if ctype and clen in (1, 2, 4, 8):
-                lines.append(f"  {ctype} {fname};")
+    cursor = 0
+    seen_fields = set()
+    for comp in dt.getComponents():
+        off = int(comp.getOffset())
+        clen = int(comp.getLength() or 0)
+        if (not is_union and off < cursor) or clen <= 0 or off + clen > length:
+            continue
+        if not is_union and off > cursor:
+            lines.append(f"  unsigned char _pad{cursor:x}[0x{off - cursor:x}];")
+        fname = comp.getFieldName()
+        fname = c_ident(fname) if fname else f"field_{off:x}"
+        base_name = fname
+        suffix = 1
+        while fname in seen_fields or fname.startswith("_pad") or fname == "_storage":
+            fname = f"field_{base_name}_{suffix}"
+            suffix += 1
+        seen_fields.add(fname)
+        field_dt = comp.getDataType()
+        for _ in range(32):
+            if not isinstance(field_dt, TypeDef):
+                break
+            field_dt = field_dt.getBaseDataType()
+        ctype = render_field_type(field_dt)
+        nested = emit_struct(field_dt, depth + 1) if isinstance(field_dt, (Structure, Union)) else None
+        if nested and int(field_dt.getLength()) == clen:
+            # Inline anonymous storage avoids cross-definition ordering and
+            # duplicate tag definitions; field rows retain the named link.
+            body = nested[0].splitlines()[1:-2]
+            lines.append(f"  {'union' if isinstance(field_dt, Union) else 'struct'} {{ /* {c_ident(field_dt.getName())} */")
+            lines.extend("  " + line for line in body)
+            lines.append(f"  }} {fname};")
+        elif isinstance(field_dt, Array) and int(field_dt.getLength()) == clen:
+            element = field_dt.getDataType()
+            element_type = render_field_type(element)
+            count = int(field_dt.getNumElements())
+            nested_element = emit_struct(element, depth + 1) if isinstance(element, (Structure, Union)) else None
+            if count > 0 and int(element.getLength()) * count == clen and nested_element:
+                lines.append(f"  {'union' if isinstance(element, Union) else 'struct'} {{ /* {c_ident(element.getName())} */")
+                lines.extend("  " + line for line in nested_element[0].splitlines()[1:-2])
+                lines.append(f"  }} {fname}[{count}];")
+            elif count > 0 and int(element.getLength()) * count == clen and element_type:
+                lines.append(f"  {element_type} {fname}[{count}];")
             else:
                 lines.append(f"  unsigned char {fname}[0x{clen:x}];")
-            n_fields += 1
-            cursor = off + clen
-        if cursor < length:
-            lines.append(f"  unsigned char _pad{cursor:x}[0x{length - cursor:x}];")
-
+        elif ctype and clen in (1, 2, 4, 8):
+            lines.append(f"  {ctype} {fname};")
+        else:
+            lines.append(f"  unsigned char {fname}[0x{clen:x}];")
+        n_fields += 1
+        cursor = off + clen
+    if not is_union and cursor < length:
+        lines.append(f"  unsigned char _pad{cursor:x}[0x{length - cursor:x}];")
     lines.append(f"}} {name};")
     lines.append(f"typedef char _sizecheck_{name}[(sizeof({name}) == 0x{length:x}) ? 1 : -1];")
     return "\n".join(lines), n_fields
@@ -183,6 +277,8 @@ def export(repo_path: str, con: sqlite3.Connection, *, open_program=None, start=
 
     stats = {"struct": 0, "union": 0, "enum": 0, "skipped": 0}
     rows = []
+    fields = []
+    type_names: dict[str, str] = {}
     with opener(repo_path) as program:
         if program is None:
             stats["reason"] = "no-program"
@@ -202,15 +298,43 @@ def export(repo_path: str, con: sqlite3.Connection, *, open_program=None, start=
                     stats["skipped"] += 1
                     continue
                 text, nf = got
+                emitted_name = c_ident(dt.getName())
+                original_name = str(dt.getPathName()) if hasattr(dt, "getPathName") else str(dt.getName())
+                if emitted_name in type_names and type_names[emitted_name] != original_name:
+                    raise ValueError(f"Type name collision after C normalization: {emitted_name}")
+                type_names[emitted_name] = original_name
+                if kind in {"struct", "union"}:
+                    # Build all rows before appending so a malformed component
+                    # cannot publish a partially described type.
+                    typed_fields = field_rows(dt)
+                    field_payload = [(binary_id, emitted_name, f["ordinal"],
+                                   f["offset"], f["size"], f["name"], f["dt_kind"],
+                                   f["pointee_type"], f["composite_type"], f["element_type"],
+                                   f["array_count"], json.dumps(f["type"], sort_keys=True))
+                                  for f in typed_fields]
+                    fields.extend(field_payload)
                 rows.append((binary_id, c_ident(dt.getName()), kind, int(dt.getLength() or 0), text, nf))
                 stats[kind] += 1
+            except ValueError:
+                raise  # A conflicting type identity must not silently publish a partial capture.
             except Exception:
                 stats["skipped"] += 1
 
+    if not con.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='ghidra_field'").fetchone():
+        raise ValueError("Typed-field schema is unavailable; complete the owned store migration before exporting")
     con.executescript(SCHEMA)
     con.executemany(
         "INSERT OR REPLACE INTO ghidra_type (binary_id, name, kind, size, definition, n_fields) VALUES (?,?,?,?,?,?)",
         rows,
+    )
+    # Replace fields only for successfully exported types; preserve other
+    # historical evidence when an individual live datatype cannot be read.
+    con.executemany("DELETE FROM ghidra_field WHERE binary_id=? AND type_name=?",
+                    [(row[0], row[1]) for row in rows])
+    con.executemany(
+        "INSERT INTO ghidra_field (binary_id,type_name,ordinal,offset,size,name,dt_kind,"
+        "pointee_type,composite_type,element_type,array_count,type_json) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+        fields,
     )
     con.commit()
     return stats

@@ -7,10 +7,8 @@
   };
 
   const PREFERRED = {
-    home: ["corpus.ghidra-bulk", "corpus.cross-place", "mcp.status", "mcp.list-functions"],
+    home: ["mcp.status", "mcp.list-functions"],
     binary: [
-      "corpus.ghidra-bulk",
-      "corpus.cross-place",
       "mcp.decompile-function",
       "mcp.list-functions",
       "mcp.get-function",
@@ -22,15 +20,14 @@
       "mcp.get-references",
       "mcp.list-cross-references",
       "mcp.analyze-data-flow",
-      "mcp.manage-comments",
-      "mcp.match-function"
+      "mcp.manage-comments"
     ],
-    logical: ["corpus.cross-place", "corpus.propagate-source", "corpus.logical-build"],
-    operations: ["corpus.ghidra-bulk", "corpus.cross-place", "corpus.run", "mcp.status"],
+    logical: [],
+    operations: ["mcp.status"],
     work: [],
-    atlas: ["corpus.genproject", "mcp.decompile-function", "mcp.get-function"],
-    report: ["corpus.export-run-report", "corpus.ingest-recovered", "mcp.reconstruct"],
-    functions: ["mcp.list-functions", "mcp.search-symbols", "corpus.logical-build"]
+    atlas: ["mcp.decompile-function", "mcp.get-function"],
+    report: ["corpus.export-run-report"],
+    functions: ["mcp.list-functions", "mcp.search-symbols"]
   };
 
   let catalog = [];
@@ -77,18 +74,13 @@
     };
   }
 
-  function matchesPage(action, page) {
-    const pages = action.pages || [];
-    return page === "work" || pages.indexOf(page) !== -1 || pages.indexOf("work") !== -1;
-  }
-
   function preferredActions(page) {
     const wanted = PREFERRED[page] || [];
     const byId = {};
     catalog.forEach(function (action) { byId[action.id] = action; });
-    const first = wanted.map(function (id) { return byId[id]; }).filter(Boolean);
-    if (first.length) return first;
-    return catalog.filter(function (action) { return matchesPage(action, page); }).slice(0, 8);
+    // No catalog fallback: new or empty pages must not promote pipeline work
+    // into routine controls. The complete catalog remains in the expert dock.
+    return wanted.map(function (id) { return byId[id]; }).filter(Boolean);
   }
 
   function buttonFor(action) {
@@ -405,7 +397,7 @@
       const title = document.createElement("button");
       title.type = "button";
       title.className = "job-open";
-      title.textContent = job.title + " — " + job.status;
+      title.textContent = job.title + " — " + job.status + ((job.resourceDisposition === "quarantined" || job.ownershipUnresolved === true) ? " — resource ownership unresolved; conflicting work remains reserved" : "");
       title.addEventListener("click", function () { showJob(job.id); });
       row.appendChild(title);
       if (job.status === "running" || job.status === "queued" || job.status === "cancelling") {

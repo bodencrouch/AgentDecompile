@@ -14,6 +14,8 @@ as rewrite_provider. No credentialed HTTP client.
 
 from __future__ import annotations
 
+from ..targeted_ai import resolve_targeted_ai
+
 import os
 import pathlib
 import re
@@ -311,6 +313,8 @@ def cleanup_ghidra_c(
     get_function_runner: Runner | None = None,
 ) -> dict:
     """Return {ok, source, reason}. ok means a real-C edit was returned, not that it compiles."""
+    if not resolve_targeted_ai().enabled:
+        return {"ok": False, "source": None, "ran": False, "reason": "Targeted AI disabled by operator"}
     context = resolve_get_function_text(
         get_function=get_function,
         program_path=program_path,
@@ -331,9 +335,9 @@ def cleanup_ghidra_c(
                 "reason": reason,
             }
         else:
-            return {"ok": False, "source": None, "reason": context.get("reason") or "get-function failed"}
+            return {"ok": False, "source": None, "ran": False, "reason": context.get("reason") or "get-function failed"}
     if not shutil.which(cli) and runner is None:
-        return {"ok": False, "source": None, "reason": f"{cli} is not on PATH"}
+        return {"ok": False, "source": None, "ran": False, "reason": f"{cli} is not on PATH"}
     prompt = render_cleanup_prompt(
         body=body,
         errors=errors,
@@ -344,17 +348,17 @@ def cleanup_ghidra_c(
     try:
         result = execute(build_cli_command(cli=cli, model=model), prompt, timeout)
     except subprocess.TimeoutExpired:
-        return {"ok": False, "source": None, "reason": f"LLM timed out after {timeout}s"}
+        return {"ok": False, "source": None, "ran": True, "reason": f"LLM timed out after {timeout}s"}
     except (OSError, ValueError) as exc:
-        return {"ok": False, "source": None, "reason": str(exc)}
+        return {"ok": False, "source": None, "ran": True, "reason": str(exc)}
     if result.returncode != 0:
         detail = (result.stderr or result.stdout or "").strip()[:200]
-        return {"ok": False, "source": None, "reason": f"LLM exited {result.returncode}: {detail}"}
+        return {"ok": False, "source": None, "ran": True, "reason": f"LLM exited {result.returncode}: {detail}"}
     source = extract_code_block(result.stdout)
     if not source:
-        return {"ok": False, "source": None, "reason": "no C in the model response"}
+        return {"ok": False, "source": None, "ran": True, "reason": "no C in the model response"}
     if not is_recovered_source(source):
-        return {"ok": False, "source": None, "reason": "model returned a machine-code shim"}
+        return {"ok": False, "source": None, "ran": True, "reason": "model returned a machine-code shim"}
     if source.strip() == body.strip():
-        return {"ok": False, "source": None, "reason": "model returned the same body"}
-    return {"ok": True, "source": source, "reason": None}
+        return {"ok": False, "source": None, "ran": True, "reason": "model returned the same body"}
+    return {"ok": True, "source": source, "ran": True, "reason": None}

@@ -1,0 +1,74 @@
+{
+ "build": "amazon",
+ "va": 7606560,
+ "cacheName": "FUN_00741120",
+ "cacheSize": 34,
+ "source": {
+  "evidence": "/home/brunner56/agentdecompile-deliverables/2026-09-27-tie-triage/evidence.json",
+  "evidenceSha256": "8972699e1caa2213e2ce60c870b8acf683e19e31254ee6b517efb0622b73ca30",
+  "jsonPath": "bodies['amazon:0x741120'].independentDecode",
+  "handRowsPath": "handRows['amazon:0x741120']"
+ },
+ "image": {
+  "imageSha256": "0b6a2a7f8b4880a4986aecfe758a94b7b8fefec1cba4dac6fd06dda3ae0e7f3e",
+  "va": 7606560,
+  "fileOffset": 3409184
+ },
+ "spanSha256": "88390a1fbb419196ef9a24900466155bd07c71ad59c1749f8b035c79a171fb6b",
+ "capstoneBanner": "capstone 5.0.7",
+ "instructions": [
+  {
+   "va": 7606560,
+   "hex": "c7412800000000",
+   "text": "mov dword ptr [ecx + 0x28], 0"
+  },
+  {
+   "va": 7606567,
+   "hex": "b801000000",
+   "text": "mov eax, 1"
+  },
+  {
+   "va": 7606572,
+   "hex": "c7412c00000000",
+   "text": "mov dword ptr [ecx + 0x2c], 0"
+  },
+  {
+   "va": 7606579,
+   "hex": "c7413000000000",
+   "text": "mov dword ptr [ecx + 0x30], 0"
+  },
+  {
+   "va": 7606586,
+   "hex": "c7413400000000",
+   "text": "mov dword ptr [ecx + 0x34], 0"
+  },
+  {
+   "va": 7606593,
+   "hex": "c3",
+   "text": "ret"
+  }
+ ],
+ "handRows": [
+  {
+   "va": 7606560,
+   "hex": "c7412800000000",
+   "meaning": "store rcv+0x28",
+   "cachedText": "MOV dword ptr [ECX + 0x28],0x0",
+   "imageVerified": true
+  },
+  {
+   "va": 7606567,
+   "hex": "b801000000",
+   "meaning": "EAX = 1 (returned)",
+   "cachedText": "MOV EAX,0x1",
+   "imageVerified": true
+  },
+  {
+   "va": 7606593,
+   "hex": "c3",
+   "meaning": "ret",
+   "cachedText": "RET",
+   "imageVerified": true
+  }
+ ]
+}

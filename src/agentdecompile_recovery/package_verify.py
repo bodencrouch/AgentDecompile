@@ -205,11 +205,14 @@ def verify_recovered_source_package(
     code_compare: bool = False,
     objcopy: str = "objcopy",
     objdump: str = "objdump",
+    _native_policy: Any = None,
 ) -> dict[str, Any]:
     manifest_path = resolve_manifest_path(package)
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     package_dir = manifest_path.parent
     verify_dir = out_dir or package_dir / "verification"
+    if _native_policy is not None:
+        _native_policy.prepare(manifest_path, manifest)
     verify_dir.mkdir(parents=True, exist_ok=True)
 
     results: list[dict[str, Any]] = []
@@ -232,6 +235,7 @@ def verify_recovered_source_package(
             code_compare=code_compare,
             objcopy=objcopy,
             objdump=objdump,
+            _native_policy=_native_policy,
         )
         results.append(result)
 
@@ -301,6 +305,7 @@ def verify_source(
     code_compare: bool,
     objcopy: str,
     objdump: str,
+    _native_policy: Any = None,
 ) -> dict[str, Any]:
     stem = source.stem
     syntax_stdout = out_dir / f"{stem}.syntax.stdout.txt"
@@ -312,12 +317,16 @@ def verify_source(
     original = source.read_text(encoding="utf-8", errors="replace") if source.exists() else ""
     source_language = source_language_for(source, meta)
     effective_args = effective_compiler_args(clang_args, compiler, source_language, meta)
+    if _native_policy is not None:
+        _native_policy.validate_source(source, metadata, meta, effective_args, source_language)
     work_c = out_dir / (f"{stem}.verify.cpp" if source_language == "c++" else f"{stem}.verify.c")
     target_slice_meta = meta.get("targetSlice")
     if isinstance(target_slice_meta, dict):
         target_slice_meta = {**target_slice_meta, "metadataPath": str(metadata)}
     target_slice = verify_target_slice(target_slice_meta)
     shim = build_shim(original)
+    if source_language == "c++":
+        shim = shim.replace("typedef unsigned char bool;", "")
     work_c.write_text(shim + "\n\n" + original, encoding="utf-8")
     if compiler == "msvc":
         syntax_command: list[str] = []
@@ -356,8 +365,10 @@ def verify_source(
         )
     else:
         base_command = clang_command(clang, work_c, clang_target, effective_args, source_language)
+        if _native_policy is not None:
+            base_command = _native_policy.command(work_c, clang_target, source_language)
         syntax_command = [*base_command, "-fsyntax-only"]
-        syntax_proc = subprocess.run(
+        syntax_proc = _native_policy.run(syntax_command, timeout) if _native_policy is not None else subprocess.run(
             syntax_command,
             text=True,
             capture_output=True,
@@ -372,7 +383,7 @@ def verify_source(
         object_result = {"status": "not-run", "reason": "object_compile disabled"}
         if object_compile and syntax_proc.returncode == 0:
             object_command = [*base_command, "-c", "-o", str(object_path)]
-            object_proc = subprocess.run(
+            object_proc = _native_policy.run(object_command, timeout) if _native_policy is not None else subprocess.run(
                 object_command,
                 text=True,
                 capture_output=True,
@@ -675,12 +686,10 @@ def is_code_match(status: Any, *, raw_only: bool = False) -> bool:
     }
 
 
-def verify_target_slice(target_slice: Any) -> dict[str, Any]:
-    if not isinstance(target_slice, dict):
-        return {"status": "missing", "reason": "metadata has no targetSlice object"}
+def resolve_target_slice_path(target_slice: dict[str, Any]) -> Path | None:
     bytes_path = target_slice.get("packagedBytesPath") or target_slice.get("bytesPath")
     if not bytes_path:
-        return {**target_slice, "status": "missing-bytes-path"}
+        return None
     path = Path(str(bytes_path))
     if not path.is_absolute() and not path.exists():
         metadata_path = target_slice.get("metadataPath")
@@ -690,6 +699,15 @@ def verify_target_slice(target_slice: Any) -> dict[str, Any]:
                 if candidate.exists():
                     path = candidate
                     break
+    return path
+
+
+def verify_target_slice(target_slice: Any) -> dict[str, Any]:
+    if not isinstance(target_slice, dict):
+        return {"status": "missing", "reason": "metadata has no targetSlice object"}
+    path = resolve_target_slice_path(target_slice)
+    if path is None:
+        return {**target_slice, "status": "missing-bytes-path"}
     if not path.exists():
         return {**target_slice, "status": "missing-bytes-file", "resolvedBytesPath": str(path)}
     digest = file_sha256(path)

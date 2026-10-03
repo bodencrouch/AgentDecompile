@@ -14,6 +14,7 @@ from collections.abc import Callable, Iterable, Mapping
 from typing import Any, Hashable
 
 Id = Hashable
+StableIdKey = Callable[[Id], Any]
 
 PROPAGATION_SCORE = 1.0
 PROPAGATION_MARGIN = 1.0
@@ -85,7 +86,9 @@ def _consistent(proposals: list[tuple[Id, Id, str]]) -> list[tuple[Id, Id, str]]
     for src, dst, kind in proposals:
         by_src[src].add(dst)
         by_dst[dst].add(src)
-        kinds.setdefault((src, dst), kind)
+        # One pair can be proposed as callee by one anchor and caller by another;
+        # pick the kind by value, not by which anchor the mapping iterated first.
+        kinds[(src, dst)] = min(kinds.get((src, dst), kind), kind)
     accepted: list[tuple[Id, Id, str]] = []
     for src, dests in by_src.items():
         if len(dests) != 1:
@@ -95,6 +98,31 @@ def _consistent(proposals: list[tuple[Id, Id, str]]) -> list[tuple[Id, Id, str]]
             continue
         accepted.append((src, dst, kinds[(src, dst)]))
     return accepted
+
+
+def _ordered_step(
+    step: Iterable[tuple[Id, Id, str]],
+    stable_id_key: StableIdKey | None,
+) -> list[tuple[Id, Id, str]]:
+    items = list(step)
+    if stable_id_key is not None:
+        return sorted(items, key=lambda pair: (stable_id_key(pair[0]), stable_id_key(pair[1]), pair[2]))
+    try:
+        return sorted(items, key=lambda pair: (pair[0], pair[1], pair[2]))
+    except TypeError:
+        # Arbitrary Hashable IDs need not share a total order. Preserve the
+        # historical proposal order unless the caller supplies a stable key.
+        return items
+
+
+def _ordered_ids(ids: Iterable[Id], stable_id_key: StableIdKey | None) -> list[Id]:
+    items = list(ids)
+    if stable_id_key is not None:
+        return sorted(items, key=stable_id_key)
+    try:
+        return sorted(items)
+    except TypeError:
+        return items
 
 
 def propagate_call_graph(
@@ -107,8 +135,14 @@ def propagate_call_graph(
     src_eligible: set[Id],
     dst_eligible: set[Id],
     with_dependencies: bool = False,
+    stable_id_key: StableIdKey | None = None,
 ) -> list[tuple]:
-    """Grow *mapping* to a unique-neighbor fixpoint. Returns newly added pairs."""
+    """Grow *mapping* to a unique-neighbor fixpoint. Returns newly added pairs.
+
+    Comparable IDs use their native total order. For opaque or mixed Hashable
+    IDs, pass ``stable_id_key`` when cross-run result and dependency ordering is
+    required; without one, their existing proposal order is preserved.
+    """
     added: list[tuple[Id, Id, str]] = []
     while True:
         step = unique_neighbor_matches(
@@ -120,26 +154,31 @@ def propagate_call_graph(
             src_eligible=src_eligible,
             dst_eligible=dst_eligible,
         )
-        grew = False
-        taken = set(mapping.values())
-        for src, dst, kind in step:
-            if src in mapping or dst in taken:
+        prior_mapping = dict(mapping)
+        taken = set(prior_mapping.values())
+        admitted: list[tuple[Id, Id, str]] = []
+        ordered_step = _ordered_step(step, stable_id_key)
+        for src, dst, kind in ordered_step:
+            if src in prior_mapping or dst in taken:
                 continue
-            mapping[src] = dst
+            admitted.append((src, dst, kind))
             taken.add(dst)
+
+        for src, dst, kind in admitted:
             if with_dependencies:
                 parents = [
-                    parent for parent, mapped in mapping.items()
-                    if parent != src and (
+                    parent for parent, mapped in prior_mapping.items()
+                    if (
                         (src in set(src_callees.get(parent, ())) and dst in set(dst_callees.get(mapped, ())))
                         or (src in set(src_callers.get(parent, ())) and dst in set(dst_callers.get(mapped, ())))
                     )
                 ]
-                added.append((src, dst, kind, parents))
+                # Persisted into match.evidence; do not leak mapping insertion order.
+                added.append((src, dst, kind, _ordered_ids(parents, stable_id_key)))
             else:
                 added.append((src, dst, kind))
-            grew = True
-        if not grew:
+        mapping.update((src, dst) for src, dst, _kind in admitted)
+        if not admitted:
             return added
 
 

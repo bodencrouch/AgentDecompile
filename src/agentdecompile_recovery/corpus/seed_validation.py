@@ -8,11 +8,14 @@ from __future__ import annotations
 
 import argparse
 import dataclasses
+import hashlib
 import json
 import os
 import pathlib
 import re
 import subprocess
+import shutil
+import inspect
 import tempfile
 from collections import Counter, defaultdict
 from typing import Iterable
@@ -260,38 +263,175 @@ def logical_ids_for_links(links: Iterable[dict]) -> list[int]:
     return sorted({int(row["logical_id"]) for row in links if row.get("logical_id") is not None})
 
 
-def destination_bytes(
+def target_observation(
     slug: str,
     address: str,
     size: int,
-    cache: dict[str, tuple[bytes, object]],
+    cache: dict,
     *,
     raw_dir: pathlib.Path,
     mapper_for,
-) -> bytes:
-    if slug not in cache:
-        raw = (pathlib.Path(raw_dir) / slug).read_bytes()
+) -> tuple[bytes, dict]:
+    """Read bytes and provenance from an invocation-owned, pinned image snapshot.
+
+    Cache identity includes the resolved image and mapper provider, never just a
+    product slug. Reusing this snapshot does not claim the on-disk image is still
+    current; callers needing a fresh observation must use a new cache.
+    """
+    if type(size) is not int or size <= 0:
+        raise ValueError("destination size must be a positive integer")
+    try:
+        address_value = int(address, 16)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("destination address must be hexadecimal") from exc
+    if address_value < 0:
+        raise ValueError("destination address must be nonnegative")
+    path = (pathlib.Path(raw_dir) / slug).resolve()
+    key = (str(path), mapper_for)
+    if key not in cache:
+        raw = path.read_bytes()
         mapper, kind = mapper_for(raw)
         if mapper is None:
             raise ValueError(f"no image mapper for {slug}")
-        cache[slug] = raw, mapper
-    raw, mapper = cache[slug]
-    offset = mapper(int(address, 16))
-    if offset is None or offset + size > len(raw):
+        snapshot = {'sha256': hashlib.sha256(raw).hexdigest(), 'size': len(raw),
+                    'path': str(path), 'kind': str(kind), 'observation': 'invocation-pinned',
+                    'scope': 'captured-image-snapshot', 'currentFileVerified': False}
+        cache[key] = raw, mapper, snapshot
+    raw, mapper, snapshot = cache[key]
+    offset = mapper(address_value)
+    if type(offset) is not int or offset < 0 or offset + size > len(raw):
         raise ValueError(f"destination address 0x{address} is not mapped")
-    return raw[offset:offset + size]
+    region = raw[offset:offset + size]
+    return region, {'targetSnapshot': dict(snapshot),
+                    'targetRegion': {'address': address_value, 'offset': offset, 'size': size,
+                                     'sha256': hashlib.sha256(region).hexdigest()}}
+
+
+def destination_bytes(slug: str, address: str, size: int, cache: dict, *,
+                      raw_dir: pathlib.Path, mapper_for) -> bytes:
+    """Compatibility byte-only view of the same pinned target observation."""
+    return target_observation(slug, address, size, cache, raw_dir=raw_dir,
+                              mapper_for=mapper_for)[0]
 
 
 COMPILE_RESULT_FIELDS = (
     "compile_status", "compile_detail", "object_symbol", "compiled_bytes",
     "objdiff_verified", "objdiff_symbol_normalized", "relocations_masked",
+    "comparisonPolicy", "relocation_normalized_match",
 )
 
 
+def compile_basis(seed: Seed, compiler: pathlib.Path, evidence_root: pathlib.Path,
+                  manifest=None, env_overrides=None, *, objdiff_check=None,
+                  coff_functions=None, elf_symbol_bytes=None) -> tuple[dict, str, dict]:
+    """Fingerprint observed inputs; closure completeness is a caller declaration."""
+    preamble = source_context(seed, evidence_root) or (
+        MS_PREAMBLE if "msvc" in compiler.name else GNU_PREAMBLE)
+    environment = {**os.environ, **(env_overrides or {})}
+    complete, reason, dependencies, declared = False, 'manifest_not_supplied', [], {}
+    try:
+        if manifest is not None:
+            manifest_path = pathlib.Path(manifest).resolve()
+            declared = json.loads(manifest_path.read_text())
+            files = declared.get('files') if isinstance(declared, dict) else None
+            names = declared.get('environment', []) if isinstance(declared, dict) else None
+            if (not isinstance(declared, dict) or declared.get('complete') is not True
+                    or not isinstance(files, list) or not files
+                    or not all(isinstance(item, str) and item for item in files)
+                    or not isinstance(names, list) or not all(isinstance(item, str) for item in names)):
+                raise ValueError('invalid closure declaration')
+            for item in files:
+                path = pathlib.Path(item)
+                if not path.is_absolute():
+                    path = manifest_path.parent / path
+                path = path.resolve()
+                dependencies.append((str(path), hashlib.sha256(path.read_bytes()).hexdigest()))
+            complete, reason = True, 'caller_declared_complete'
+    except (OSError, ValueError, TypeError):
+        complete, reason = False, 'manifest_invalid_or_unreadable'
+    try:
+        wrapper_hash = hashlib.sha256(compiler.read_bytes()).hexdigest()
+    except OSError:
+        wrapper_hash = None
+        complete, reason = False, 'compiler_unreadable'
+    target_object, relocations = source_target_artifacts(seed, evidence_root)
+    target_inputs = None
+    if target_object is not None:
+        spec_path = target_object.parent / 'specs' / (target_object.stem + '.json')
+        try:
+            target_inputs = {'path': str(target_object.resolve()),
+                             'object': hashlib.sha256(target_object.read_bytes()).hexdigest(),
+                             'spec': hashlib.sha256(spec_path.read_bytes()).hexdigest() if spec_path.is_file() else None,
+                             'relocations': relocations}
+        except OSError:
+            target_inputs = {'unreadable': str(target_object)}
+            complete, reason = False, 'target_artifact_unreadable'
+    parser_inputs = {}
+    for name, parser in (('coff', coff_functions), ('elf', elf_symbol_bytes)):
+        if parser is None:
+            parser_inputs[name] = None
+            continue
+        try:
+            module_path = inspect.getsourcefile(parser)
+            if not module_path:
+                raise ValueError('parser source unavailable')
+            parser_inputs[name] = {'module': str(pathlib.Path(module_path).resolve()),
+                                  'callable': parser.__qualname__,
+                                  'sha256': hashlib.sha256(pathlib.Path(module_path).read_bytes()).hexdigest()}
+        except (OSError, ValueError, TypeError, AttributeError):
+            parser_inputs[name] = None
+            complete, reason = False, 'parser_revision_unavailable'
+    if not any(parser_inputs.values()):
+        complete, reason = False, 'object_parser_unavailable'
+    verifier_inputs = None
+    if target_object is not None:
+        try:
+            node = shutil.which('node', path=environment.get('PATH'))
+            if objdiff_check is None or node is None:
+                raise ValueError('object verifier unavailable')
+            verifier_inputs = {'checker': hashlib.sha256(pathlib.Path(objdiff_check).read_bytes()).hexdigest(),
+                               'checkerPath': str(pathlib.Path(objdiff_check).resolve()),
+                               'node': hashlib.sha256(pathlib.Path(node).read_bytes()).hexdigest(), 'nodePath': node}
+        except (OSError, ValueError):
+            complete, reason = False, 'object_verifier_unavailable'
+    # Hash every actually passed environment value, a conservative superset of
+    # selected relevant/declared names. No raw environment values enter receipts.
+    material = {'wrapper': wrapper_hash, 'compiler': str(compiler.resolve()),
+                'cwd': str(pathlib.Path.cwd().resolve()), 'targetArtifacts': target_inputs,
+                'objectParsers': parser_inputs, 'objectVerifier': verifier_inputs,
+                'preamble': hashlib.sha256(preamble.encode('utf-8')).hexdigest(),
+                'environment': hashlib.sha256(json.dumps(environment, sort_keys=True).encode()).hexdigest(),
+                'dependencies': sorted(dependencies), 'declaration': declared,
+                'verifier': hashlib.sha256(pathlib.Path(__file__).read_bytes()).hexdigest(),
+                'comparisonPolicy': 'raw-region-v1'}
+    return ({'key': hashlib.sha256(json.dumps(material, sort_keys=True).encode()).hexdigest(),
+             'closureComplete': complete, 'closureReason': reason,
+             'closureProof': 'explicit-declaration-not-automatically-proven'}, preamble, environment)
+
+
 def can_reuse_compile_result(current: dict, previous: dict | None) -> bool:
-    if not previous or previous.get("compile_status") != "byte_exact":
+    if not previous or previous.get("compile_status") != "byte_exact" or previous.get("comparisonPolicy") != "raw-region-v1":
         return False
-    keys = ("seed", "source_path", "destination_bytes")
+    basis, prior_basis = current.get('compileBasis'), previous.get('compileBasis')
+    if (not isinstance(basis, dict) or not isinstance(prior_basis, dict)
+            or basis.get('closureComplete') is not True or prior_basis.get('closureComplete') is not True
+            or not isinstance(basis.get('key'), str) or re.fullmatch(r'[0-9a-f]{64}', basis['key']) is None
+            or basis['key'] != prior_basis.get('key')):
+        return False
+    if not isinstance(current.get("sourceSha256"), str) or not re.fullmatch(r"[0-9a-f]{64}", current["sourceSha256"]):
+        return False
+    current_snapshot = current.get('targetSnapshot')
+    previous_snapshot = previous.get('targetSnapshot')
+    if not isinstance(current_snapshot, dict) or not isinstance(previous_snapshot, dict):
+        return False
+    digest = current_snapshot.get('sha256')
+    if not isinstance(digest, str) or re.fullmatch(r'[0-9a-f]{64}', digest) is None:
+        return False
+    if digest != previous_snapshot.get('sha256'):
+        return False
+    if not isinstance(current.get('targetRegion'), dict) or current['targetRegion'] != previous.get('targetRegion'):
+        return False
+    keys = ("seed", "source_path", "destination_bytes", "sourceSha256")
     return all(current.get(key) == previous.get(key) for key in keys)
 
 
@@ -306,8 +446,10 @@ def compile_seed(
     env_overrides: dict[str, str] | None = None,
     coff_functions=None,
     elf_symbol_bytes=None,
+    frozen_preamble: str | None = None,
+    frozen_environment: dict | None = None,
 ) -> dict:
-    preamble = source_context(seed, evidence_root) or (
+    preamble = frozen_preamble if frozen_preamble is not None else source_context(seed, evidence_root) or (
         MS_PREAMBLE if "msvc" in compiler.name else GNU_PREAMBLE
     )
     with tempfile.TemporaryDirectory(prefix="ad-seed-") as td:
@@ -315,8 +457,9 @@ def compile_seed(
         source = tmp / "seed.c"
         obj = tmp / "seed.o"
         source.write_text(preamble + "\n" + seed.payload)
-        env = os.environ.copy()
-        env.update(env_overrides or {})
+        env = dict(frozen_environment) if frozen_environment is not None else os.environ.copy()
+        if frozen_environment is None:
+            env.update(env_overrides or {})
         try:
             run = subprocess.run(
                 [str(compiler), str(source), str(obj), seed.defined_name],
@@ -324,7 +467,7 @@ def compile_seed(
             )
         except subprocess.TimeoutExpired:
             return {"compile_status": "timeout"}
-        if not obj.exists():
+        if run.returncode != 0 or not obj.exists():
             detail = ((run.stdout or "") + (run.stderr or ""))[-800:]
             return {"compile_status": "failed", "compile_detail": detail}
         try:
@@ -351,8 +494,8 @@ def compile_seed(
                 }
             try:
                 diff = subprocess.run(
-                    ["node", str(objdiff_check), str(obj), str(target_object), object_name],
-                    capture_output=True, text=True, timeout=60,
+                    [shutil.which("node", path=env.get("PATH")) or "node", str(objdiff_check), str(obj), str(target_object), object_name],
+                    capture_output=True, text=True, timeout=60, env=env,
                 )
             except (OSError, subprocess.TimeoutExpired) as exc:
                 return {"compile_status": "verifier_unavailable", "compile_detail": str(exc)}
@@ -364,13 +507,14 @@ def compile_seed(
                     "compile_detail": diff_output[-1200:],
                 }
             objdiff_verified = True
-        compiled_trim = compiled[:len(target)]
-        exact = len(compiled) >= len(target) and (
-            mask_relocations(compiled_trim, relocations)
-            == mask_relocations(target, relocations)
+        exact = bool(target) and compiled == target
+        normalized_match = len(compiled) == len(target) and (
+            mask_relocations(compiled, relocations) == mask_relocations(target, relocations)
         )
         return {
             "compile_status": "byte_exact" if exact else "not_byte_exact",
+            "comparisonPolicy": "raw-region-v1",
+            "relocation_normalized_match": normalized_match,
             "object_symbol": object_name,
             "objdiff_verified": objdiff_verified,
             "objdiff_symbol_normalized": bool(
@@ -396,6 +540,10 @@ def audit(
     mapper_for=None,
     compiler_for=None,
     evidence_root: pathlib.Path | None = None,
+    compile_input_manifest: pathlib.Path | None = None,
+    objdiff_check: pathlib.Path | None = None,
+    coff_functions=None,
+    elf_symbol_bytes=None,
 ) -> dict:
     candidate_rows = read_jsonl(pathlib.Path(candidates_path))
     groups = group_candidates(candidate_rows)
@@ -403,7 +551,7 @@ def audit(
     verified_coverage = (
         load_verified_coverage(pathlib.Path(coverage_dir)) if coverage_dir else set()
     )
-    raw_cache: dict[str, tuple[bytes, object]] = {}
+    raw_cache: dict = {}
     results = []
     previous_results = {}
     compile_ledger = pathlib.Path(compile_results_path or COMPILE_RESULTS)
@@ -418,8 +566,10 @@ def audit(
         result = {"seed": str(path), "dst_slug": slug}
         problems = []
         try:
-            text = path.read_text(errors="replace")
+            source_snapshot = path.read_bytes()
+            text = source_snapshot.decode("utf-8")
             seed = parse_seed(text)
+            result["sourceSha256"] = hashlib.sha256(source_snapshot).hexdigest()
             result.update({
                 "dst_repo": seed.destination_repo,
                 "dst_addr": seed.destination_address,
@@ -454,10 +604,11 @@ def audit(
                 normalize_address(path.stem) == seed.destination_address
             )
             if raw_dir is not None and mapper_for is not None:
-                target = destination_bytes(
+                target, observation = target_observation(
                     slug, seed.destination_address, seed.size, raw_cache,
                     raw_dir=raw_dir, mapper_for=mapper_for,
                 )
+                result.update(observation)
                 result["destination_bytes"] = target.hex()
                 result["source_bytes_match_destination"] = (
                     seed.source_original_bytes == target
@@ -492,22 +643,42 @@ def audit(
 
             if compile_destinations and result["static_status"] == "identity_linked":
                 previous = previous_results.get(result["seed"])
-                if can_reuse_compile_result(result, previous):
-                    result.update({
-                        key: previous[key] for key in COMPILE_RESULT_FIELDS
-                        if key in previous
-                    })
-                elif compiler_for is not None and evidence_root is not None:
+                if compiler_for is not None and evidence_root is not None:
                     compiler, overrides = compiler_for(slug)
-                    result.update(compile_seed(
-                        slug, seed, target or seed.source_original_bytes,
-                        compiler=compiler, evidence_root=evidence_root,
-                        env_overrides=overrides,
-                    ))
+                    compiler = pathlib.Path(compiler)
+                    basis, preamble, environment = compile_basis(seed, compiler, evidence_root,
+                                                                compile_input_manifest, overrides,
+                                                                objdiff_check=objdiff_check, coff_functions=coff_functions,
+                                                                elf_symbol_bytes=elf_symbol_bytes)
+                    result['compileBasis'] = basis
+                    if can_reuse_compile_result(result, previous):
+                        result.update({key: previous[key] for key in COMPILE_RESULT_FIELDS if key in previous})
+                        result['compileResultReused'] = True
+                    else:
+                        result.update(compile_seed(
+                            slug, seed, target or seed.source_original_bytes,
+                            compiler=compiler, evidence_root=evidence_root, env_overrides=overrides,
+                            frozen_preamble=preamble, frozen_environment=environment,
+                            objdiff_check=objdiff_check, coff_functions=coff_functions, elf_symbol_bytes=elf_symbol_bytes,
+                        ))
+                        after, _, _ = compile_basis(seed, compiler, evidence_root,
+                                                    compile_input_manifest, overrides,
+                                                    objdiff_check=objdiff_check, coff_functions=coff_functions,
+                                                    elf_symbol_bytes=elf_symbol_bytes)
+                        if after != basis and result.get('compile_status') == 'byte_exact':
+                            result['compile_status'] = 'compile_inputs_changed'
+                            result['compile_detail'] = 'Compiler/context/environment dependency basis changed during observation'
                 else:
                     result["compile_status"] = "not_run"
             else:
                 result["compile_status"] = "not_run"
+            # The compiler consumed the frozen parsed seed, never a second file
+            # read. Do not publish its verdict as current after an in-flight edit.
+            if path.read_bytes() != source_snapshot:
+                result.pop("sourceSha256", None)
+                result["compile_status"] = "source_changed"
+                result["static_status"] = "invalid"
+                problems.append("source_changed_during_validation")
         except Exception as exc:
             problems.append(type(exc).__name__)
             result.update({
@@ -565,6 +736,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--coverage-dir", type=pathlib.Path)
     parser.add_argument("--compile", action="store_true")
     parser.add_argument("--retry-failed", action="store_true")
+    parser.add_argument("--compile-input-manifest", type=pathlib.Path)
     args = parser.parse_args(argv)
     audit(
         seeds_dir=args.seeds_dir,
@@ -575,6 +747,7 @@ def main(argv: list[str] | None = None) -> int:
         coverage_dir=args.coverage_dir,
         compile_destinations=args.compile or args.retry_failed,
         retry_failed_only=args.retry_failed,
+        compile_input_manifest=args.compile_input_manifest,
     )
     return 0
 

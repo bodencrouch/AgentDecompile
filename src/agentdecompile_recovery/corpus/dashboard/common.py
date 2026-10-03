@@ -15,6 +15,8 @@ import os
 import socket
 import sqlite3
 import time
+import threading
+import uuid
 from contextlib import contextmanager
 from pathlib import Path
 
@@ -109,6 +111,8 @@ def live_root() -> Path | None:
 
 
 _RUNTIME_DB_PATH: Path | None = None
+_REVIEW_SELECTION_LOCK = threading.RLock()
+_REVIEW_SELECTION_GENERATION = uuid.uuid4().hex
 
 
 def _runtime_db_selection_path() -> Path | None:
@@ -128,7 +132,7 @@ def _saved_runtime_db_path() -> Path | None:
         return None
 
 
-def set_runtime_db_path(path: Path | str | None) -> None:
+def _set_runtime_db_path(path: Path | str | None) -> None:
     """Select a corpus db for this running server, overriding env/default.
 
     Used by the frontend's "pick an existing db" flow when no db exists at
@@ -150,6 +154,50 @@ def set_runtime_db_path(path: Path | str | None) -> None:
         # The active in-memory selection remains valid even if its workspace
         # cannot retain a preference across a server restart.
         pass
+
+
+def set_runtime_db_path(path: Path | str | None) -> None:
+    """Serialize selection changes with review transactions; every selection invalidates."""
+    global _REVIEW_SELECTION_GENERATION
+    with _REVIEW_SELECTION_LOCK:
+        _set_runtime_db_path(path)
+        _REVIEW_SELECTION_GENERATION = uuid.uuid4().hex
+
+
+@contextmanager
+def match_review_context(expected_selection: str = "", database=None):
+    """Pin once and hold selection through the complete review operation."""
+    from ..match_review import pin_context, ReviewError
+    with _REVIEW_SELECTION_LOCK:
+        selected = live_db()
+        if selected is None:
+            raise ReviewError('unavailable')
+        try:
+            context = pin_context(selected, _REVIEW_SELECTION_GENERATION)
+            if database is not None and Path(database).resolve(strict=True) != context.path:
+                raise ReviewError('context_changed')
+        except (OSError, RuntimeError, TypeError, ValueError) as exc:
+            if isinstance(exc, ReviewError):
+                raise
+            raise ReviewError('unavailable') from exc
+        if expected_selection and expected_selection != context.selection:
+            raise ReviewError('context_changed')
+        yield context
+
+
+def review_error_status(error):
+    code = error.code if hasattr(error, 'code') else str(error)
+    if code in {'stale_basis', 'context_changed'}:
+        return 409
+    if code in {'unavailable', 'busy', 'schema_required', 'review_schema_required', 'review_schema_corrupt'}:
+        return 503
+    return 400
+
+
+def list_match_review(*, after_id=0, limit=50, selection='', database=None):
+    from ..match_review import list_review
+    with match_review_context(selection, database) as context:
+        return list_review(context, after_id=after_id, limit=limit)
 
 
 def find_candidate_dbs() -> list[Path]:

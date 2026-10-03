@@ -2233,6 +2233,128 @@ def program_workspace(
     return payload
 
 
+_PROVIDER_KINDS = ("equates", "relocations", "bookmarks", "defined-strings")
+_PROVIDER_PAGE_LIMIT = 2000
+
+
+def program_providers(
+    locator: str,
+    program: str,
+    kind: str,
+    *,
+    offset: int = 0,
+    limit: int = 200,
+) -> dict[str, Any]:
+    """Read-only CodeBrowser provider data straight from the on-disk store.
+
+    Covers the four ghidra_db readers that did not exist before this unit:
+    Equates, Relocations, Bookmarks and Defined Strings. Every provider here
+    only reads; there is no corresponding write endpoint (R11) -- edits go
+    through the existing rename/comment/bookmark/retype actions instead.
+    """
+
+    loc = (locator or "").strip()
+    name = (program or "").strip()
+    wanted = (kind or "").strip().lower()
+    empty: dict[str, Any] = {
+        "ok": False,
+        "kind": wanted,
+        "program": name,
+        "locator": loc,
+        "offset": offset,
+        "limit": limit,
+        "total": 0,
+        "results": [],
+        "hasMore": False,
+    }
+    if not loc or not name:
+        return {**empty, "error": "locator and program are required"}
+    if wanted not in _PROVIDER_KINDS:
+        return {**empty, "error": f"unknown provider kind {wanted!r}; expected one of {_PROVIDER_KINDS}"}
+
+    from agentdecompile_recovery.ghidra_db.buffer_file import BufferFileError
+    from agentdecompile_recovery.ghidra_db.program import GhidraProgramError
+    from agentdecompile_recovery.ghidra_db.project import ProjectLayoutError
+    from agentdecompile_recovery.ghidra_db.store import find_store_program
+
+    try:
+        entry = find_store_program(loc, name)
+    except (OSError, ValueError, ProjectLayoutError) as exc:
+        return {**empty, "error": str(exc)[:800]}
+    if entry is None:
+        return {**empty, "error": f"{name} is not in {loc}"}
+
+    capped_limit = max(1, min(int(limit or 200), _PROVIDER_PAGE_LIMIT))
+    safe_offset = max(0, int(offset or 0))
+    try:
+        with entry.open() as prog:
+            bits = _bits_from_language(prog.language_id)
+            rows: list[dict[str, Any]] = []
+            if wanted == "equates":
+                refs_by_equate: dict[int, int] = {}
+                for ref in prog.equate_references():
+                    refs_by_equate[ref.equate_id] = refs_by_equate.get(ref.equate_id, 0) + 1
+                for equate in prog.equates():
+                    rows.append(
+                        {
+                            "equateId": equate.equate_id,
+                            "name": equate.name,
+                            "value": equate.value,
+                            "valueHex": f"0x{equate.value & 0xFFFFFFFFFFFFFFFF:x}",
+                            "referenceCount": refs_by_equate.get(equate.equate_id, 0),
+                        }
+                    )
+            elif wanted == "relocations":
+                for rel in prog.relocations():
+                    rows.append(
+                        {
+                            "index": rel.index,
+                            "addr": None if rel.entry is None else format_address(rel.entry, bits),
+                            "type": rel.relocation_type,
+                            "status": rel.status,
+                            "symbolName": rel.symbol_name or "",
+                            "byteLength": rel.byte_length,
+                        }
+                    )
+            elif wanted == "bookmarks":
+                for bookmark in prog.bookmarks():
+                    rows.append(
+                        {
+                            "bookmarkId": bookmark.bookmark_id,
+                            "addr": None if bookmark.entry is None else format_address(bookmark.entry, bits),
+                            "type": bookmark.type_name,
+                            "category": bookmark.category or "",
+                            "comment": bookmark.comment or "",
+                        }
+                    )
+                rows.sort(key=lambda row: (row["addr"] is None, row["addr"] or ""))
+            else:  # defined-strings
+                for item in prog.defined_strings():
+                    rows.append(
+                        {
+                            "addr": format_address(item.entry, bits),
+                            "datatype": item.datatype_name,
+                        }
+                    )
+                rows.sort(key=lambda row: row["addr"])
+    except (GhidraProgramError, ProjectLayoutError, BufferFileError, OSError, ValueError) as exc:
+        return {**empty, "error": str(exc)[:800], "opened": True}
+
+    total = len(rows)
+    page = rows[safe_offset : safe_offset + capped_limit]
+    return {
+        "ok": True,
+        "kind": wanted,
+        "program": name,
+        "locator": loc,
+        "offset": safe_offset,
+        "limit": capped_limit,
+        "total": total,
+        "results": page,
+        "hasMore": safe_offset + len(page) < total,
+    }
+
+
 def function_detail(slug: str, raw_addr: str, *, locator: str = "", program: str = "") -> dict[str, Any]:
     from agentdecompile_recovery.corpus.dashboard.function_evidence import read, ensure_observation
     request_state = ensure_observation(locator, program, raw_addr)

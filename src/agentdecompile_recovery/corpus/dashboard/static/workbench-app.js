@@ -21,6 +21,7 @@
     sessions: "/dashboard/api/workbench/sessions",
     ensureProgram: "/dashboard/api/workbench/ensure-program",
     workspace: "/dashboard/api/workbench/workspace",
+    providers: "/dashboard/api/workbench/providers",
     programs: "/dashboard/api/workbench/programs",
     matchStatus: "/dashboard/api/workbench/match-status",
     matchDecide: "/dashboard/api/workbench/match-decide",
@@ -1640,6 +1641,68 @@
         ${(bundle.scope_receipts || []).map(function (receipt) { return html`<p key=${receipt.artifact}>${receipt.artifact}: ${receipt.status} · ${receipt.reason}</p>`; })}
       </article>`; })}
       ${(data && data.errors || []).map(function (message,index) { return html`<p className="wb-dialog-error" key=${index}>${typeof message === "string" ? message : (message.bundle || "Bundle") + ": " + (message.reason || "Unavailable")}</p>`; })}
+    </section>`;
+  }
+
+  /* CodeBrowser providers backed by the four ghidra_db readers this unit
+     added (Equates, Relocations, Bookmarks, Defined Strings). Every one of
+     these is a read-only view (R11): there is no edit control here, and
+     selecting a row never starts pipeline work. */
+  const PROVIDER_KINDS = [
+    { id: "equates", title: "Equates" },
+    { id: "relocations", title: "Relocations" },
+    { id: "bookmarks", title: "Bookmarks" },
+    { id: "defined-strings", title: "Defined Strings" },
+  ];
+  const PROVIDER_COLUMNS = {
+    equates: [["name", "Name"], ["valueHex", "Value"], ["referenceCount", "Refs"]],
+    relocations: [["addr", "Address"], ["type", "Type"], ["status", "Status"], ["symbolName", "Symbol"], ["byteLength", "Bytes"]],
+    bookmarks: [["addr", "Address"], ["type", "Type"], ["category", "Category"], ["comment", "Comment"]],
+    "defined-strings": [["addr", "Address"], ["datatype", "Type"]],
+  };
+
+  function ProviderTable({ program, locator, kind }) {
+    const [data, setData] = useState(null);
+    const [error, setError] = useState("");
+    useEffect(function () {
+      const controller = new AbortController();
+      let alive = true;
+      setData(null); setError("");
+      const params = new URLSearchParams({ program: program || "", locator: locator || "", kind: kind, limit: "200" });
+      fetch(API.providers + "?" + params, { cache: "no-store", signal: controller.signal })
+        .then(function (response) { return response.json().then(function (body) { return { ok: response.ok, body: body }; }); })
+        .then(function (result) { if (alive) { if (!result.body.ok) setError(result.body.error || "Provider unavailable"); else setData(result.body); } })
+        .catch(function (err) { if (alive && err.name !== "AbortError") setError(String(err.message || err)); });
+      return function () { alive = false; controller.abort(); };
+    }, [program, locator, kind]);
+    const columns = PROVIDER_COLUMNS[kind] || [];
+    if (error) return html`<p className="wb-dialog-error">${error}</p>`;
+    if (!data) return html`<p role="status">Reading ${kind}…</p>`;
+    const rows = data.results || [];
+    if (!rows.length) return html`<p className="wb-empty">No ${kind.replace("-", " ")} in this program.</p>`;
+    return html`<div className="wb-provider-table-wrap">
+      <table className="wb-provider-table" role="table" aria-label=${kind}>
+        <thead><tr>${columns.map(function (col) { return html`<th key=${col[0]}>${col[1]}</th>`; })}</tr></thead>
+        <tbody>
+          ${rows.map(function (row, index) { return html`<tr key=${index}>
+            ${columns.map(function (col) { return html`<td key=${col[0]}>${row[col[0]] == null ? "" : String(row[col[0]])}</td>`; })}
+          </tr>`; })}
+        </tbody>
+      </table>
+      ${data.hasMore ? html`<p className="wb-hint">Showing ${rows.length} of ${data.total}.</p>` : null}
+    </div>`;
+  }
+
+  function CodeBrowserProviders({ program, locator }) {
+    const [active, setActive] = useState("equates");
+    return html`<section className="wb-cb-providers" aria-label="CodeBrowser providers">
+      <div role="tablist" aria-label="CodeBrowser providers" className="wb-cb-provider-tabs">
+        ${PROVIDER_KINDS.map(function (item) { return html`<button key=${item.id} type="button"
+          role="tab" aria-selected=${active === item.id}
+          className=${"wb-tab-btn" + (active === item.id ? " active" : "")}
+          onClick=${function () { setActive(item.id); }}>${item.title}</button>`; })}
+      </div>
+      <${ProviderTable} program=${program} locator=${locator} kind=${active} />
     </section>`;
   }
 
@@ -6305,6 +6368,7 @@
               : "Decompiler pane."}</p>
             <pre className="wb-preview" id="wb-decompile-preview">${decompileText}</pre>
           </div>` : null}
+          ${program ? html`<${CodeBrowserProviders} program=${program} locator=${currentLocator()}/>` : null}
           <div id="wb-reaction" className="wb-reaction">
             ${reaction && /analyze|decompile|match-function|export-c|one-shot|recover/.test(String(reaction.id || ""))
               && String(reaction.id || "").indexOf("add-binary") < 0

@@ -222,3 +222,25 @@ def test_replace_conflicting_with_two_different_binary_rows_cleans_both(tmp_path
     assert con.execute('SELECT id FROM binary').fetchall() == [(9,)]
     assert con.execute("SELECT entity_id FROM match_review_revision WHERE kind='binary'").fetchall() == [(9,)]
     con.close()
+
+
+def test_match_metadata_backfill_preserves_review_revisions(tmp_path):
+    con = old_store(tmp_path / 'old.sqlite', matches=5)
+    con.execute('UPDATE match SET evidence=? WHERE id=100',
+                ('{"kind": "exact", "confidence": 0.9, "channel": "K"}',))
+    con.commit()
+    migrations.apply_pending(con, target=8)
+    revisions = lambda: con.execute(
+        'SELECT kind,entity_id,revision FROM match_review_revision ORDER BY kind,entity_id').fetchall()
+    before = revisions()
+    next_before = con.execute('SELECT next_revision FROM match_review_control').fetchone()
+    assert [step.version for step in migrations.apply_pending(con, target=9)] == [9]
+    assert revisions() == before
+    assert con.execute('SELECT next_revision FROM match_review_control').fetchone() == next_before
+    assert con.execute('SELECT kind,confidence,algorithm FROM match WHERE id=100').fetchone() == ('exact', 0.9, 'K')
+    schema.require(con)
+    # The reinstalled trigger still bumps the revision for real changes.
+    con.execute("UPDATE match SET status='accepted' WHERE id=107")
+    assert con.execute("SELECT revision FROM match_review_revision WHERE kind='match' AND entity_id=107"
+                       ).fetchone() == (next_before[0] + 1,)
+    con.close()

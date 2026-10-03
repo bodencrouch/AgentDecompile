@@ -249,7 +249,17 @@ def _pcode_channel(con: sqlite3.Connection) -> None:
 def _match_metadata(con: sqlite3.Connection) -> None:
     """Version 9: queryable projection of recorded evidence, no rescoring."""
     import json
+    from .match_review_schema import TRIGGER_SQL
     _store.ensure_match_columns(con)
+    # A metadata-only backfill must not bump review revisions: suspend the
+    # match update trigger for this step and reinstall its exact DDL. This
+    # runs under BEGIN IMMEDIATE, so no other writer can update match while
+    # it is absent, and a failure rolls the DROP back with everything else.
+    trigger = "match_review_match_update"
+    suspended = con.execute("SELECT 1 FROM sqlite_master WHERE type='trigger' AND name=?",
+                            (trigger,)).fetchone() is not None
+    if suspended:
+        con.execute(f"DROP TRIGGER {trigger}")
     for row in con.execute("SELECT id,evidence FROM match ORDER BY id").fetchall():
         try:
             evidence = json.loads(row[1] or "{}")
@@ -263,6 +273,8 @@ def _match_metadata(con: sqlite3.Connection) -> None:
         con.execute("UPDATE match SET kind=?,confidence=?,algorithm=? WHERE id=?",
                     (evidence.get("kind"), confidence,
                      evidence.get("primary_channel") or evidence.get("channel"), row[0]))
+    if suspended:
+        con.execute(TRIGGER_SQL[trigger])
     con.execute("CREATE INDEX IF NOT EXISTS ix_match_algorithm_confidence ON match(algorithm,confidence)")
 
 

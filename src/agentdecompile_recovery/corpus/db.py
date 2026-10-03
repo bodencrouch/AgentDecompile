@@ -11,7 +11,12 @@ import json
 import pathlib
 import sqlite3
 
-DB_PATH = pathlib.Path(__file__).resolve().parent.parent / "db" / "kotorxid.sqlite"
+from .corpus_env import corpus_db_path
+
+
+def default_path() -> pathlib.Path:
+    """The configured corpus database (``AGENT_DECOMPILE_CORPUS_DB`` or the project default)."""
+    return corpus_db_path()
 
 SCHEMA = """
 PRAGMA journal_mode=WAL;
@@ -161,8 +166,8 @@ CREATE TABLE IF NOT EXISTS eval (
 """
 
 
-def connect(path: pathlib.Path | str = DB_PATH) -> sqlite3.Connection:
-    path = pathlib.Path(path)
+def connect(path: pathlib.Path | str | None = None) -> sqlite3.Connection:
+    path = pathlib.Path(path) if path is not None else default_path()
     path.parent.mkdir(parents=True, exist_ok=True)
     con = sqlite3.connect(path)
     con.row_factory = sqlite3.Row

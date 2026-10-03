@@ -20,7 +20,7 @@ canonical policy. This spec organizes the GUI, not another recovery policy.
 
 Source inventories, with implemented/partial/missing distinctions:
 
-- 2026-09-20-kotorxid-capability-inventory.md
+- 2026-09-20-donor-dashboard-capability-inventory.md
 - 2026-09-20-ghidra-guide-capability-inventory.md
 - 2026-09-20-delivery-reconciliation.md
 

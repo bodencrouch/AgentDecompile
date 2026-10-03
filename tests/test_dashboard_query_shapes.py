@@ -17,16 +17,18 @@ class DashboardQueryShapeTests(unittest.TestCase):
         def query(sql, params=(), **_kwargs):
             queries.append(sql)
             if "FROM binary" in sql:
-                return [(1, "/K1/example.exe", "example", "win", "k1", "x86",
+                return [(1, "/GameA/example.exe", "example", "win", "game-a", "x86",
                          100, 75)], None
             self.fail(f"unexpected query: {sql}")
 
         with patch.object(stabs, "query_db", side_effect=query), \
              patch.object(stabs, "load_json", return_value=(None, "missing")):
-            html = stabs._render_provenance()
+            sec = stabs._collect_provenance()
+            html = stabs._render_provenance(sec)
 
         self.assertTrue(queries)
         self.assertFalse(any("FROM func" in sql for sql in queries))
+        self.assertEqual(sec["binaries"][0]["placeholders"], 25)
         self.assertIn("25", html)
         self.assertIn("offline summary", html)
 
@@ -42,25 +44,31 @@ class DashboardQueryShapeTests(unittest.TestCase):
         def query(sql, params=(), **_kwargs):
             queries.append(sql)
             return [
-                (1, "K1__source.exe", "/game/source.exe"),
-                (2, "K1__target.exe", "/game/target.exe"),
+                (1, "GameA__source.exe", "/game/source.exe", "", "", 10),
+                (2, "GameA__target.exe", "/game/target.exe", "", "", 10),
             ], None
 
         with patch("pathlib.Path.read_text", return_value=report), \
              patch.object(crossmatch, "query_db", side_effect=query):
-            html = crossmatch._matrix_section()
+            binaries, err = crossmatch._binaries()
+            facts = crossmatch._matrix_facts(binaries, err)
+            html = crossmatch._matrix_section({"matrix": facts})
 
-        self.assertEqual(queries, ["SELECT id, slug, repo_path FROM binary"])
+        self.assertTrue(queries)
+        self.assertTrue(all("FROM binary" in sql for sql in queries))
         self.assertFalse(any("FROM match" in sql for sql in queries))
+        self.assertEqual(facts["rows"], ["GameA__source.exe"])
+        self.assertEqual(facts["cols"], ["GameA__target.exe"])
+        self.assertEqual(facts["total"], 1234)
         self.assertIn("1,234", html)
-        self.assertIn("K1__source.exe", html)
-        self.assertIn("K1__target.exe", html)
+        self.assertIn("GameA__source.exe", html)
+        self.assertIn("GameA__target.exe", html)
 
     def test_crossmatch_missing_summary_does_not_fall_back_to_scan(self):
         with patch("pathlib.Path.read_text", side_effect=OSError("gone")), \
              patch.object(crossmatch, "query_db") as query:
-            html = crossmatch._matrix_section()
+            facts = crossmatch._matrix_facts([], None)
+            html = crossmatch._matrix_section({"matrix": facts})
         query.assert_not_called()
+        self.assertEqual(facts["state"], "missing")
         self.assertIn("summary unavailable", html)
-
-

@@ -55,8 +55,8 @@
   }
 
   function announce(message) {
-    if (window.KotorXidUI && window.KotorXidUI.announce) {
-      window.KotorXidUI.announce(message);
+    if (window.DashboardUI && window.DashboardUI.announce) {
+      window.DashboardUI.announce(message);
     }
   }
 

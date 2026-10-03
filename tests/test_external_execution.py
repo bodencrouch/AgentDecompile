@@ -126,7 +126,7 @@ def _pdb_rebuild_mismatch(tmp):
 
 
 def _slug_md5_mismatch(tmp):
-    db = tmp / "kotorxid.sqlite"
+    db = tmp / "corpus.sqlite"
     con = sqlite3.connect(db)
     con.execute("CREATE TABLE binary (id INTEGER PRIMARY KEY, slug TEXT UNIQUE NOT NULL, md5 TEXT)")
     con.execute("INSERT INTO binary (slug, md5) VALUES ('orig', 'deadbeef')")

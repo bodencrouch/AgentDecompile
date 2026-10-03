@@ -180,9 +180,9 @@ The core disclosure interaction uses native `<details>`, so it remains useful wi
 
 ## Existing 8080 capabilities to reuse
 
-Historical production dogfood records the canonical 8080 workbench as already providing a Ghidra-style tool strip, binary dock, windowed function list, inspector, typed `/docs` operations, shared job runner, path registration, copy-in upload, confirm-remove, role/label editing, stage bars, and same-process `/mcp` (`docs/dogfood-reports/2026-08-31-feat-corpus-kotorxid-library-dogfood.md:3-18`, `57-66`). These receipts are historical, so current source and runtime still require read-only corroboration before making a current claim.
+Historical production dogfood records the canonical 8080 workbench as already providing a Ghidra-style tool strip, binary dock, windowed function list, inspector, typed `/docs` operations, shared job runner, path registration, copy-in upload, confirm-remove, role/label editing, stage bars, and same-process `/mcp` (`docs/dogfood-reports/2026-08-31-feat-corpus-library-dogfood.md:3-18`, `57-66`). These receipts are historical, so current source and runtime still require read-only corroboration before making a current claim.
 
-The same report says the leftover port 5173 is unused and that `/atlas` and `/docs` on 8080 are the product links (`docs/dogfood-reports/2026-08-31-feat-corpus-kotorxid-library-dogfood.md:101-105`). The donor's generated `:5173` Atlas link (`scripts/dashboard.py:667`, `2155-2158`) must not be ported.
+The same report says the leftover port 5173 is unused and that `/atlas` and `/docs` on 8080 are the product links (`docs/dogfood-reports/2026-08-31-feat-corpus-library-dogfood.md:101-105`). The donor's generated `:5173` Atlas link (`scripts/dashboard.py:667`, `2155-2158`) must not be ported.
 
 The canonical outcome ledger describes the interaction obligations whose acceptance remains unreassessed: corpus and per-binary ladders, actionable counts, one-click function/sibling/identity navigation, subject-grouped visualizations, raw output on demand, source and age on figures, honest real-C versus byte-exact counts, and preserved selection/deep-link/refresh state (`docs/PROTOTYPE_OUTCOMES.md:24-26`).
 

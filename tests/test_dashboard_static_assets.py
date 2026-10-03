@@ -82,7 +82,7 @@ class DashboardStaticAssetTests(unittest.TestCase):
             'setAttribute("aria-busy"',
             "enhanceRepeatedActions",
             "Open call graph for ",
-            "window.KotorXidUI",
+            "window.DashboardUI",
             "installLiveBrowse",
             "data-live-search",
             "installWorkspaceNav",

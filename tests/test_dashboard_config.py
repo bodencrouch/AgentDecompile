@@ -33,7 +33,7 @@ def clean_env(monkeypatch: pytest.MonkeyPatch):
     importlib.reload(common)
 
 
-def test_defaults_have_no_kotorxid_or_mizuchi_paths(clean_env) -> None:
+def test_defaults_have_no_external_checkout_paths(clean_env) -> None:
     # Every corpus path is optional and defaults under the shared project root;
     # nothing points at a product-specific checkout.
     default_root = Path("agentdecompile_projects")

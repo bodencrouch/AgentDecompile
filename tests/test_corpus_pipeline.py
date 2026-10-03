@@ -68,7 +68,7 @@ def test_machine_code_shim_is_not_source() -> None:
     assert not is_recovered_source(SHIM_C)
     assert not is_recovered_source("void f(void) { __declspec(naked) }")
     assert not is_recovered_source("data: .byte 0x90")
-    # Linker symbol alias is not inline assembly (kotorxid realc).
+    # Linker symbol alias is not inline assembly (realc rule).
     assert is_recovered_source('extern float *g_fFPS_ptr __asm__("PTR_g_fFPS");\nint f(void) { return 1; }\n')
 
 

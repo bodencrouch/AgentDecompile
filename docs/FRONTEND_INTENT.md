@@ -226,7 +226,7 @@ Integrate these in the shared entity workspace rather than embed a second dashbo
 with another database, navigation model and server.
 
 The existing donor and guide inventories remain supporting implementation evidence:
-[KotORXID inventory](dashboard-design/2026-09-20-kotorxid-capability-inventory.md),
+[KotORXID inventory](dashboard-design/2026-09-20-donor-dashboard-capability-inventory.md),
 [guide inventory](dashboard-design/2026-09-20-ghidra-guide-capability-inventory.md).
 Their existence does not close any missing capability.
 

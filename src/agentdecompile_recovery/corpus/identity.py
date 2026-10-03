@@ -1,6 +1,6 @@
 """Identity matching and post-compile source cross-match.
 
-Identity uses kotorxid's multi-signal matcher when feature fields are present,
+Identity uses the multi-signal matcher (:mod:`match_engine`) when feature fields are present,
 and a name/size fallback otherwise. Copying C waits until compile + real C.
 """
 

@@ -16,12 +16,27 @@ import sqlite3
 from pathlib import Path
 from typing import Any
 
+from .. import corpus_config
+
 _REPORT_ENV = "AGENTDECOMPILE_RECONCILIATION_REPORT"
-_DEFAULT_REPORT = "/home/brunner56/agentdecompile-nvme/k1gog-reconciliation.json"
-_TARGET = "/home/brunner56/agentdecompile-nvme/k1gog-target/swkotor.exe"
-_REBUILT = "/home/brunner56/agentdecompile-nvme/k1gog-target/rebuilt.exe"
-_TEXT_PERMUTER_STATE = "/home/brunner56/agentdecompile-nvme/k1gog-text-permuter-state.json"
 _FULL_IMAGE_RECEIPT_ENV = "AGENTDECOMPILE_FULL_IMAGE_RECEIPT"
+
+
+def _parity_config() -> dict[str, str]:
+    """Report, image and permuter-state paths from the program config's
+    ``parity`` and ``permuter`` sections; empty when no program carries them."""
+    try:
+        _, raw = corpus_config.program_section("parity")
+    except LookupError:
+        return {}
+    parity = raw.get("parity") or {}
+    permuter = raw.get("permuter") or {}
+    return {
+        "report": str(parity.get("report") or ""),
+        "target": str(parity.get("target_image") or ""),
+        "rebuilt": str(parity.get("rebuilt_image") or ""),
+        "permuter_state": str(permuter.get("state") or ""),
+    }
 
 # The variants report (matching-watch --out-report) lives under the corpus work
 # dir; env override first, else discover the newest *.variants.json there.
@@ -73,14 +88,19 @@ def _text_permuter_closed_count() -> int:
     continuously via its dashboard `--watch` job, so its own progress has to
     be added on top rather than requiring a manual finish_binary re-run to
     see it reflected here."""
+    path = _parity_config().get("permuter_state")
+    if not path:
+        return 0
     try:
-        state = json.loads(Path(_TEXT_PERMUTER_STATE).read_text())
+        state = json.loads(Path(path).read_text())
         return len(state.get("closed") or {})
     except (OSError, json.JSONDecodeError):
         return 0
 
 
-def _sha256(path: str) -> str | None:
+def _sha256(path: str | None) -> str | None:
+    if not path:
+        return None
     try:
         h = hashlib.sha256()
         with open(path, "rb") as f:
@@ -98,27 +118,30 @@ def _full_image_receipt() -> dict[str, Any]:
 
 
 def byte_parity_state(*, reconstruction_observation=None, db=None, binary_id=None) -> dict[str, Any]:
-    report_path = os.environ.get(_REPORT_ENV) or _DEFAULT_REPORT
+    cfg = _parity_config()
+    report_path = os.environ.get(_REPORT_ENV) or cfg.get("report") or ""
+    target_image = cfg.get("target") or None
+    rebuilt_image = cfg.get("rebuilt") or None
     report: dict[str, Any] = {}
     try:
-        report = json.loads(Path(report_path).read_text())
+        report = json.loads(Path(report_path).read_text()) if report_path else {}
     except (OSError, json.JSONDecodeError):
         report = {}
 
-    target_hash = _sha256(_TARGET)
-    rebuilt_hash = _sha256(_REBUILT)
+    target_hash = _sha256(target_image)
+    rebuilt_hash = _sha256(rebuilt_image)
     terminal = _full_image_receipt()
     total = int(report.get("totalFunctions") or 0)
     report_be = int(report.get("byteExactRecoveredC") or 0)
     from ..source_contribution import evaluate_reconstruction
-    contribution = evaluate_reconstruction(reconstruction_observation, target_path=_TARGET,
-                                           output_path=_REBUILT)
+    contribution = evaluate_reconstruction(reconstruction_observation, target_path=target_image,
+                                           output_path=rebuilt_image)
     permuter_closed = _text_permuter_closed_count()
     # A standalone span is useful anonymous region evidence. It does not prove
     # a complete function in a selected corpus, even at the same address.
     region_count = contribution["placedCompiledRegions"]
-    qualified = evaluate_reconstruction(reconstruction_observation, target_path=_TARGET,
-                output_path=_REBUILT, db=db, binary_id=binary_id) if db is not None else {}
+    qualified = evaluate_reconstruction(reconstruction_observation, target_path=target_image,
+                output_path=rebuilt_image, db=db, binary_id=binary_id) if db is not None else {}
     be = qualified.get("placedCompiledRegions", 0)
     vstate = variants_state()
     if vstate.get("codeTotal"):
@@ -221,7 +244,7 @@ def render_byte_parity_page() -> str:
 </head>
 <body>
 <h1>Byte parity — whole image</h1>
-<p class="sub">swkotor.exe rebuild vs shipped file. Updates every 5s.</p>
+<p class="sub">Rebuilt image vs shipped image. Updates every 5s.</p>
 <div id="root"><p>Loading&hellip;</p></div>
 <script>
 async function refresh(){

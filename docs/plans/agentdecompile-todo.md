@@ -830,25 +830,25 @@ These checks prevent non-ID requirements, risk mitigations, diagram cells, UI co
 - [ ] `S035-C0011` — Existing guide launcher; coverage owner U16; source `docs/dashboard-design/2026-09-20-ghidra-guide-capability-inventory.md`:108–111.
 - [ ] `S035-C0012` — Guide claims that must not become implementation rules; coverage owner U16; source `docs/dashboard-design/2026-09-20-ghidra-guide-capability-inventory.md`:112–135.
 - [ ] `S035-C0013` — Planning conclusion; coverage owner U16; source `docs/dashboard-design/2026-09-20-ghidra-guide-capability-inventory.md`:136–148.
-- [ ] `S036-C0001` — KotORXID dashboard capability inventory; coverage owner U17; source `docs/dashboard-design/2026-09-20-kotorxid-capability-inventory.md`:1–6.
-- [ ] `S036-C0002` — Operating boundary; coverage owner U17; source `docs/dashboard-design/2026-09-20-kotorxid-capability-inventory.md`:7–12.
-- [ ] `S036-C0003` — Source map; coverage owner U17; source `docs/dashboard-design/2026-09-20-kotorxid-capability-inventory.md`:13–30.
-- [ ] `S036-C0004` — Implemented routes and user workflows; coverage owner U17; source `docs/dashboard-design/2026-09-20-kotorxid-capability-inventory.md`:31–32.
-- [ ] `S036-C0005` — Application shell and navigation; coverage owner U17; source `docs/dashboard-design/2026-09-20-kotorxid-capability-inventory.md`:33–59.
-- [ ] `S036-C0006` — Overview and pipeline state; coverage owner U17; source `docs/dashboard-design/2026-09-20-kotorxid-capability-inventory.md`:60–77.
-- [ ] `S036-C0007` — Builds; coverage owner U17; source `docs/dashboard-design/2026-09-20-kotorxid-capability-inventory.md`:78–85.
-- [ ] `S036-C0008` — Concrete functions; coverage owner U17; source `docs/dashboard-design/2026-09-20-kotorxid-capability-inventory.md`:86–101.
-- [ ] `S036-C0009` — Logical identities and cross-build reuse; coverage owner U17; source `docs/dashboard-design/2026-09-20-kotorxid-capability-inventory.md`:102–109.
-- [ ] `S036-C0010` — Relationships and call graphs; coverage owner U17; source `docs/dashboard-design/2026-09-20-kotorxid-capability-inventory.md`:110–126.
-- [ ] `S036-C0011` — Recovery and rebuild proof; coverage owner U17; source `docs/dashboard-design/2026-09-20-kotorxid-capability-inventory.md`:127–134.
-- [ ] `S036-C0012` — Review queue; coverage owner U17; source `docs/dashboard-design/2026-09-20-kotorxid-capability-inventory.md`:135–138.
-- [ ] `S036-C0013` — Evidence and traceability; coverage owner U17; source `docs/dashboard-design/2026-09-20-kotorxid-capability-inventory.md`:139–146.
-- [ ] `S036-C0014` — Ghidra knowledge and original-symbol evidence; coverage owner U17; source `docs/dashboard-design/2026-09-20-kotorxid-capability-inventory.md`:147–152.
-- [ ] `S036-C0015` — Operations; coverage owner U17; source `docs/dashboard-design/2026-09-20-kotorxid-capability-inventory.md`:153–156.
-- [ ] `S036-C0016` — Implemented browser behavior; coverage owner U17; source `docs/dashboard-design/2026-09-20-kotorxid-capability-inventory.md`:157–180.
-- [ ] `S036-C0017` — Existing 8080 capabilities to reuse; coverage owner U17; source `docs/dashboard-design/2026-09-20-kotorxid-capability-inventory.md`:181–188.
-- [ ] `S036-C0018` — Important implementation gaps; coverage owner U17; source `docs/dashboard-design/2026-09-20-kotorxid-capability-inventory.md`:189–202.
-- [ ] `S036-C0019` — Porting recommendation; coverage owner U17; source `docs/dashboard-design/2026-09-20-kotorxid-capability-inventory.md`:203–215.
+- [ ] `S036-C0001` — KotORXID dashboard capability inventory; coverage owner U17; source `docs/dashboard-design/2026-09-20-donor-dashboard-capability-inventory.md`:1–6.
+- [ ] `S036-C0002` — Operating boundary; coverage owner U17; source `docs/dashboard-design/2026-09-20-donor-dashboard-capability-inventory.md`:7–12.
+- [ ] `S036-C0003` — Source map; coverage owner U17; source `docs/dashboard-design/2026-09-20-donor-dashboard-capability-inventory.md`:13–30.
+- [ ] `S036-C0004` — Implemented routes and user workflows; coverage owner U17; source `docs/dashboard-design/2026-09-20-donor-dashboard-capability-inventory.md`:31–32.
+- [ ] `S036-C0005` — Application shell and navigation; coverage owner U17; source `docs/dashboard-design/2026-09-20-donor-dashboard-capability-inventory.md`:33–59.
+- [ ] `S036-C0006` — Overview and pipeline state; coverage owner U17; source `docs/dashboard-design/2026-09-20-donor-dashboard-capability-inventory.md`:60–77.
+- [ ] `S036-C0007` — Builds; coverage owner U17; source `docs/dashboard-design/2026-09-20-donor-dashboard-capability-inventory.md`:78–85.
+- [ ] `S036-C0008` — Concrete functions; coverage owner U17; source `docs/dashboard-design/2026-09-20-donor-dashboard-capability-inventory.md`:86–101.
+- [ ] `S036-C0009` — Logical identities and cross-build reuse; coverage owner U17; source `docs/dashboard-design/2026-09-20-donor-dashboard-capability-inventory.md`:102–109.
+- [ ] `S036-C0010` — Relationships and call graphs; coverage owner U17; source `docs/dashboard-design/2026-09-20-donor-dashboard-capability-inventory.md`:110–126.
+- [ ] `S036-C0011` — Recovery and rebuild proof; coverage owner U17; source `docs/dashboard-design/2026-09-20-donor-dashboard-capability-inventory.md`:127–134.
+- [ ] `S036-C0012` — Review queue; coverage owner U17; source `docs/dashboard-design/2026-09-20-donor-dashboard-capability-inventory.md`:135–138.
+- [ ] `S036-C0013` — Evidence and traceability; coverage owner U17; source `docs/dashboard-design/2026-09-20-donor-dashboard-capability-inventory.md`:139–146.
+- [ ] `S036-C0014` — Ghidra knowledge and original-symbol evidence; coverage owner U17; source `docs/dashboard-design/2026-09-20-donor-dashboard-capability-inventory.md`:147–152.
+- [ ] `S036-C0015` — Operations; coverage owner U17; source `docs/dashboard-design/2026-09-20-donor-dashboard-capability-inventory.md`:153–156.
+- [ ] `S036-C0016` — Implemented browser behavior; coverage owner U17; source `docs/dashboard-design/2026-09-20-donor-dashboard-capability-inventory.md`:157–180.
+- [ ] `S036-C0017` — Existing 8080 capabilities to reuse; coverage owner U17; source `docs/dashboard-design/2026-09-20-donor-dashboard-capability-inventory.md`:181–188.
+- [ ] `S036-C0018` — Important implementation gaps; coverage owner U17; source `docs/dashboard-design/2026-09-20-donor-dashboard-capability-inventory.md`:189–202.
+- [ ] `S036-C0019` — Porting recommendation; coverage owner U17; source `docs/dashboard-design/2026-09-20-donor-dashboard-capability-inventory.md`:203–215.
 - [ ] `S037-C0001` — Unified reversing and recovery workstation; coverage owner U42; source `docs/dashboard-design/2026-09-20-unified-workstation-spec.md`:1–6.
 - [ ] `S037-C0002` — Authority and scope; coverage owner U42; source `docs/dashboard-design/2026-09-20-unified-workstation-spec.md`:7–26.
 - [ ] `S037-C0003` — Shared interaction contract; coverage owner U42; source `docs/dashboard-design/2026-09-20-unified-workstation-spec.md`:27–73.

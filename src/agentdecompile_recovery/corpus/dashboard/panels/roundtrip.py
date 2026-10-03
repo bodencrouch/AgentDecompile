@@ -19,6 +19,8 @@ All figures are read live from artifacts on disk; nothing is hardcoded.
 
 from __future__ import annotations
 
+import time
+from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import quote
 
@@ -27,6 +29,7 @@ from agentdecompile_recovery.corpus.dashboard.panels.common import (
     fnum,
     fpct,
     kv,
+    DRM_EXCLUDED,
     load_json,
     missing,
     panel,
@@ -124,8 +127,7 @@ def _short_hash(value) -> str:
     return f'<code>{esc(text[:12])}</code>' if text else "-"
 
 
-def _log_block(path: Path, nlines: int = 8) -> str:
-    lines = tail_lines(path, nlines=nlines)
+def _log_block(path: Path, lines: list[str]) -> str:
     if not lines:
         return missing(f"no log yet ({rel(path)})")
     body = esc("\n".join(lines))
@@ -133,8 +135,8 @@ def _log_block(path: Path, nlines: int = 8) -> str:
             f'<div class="log">{body}</div>')
 
 
-def _section_roundtrip() -> str:
-    data, err = load_json(ROUNDTRIP_JSON)
+def _section_roundtrip(g: dict) -> str:
+    data, err = g["roundtrip"]["data"], g["roundtrip"]["err"]
     if err:
         return panel(missing(err), "Whole-file roundtrip")
     rows = _rows(data)
@@ -145,7 +147,7 @@ def _section_roundtrip() -> str:
     bad = [r for r in rows if r.get("identical") is not True]
     rebuilt_bytes = _total(ok, "rebuilt_size")
 
-    slugs = _slugs()
+    slugs = g["slugs"]
     body = []
     for r in sorted(rows, key=lambda r: str(r.get("binary", ""))):
         if r.get("identical") is True:
@@ -214,8 +216,8 @@ def _section_roundtrip() -> str:
     return head + limitation + '<div class="panel" style="margin-top:14px">' + tbl + "</div>"
 
 
-def _section_byte_exact() -> str:
-    data, err = load_json(COVERAGE_JSON)
+def _section_byte_exact(g: dict) -> str:
+    data, err = g["coverage"]["data"], g["coverage"]["err"]
     if err:
         return panel(missing(err), "Byte-exact emission")
     rows = _rows(data)
@@ -228,7 +230,7 @@ def _section_byte_exact() -> str:
     skipped = _total(rows, "skipped_unmappable")
     seconds = sum(float(r.get("seconds") or 0) for r in rows)
 
-    slugs = _slugs()
+    slugs = g["slugs"]
     body = []
     for r in sorted(rows, key=lambda r: -(r.get("functions") or 0)):
         fn, ex = r.get("functions") or 0, r.get("byte_exact") or 0
@@ -284,9 +286,9 @@ def _section_byte_exact() -> str:
     return head + warn + chart + '<div class="panel">' + tbl + "</div>"
 
 
-def _section_packages() -> str:
-    asm, asm_err = load_json(ASM_MANIFEST)
-    cpp, cpp_err = load_json(CPP_MANIFEST)
+def _section_packages(g: dict) -> str:
+    asm, asm_err = g["asm"]["data"], g["asm"]["err"]
+    cpp, cpp_err = g["cpp"]["data"], g["cpp"]["err"]
     asm_rows, cpp_rows = _rows(asm), _rows(cpp)
     if not asm_rows and not cpp_rows:
         return panel(missing(asm_err or cpp_err or "no export manifests found"), "Export packages")
@@ -296,17 +298,9 @@ def _section_packages() -> str:
     rows = asm_rows or cpp_rows
     same = bool(asm_rows) and bool(cpp_rows) and asm_rows == cpp_rows
 
-    # Packages are directories next to the manifest; a cheap listing keeps the
-    # on-disk count honest without touching the (very large) package contents.
-    def _pkg_dirs(path: Path) -> int:
-        try:
-            return sum(1 for p in path.parent.iterdir() if p.is_dir())
-        except OSError:
-            return 0
+    asm_pkgs, cpp_pkgs = g["asm"]["pkgs"], g["cpp"]["pkgs"]
 
-    asm_pkgs, cpp_pkgs = _pkg_dirs(ASM_MANIFEST), _pkg_dirs(CPP_MANIFEST)
-
-    slugs = _slugs()
+    slugs = g["slugs"]
     body = []
     for r in sorted(rows, key=lambda r: str(r.get("binary", ""))):
         slug = slugs.get(str(r.get("binary"))) or r.get("slug")
@@ -369,8 +363,8 @@ def _section_packages() -> str:
     )
 
 
-def _section_reconstructed() -> str:
-    data, err = load_json(BUILD_MANIFEST)
+def _section_reconstructed(g: dict) -> str:
+    data, err = g["build"]["data"], g["build"]["err"]
     if err:
         return panel(missing(err), "Reconstructed tree")
     rows = _rows(data)
@@ -390,7 +384,7 @@ def _section_reconstructed() -> str:
         ("attributed source files", fnum(attributed)),
     ])
 
-    slugs = _slugs()
+    slugs = g["slugs"]
     body = []
     for r in sorted(rows, key=lambda r: -(r.get("functions") or 0)):
         slug = slugs.get(str(r.get("binary"))) or r.get("target")
@@ -423,13 +417,59 @@ def _section_reconstructed() -> str:
             '<div class="panel">' + chart + tbl + "</div>")
 
 
-def _section_logs() -> str:
+def _section_logs(g: dict) -> str:
     return (
         '<div class="grid3">'
-        f'<div class="panel"><div class="ptitle"><b>roundtrip job</b></div>{_log_block(ROUNDTRIP_LOG)}</div>'
-        f'<div class="panel"><div class="ptitle"><b>export packages job</b></div>{_log_block(EXPORT_LOG)}</div>'
+        f'<div class="panel"><div class="ptitle"><b>roundtrip job</b></div>{_log_block(ROUNDTRIP_LOG, g["logs"]["roundtrip"][-8:])}</div>'
+        f'<div class="panel"><div class="ptitle"><b>export packages job</b></div>{_log_block(EXPORT_LOG, g["logs"]["export"][-8:])}</div>'
         "</div>"
     )
+
+
+LOG_CAP = 100  # lines per log in the payload
+LOG_LINE_CAP = 400  # characters per line; a runaway line must not bloat the payload
+
+
+def _pkg_dirs(path: Path) -> int | None:
+    """Packages are directories next to the manifest; a cheap listing keeps the
+    on-disk count honest without touching the (very large) package contents."""
+    try:
+        return sum(1 for p in path.parent.iterdir() if p.is_dir())
+    except OSError:
+        return None
+
+
+def _source(path: Path, *, pkgs: bool = False) -> dict:
+    data, err = load_json(path)
+    try:
+        mtime = path.stat().st_mtime
+    except OSError:
+        mtime = None
+    out = {"path": path, "data": data, "err": err, "mtime": mtime}
+    if pkgs:
+        out["pkgs"] = _pkg_dirs(path) or 0
+    return out
+
+
+def _gather() -> dict:
+    """One bounded read of every source. render() and as_payload() both use it."""
+    logs, log_mtime = {}, {}
+    for key, path in (("roundtrip", ROUNDTRIP_LOG), ("export", EXPORT_LOG)):
+        logs[key] = tail_lines(path, nlines=LOG_CAP)
+        try:
+            log_mtime[key] = path.stat().st_mtime
+        except OSError:
+            log_mtime[key] = None
+    return {
+        "roundtrip": _source(ROUNDTRIP_JSON),
+        "coverage": _source(COVERAGE_JSON),
+        "asm": _source(ASM_MANIFEST, pkgs=True),
+        "cpp": _source(CPP_MANIFEST, pkgs=True),
+        "build": _source(BUILD_MANIFEST),
+        "slugs": _slugs(),
+        "logs": logs,
+        "log_mtime": log_mtime,
+    }
 
 
 def _safe(fn, label: str) -> str:
@@ -441,15 +481,282 @@ def _safe(fn, label: str) -> str:
 
 
 def render() -> str:
+    g = _gather()
     parts = [
-        _safe(_section_roundtrip, "Whole-file roundtrip"),
+        _safe(lambda: _section_roundtrip(g), "Whole-file roundtrip"),
         '<h2>Byte-exact emission (asm shims, not recovered source)</h2>',
-        _safe(_section_byte_exact, "Byte-exact emission"),
+        _safe(lambda: _section_byte_exact(g), "Byte-exact emission"),
         "<h2>Export packages</h2>",
-        _safe(_section_packages, "Export packages"),
+        _safe(lambda: _section_packages(g), "Export packages"),
         "<h2>Reconstructed tree</h2>",
-        _safe(_section_reconstructed, "Reconstructed tree"),
+        _safe(lambda: _section_reconstructed(g), "Reconstructed tree"),
         "<h2>Job logs</h2>",
-        _safe(_section_logs, "Job logs"),
+        _safe(lambda: _section_logs(g), "Job logs"),
     ]
     return "".join(parts)
+
+
+# --------------------------------------------------------------------------
+# Structured payload. Plain data only: no markup, no absolute paths.
+# Each evidence class is its own block with its own source and state.
+# --------------------------------------------------------------------------
+
+def _iso(mtime) -> str | None:
+    if not mtime:
+        return None
+    return datetime.fromtimestamp(mtime, tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def _age(mtime) -> int | None:
+    return max(0, int(time.time() - mtime)) if mtime else None
+
+
+def _meta(src: dict, path: Path) -> dict:
+    return {"source": rel(path), "at": _iso(src["mtime"]), "age_s": _age(src["mtime"])}
+
+
+def _fig(value, path: Path, mtime, state: str) -> dict:
+    return {"value": value, "source": rel(path), "at": _iso(mtime), "state": state}
+
+
+def _agg(states: list[str]) -> str:
+    live = [s for s in states if s != "excluded"]
+    if not live:
+        return "missing"
+    if all(s == "proven" for s in live):
+        return "proven"
+    if any(s in ("proven", "partial") for s in live):
+        return "partial"
+    if any(s == "failed" for s in live):
+        return "failed"
+    return "unproven"
+
+
+def _num(v):
+    return v if isinstance(v, (int, float)) and not isinstance(v, bool) else None
+
+
+def _excluded(repo) -> bool:
+    return str(repo) in {str(x) for x in (DRM_EXCLUDED or ())}
+
+
+def _block(src: dict, path: Path, errors: list[str], label: str):
+    """Common block head and the (rows, state-if-unreadable) decision."""
+    block = {**_meta(src, path), "state": "missing", "note": None, "rows": []}
+    rows = _rows(src["data"])
+    if src["err"]:
+        block["note"] = str(src["err"])
+        if not str(src["err"]).startswith("not available yet"):
+            errors.append(f"{label}: {src['err']}")
+    elif not rows:
+        block["note"] = f"{rel(path)} holds no records"
+    return block, rows
+
+
+def _receipts(g: dict, slugs: dict, errors: list[str]) -> dict:
+    src = g["roundtrip"]
+    block, rows = _block(src, ROUNDTRIP_JSON, errors, "image_receipts")
+    block["claim"] = "Whole-image rebuild: SHA-256 of the rebuilt file against the original."
+    out, states = [], []
+    for r in sorted(rows, key=lambda r: str(r.get("binary", ""))):
+        repo = r.get("binary")
+        if _excluded(repo):
+            state = "excluded"
+        elif r.get("identical") is True:
+            state = "proven"
+        elif r.get("error"):
+            state = "unproven"
+        else:
+            state = "failed"
+        states.append(state)
+        out.append({
+            "slug": slugs.get(str(repo)),
+            "binary": repo,
+            "state": state,
+            "container": r.get("container"),
+            "note": r.get("error"),
+            "size": _num(r.get("size")),
+            "rebuilt_size": _num(r.get("rebuilt_size")),
+            "sha256_original": r.get("sha256_original"),
+            "sha256_rebuilt": r.get("sha256_rebuilt"),
+            "functions": _num(r.get("functions")),
+            "pct_attributed": _num(r.get("pct_attributed")),
+        })
+    if rows:
+        ok = [r for r in rows if r.get("identical") is True]
+        mt = src["mtime"]
+        block["state"] = _agg(states)
+        block["figures"] = {
+            "binaries": _fig(len(rows), ROUNDTRIP_JSON, mt, "proven"),
+            "identical": _fig(len(ok), ROUNDTRIP_JSON, mt, block["state"]),
+            "no_image": _fig(states.count("unproven"), ROUNDTRIP_JSON, mt, "unproven"),
+            "mismatch": _fig(states.count("failed"), ROUNDTRIP_JSON, mt, "failed" if states.count("failed") else "proven"),
+            "bytes_reproduced": _fig(_total(ok, "rebuilt_size"), ROUNDTRIP_JSON, mt, "proven" if ok else "unproven"),
+        }
+    block["rows"] = out
+    return block
+
+
+def _coverage(g: dict, slugs: dict, errors: list[str]) -> dict:
+    src = g["coverage"]
+    block, rows = _block(src, COVERAGE_JSON, errors, "universal_coverage")
+    block["claim"] = ("Per-function byte equality of asm shims. Not a whole-image rebuild proof "
+                      "and not recovered C.")
+    out, states = [], []
+    for r in sorted(rows, key=lambda r: -(_num(r.get("functions")) or 0)):
+        fn, ex, bad = _num(r.get("functions")) or 0, _num(r.get("byte_exact")) or 0, _num(r.get("failed")) or 0
+        if _excluded(r.get("repo_path")):
+            state = "excluded"
+        elif not fn:
+            state = "unproven"
+        elif ex == fn and not bad:
+            state = "proven"
+        elif not ex and bad:
+            state = "failed"
+        else:
+            state = "partial"
+        states.append(state)
+        out.append({
+            "slug": slugs.get(str(r.get("repo_path"))),
+            "binary": r.get("repo_path"),
+            "state": state,
+            "container": r.get("container"),
+            "target": r.get("target"),
+            "functions": fn,
+            "byte_exact": ex,
+            "failed": bad,
+            "skipped_unmappable": _num(r.get("skipped_unmappable")),
+            "ms_per_function": _num(r.get("ms_per_function")),
+        })
+    if rows:
+        mt, st = src["mtime"], _agg(states)
+        block["state"] = st
+        block["figures"] = {
+            "binaries": _fig(len(rows), COVERAGE_JSON, mt, "proven"),
+            "functions": _fig(_total(rows, "functions"), COVERAGE_JSON, mt, st),
+            "byte_exact": _fig(_total(rows, "byte_exact"), COVERAGE_JSON, mt, st),
+            "failed": _fig(_total(rows, "failed"), COVERAGE_JSON, mt, "failed" if _total(rows, "failed") else "proven"),
+            "skipped_unmappable": _fig(_total(rows, "skipped_unmappable"), COVERAGE_JSON, mt, "partial" if _total(rows, "skipped_unmappable") else "proven"),
+        }
+    block["rows"] = out
+    return block
+
+
+def _package(g: dict, key: str, path: Path, files_field: str, claim: str, slugs: dict,
+             errors: list[str], label: str, extra: tuple[str, ...] = ()) -> dict:
+    """One package class, read only from its own manifest."""
+    src = g[key]
+    block, rows = _block(src, path, errors, label)
+    block["claim"] = claim
+    block["packages_on_disk"] = _fig(src["pkgs"], path, src["mtime"],
+                                     "proven" if src["pkgs"] else "missing")
+    out, states = [], []
+    for r in sorted(rows, key=lambda r: str(r.get("binary", ""))):
+        files = _num(r.get(files_field)) or 0
+        if _excluded(r.get("binary")):
+            state = "excluded"
+        else:
+            state = "proven" if files else "missing"
+        states.append(state)
+        row = {
+            "slug": slugs.get(str(r.get("binary"))) or r.get("slug"),
+            "binary": r.get("binary"),
+            "state": state,
+            "bits": _num(r.get("bits")),
+            "functions": _num(r.get("functions")),
+            "named": _num(r.get("named")),
+            files_field: files,
+        }
+        for f in extra:
+            row[f] = _num(r.get(f))
+        out.append(row)
+    if rows:
+        mt = src["mtime"]
+        block["state"] = _agg(states)
+        block["figures"] = {
+            "binaries": _fig(len(rows), path, mt, "proven"),
+            "functions": _fig(_total(rows, "functions"), path, mt, block["state"]),
+            "named": _fig(_total(rows, "named"), path, mt, block["state"]),
+            files_field: _fig(_total(rows, files_field), path, mt, block["state"]),
+        }
+    block["rows"] = out
+    return block
+
+
+def _reconstructed(g: dict, slugs: dict, errors: list[str]) -> dict:
+    src = g["build"]
+    block, rows = _block(src, BUILD_MANIFEST, errors, "reconstructed_build")
+    block["claim"] = ("Reconstructed tree manifest. A named function is still an asm shim "
+                      "unless a recovered-C pass replaced it.")
+    out, states = [], []
+    for r in sorted(rows, key=lambda r: -(_num(r.get("functions")) or 0)):
+        fn, tus = _num(r.get("functions")) or 0, _num(r.get("translation_units")) or 0
+        if _excluded(r.get("binary")):
+            state = "excluded"
+        else:
+            state = "partial" if fn and tus else "unproven"
+        states.append(state)
+        out.append({
+            "slug": slugs.get(str(r.get("binary"))) or r.get("target"),
+            "binary": r.get("binary"),
+            "state": state,
+            "arch": r.get("arch"),
+            "triple": r.get("triple"),
+            "functions": fn,
+            "named": _num(r.get("named")),
+            "translation_units": tus,
+            "attributed_source_files": _num(r.get("attributed_source_files")),
+        })
+    if rows:
+        mt = src["mtime"]
+        block["state"] = _agg(states)
+        block["figures"] = {
+            "binaries": _fig(len(rows), BUILD_MANIFEST, mt, "proven"),
+            "functions": _fig(_total(rows, "functions"), BUILD_MANIFEST, mt, block["state"]),
+            "named": _fig(_total(rows, "named"), BUILD_MANIFEST, mt, block["state"]),
+            "translation_units": _fig(_total(rows, "translation_units"), BUILD_MANIFEST, mt, block["state"]),
+            "attributed_source_files": _fig(_total(rows, "attributed_source_files"), BUILD_MANIFEST, mt, block["state"]),
+        }
+    block["rows"] = out
+    return block
+
+
+def _logs(g: dict) -> list[dict]:
+    out = []
+    for key, label, path in (("roundtrip", "roundtrip job", ROUNDTRIP_LOG),
+                             ("export", "export packages job", EXPORT_LOG)):
+        lines = [ln[:LOG_LINE_CAP] for ln in g["logs"][key][-LOG_CAP:]]
+        mt = g["log_mtime"][key]
+        out.append({
+            "id": key,
+            "label": label,
+            "source": rel(path),
+            "at": _iso(mt),
+            "age_s": _age(mt),
+            "state": "proven" if lines else "missing",
+            "lines": lines,
+        })
+    return out
+
+
+def as_payload() -> dict:
+    """Structured twin of render(). One block per evidence class; never merged."""
+    g = _gather()
+    slugs = g["slugs"]
+    errors: list[str] = []
+    return {
+        "at": _iso(time.time()),
+        "errors": errors,
+        "image_receipts": _receipts(g, slugs, errors),
+        "universal_coverage": _coverage(g, slugs, errors),
+        "assembly_package": _package(
+            g, "asm", ASM_MANIFEST, "asm_files",
+            "Assembly floor: original opcodes wrapped as .S. Not recovered C.",
+            slugs, errors, "assembly_package"),
+        "cpp_package": _package(
+            g, "cpp", CPP_MANIFEST, "cpp_files",
+            "Readable .cpp/.h package. Counts here are separate from the assembly package.",
+            slugs, errors, "cpp_package", extra=("original_source_files",)),
+        "reconstructed_build": _reconstructed(g, slugs, errors),
+        "logs": _logs(g),
+    }

@@ -105,7 +105,7 @@ def build(out: pathlib.Path = OUT) -> dict[str, Any]:
     if out.exists():
         raise SystemExit(f"refusing to overwrite existing output: {out}")
 
-    con = db.connect(WORKSPACE / "db" / "kotorxid.sqlite")
+    con = db.connect()
     binaries = _binary_map(con)
     canonical_paths = _canonical_paths()
     maps = corpus_config.load_maps()

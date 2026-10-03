@@ -1,6 +1,6 @@
 """Single test for recovered source vs machine-code shim.
 
-Ported from kotorxid `kx/realc.py`. Nothing else may re-derive this test.
+Ported from the `kx/realc.py` toolkit module. Nothing else may re-derive this test.
 Real C, compile success, and byte-accuracy are three separate properties.
 """
 

@@ -1029,3 +1029,184 @@ body.workbench-page.wb-density-compact .wb-editor-body .wb-surface {
 .workbench-page .wb-compare-table tbody tr {
   cursor: pointer;
 }
+
+/* Corpus evidence: each window's measured panel payload. */
+.workbench-page .wb-ev-panel {
+  display: grid;
+  gap: var(--wb-space-3);
+  margin-top: var(--wb-space-4);
+}
+
+.workbench-page .wb-ev-block {
+  border-top: 1px solid var(--border);
+  padding-top: var(--wb-space-3);
+}
+
+.workbench-page .wb-ev-head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--wb-space-2);
+  margin-bottom: var(--wb-space-2);
+}
+
+.workbench-page .wb-ev-head h3 {
+  margin: 0;
+  color: var(--fg-max);
+  font-size: var(--wb-type-body);
+  font-weight: 600;
+}
+
+.workbench-page .wb-ev-state {
+  padding: 0 var(--wb-space-1);
+  border: 1px solid currentColor;
+  border-radius: 3px;
+  color: var(--fg-dim);
+  font-size: var(--wb-type-kicker);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.workbench-page .wb-ev-state.st-proven { color: var(--st-proven); }
+.workbench-page .wb-ev-state.st-partial { color: var(--st-partial); }
+.workbench-page .wb-ev-state.st-failed { color: var(--st-failed); }
+.workbench-page .wb-ev-state.st-excluded { color: var(--fg-annot); }
+
+.workbench-page .wb-ev-figures {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr));
+  gap: var(--wb-space-2) var(--wb-space-4);
+  margin: 0 0 var(--wb-space-2);
+}
+
+.workbench-page .wb-ev-figure dt {
+  color: var(--fg-head);
+  font-size: var(--wb-type-kicker);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.workbench-page .wb-ev-figure dd {
+  margin: 0;
+}
+
+.workbench-page .wb-ev-n {
+  color: var(--fg-max);
+  font-size: var(--wb-type-title);
+  font-variant-numeric: tabular-nums;
+}
+
+.workbench-page .wb-ev-of,
+.workbench-page .wb-ev-dim {
+  color: var(--fg-dim);
+}
+
+.workbench-page .wb-ev-source {
+  margin: var(--wb-space-1) 0 0;
+  color: var(--fg-dim);
+  font-size: var(--wb-type-kicker);
+}
+
+.workbench-page .wb-ev-source code {
+  color: var(--fg-head);
+}
+
+.workbench-page .wb-ev-missing {
+  color: var(--fg-annot);
+}
+
+.workbench-page .wb-ev-tablewrap {
+  max-height: 24rem;
+  margin: var(--wb-space-2) 0;
+  overflow: auto;
+}
+
+.workbench-page .wb-ev-tablewrap:focus-visible,
+.workbench-page .wb-ev-pre:focus-visible,
+.workbench-page .wb-ev-link:focus-visible {
+  outline: none;
+  box-shadow: var(--wb-focus-ring);
+}
+
+.workbench-page .wb-ev-table {
+  width: auto;
+  min-width: min(100%, 28rem);
+}
+
+.workbench-page .wb-ev-table th.wb-num {
+  text-align: right;
+}
+
+.workbench-page .wb-ev-table caption {
+  padding-bottom: var(--wb-space-1);
+  caption-side: top;
+  color: var(--fg-head);
+  font-size: var(--wb-type-kicker);
+  text-align: left;
+}
+
+.workbench-page .wb-ev-table tbody tr {
+  cursor: default;
+}
+
+.workbench-page .wb-ev-table th[scope="row"] {
+  text-align: left;
+}
+
+.workbench-page .wb-ev-matrix td {
+  min-width: 4ch;
+}
+
+.workbench-page .wb-ev-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--info);
+  font: inherit;
+  cursor: pointer;
+}
+
+.workbench-page .wb-ev-link:hover {
+  text-decoration: underline;
+}
+
+.workbench-page .wb-ev-errors summary,
+.workbench-page .wb-ev-log summary {
+  color: var(--fg-head);
+  cursor: pointer;
+}
+
+.workbench-page .wb-ev-errors ul {
+  margin: var(--wb-space-1) 0 0;
+  padding-left: var(--wb-space-5);
+  color: var(--fg-annot);
+}
+
+.workbench-page .wb-ev-logs {
+  display: grid;
+  gap: var(--wb-space-1);
+}
+
+.workbench-page .wb-ev-flag {
+  color: var(--st-partial);
+  font-size: var(--wb-type-kicker);
+}
+
+.workbench-page .wb-ev-pre {
+  max-height: 18rem;
+  margin: var(--wb-space-1) 0 0;
+  padding: var(--wb-space-2);
+  overflow: auto;
+  border: 1px solid var(--border);
+  background: var(--bg-sunken);
+  font-family: var(--font-mono);
+  font-size: var(--wb-type-ui);
+  line-height: 1.4;
+  white-space: pre;
+}
+
+.workbench-page .wb-ev-list {
+  margin: 0;
+  padding-left: var(--wb-space-5);
+  font-family: var(--font-mono);
+  font-size: var(--wb-type-ui);
+}

@@ -5,6 +5,10 @@ exits 0 while every Ghidra step inside it failed to reach the server is worse
 than a crash, because the run looks finished. So every log under logs/ is
 listed with its size and age, and the tail of each is scanned for failure
 markers even when the log is not recent enough to be printed in full.
+
+Observational only. as_payload() carries bounded log tails plus an
+``observed`` process list that is explicitly not job state; the job system
+is the authority and nothing here controls a process.
 """
 
 from __future__ import annotations
@@ -52,11 +56,20 @@ FAIL_MARKERS = ("error", "Error", "ERROR", "FAIL", "Traceback")
 # success while 10 logs contained nothing but this line.
 SERVER_DOWN = "Connection to server failed"
 
+# Payload caps. The 8 s section cache means this runs often, so everything is
+# bounded by lines, logs and bytes, not by trust in the log writer.
+PAYLOAD_LOGS = 12
+PAYLOAD_LINES = 200
+PAYLOAD_LINE_CHARS = 400
+PAYLOAD_TAIL_BYTES = 64 << 10
+PAYLOAD_MAX_BYTES = 256 << 10
+PAYLOAD_PROCS = 40
+
 ANSI_RE = re.compile(r"\x1b\[[0-9;]*[a-zA-Z]")
 
 # Roles are matched against the cmdline of processes already narrowed down by
-# cwd. Order matters: a Ghidra headless run is a java process, and a Mizuchi
-# run is a node process, so the more specific pattern has to win first.
+# cwd. Order matters: a Ghidra headless run is a java process, and an external
+# recovery run is a node process, so the more specific pattern has to win first.
 GHIDRA_RE = re.compile(r"(?:ghidra|analyzeHeadless|bsim|GhidraRun)", re.I)
 JAVA_RE = re.compile(r"(?:^|/)java(?:\s|$)")
 PY_JOB_RE = re.compile(r"(?:^|[\s/])(kx|scripts)/([\w.+-]+\.py)")
@@ -77,9 +90,9 @@ def _short_path(raw: str) -> str:
     if raw.startswith(root + "/"):
         return raw[len(root) + 1:]
     if raw == miz:
-        return "$MIZUCHI"
+        return "$EXTERNAL"
     if raw.startswith(miz + "/"):
-        return "$MIZUCHI/" + raw[len(miz) + 1:]
+        return "$EXTERNAL/" + raw[len(miz) + 1:]
     return raw
 
 
@@ -103,7 +116,7 @@ def _role(cmd: str) -> tuple[str, str]:
     if exe == "java" or GHIDRA_RE.search(cmd):
         return "ghidra / java", "warn"
     if exe == "node":
-        return "node (mizuchi)", "ok"
+        return "node", "ok"
     job = PY_JOB_RE.search(cmd)
     if exe.startswith("python") or (job and PY_RE.search(cmd)):
         return f"python {job.group(1)}/{job.group(2)}" if job else "python", "live"
@@ -125,43 +138,56 @@ def _truncate(text: str, limit: int = 150) -> str:
 # --------------------------------------------------------------------------
 
 
-def _render_procs() -> str:
-    # Selection is by cwd, not by process name, on purpose. The Mizuchi node
-    # build renames its main thread, so `pgrep -f node`-style matching has both
-    # missed live model runs (renamed thread, no match) and matched unrelated
-    # launcher shells that merely had the word in their argv. Every job in this
-    # project is started from the repo or from MizuchiRE, so cwd is the one
-    # discriminator that is neither spoofable by argv nor erased by a rename.
+def _collect_procs() -> tuple[list[dict], str | None]:
+    """Observed processes whose cwd is under a configured root. Never raises."""
+    # Selection is by cwd, not by process name, on purpose. Some node builds
+    # rename their main thread, so name matching misses live runs and matches
+    # unrelated launcher shells. Every job starts from one of the configured
+    # roots, so cwd is the one discriminator argv spoofing and renames cannot
+    # change. Roots come from config, never from a fixed path.
     try:
         from agentdecompile_recovery.corpus.dashboard.panels.common import procs_by_cwd
 
         by_cwd = procs_by_cwd()
     except Exception as exc:  # noqa: BLE001
-        return missing(f"could not read /proc: {exc}")
+        return [], f"could not read /proc: {exc}"
 
     roots = (str(as_root()), str(as_external()))
-    rows: list[list[str]] = []
-    counts: dict[str, int] = {}
+    out: list[dict] = []
     for cwd in sorted(by_cwd):
         if not any(cwd == r or cwd.startswith(r + "/") for r in roots):
             continue
         for pid, cmd in sorted(by_cwd[cwd]):
             label, kind = _role(cmd)
-            bucket = label.split(" ")[0]
-            counts[bucket] = counts.get(bucket, 0) + 1
-            rows.append([
-                str(pid),
-                tag(label, kind),
-                esc(_short_path(cwd)),
-                f'<span class="mono">{esc(_truncate(cmd))}</span>',
-            ])
+            out.append({
+                "pid": pid,
+                "label": label,
+                "kind": kind,
+                "cwd": _short_path(cwd),
+                "cmd": _truncate(_clean(cmd)),
+            })
+    return out, None
 
-    if not rows:
+
+def _render_procs() -> str:
+    procs, err = _collect_procs()
+    if err:
+        return missing(err)
+    if not procs:
         return missing(
-            "no process is running with a cwd inside this repo or MizuchiRE "
-            "(nothing is in flight right now)"
+            "no process is running with a cwd inside the configured work or "
+            "recovery roots (nothing is in flight right now)"
         )
-
+    counts: dict[str, int] = {}
+    rows: list[list[str]] = []
+    for p in procs:
+        counts[p["label"].split(" ")[0]] = counts.get(p["label"].split(" ")[0], 0) + 1
+        rows.append([
+            str(p["pid"]),
+            tag(p["label"], p["kind"]),
+            esc(p["cwd"]),
+            f'<span class="mono">{esc(p["cmd"])}</span>',
+        ])
     summary = " ".join(
         tag(f"{n} {name}", "live") for name, n in sorted(counts.items()) if n
     )
@@ -299,3 +325,69 @@ def render() -> str:
     return panel(procs, "Running processes (selected by cwd)") + panel(
         logs, "Every log under logs/"
     )
+
+
+def _fail_flags(e: dict) -> list[str]:
+    out = []
+    if e["server_down"]:
+        out.append("ghidra server unreachable")
+    if e["failed"]:
+        out.append("error in tail")
+    if not e["scanned"]:
+        out.append("not scanned")
+    if e["size"] == 0:
+        out.append("empty")
+    return out
+
+
+def as_payload() -> dict:
+    """Structured facts for the workbench. Plain strings only, no markup.
+
+    Log text is raw (ANSI stripped); the UI must render it as text.
+    """
+    errors: list[str] = []
+    now = time.time()
+    entries, err = _scan_logs()
+    if err:
+        errors.append(err)
+
+    logs: list[dict] = []
+    used = 0
+    for e in entries[:PAYLOAD_LOGS]:
+        # Bounded re-read from the end: one seek per log, at most 12 logs.
+        raw = tail_lines(e["path"], PAYLOAD_LINES, PAYLOAD_TAIL_BYTES)
+        lines = [_clean(ln)[:PAYLOAD_LINE_CHARS] for ln in raw]
+        cost = sum(len(ln) + 1 for ln in lines)
+        truncated = False
+        while lines and used + cost > PAYLOAD_MAX_BYTES:
+            cost -= len(lines.pop(0)) + 1
+            truncated = True
+        used += cost
+        logs.append({
+            "path": e["name"],
+            "size": e["size"],
+            "mtime": e["mtime"],
+            "age_s": max(0, int(now - e["mtime"])),
+            "lines": lines,
+            "truncated": truncated or e["size"] > PAYLOAD_TAIL_BYTES or len(raw) >= PAYLOAD_LINES,
+            "flags": _fail_flags(e),
+        })
+
+    procs, perr = _collect_procs()
+    if perr:
+        errors.append(perr)
+
+    return {
+        "at": now,
+        "authoritative": False,
+        "note": "Observational view. Job state comes from the job system.",
+        "log_total": len(entries),
+        "logs_flagged": sum(1 for e in entries if e["failed"] or e["server_down"]),
+        "logs": logs,
+        "observed": {
+            "authoritative": False,
+            "processes": procs[:PAYLOAD_PROCS],
+            "total": len(procs),
+        },
+        "errors": errors,
+    }

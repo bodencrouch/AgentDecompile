@@ -1,4 +1,4 @@
-"""Multi-signal identity matcher ported from kotorxid `kx/match.py`.
+"""Multi-signal identity matcher ported from the `kx/match.py` toolkit module.
 
 Does not compare raw bytes or absolute addresses. Candidates are blocked by
 shared strings, constants, imports, compilation unit, and decompiled shape.

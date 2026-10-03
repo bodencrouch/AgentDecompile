@@ -1,4 +1,4 @@
-"""Store-backed identity matcher (kotorxid ``kx.match.Binary`` / ``match_binaries``).
+"""Store-backed identity matcher (``kx.match.Binary`` / ``match_binaries`` equivalent).
 
 Evidence-fusion cascade: identical-image short-circuit, authentic symbols, unique
 reloc/instr hashes, rare refs, call-graph, structural islands, optional BSim/ABI

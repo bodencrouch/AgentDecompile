@@ -916,6 +916,753 @@
     </div>`;
   }
 
+  /* ---- Corpus evidence -------------------------------------------------
+     Each corpus window shows what its panel collector measured
+     (/dashboard/panel?id=…). Every figure names its source and age, every
+     state is spelled out in text, and separate facts are never summed. */
+
+  const EVIDENCE_STATES = {
+    proven: "proven", ok: "proven", counted: "proven", done: "proven", up: "proven",
+    partial: "partial",
+    unproven: "unproven", empty: "unproven", not_counted: "unproven", unmeasured: "unproven",
+    failed: "failed", error: "failed",
+    missing: "missing", outside_root: "missing",
+    excluded: "excluded"
+  };
+
+  function evidenceState(raw) {
+    const key = String(raw == null ? "" : raw).toLowerCase();
+    return EVIDENCE_STATES[key] || key || "unproven";
+  }
+
+  function evidenceAge(at) {
+    if (at == null || at === "") return "";
+    const ms = typeof at === "number" ? at * 1000 : Date.parse(at);
+    if (!Number.isFinite(ms)) return "";
+    const s = Math.max(0, Math.round((Date.now() - ms) / 1000));
+    if (s < 90) return s + "s ago";
+    if (s < 5400) return Math.round(s / 60) + " min ago";
+    if (s < 172800) return Math.round(s / 3600) + " h ago";
+    return Math.round(s / 86400) + " days ago";
+  }
+
+  function fmtNum(n) {
+    if (n == null || n === "") return "—";
+    if (typeof n !== "number") return String(n);
+    return Number.isInteger(n) ? n.toLocaleString() : n.toLocaleString(undefined, { maximumFractionDigits: 2 });
+  }
+
+  function fmtShare(x) {
+    if (x == null || x === "" || !Number.isFinite(Number(x))) return "—";
+    return (Number(x) * 100).toFixed(1) + "%";
+  }
+
+  function fmtBytes(n) {
+    if (n == null || !Number.isFinite(Number(n))) return "—";
+    const units = ["B", "KB", "MB", "GB", "TB"];
+    let v = Number(n);
+    let i = 0;
+    while (v >= 1024 && i < units.length - 1) { v /= 1024; i += 1; }
+    return (i ? v.toFixed(1) : String(v)) + " " + units[i];
+  }
+
+  function fmtFixed(x, digits) {
+    return x == null || !Number.isFinite(Number(x)) ? "—" : Number(x).toFixed(digits);
+  }
+
+  function humanKey(key) {
+    const s = String(key || "").replace(/_/g, " ");
+    return s.charAt(0).toUpperCase() + s.slice(1);
+  }
+
+  /* {name: {value, source, at, state}} → FigureGrid items. A figure read from
+     the same source as its block does not repeat that source line. */
+  function figuresFrom(figs, block) {
+    const shared = block && block.source;
+    return Object.keys(figs || {}).map(function (key) {
+      const f = figs[key] || {};
+      const own = f.source && f.source !== shared;
+      return { label: humanKey(key), value: f.value, of: f.of, state: f.state,
+               source: own ? f.source : null, at: own ? f.at : null };
+    });
+  }
+
+  /* Columns for a list whose row shape the collector does not fix. */
+  function autoColumns(rows, skip) {
+    const first = (rows || [])[0] || {};
+    const omit = ["source", "at", "state"].concat(skip || []);
+    return Object.keys(first).filter(function (k) {
+      const v = first[k];
+      return omit.indexOf(k) < 0 && (v == null || typeof v !== "object");
+    }).map(function (k) {
+      return { key: k, label: humanKey(k), num: typeof first[k] === "number" };
+    });
+  }
+
+  function StateTag({ state }) {
+    const st = evidenceState(state);
+    return html`<span className=${"wb-ev-state st-" + st}>${st}</span>`;
+  }
+
+  function SourceLine({ source, at }) {
+    const age = evidenceAge(at);
+    if (!source && !age) return null;
+    return html`<p className="wb-ev-source">
+      ${source ? html`<code>${source}</code>` : null}${source && age ? " · " : ""}${age}
+    </p>`;
+  }
+
+  function SlugButton({ slug, label, onOpen }) {
+    if (!slug) return label ? html`<code>${label}</code>` : html`<span className="wb-ev-dim">—</span>`;
+    if (!onOpen) return html`<code>${slug}</code>`;
+    return html`<button type="button" className="wb-ev-link" onClick=${function () { onOpen(slug); }}>
+      <code>${slug}</code>
+    </button>`;
+  }
+
+  function EvidenceBlock({ title, block, claim, children }) {
+    const b = block || {};
+    const why = claim || b.claim;
+    return html`<section className="wb-ev-block">
+      <header className="wb-ev-head">
+        <h3>${title}</h3>
+        ${b.state != null ? html`<${StateTag} state=${b.state} />` : null}
+      </header>
+      ${why ? html`<p className="wb-hint">${why}</p>` : null}
+      ${b.error ? html`<p className="wb-ev-missing">${b.error}</p>` : null}
+      ${b.note ? html`<p className="wb-hint">${b.note}</p>` : null}
+      ${children}
+      <${SourceLine} source=${b.source} at=${b.at} />
+    </section>`;
+  }
+
+  /* A figure with no value and no state is simply not measured here; skip it.
+     One with a state but no value is an explicit missing measurement; show it. */
+  function FigureGrid({ items }) {
+    const list = (items || []).filter(function (f) {
+      return f && (f.value != null || f.state);
+    });
+    if (!list.length) return null;
+    return html`<dl className="wb-ev-figures">
+      ${list.map(function (f) {
+        return html`<div key=${f.label} className="wb-ev-figure">
+          <dt>${f.label}</dt>
+          <dd>
+            <span className="wb-ev-n">${f.format ? f.format(f.value) : fmtNum(f.value)}</span>
+            ${f.of != null ? html`<span className="wb-ev-of"> of ${fmtNum(f.of)}</span>` : null}
+            ${f.state ? html` <${StateTag} state=${f.state} />` : null}
+          </dd>
+          ${f.source || f.at != null
+            ? html`<dd className="wb-ev-figure-src"><${SourceLine} source=${f.source} at=${f.at} /></dd>`
+            : null}
+        </div>`;
+      })}
+    </dl>`;
+  }
+
+  function EvidenceTable({ caption, columns, rows, empty, limit }) {
+    const list = rows || [];
+    if (!list.length) return empty ? html`<p className="wb-hint">${empty}</p>` : null;
+    const shown = limit && list.length > limit ? list.slice(0, limit) : list;
+    const label = caption + (shown.length < list.length
+      ? " (first " + shown.length + " of " + list.length.toLocaleString() + ")" : "");
+    return html`<div className="wb-ev-tablewrap" role="region" aria-label=${label} tabIndex="0">
+      <table className="wb-fnb-table wb-ev-table">
+        <caption>${label}</caption>
+        <thead><tr>
+          ${columns.map(function (c) {
+            return html`<th key=${c.key} scope="col" className=${c.num || c.right ? "wb-num" : ""}>${c.label}</th>`;
+          })}
+        </tr></thead>
+        <tbody>
+          ${shown.map(function (row, i) {
+            return html`<tr key=${String(row.slug || row.path || row.key || "") + ":" + i}>
+              ${columns.map(function (c) {
+                const v = c.render ? c.render(row) : row[c.key];
+                const text = c.num ? fmtNum(v) : (v == null || v === "" ? "—" : v);
+                return html`<td key=${c.key} className=${c.num || c.right ? "wb-num" : ""}>${text}</td>`;
+              })}
+            </tr>`;
+          })}
+        </tbody>
+      </table>
+    </div>`;
+  }
+
+  function EvidenceErrors({ errors }) {
+    const list = (errors || []).filter(Boolean);
+    if (!list.length) return null;
+    return html`<details className="wb-ev-errors">
+      <summary>${list.length} ${list.length === 1 ? "input is" : "inputs are"} not available</summary>
+      <ul>${list.map(function (msg, i) { return html`<li key=${i}>${msg}</li>`; })}</ul>
+    </details>`;
+  }
+
+  function LogTails({ logs, empty }) {
+    const list = logs || [];
+    if (!list.length) return empty ? html`<p className="wb-hint">${empty}</p>` : null;
+    return html`<div className="wb-ev-logs">
+      ${list.map(function (log, i) {
+        const lines = log.lines || [];
+        const name = log.label || log.path || log.source || "log " + (i + 1);
+        const age = evidenceAge(log.at != null ? log.at : log.mtime);
+        const flags = (log.flags || []).filter(Boolean);
+        return html`<details key=${name + ":" + i} className="wb-ev-log">
+          <summary>
+            <code>${name}</code>
+            <span className="wb-ev-dim">
+              ${" · " + lines.length + (lines.length === 1 ? " line" : " lines")}${age ? " · " + age : ""}${log.truncated ? " · tail only" : ""}
+            </span>
+            ${log.state ? html` <${StateTag} state=${log.state} />` : null}
+            ${flags.map(function (flag) { return html` <span key=${flag} className="wb-ev-flag">${flag}</span>`; })}
+          </summary>
+          ${lines.length
+            ? html`<pre className="wb-ev-pre" tabIndex="0" aria-label=${"Last lines of " + name}>${lines.join("\n")}</pre>`
+            : html`<p className="wb-hint">No lines.</p>`}
+        </details>`;
+      })}
+    </div>`;
+  }
+
+  /* Fetches one panel payload where it is mounted; File → Reload and the
+     window Refresh button re-read it through the island bus. */
+  function PanelEvidence({ id, children }) {
+    const [state, setState] = useState({ loading: true, payload: null, error: null, at: null });
+    const [nonce, setNonce] = useState(0);
+    useEffect(function () {
+      function bump() { setNonce(function (n) { return n + 1; }); }
+      ISLAND_BUS.subs.push(bump);
+      return function () {
+        const at = ISLAND_BUS.subs.indexOf(bump);
+        if (at >= 0) ISLAND_BUS.subs.splice(at, 1);
+      };
+    }, []);
+    useEffect(function () {
+      let dead = false;
+      setState(function (prev) { return Object.assign({}, prev, { loading: true }); });
+      fetch(API.panel + "?id=" + encodeURIComponent(id), { cache: "no-store" })
+        .then(function (res) {
+          return res.json().then(function (data) { return { ok: res.ok, data: data }; });
+        })
+        .then(function (r) {
+          if (dead) return;
+          if (!r.ok || !r.data || r.data.ok === false) {
+            setState({ loading: false, payload: null, at: null,
+                       error: (r.data && r.data.error) || "The panel request failed." });
+            return;
+          }
+          setState({ loading: false, payload: r.data.payload, error: null, at: r.data.collectedAt });
+        })
+        .catch(function (err) {
+          if (dead) return;
+          setState(function (prev) {
+            return Object.assign({}, prev, { loading: false, error: String((err && err.message) || err) });
+          });
+        });
+      return function () { dead = true; };
+    }, [id, nonce]);
+    if (state.loading && !state.payload) {
+      return html`<p className="wb-hint" role="status">Reading the corpus…</p>`;
+    }
+    if (!state.payload) {
+      return html`<p className="wb-ev-missing" role="alert">${state.error || "This panel has no data yet."}</p>`;
+    }
+    return html`<div className="wb-ev" aria-busy=${state.loading ? "true" : "false"}>
+      ${typeof children === "function" ? children(state.payload) : null}
+      ${state.at
+        ? html`<p className="wb-ev-source">Collected ${evidenceAge(state.at)}${state.loading ? " · refreshing" : ""}</p>`
+        : null}
+    </div>`;
+  }
+
+  function buildColumn(onOpen) {
+    return { key: "slug", label: "Build", render: function (r) {
+      return html`<${SlugButton} slug=${r.slug} label=${r.binary || r.repo_path || r.program} onOpen=${onOpen} />`;
+    } };
+  }
+
+  const STATE_COLUMN = { key: "state", label: "State", render: function (r) { return html`<${StateTag} state=${r.state} />`; } };
+
+  /* wb-corpus — inventory, exclusions and the inventory cross-check. */
+  function BuildsEvidence({ payload, onOpen }) {
+    const p = payload || {};
+    const t = p.totals || {};
+    const inv = p.inventory || {};
+    return html`<div className="wb-ev-panel">
+      <${EvidenceBlock} title="Corpus inventory"
+        block=${{ state: p.totals ? "proven" : "missing", source: t.source, at: t.at,
+                  error: p.totals ? null : "The corpus database could not be read." }}>
+        <${FigureGrid} items=${[
+          { label: "Builds", value: t.binaries },
+          { label: "Functions", value: t.functions_all },
+          { label: "Matchable functions", value: t.functions_matchable, of: t.functions_all },
+          { label: "Excluded functions", value: t.functions_excluded },
+          { label: "Named matchable functions", value: t.named_matchable, of: t.functions_matchable },
+          { label: "Matchable share", value: t.coverage_ratio, format: fmtShare }
+        ]} />
+        <${EvidenceTable} caption="Builds per game" rows=${t.games}
+          columns=${[{ key: "game", label: "Game" }, { key: "builds", label: "Builds", num: true },
+                     { key: "platforms", label: "Platforms", num: true }]} />
+      </${EvidenceBlock}>
+      <${EvidenceBlock} title="Excluded builds"
+        claim="Excluded builds are not counted as matchable. A duplicate has the same image as another build.">
+        <${EvidenceTable} caption="Excluded builds" rows=${p.exclusions} empty="No build is excluded."
+          columns=${[
+            buildColumn(onOpen),
+            { key: "reason", label: "Reason", render: function (r) {
+              return r.reason === "duplicate"
+                ? "duplicate of " + (r.duplicate_of_slug || r.duplicate_of || "another build")
+                : (r.reason || "configured");
+            } },
+            { key: "func_count", label: "Functions", num: true }
+          ]} />
+      </${EvidenceBlock}>
+      <${EvidenceBlock} title="Inventory cross-check" block=${inv}>
+        <${FigureGrid} items=${inv.state && inv.state !== "missing" ? [
+          { label: "Listed", value: inv.listed },
+          { label: "Checked", value: inv.checked },
+          { label: "Function-count drift", value: (inv.flagged || []).length }
+        ] : []} />
+        <${EvidenceTable} caption="Builds whose function count drifted" rows=${inv.flagged}
+          columns=${[
+            buildColumn(onOpen),
+            { key: "db_func_count", label: "Database", num: true },
+            { key: "inventory_functions", label: "Inventory", num: true },
+            { key: "drift", label: "Drift", num: true }
+          ]} />
+      </${EvidenceBlock}>
+      <${EvidenceErrors} errors=${p.errors} />
+    </div>`;
+  }
+
+  function MatchMatrix({ matrix, onOpen }) {
+    const mx = matrix || {};
+    const rows = mx.rows || [];
+    const cols = mx.cols || [];
+    const values = mx.values || [];
+    if (!rows.length || !cols.length) return null;
+    const max = mx.max || 1;
+    return html`<div className="wb-ev-tablewrap" role="region" aria-label="Matches between builds" tabIndex="0">
+      <table className="wb-fnb-table wb-ev-table wb-ev-matrix">
+        <caption>Matches between builds (row build matched into column build)</caption>
+        <thead><tr>
+          <th scope="col">Build</th>
+          ${cols.map(function (c) { return html`<th key=${c} scope="col"><code>${c}</code></th>`; })}
+        </tr></thead>
+        <tbody>
+          ${rows.map(function (r, i) {
+            return html`<tr key=${r}>
+              <th scope="row"><${SlugButton} slug=${r} onOpen=${onOpen} /></th>
+              ${cols.map(function (c, j) {
+                const v = (values[i] || [])[j] || 0;
+                const pct = Math.round(70 * v / max);
+                const style = v ? { background: "color-mix(in srgb, var(--st-proven) " + pct + "%, transparent)" } : null;
+                return html`<td key=${c} className="wb-num" style=${style}>${v ? fmtNum(v) : ""}</td>`;
+              })}
+            </tr>`;
+          })}
+        </tbody>
+      </table>
+    </div>`;
+  }
+
+  /* wb-match — corpus-wide identity and match evidence. */
+  function MatchEvidence({ payload, onOpen }) {
+    const p = payload || {};
+    const lg = p.logical || {};
+    const id = p.identity || {};
+    const m = p.matches || {};
+    const bs = p.bsim || {};
+    const bsLogs = bs.logs || {};
+    const pr = p.propagation || {};
+    const cand = pr.candidates_file || {};
+    const notes = p.notes || {};
+    const lacking = bs.lacking_slugs || [];
+    return html`<div className="wb-ev-panel">
+      <${EvidenceBlock} title="Logical functions" block=${lg}
+        claim="A logical function is one function, found in one or more builds.">
+        <${FigureGrid} items=${[
+          { label: "Logical functions", value: lg.total },
+          { label: "In more than one build", value: lg.multi_build, of: lg.total },
+          { label: "In one build only", value: lg.single_build, of: lg.total },
+          { label: "With a source file", value: lg.with_source_file, of: lg.total }
+        ]} />
+        <${EvidenceTable} caption="How many builds each logical function spans" rows=${lg.spread}
+          columns=${[
+            { key: "label", label: "Spans" },
+            { key: "count", label: "Logical functions", num: true },
+            { key: "share", label: "Share", right: true, render: function (r) { return fmtShare(r.share); } }
+          ]} />
+      </${EvidenceBlock}>
+      <${EvidenceBlock} title="Identity bindings" block=${id} claim=${notes.identity_vs_propagation}>
+        <${FigureGrid} items=${[
+          { label: "Bound functions", value: id.bound_addresses, of: id.total_functions },
+          { label: "Builds with bindings", value: id.binaries_with_bindings, of: id.binaries_total },
+          { label: "Below the trust floor" + (id.trust_floor != null ? " (" + id.trust_floor + ")" : ""),
+            value: id.weak_bindings }
+        ]} />
+        ${id.denominator_note ? html`<p className="wb-hint">${id.denominator_note}</p>` : null}
+        <${EvidenceTable} caption="Binding method and confidence" rows=${id.methods}
+          columns=${[
+            { key: "method", label: "Method" },
+            { key: "count", label: "Bindings", num: true },
+            { key: "share", label: "Share", right: true, render: function (r) { return fmtShare(r.share); } },
+            { key: "avg_confidence", label: "Average confidence", right: true, render: function (r) { return fmtFixed(r.avg_confidence, 2); } },
+            STATE_COLUMN
+          ]} />
+      </${EvidenceBlock}>
+      <${EvidenceBlock} title="Match candidates" block=${m}>
+        <${FigureGrid} items=${[
+          { label: "Candidates", value: m.total },
+          { label: "Accepted automatically", value: m.auto, of: m.total },
+          { label: "Waiting for review", value: m.awaiting_human, of: m.total }
+        ]} />
+        <${EvidenceTable} caption="Candidates by status" rows=${m.statuses}
+          columns=${[
+            { key: "status", label: "Status" },
+            { key: "meaning", label: "Meaning" },
+            { key: "count", label: "Candidates", num: true },
+            { key: "avg_score", label: "Average score", right: true, render: function (r) { return fmtFixed(r.avg_score, 2); } }
+          ]} />
+      </${EvidenceBlock}>
+      <${EvidenceBlock} title="BSim signatures" block=${bs}>
+        <${FigureGrid} items=${[
+          { label: "Builds with a signature set", value: bs.covered, of: bs.corpus_binaries },
+          { label: "Signature jobs passed", value: bsLogs.state === "missing" ? null : bsLogs.passed },
+          { label: "Signature jobs failed", value: bsLogs.state === "missing" ? null : bsLogs.failed }
+        ]} />
+        ${lacking.length ? html`<p className="wb-hint">${lacking.length} builds have no signature set yet.</p>` : null}
+        <${EvidenceErrors} errors=${bs.errors} />
+      </${EvidenceBlock}>
+      <${EvidenceBlock} title="Reuse between builds" block=${pr}
+        claim="Reuse candidates carry recovered source to another build. They are not identity bindings.">
+        <${FigureGrid} items=${[
+          { label: "Reuse candidates", value: cand.rows, state: cand.state, source: cand.source, at: cand.at }
+        ]} />
+      </${EvidenceBlock}>
+      <${EvidenceBlock} title="Matches between builds" block=${p.matrix}>
+        <${MatchMatrix} matrix=${p.matrix} onOpen=${onOpen} />
+      </${EvidenceBlock}>
+      <${EvidenceErrors} errors=${p.errors} />
+    </div>`;
+  }
+
+  /* wb-mission — the contract's cited evidence, checked on disk now. */
+  function DirectivesEvidence({ payload }) {
+    const p = payload || {};
+    const src = p.source || {};
+    const c = p.counts || {};
+    const state = !src.exists ? "missing" : (c.missing ? "partial" : "proven");
+    return html`<div className="wb-ev-panel">
+      <${EvidenceBlock} title="Cited evidence on disk" block=${{ state: state, source: src.path, at: src.mtime }}
+        claim="Each path the mission contract cites, checked against the filesystem now.">
+        ${!src.exists ? html`<p className="wb-ev-missing">There is no mission contract file yet.</p>` : null}
+        <${FigureGrid} items=${src.exists ? [
+          { label: "Cited paths", value: c.evidence },
+          { label: "Present", value: c.ok, of: c.evidence },
+          { label: "Missing", value: c.missing }
+        ] : []} />
+        <${EvidenceTable} caption="Cited evidence" rows=${p.evidence}
+          columns=${[
+            { key: "path", label: "Path", render: function (r) { return html`<code>${r.path}</code>`; } },
+            STATE_COLUMN,
+            { key: "age", label: "Changed", render: function (r) { return r.age || evidenceAge(r.mtime) || "—"; } },
+            { key: "note", label: "Note" }
+          ]} />
+      </${EvidenceBlock}>
+      <${EvidenceErrors} errors=${p.errors} />
+    </div>`;
+  }
+
+  /* wb-knowledge — the merged Ghidra knowledge store. */
+  function KnowledgeEvidence({ payload, onOpen }) {
+    const p = payload || {};
+    const sv = p.server || {};
+    const sc = p.scale || {};
+    const st = p.store || {};
+    const dp = p.deep || {};
+    const cv = p.coverage || {};
+    const gp = p.gaps || {};
+    const gaps = gp.items || [];
+    const serverText = !sv.configured
+      ? "No Ghidra server port is configured."
+      : sv.host + ":" + sv.port + " is "
+        + (sv.reachable === true ? "reachable" : sv.reachable === false ? "not reachable" : "not probed") + ".";
+    return html`<div className="wb-ev-panel">
+      <${EvidenceBlock} title="Knowledge store" block=${{ state: st.state, source: st.source, at: st.at }}>
+        <${FigureGrid} items=${[
+          { label: "Store size", value: st.size_bytes, format: fmtBytes },
+          { label: "Programs", value: sc.programs },
+          { label: "Programs complete", value: sc.programs_complete, of: sc.programs },
+          { label: "Functions cached", value: sc.functions_cached, of: sc.functions_offered }
+        ]} />
+        ${sc.error ? html`<p className="wb-ev-missing">${sc.error}</p>` : null}
+      </${EvidenceBlock}>
+      <${EvidenceBlock} title="Ghidra server" block=${{ state: sv.state, source: sv.source, at: sv.at }}
+        claim="Observed from this process. Reachability does not prove the knowledge is current.">
+        <p>${serverText}</p>
+      </${EvidenceBlock}>
+      <${EvidenceBlock} title="Programs in the store" block=${{ state: sc.state, source: p.programs_source }}>
+        <${EvidenceTable} caption="Knowledge per program" rows=${p.programs} empty="No program has been ingested."
+          columns=${[
+            buildColumn(onOpen),
+            { key: "cached", label: "Cached", num: true },
+            { key: "offered", label: "Offered", num: true },
+            { key: "named", label: "Named", num: true },
+            { key: "decompiled", label: "Decompiled", num: true },
+            STATE_COLUMN
+          ]} />
+      </${EvidenceBlock}>
+      <${EvidenceBlock} title="Deep scan" block=${dp}>
+        <${FigureGrid} items=${[
+          { label: "Scan time", value: dp.seconds, format: function (v) { return fmtFixed(v, 1) + " s"; } }
+        ]} />
+        ${dp.running ? html`<p className="wb-hint" role="status">A deep scan is running.</p>` : null}
+      </${EvidenceBlock}>
+      <${EvidenceBlock} title="Dump coverage" block=${{ state: cv.state, error: cv.error, source: cv.dump_source, at: cv.dump_at }}>
+        <${FigureGrid} items=${[
+          { label: "Real functions", value: cv.real_functions },
+          { label: "Functions in the dump", value: cv.dump_functions, of: cv.real_functions },
+          { label: "Dump size", value: cv.dump_size_bytes, format: fmtBytes }
+        ]} />
+      </${EvidenceBlock}>
+      <${EvidenceBlock} title="Gaps"
+        block=${{ state: gaps.length ? "partial" : (gp.error ? "missing" : "proven"), error: gp.error, source: gp.source, at: gp.at }}>
+        <${FigureGrid} items=${[
+          { label: "Gaps", value: gp.total },
+          { label: "Unexplained", value: gp.unexplained }
+        ]} />
+        <${EvidenceTable} caption="Programs missing from the store" rows=${gaps}
+          columns=${[buildColumn(onOpen), { key: "label", label: "Why" }, { key: "cached", label: "Cached", num: true }, STATE_COLUMN]} />
+      </${EvidenceBlock}>
+      <${EvidenceErrors} errors=${p.errors} />
+    </div>`;
+  }
+
+  /* wb-processes — log tails and observed processes. Never job state. */
+  function ProcessesEvidence({ payload }) {
+    const p = payload || {};
+    const obs = p.observed || {};
+    return html`<div className="wb-ev-panel">
+      <${EvidenceBlock} title="Recent logs" block=${{ state: (p.logs || []).length ? "proven" : "missing" }}
+        claim=${p.note || "Log tails are read-only. The job list above is the authority on job state."}>
+        <${LogTails} logs=${p.logs} empty="No log files in the corpus work directory." />
+      </${EvidenceBlock}>
+      <${EvidenceBlock} title="Observed processes"
+        claim="Seen on this machine. This is not job state, and it offers no controls.">
+        <${EvidenceTable} caption="Observed processes" rows=${obs.processes} empty="No matching processes observed."
+          columns=${[
+            { key: "pid", label: "PID" },
+            { key: "label", label: "Process" },
+            { key: "kind", label: "Kind" },
+            { key: "cwd", label: "Directory", render: function (r) { return r.cwd ? html`<code>${r.cwd}</code>` : "—"; } }
+          ]} />
+      </${EvidenceBlock}>
+      <${EvidenceErrors} errors=${p.errors} />
+    </div>`;
+  }
+
+  /* wb-recovery — real C, byte-exact C and the assembly floor, kept apart. */
+  function RecoveryEvidence({ payload, onOpen }) {
+    const p = payload || {};
+    const rc = p.real_c || {};
+    const be = p.byte_exact || {};
+    const af = p.asm_floor || {};
+    const cp = p.compile || {};
+    const run = p.run || {};
+    function fig(label, f, extra) {
+      const x = f || {};
+      return Object.assign({ label: label, value: x.value, of: x.of, state: x.state, source: x.source, at: x.at }, extra || {});
+    }
+    const builds = (p.builds || []).filter(function (b) {
+      return [b.real_c, b.byte_exact, b.asm_floor].some(function (f) { return f && f.value; });
+    });
+    function num(key) {
+      return { key: key, label: humanKey(key), num: true, render: function (r) { return (r[key] || {}).value; } };
+    }
+    return html`<div className="wb-ev-panel">
+      <${EvidenceBlock} title="Corpus-wide recovery"
+        claim="Real C, byte-exact C and the assembly floor are separate facts. They are never added together.">
+        <${FigureGrid} items=${[
+          fig("Real C (concrete functions)", rc),
+          { label: "Real C (logical functions)", value: rc.logical },
+          fig("Real C and byte-exact", be.real_c_and_byte_exact),
+          fig("Compiles unmodified", be.compiles_unmodified),
+          fig("Real C source bodies", be.real_c_source_bodies),
+          fig("Sampled", be.sampled),
+          fig("Assembly floor (byte-exact assembly)", af),
+          fig("Compiled cleanly", cp)
+        ]} />
+      </${EvidenceBlock}>
+      <${EvidenceBlock} title="Compile failures by error code" block=${{ state: cp.state, source: cp.source, at: cp.at }}>
+        <${EvidenceTable} caption="Most common compile errors" rows=${cp.errors} empty="No compile tally yet."
+          columns=${[{ key: "code", label: "Code" }, { key: "functions", label: "Functions", num: true },
+                     { key: "example", label: "Example", render: function (r) { return r.example ? html`<code>${r.example}</code>` : "—"; } }]} />
+      </${EvidenceBlock}>
+      <${EvidenceBlock} title="Chosen recovery run" block=${run}>
+        <${FigureGrid} items=${[
+          { label: "Candidates", value: run.candidates },
+          { label: "Sampled", value: run.sampled },
+          { label: "Byte-exact, any body", value: run.byte_exact_raw },
+          { label: "Byte-exact through a shim only", value: run.byte_exact_shim_only }
+        ]} />
+        <${EvidenceTable} caption="Outcomes" rows=${run.outcomes}
+          columns=${[{ key: "outcome", label: "Outcome" }, { key: "gloss", label: "Meaning" }, { key: "functions", label: "Functions", num: true }]} />
+      </${EvidenceBlock}>
+      <${EvidenceBlock} title="Per build">
+        <${EvidenceTable} caption="Recovery per build" rows=${builds} limit=${40}
+          empty="No build has a recovery figure yet."
+          columns=${[buildColumn(onOpen), { key: "func_count", label: "Functions", num: true },
+                     num("real_c"), num("byte_exact"), num("asm_floor")]} />
+      </${EvidenceBlock}>
+      <${EvidenceBlock} title="Recently recovered functions">
+        <${EvidenceTable} caption="Recently recovered functions" rows=${p.recent}
+          columns=${[
+            buildColumn(onOpen),
+            { key: "addr", label: "Function", render: function (r) {
+              const label = r.name || r.addr || "—";
+              return r.slug && r.addr
+                ? html`<a href=${"/dashboard/function/" + encodeURIComponent(r.slug) + "/" + encodeURIComponent(r.addr)}><code>${label}</code></a>`
+                : html`<code>${label}</code>`;
+            } },
+            { key: "band", label: "Size band" },
+            { key: "outcome", label: "Outcome" }
+          ]} />
+        ${p.recent_total > (p.recent || []).length
+          ? html`<p className="wb-hint">${fmtNum(p.recent_total)} recovered functions in total.</p>` : null}
+      </${EvidenceBlock}>
+      <${EvidenceBlock} title="Model experiments">
+        <${EvidenceTable} caption="Experiment arms" rows=${p.experiments}
+          columns=${[
+            { key: "name", label: "Arm" },
+            { key: "program", label: "Program" },
+            { key: "model", label: "Model" },
+            { key: "prompts", label: "Prompts", num: true },
+            { key: "succeeded", label: "Succeeded", num: true },
+            { key: "at", label: "Changed", render: function (r) { return evidenceAge(r.at) || "—"; } }
+          ]} />
+      </${EvidenceBlock}>
+      <${EvidenceErrors} errors=${p.errors} />
+    </div>`;
+  }
+
+  /* wb-roundtrip — five evidence classes, each from its own file. */
+  function RoundtripEvidence({ payload, onOpen }) {
+    const p = payload || {};
+    const b = buildColumn(onOpen);
+    const classes = [
+      { key: "image_receipts", title: "Whole-image receipts",
+        columns: [b, STATE_COLUMN, { key: "size", label: "Size", num: true },
+                  { key: "rebuilt_size", label: "Rebuilt size", num: true }, { key: "note", label: "Note" }] },
+      { key: "universal_coverage", title: "Per-function byte equality",
+        columns: [b, STATE_COLUMN, { key: "functions", label: "Functions", num: true },
+                  { key: "byte_exact", label: "Byte-exact", num: true }, { key: "failed", label: "Failed", num: true },
+                  { key: "skipped_unmappable", label: "Unmappable", num: true }] },
+      { key: "assembly_package", title: "Assembly package",
+        columns: [b, STATE_COLUMN, { key: "functions", label: "Functions", num: true },
+                  { key: "named", label: "Named", num: true }, { key: "asm_files", label: "Assembly files", num: true }] },
+      { key: "cpp_package", title: "C/C++ package",
+        columns: [b, STATE_COLUMN, { key: "functions", label: "Functions", num: true },
+                  { key: "named", label: "Named", num: true }, { key: "cpp_files", label: "C/C++ files", num: true },
+                  { key: "original_source_files", label: "Original sources", num: true }] },
+      { key: "reconstructed_build", title: "Reconstructed build tree",
+        columns: [b, STATE_COLUMN, { key: "functions", label: "Functions", num: true },
+                  { key: "named", label: "Named", num: true }, { key: "translation_units", label: "Units", num: true },
+                  { key: "attributed_source_files", label: "Source files", num: true }] }
+    ];
+    return html`<div className="wb-ev-panel">
+      ${classes.map(function (cls) {
+        const block = p[cls.key] || {};
+        const figs = figuresFrom(block.figures, block);
+        if (block.packages_on_disk) figs.push(Object.assign({ label: "Packages on disk" }, block.packages_on_disk));
+        return html`<${EvidenceBlock} key=${cls.key} title=${cls.title} block=${block}>
+          <${FigureGrid} items=${figs} />
+          <${EvidenceTable} caption=${cls.title + " per build"} rows=${block.rows} columns=${cls.columns} />
+        </${EvidenceBlock}>`;
+      })}
+      <${EvidenceBlock} title="Rebuild logs">
+        <${LogTails} logs=${p.logs} empty="No rebuild logs." />
+      </${EvidenceBlock}>
+      <${EvidenceErrors} errors=${p.errors} />
+    </div>`;
+  }
+
+  /* wb-stabs — original source names recovered from debug records. */
+  function StabsEvidence({ payload, onOpen }) {
+    const p = payload || {};
+    const ix = p.index || {};
+    const rt = p.record_types || {};
+    const fl = p.files || {};
+    const lg = p.logical || {};
+    const rc = p.reach || {};
+    const pv = p.provenance || {};
+    const ts = p.top_sources || {};
+    const sy = p.symbol_tables || {};
+    const pvt = pv.totals || {};
+    const busiest = (pv.binaries || []).filter(function (r) { return r.functions; })
+      .sort(function (a, c) { return (c.placeholders || 0) - (a.placeholders || 0); });
+    return html`<div className="wb-ev-panel">
+      <${EvidenceBlock} title="Original source names" block=${lg}
+        claim="Logical functions that carry a recovered source path or object file.">
+        <${FigureGrid} items=${figuresFrom(lg.figures, lg)} />
+        <${EvidenceTable} caption="Source names per game" rows=${lg.games}
+          columns=${[{ key: "game", label: "Game" }, { key: "logical_functions", label: "Logical functions", num: true },
+                     { key: "with_source_path", label: "With a source path", num: true }]} />
+      </${EvidenceBlock}>
+      <${EvidenceBlock} title="Builds with a STABS index" block=${ix}>
+        <${EvidenceTable} caption="STABS index per build" rows=${ix.slices}
+          columns=${[buildColumn(onOpen), { key: "arch", label: "Arch" },
+                     { key: "stabs_records", label: "STABS records", num: true }, { key: "units", label: "Units", num: true },
+                     { key: "functions", label: "Functions", num: true }, { key: "symbols", label: "Symbols", num: true },
+                     STATE_COLUMN]} />
+      </${EvidenceBlock}>
+      <${EvidenceBlock} title="Record types" block=${rt}>
+        <${EvidenceTable} caption="STABS record types" rows=${rt.columns}
+          columns=${[{ key: "type", label: "Type" }, { key: "gloss", label: "Meaning" }, { key: "total", label: "Records", num: true }]} />
+      </${EvidenceBlock}>
+      <${EvidenceBlock} title="Extracted files" block=${fl}>
+        <${FigureGrid} items=${[{ label: "Total size", value: fl.state === "missing" ? null : fl.total_bytes, format: fmtBytes }]} />
+        <${EvidenceTable} caption="Extracted STABS files" rows=${fl.files}
+          columns=${[{ key: "name", label: "File", render: function (r) { return html`<code>${r.name}</code>`; } },
+                     { key: "bytes", label: "Size", right: true, render: function (r) { return fmtBytes(r.bytes); } },
+                     { key: "at", label: "Changed", render: function (r) { return evidenceAge(r.at) || "—"; } }]} />
+      </${EvidenceBlock}>
+      <${EvidenceBlock} title="Reach across builds" block=${rc}>
+        <${EvidenceTable} caption="Source-attributed identities per platform" rows=${rc.platforms}
+          columns=${[{ key: "platform", label: "Platform" }, { key: "present", label: "Present", num: true },
+                     { key: "with_source_path", label: "With a source path", num: true }]} />
+        <${EvidenceTable} caption="Attribution methods" rows=${rc.methods} columns=${autoColumns(rc.methods)} />
+      </${EvidenceBlock}>
+      <${EvidenceBlock} title="Placeholder names" block=${pv}
+        claim="Placeholders are functions still named only by address.">
+        <${FigureGrid} items=${[
+          { label: "Builds", value: pvt.builds },
+          { label: "Functions", value: pvt.functions },
+          { label: "Placeholders", value: pvt.placeholders, of: pvt.functions }
+        ]} />
+        <${EvidenceTable} caption="Placeholders per platform" rows=${pv.platforms}
+          columns=${[{ key: "platform", label: "Platform" }, { key: "builds", label: "Builds", num: true },
+                     { key: "functions", label: "Functions", num: true }, { key: "placeholders", label: "Placeholders", num: true }]} />
+        <${EvidenceTable} caption="Builds with the most placeholders" rows=${busiest} limit=${15}
+          columns=${[buildColumn(onOpen), { key: "functions", label: "Functions", num: true },
+                     { key: "placeholders", label: "Placeholders", num: true }]} />
+      </${EvidenceBlock}>
+      <${EvidenceBlock} title="Most common source paths" block=${ts}>
+        ${(ts.paths || []).length ? html`<ol className="wb-ev-list">
+          ${ts.paths.map(function (row) {
+            return html`<li key=${row.path}><code>${row.path}</code> <span className="wb-ev-dim">· ${fmtNum(row.logical_functions)}</span></li>`;
+          })}
+        </ol>` : null}
+      </${EvidenceBlock}>
+      <${EvidenceBlock} title="Symbol tables" block=${sy}>
+        <${EvidenceTable} caption="Rows per table" rows=${sy.tables}
+          columns=${[{ key: "table", label: "Table", render: function (r) { return html`<code>${r.table}</code>`; } },
+                     { key: "rows", label: "Rows", num: true }, STATE_COLUMN]} />
+      </${EvidenceBlock}>
+      <${EvidenceErrors} errors=${p.errors} />
+    </div>`;
+  }
+
   function AtlasReact({ onToast }) {
     const [data, setData] = useState(null);
     const [err, setErr] = useState("");
@@ -3295,7 +4042,7 @@
           if (pulse) pulse.title = msg;
         }
       };
-      window.KotorXidUI = window.AgentDecompileUI;
+      window.DashboardUI = window.AgentDecompileUI;
       loadBinaries();
       loadCorpusStatus();
       loadContext();
@@ -4565,7 +5312,7 @@
         },
         showToast: showToast
       });
-      window.KotorXidUI = window.AgentDecompileUI;
+      window.DashboardUI = window.AgentDecompileUI;
     }, [toolContext, envDefaults, binaries, detail]);
 
     function programAlreadyAnalyzed(data) {
@@ -5074,6 +5821,20 @@
       </div>`;
     }
 
+    /* A build link anywhere in the corpus evidence opens that build's ladder,
+       the same as a row in the build compare table. */
+    function openBuild(buildSlug) {
+      if (!buildSlug) return;
+      setSlug(buildSlug);
+      setCenterTab("wb-pipeline");
+    }
+
+    function evidence(id, View) {
+      return html`<${PanelEvidence} id=${id}>${function (payload) {
+        return html`<${View} payload=${payload} onOpen=${openBuild} />`;
+      }}</${PanelEvidence}>`;
+    }
+
     function runActionButton(actionId, label) {
       const known = actions.some(function (item) { return item.id === actionId; });
       if (!known) return null;
@@ -5268,6 +6029,7 @@
             }} />
           <${BinaryCompareTable} binaries=${(corpusStatus && corpusStatus.ladder && corpusStatus.ladder.binaries) || []}
             onOpen=${function (b) { if (b && b.slug) setSlug(b.slug); }} />
+          ${evidence("crossmatch", MatchEvidence)}
         </${Surface}>`;
       }
       if (tab === "wb-recovery") {
@@ -5338,6 +6100,7 @@
                 program: program || ""
               }, { skipConfirm: true });
             }} />
+          ${evidence("recovery", RecoveryEvidence)}
         </${Surface}>`;
       }
       if (tab === "wb-stabs") {
@@ -5347,7 +6110,7 @@
           runActionButton("corpus.stabs-manifest", "STABS manifest")
         )}>
           ${quickBar("stabs")}
-          <p className="wb-hint">Named counts come from the live corpus snapshot. Extract STABS writes the index the ladder reads.</p>
+          ${evidence("stabs", StabsEvidence)}
           <${BinaryCompareTable} binaries=${bins} onOpen=${function (b) { if (b && b.slug) setSlug(b.slug); }} />
         </${Surface}>`;
       }
@@ -5360,6 +6123,7 @@
           runActionButton("corpus.bsim-report", "BSim report")
         )}>
           <${StepLadder} title="Identity and knowledge merge" steps=${steps} onRun=${runLadderStep} />
+          ${evidence("knowledge", KnowledgeEvidence)}
         </${Surface}>`;
       }
       if (tab === "wb-roundtrip") {
@@ -5378,6 +6142,7 @@
           <${PreparationObservation} run=${recoveryRun} feed=${preparationFeed} now=${preparationNow} />
           ${recoveryRun ? html`<${StepLadder} title=${"Self-contained recovery · " + (recoveryRun.program || program || slug || recoveryRun.status)} steps=${recoverySteps} />` : null}
           <${StepLadder} title="Compile and verify" steps=${steps} onRun=${runLadderStep} />
+          ${evidence("roundtrip", RoundtripEvidence)}
         </${Surface}>`;
       }
       if (tab === "wb-processes") {
@@ -5391,6 +6156,7 @@
               return html`<li key=${job.id}><code>${job.id}</code> ${job.actionId || ""} ${job.status}</li>`;
             }) : html`<li>No catalog jobs in this session.</li>`}
           </ul>
+          ${evidence("processes", ProcessesEvidence)}
         </${Surface}>`;
       }
       if (tab === "wb-mission") {
@@ -5398,6 +6164,7 @@
           html`<button type="button" className="wb-btn wb-btn-mini" onClick=${function () { loadCorpusStatus(); }}>Refresh</button>`
         )}>
           <${MissionReact} mission=${corpusStatus && corpusStatus.mission} />
+          ${evidence("directives", DirectivesEvidence)}
         </${Surface}>`;
       }
       if (tab === "wb-corpus") {
@@ -5411,6 +6178,7 @@
         )}>
           <${BinaryCompareTable} binaries=${(corpusStatus && corpusStatus.ladder && corpusStatus.ladder.binaries) || []}
             onOpen=${function (b) { if (b && b.slug) { setSlug(b.slug); setCenterTab("wb-pipeline"); } }} />
+          ${evidence("binaries", BuildsEvidence)}
         </${Surface}>`;
       }
       if (tab === "wb-fnbrowse") {

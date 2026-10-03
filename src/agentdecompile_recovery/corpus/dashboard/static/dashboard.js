@@ -236,9 +236,9 @@
       } else if (current) {
         current.innerHTML = html;
       }
-      if (window.KotorXidUI) {
-        window.KotorXidUI.enhanceTables();
-        window.KotorXidUI.enhanceRepeatedActions();
+      if (window.DashboardUI) {
+        window.DashboardUI.enhanceTables();
+        window.DashboardUI.enhanceRepeatedActions();
       }
     }
 
@@ -527,7 +527,7 @@
     installFunctionKeys();
   }
 
-  window.KotorXidUI = Object.freeze({
+  window.DashboardUI = Object.freeze({
     announce: announce,
     setBusy: setBusy,
     enhanceTables: enhanceTables,

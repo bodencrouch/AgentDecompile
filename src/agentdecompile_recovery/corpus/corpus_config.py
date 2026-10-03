@@ -73,6 +73,33 @@ def load_program_config(program: str | None, config_dir_path: Path | str | None 
     )
 
 
+def program_section(section: str, program: str | None = None,
+                    config_dir_path: Path | str | None = None) -> tuple[str, dict]:
+    """Return ``(program, raw config)`` for the program that carries ``section``.
+
+    An explicit program (argument or ``CORPUS_PROGRAM``) wins. Otherwise exactly
+    one ``programs/*.json`` file may contain ``section``; none or several raises
+    LookupError so the caller can say which program to pass.
+    """
+    name = (program or os.environ.get("CORPUS_PROGRAM") or "").strip()
+    if name:
+        path = program_config_path(name, config_dir_path)
+        raw = _read_json(path) if path is not None else {}
+        if not isinstance(raw.get(section), dict):
+            raise LookupError(f"program config for {name!r} has no {section!r} section")
+        return name, raw
+    root = config_dir(config_dir_path)
+    if root is None:
+        raise LookupError("AGENT_DECOMPILE_CORPUS_CONFIG_DIR is not set")
+    found = [(p.stem, raw) for p in sorted((root / "programs").glob("*.json"))
+             if isinstance((raw := _read_json(p)).get(section), dict)]
+    if len(found) != 1:
+        names = ", ".join(n for n, _ in found) or "none"
+        raise LookupError(f"{len(found)} program configs have a {section!r} section ({names}); "
+                          "pass a program or set CORPUS_PROGRAM")
+    return found[0]
+
+
 def load_match_pairs(config_dir_path: Path | str | None = None) -> list[tuple[str, str, str]]:
     """Load directed match pairs from CORPUS_PAIRS / pairs.json.
 

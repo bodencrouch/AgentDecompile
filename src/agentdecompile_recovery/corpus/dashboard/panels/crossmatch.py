@@ -1,17 +1,25 @@
-"""Cross-build identity layer and BSim — how a name in one fork reaches the others.
+"""Cross-build identity layer and BSim: how a name in one build reaches the others.
 
-Every number here is read live from db/kotorxid.sqlite, bsim/, logs/ and
-output/mizuchi/. Nothing is cached and nothing is hardcoded.
+Every number here is read live from the corpus database, the BSim directory, the
+logs directory and the identity output directory. Nothing is cached here and
+nothing is hardcoded to a project: roots come from the dashboard config helpers.
 
 Two rules shape what this panel shows rather than what would look better:
 
-1. Precision beats recall on this project, so a count is never shown without the
-   confidence or score that earned it. 287k bindings is not 287k trustworthy
-   bindings, and the page must not let anyone read it that way.
-2. The `func` table is ~500 MB on an external disk. Nothing here touches it —
-   func-side denominators come from `binary.func_count`, a stored per-binary
+1. Precision beats recall, so a count is never shown without the confidence or
+   score that earned it. A large binding count is not a large trustworthy count,
+   and the page must not let anyone read it that way.
+2. The `func` table is large and often on an external disk. Nothing here touches
+   it. Func-side denominators come from `binary.func_count`, a stored per-binary
    integer, and where that is not good enough the number is reported as
    unavailable instead of being bought with a minutes-long scan.
+
+Identity (the same function bound across builds) and source propagation (reuse
+candidates carried between builds) are separate facts. They are collected in
+separate keys and their counts are never merged.
+
+`_collect()` gathers the facts once. `render()` draws them as HTML and
+`as_payload()` returns them as JSON-safe data, so the two cannot drift.
 """
 
 from __future__ import annotations
@@ -35,45 +43,105 @@ from agentdecompile_recovery.corpus.dashboard.panels.common import (
     tag,
 )
 from agentdecompile_recovery.corpus.dashboard.panels.viz import bars, donut, heatmap, stacked_bar
+from agentdecompile_recovery.corpus.dashboard.common import as_root, live_db
 
 try:  # count_link is landing in common.py from another author.
     from agentdecompile_recovery.corpus.dashboard.panels.common import count_link
 except ImportError:  # the panel still renders, with plain links
     count_link = None
 
+TITLE = "Cross-matching: bridging the builds"
 
-def _details(inner: str, summary: str = "raw numbers") -> str:
-    """Collapsed-by-default expansion of a chart, per Rule C.
+# Relative locations under the dashboard root. The BSIM database and batch log
+# names are discovered by pattern, because their file names are project choices.
+_BSIM_REL = "bsim"
+_JOB_LOGS_REL = ("logs", "bsim")
+_LOGS_REL = "logs"
+_REUSE_SUMMARY_REL = ("output", "identity", "identity_reuse_summary.json")
+_REUSE_CANDIDATES_REL = ("output", "identity", "reuse_candidates.jsonl")
+_MATCH_REPORT_REL = ("reports", "_gen_matches.md")
+_MATCH_REPORT_ROW = re.compile(
+    r"^\| `([^`]+)` \| `([^`]+)` \| [^|]+ \| ([\d,]+) \|", re.MULTILINE)
 
-    10-relationship-layout.md: "a table is only ever the expansion of a
-    visual, never a replacement" — visible on click, not open by default.
-    """
-    return f'<details><summary>{esc(summary)}</summary>{inner}</details>'
+# A binding at or below this confidence is a lead, not an identification. The
+# threshold exists so a weak method cannot hide inside a large row count.
+TRUST_FLOOR = 0.70
+STRONG_FLOOR = 0.90
+
+# Markers the BSIM launcher prints. The launcher exits 0 on several of these,
+# which is exactly why the batch log cannot be trusted on its own.
+BSIM_FAILURES = (
+    ("Connection to server failed", "Ghidra server unreachable"),
+    ("Invalid Ghidra URL", "program URL did not resolve"),
+    ("No signature files found", "job wrote no signature files"),
+    ("contains no functions with signatures", "program had zero signable functions"),
+)
+BSIM_SUCCESS = "Writing signatures for"
+
+_DB_TABLES_NOTE = "corpus database"
+
+
+# --------------------------------------------------------------------------
+# small helpers
+# --------------------------------------------------------------------------
+
+def _root_join(*parts: str) -> Path:
+    return as_root().joinpath(*parts)
+
+
+def _mtime(path: Path | None) -> float | None:
+    try:
+        return path.stat().st_mtime if path is not None else None
+    except OSError:
+        return None
+
+
+def _db_at() -> float | None:
+    return _mtime(live_db())
+
+
+def _human_bytes(n: int) -> str:
+    size = float(n)
+    for unit in ("B", "KB", "MB", "GB"):
+        if size < 1024 or unit == "GB":
+            return f"{size:,.1f} {unit}" if unit != "B" else f"{int(size)} B"
+        size /= 1024
+    return f"{size:,.1f} GB"
 
 
 def _conf_state(avg) -> str:
-    """Map a confidence average onto the page's verification-state vocabulary.
-
-    Mirrors `_conf()`'s good/warnt/bad split so a bar's hue and a table cell's
-    class never disagree about the same number.
-    """
+    """Map a confidence average onto the page's verification-state vocabulary."""
     try:
         v = float(avg)
     except (TypeError, ValueError):
         return "unproven"
-    if v >= 0.90:
+    if v >= STRONG_FLOOR:
         return "proven"
     if v >= TRUST_FLOOR:
         return "partial"
     return "failed"
 
 
+def _num(v):
+    """JSON-safe number: None stays None, floats are rounded."""
+    if v is None:
+        return None
+    try:
+        f = float(v)
+    except (TypeError, ValueError):
+        return None
+    return int(f) if f.is_integer() and not isinstance(v, float) else round(f, 4)
+
+
+def _share(part, whole):
+    try:
+        return round(float(part) / float(whole), 4) if whole else None
+    except (TypeError, ValueError):
+        return None
+
+
 def _bin_href(slug) -> str:
     return "/binary/" + quote(str(slug or ""), safe="")
-
-
-def _fn_href(slug, extra: str = "") -> str:
-    return "/functions?binary=" + quote(str(slug or ""), safe="") + extra
 
 
 def _clink(n, href: str, unit: str | None = None, title: str | None = None) -> str:
@@ -94,66 +162,24 @@ def _file_link(path: Path) -> str:
     return f'<a href="/artifact?p={esc(rel(path))}"><code>{esc(rel(path))}</code></a>'
 
 
-def _slug_of(name: str) -> str:
-    """Map a signature-set or repo name onto a build slug. 24 rows, so it is free."""
-    rows, err = query_db("SELECT slug, repo_path FROM binary")
-    if err:
-        return ""
-    for slug, repo in rows:
-        if name in (str(slug), str(repo), os.path.basename(str(repo))):
-            return str(slug)
-    return ""
-
-TITLE = "Cross-matching — bridging the forks"
-
-from agentdecompile_recovery.corpus.dashboard.common import as_root
-BSIM_DIR = as_root() / "bsim"
-BSIM_SIGS = BSIM_DIR / "sigs"
-BSIM_DB = BSIM_DIR / "kotor.mv.db"
-BSIM_BATCH_LOG = as_root() / "logs" / "bsim_all16.log"
-BSIM_JOB_LOGS = as_root() / "logs" / "bsim"
-REUSE_SUMMARY = as_root() / "output" / "identity" / "identity_reuse_summary.json"
-REUSE_CANDIDATES = as_root() / "output" / "identity" / "reuse_candidates.jsonl"
-MATCH_REPORT = as_root() / "reports" / "_gen_matches.md"
-MATCH_REPORT_ROW = re.compile(
-    r"^\| `([^`]+)` \| `([^`]+)` \| [^|]+ \| ([\d,]+) \|", re.MULTILINE)
-
-# A binding at or below this confidence is a lead, not an identification. The
-# threshold exists so a weak method cannot hide inside a large row count.
-TRUST_FLOOR = 0.70
-
-# Markers Ghidra's bsim launcher prints. The launcher exits 0 on several of
-# these, which is exactly why the batch log cannot be trusted on its own.
-BSIM_FAILURES = (
-    ("Connection to server failed", "Ghidra server unreachable on localhost:13300"),
-    ("Invalid Ghidra URL", "program URL did not resolve"),
-    ("No signature files found", "job wrote no signature files"),
-    ("contains no functions with signatures", "program had zero signable functions"),
-)
-BSIM_SUCCESS = "Writing signatures for"
-
-
-def _human_bytes(n: int) -> str:
-    size = float(n)
-    for unit in ("B", "KB", "MB", "GB"):
-        if size < 1024 or unit == "GB":
-            return f"{size:,.1f} {unit}" if unit != "B" else f"{int(size)} B"
-        size /= 1024
-    return f"{size:,.1f} GB"
-
-
-def _conf(value, floor: float = TRUST_FLOOR) -> str:
+def _conf(value) -> str:
     """Colour a confidence/score so a weak average cannot read as a strong one."""
     try:
         v = float(value)
     except (TypeError, ValueError):
         return "-"
-    cls = "good" if v >= 0.90 else ("warnt" if v >= floor else "bad")
+    cls = "good" if v >= STRONG_FLOOR else ("warnt" if v >= TRUST_FLOOR else "bad")
     return f'<span class="{cls}">{v:.3f}</span>'
 
 
+def _details(inner: str, summary: str = "raw numbers") -> str:
+    """Collapsed-by-default expansion of a chart: a table is the expansion of a
+    visual, never a replacement."""
+    return f'<details><summary>{esc(summary)}</summary>{inner}</details>'
+
+
 def _read_log_lines(path: Path, nbytes: int = 1 << 20) -> list[str]:
-    """Last nbytes of a log as lines. Job logs are small; the K1 mac one is 37 KB."""
+    """Last nbytes of a log as lines."""
     try:
         with path.open("rb") as fh:
             size = fh.seek(0, os.SEEK_END)
@@ -179,630 +205,824 @@ def _count_lines(path: Path) -> int | None:
         return None
 
 
+def _binaries() -> tuple[list[dict], str | None]:
+    """One small query (a few dozen rows) shared by every section."""
+    placeholders = ",".join("?" for _ in DRM_EXCLUDED)
+    sql = "SELECT id, slug, repo_path, game, platform, func_count FROM binary"
+    params: tuple = ()
+    if DRM_EXCLUDED:
+        sql += f" WHERE repo_path NOT IN ({placeholders})"
+        params = tuple(DRM_EXCLUDED)
+    rows, err = query_db(sql + " ORDER BY slug", params)
+    if err:
+        return [], err
+    return [
+        {"id": r[0], "slug": str(r[1]), "repo_path": str(r[2] or ""), "game": r[3] or "",
+         "platform": r[4] or "", "func_count": r[5]}
+        for r in rows
+    ], None
+
+
 # --------------------------------------------------------------------------
-# sections
+# fact collectors: one per section, each returns plain data
 # --------------------------------------------------------------------------
 
-def _explainer() -> str:
-    return (
-        '<p class="note">A <b>logical function</b> is an address-independent identity. '
-        "<code>CAppManager::DoSaveGameScreenShot</code> sits at a different address in every "
-        "build — one address in the GOG Windows exe, another in the Xbox XBE, another in the "
-        "Android <code>.so</code> — but all of those addresses bind to a single logical id. "
-        "That binding is the whole point: a name, signature or recovered C body written once "
-        "against one fork propagates to every other build that shares the logical id, instead "
-        "of being re-derived 15 more times.</p>"
-        '<p class="note">The <code>identity</code> table holds those bindings '
-        "(logical id &rarr; binary + address, with a method and a confidence). The "
-        "<code>match</code> table holds candidate pairings that have not yet become identities. "
-        "<b>Read both with their confidence attached</b> — this project trades recall for "
-        "precision, so the honest number is always smaller than the row count.</p>"
-    )
-
-
-def _logical_section() -> str:
+def _logical_facts() -> dict:
+    out = {"source": "table logical_function, identity", "at": _db_at(), "state": "missing",
+           "error": None}
     totals, err = query_db(
         "SELECT COUNT(*), "
         "SUM(CASE WHEN source_file IS NOT NULL AND source_file <> '' THEN 1 ELSE 0 END) "
         "FROM logical_function"
     )
-    if err:
-        return missing(f"logical_function: {err}")
-    if not totals:
-        return missing("logical_function: no rows returned")
-    n_logical, n_srcfile = totals[0][0] or 0, totals[0][1] or 0
+    if err or not totals:
+        out["error"] = f"logical_function: {err or 'no rows returned'}"
+        return out
+    n_logical, n_src = totals[0][0] or 0, totals[0][1] or 0
+    out.update(state="proven", total=n_logical, with_source_file=n_src,
+               with_source_file_share=_share(n_src, n_logical))
 
-    # How many builds each logical id reaches. A logical function present in one
-    # build bridges nothing — it is identity bookkeeping, not propagation.
     spread, s_err = query_db(
         "SELECT n, COUNT(*) FROM (SELECT logical_id, COUNT(DISTINCT binary_id) n "
         "FROM identity GROUP BY logical_id) GROUP BY n ORDER BY n"
     )
-    buckets = {"1 build": 0, "2 builds": 0, "3-4 builds": 0, "5-8 builds": 0, "9+ builds": 0}
-    multi = 0
+    out["spread_error"] = s_err
     if not s_err:
+        order = ["1 build", "2 builds", "3-4 builds", "5-8 builds", "9+ builds"]
+        counts = dict.fromkeys(order, 0)
+        multi = 0
         for n, count in spread:
             if n <= 1:
-                buckets["1 build"] += count
+                counts["1 build"] += count
             else:
                 multi += count
-                if n == 2:
-                    buckets["2 builds"] += count
-                elif n <= 4:
-                    buckets["3-4 builds"] += count
-                elif n <= 8:
-                    buckets["5-8 builds"] += count
-                else:
-                    buckets["9+ builds"] += count
+                key = ("2 builds" if n == 2 else "3-4 builds" if n <= 4
+                       else "5-8 builds" if n <= 8 else "9+ builds")
+                counts[key] += count
+        out["spread"] = [
+            {"label": k, "count": counts[k], "share": _share(counts[k], n_logical),
+             "state": "partial" if k == "1 build" else "proven"}
+            for k in order
+        ]
+        out["multi_build"] = multi
+        out["multi_build_share"] = _share(multi, n_logical)
+        out["single_build"] = counts["1 build"]
+        out["single_build_share"] = _share(counts["1 build"], n_logical)
 
-    # Spanning more than one game is the actual fork crossing: K1 knowledge
-    # reaching K2, or either reaching the other BioWare engines.
     games, g_err = query_db(
         "SELECT ng, COUNT(*) FROM (SELECT i.logical_id, COUNT(DISTINCT b.game) ng "
         "FROM identity i JOIN binary b ON b.id = i.binary_id GROUP BY i.logical_id) "
         "GROUP BY ng ORDER BY ng"
     )
-    cross_game = sum(c for ng, c in games if ng and ng > 1) if not g_err else None
-
-    pairs = [
-        ("logical functions", fnum(n_logical)),
-        ("with a source_file attributed", f"{fnum(n_srcfile)} &middot; {fpct(n_srcfile, n_logical)}"),
-    ]
-    if not s_err:
-        pairs.append((
-            "reach 2+ builds (actually bridge)",
-            f'<span class="good">{fnum(multi)}</span> &middot; {fpct(multi, n_logical)}',
-        ))
-        pairs.append((
-            "reach exactly 1 build (bridge nothing)",
-            f'<span class="warnt">{fnum(buckets["1 build"])}</span> &middot; '
-            f'{fpct(buckets["1 build"], n_logical)}',
-        ))
-    if cross_game is not None:
-        # kv() escapes its labels, so keep entities out of the left column.
-        pairs.append((
-            "cross a game boundary (K1 / K2 / other engines)",
-            f"{fnum(cross_game)} &middot; {fpct(cross_game, n_logical)}",
-        ))
-
-    out = [kv(pairs)]
-    if s_err:
-        out.append(missing(f"build-spread histogram unavailable: {s_err}"))
-    else:
-        # Bucket order is the build-reach progression, not a magnitude ranking,
-        # so it stays unsorted; sorting by count would scramble "1 build" ...
-        # "9+ builds" into an order that hides the actual distribution.
-        bucket_state = {"1 build": "partial", "2 builds": "proven",
-                        "3-4 builds": "proven", "5-8 builds": "proven",
-                        "9+ builds": "proven"}
-        chart_rows = [(label, count, bucket_state[label]) for label, count in buckets.items()]
-        out.append(bars(chart_rows, sort=False))
-        rows = [[label, fnum(count), fpct(count, n_logical)] for label, count in buckets.items()]
-        out.append(_details(table(["builds reached", "logical functions", "share"],
-                                  rows, numeric={1, 2})))
-        out.append(
-            '<p class="note">Reach is the payoff multiplier. A name written against one of the '
-            f'{fnum(buckets["9+ builds"])} logical functions that reach nine or more builds lands '
-            "in all of them at once; a name written against a single-build logical function lands "
-            "once.</p>"
-        )
-    return "".join(out)
+    out["cross_game_error"] = g_err
+    if not g_err:
+        cg = sum(c for ng, c in games if ng and ng > 1)
+        out["cross_game"] = cg
+        out["cross_game_share"] = _share(cg, n_logical)
+    return out
 
 
-def _identity_section() -> str:
+def _identity_facts(binaries: list[dict], bins_err: str | None) -> dict:
+    out = {"source": "table identity", "at": _db_at(), "state": "missing", "error": None}
     head, err = query_db(
         "SELECT COUNT(*), COUNT(DISTINCT binary_id || ':' || addr), COUNT(DISTINCT logical_id), "
         "COUNT(DISTINCT binary_id) FROM identity"
     )
-    if err:
-        return missing(f"identity: {err}")
-    if not head:
-        return missing("identity: no rows returned")
+    if err or not head:
+        out["error"] = f"identity: {err or 'no rows returned'}"
+        return out
     n_rows, n_addr, n_logical, n_bins = (head[0][0] or 0, head[0][1] or 0,
                                          head[0][2] or 0, head[0][3] or 0)
+    out.update(state="proven", rows=n_rows, bound_addresses=n_addr, logical_ids=n_logical,
+               binaries_with_bindings=n_bins)
 
-    # Denominator comes from binary.func_count (24 stored integers), never from a
-    # COUNT(*) over func. DRM ciphertext is excluded so it cannot inflate it.
-    placeholders = ",".join("?" for _ in DRM_EXCLUDED)
-    denom, d_err = query_db(
-        f"SELECT SUM(func_count), COUNT(*) FROM binary WHERE repo_path NOT IN ({placeholders})",
-        tuple(DRM_EXCLUDED),
-    )
-    total_funcs = denom[0][0] if (not d_err and denom) else None
-    total_bins = denom[0][1] if (not d_err and denom) else None
-
-    pairs = [
-        ("identity rows", fnum(n_rows)),
-        # No single build owns the corpus-wide bound set, so this opens the
-        # function browser at its build picker rather than at a filter it cannot
-        # honour.
-        ("distinct (binary, addr) bound", _clink(n_addr, "/functions?bound=1")),
-        ("distinct logical ids covered", fnum(n_logical)),
-        ("binaries with at least one binding", fnum(n_bins)),
-    ]
-    if total_funcs:
-        pairs.append((
-            "bound share of all functions (binary.func_count sum)",
-            f"{fpct(n_addr, total_funcs)} of {fnum(total_funcs)}",
-        ))
-    if total_bins and n_bins < total_bins:
-        pairs.append((
-            "binaries with no bindings",
-            f'<span class="warnt">{fnum(total_bins - n_bins)}</span>',
-        ))
+    # Denominator: binary.func_count (a stored integer per binary), never func.
+    total_funcs = total_bins = None
+    if not bins_err and binaries:
+        counts = [b["func_count"] for b in binaries if b["func_count"] is not None]
+        total_funcs = sum(counts) if counts else None
+        total_bins = len(binaries)
+    out["total_functions"] = total_funcs
+    out["bound_share"] = _share(n_addr, total_funcs) if total_funcs else None
+    out["denominator_note"] = (
+        None if total_funcs else
+        "per-function bind rate unavailable: it needs a denominator from the large "
+        "`func` table, which is too slow to scan on a page load")
+    out["binaries_total"] = total_bins
+    out["binaries_without_bindings"] = (total_bins - n_bins
+                                        if total_bins and n_bins < total_bins else 0)
 
     methods, m_err = query_db(
         "SELECT method, COUNT(*), AVG(confidence), MIN(confidence), MAX(confidence) "
         "FROM identity GROUP BY method ORDER BY AVG(confidence) DESC"
     )
-    out = [kv(pairs)]
-    if total_funcs is None:
-        out.append(missing(
-            "per-function bind rate unavailable: it needs a denominator from the 500 MB `func` "
-            "table, and that scan is too slow to run on a page load"
-        ))
-    if m_err:
-        out.append(missing(f"identity method breakdown unavailable: {m_err}"))
-        return "".join(out)
+    out["methods_error"] = m_err
+    out["trust_floor"] = TRUST_FLOOR
+    if not m_err:
+        out["methods"] = [
+            {"method": m or "(null)", "count": c, "share": _share(c, n_rows),
+             "avg_confidence": _num(avg), "min_confidence": _num(lo),
+             "max_confidence": _num(hi), "state": _conf_state(avg),
+             "lead_only": (avg or 0) < TRUST_FLOOR}
+            for m, c, avg, lo, hi in methods
+        ]
+        weak = sum(c for _, c, avg, _, _ in methods if (avg or 0) < TRUST_FLOOR)
+        out["weak_bindings"] = weak
+        out["weak_share"] = _share(weak, n_rows)
 
-    weak = sum(c for _, c, avg, _, _ in methods if (avg or 0) < TRUST_FLOOR)
-    # Bar hue reuses the same good/warnt/bad split _conf() already draws in the
-    # table cell below, so the chart and its own expansion never disagree.
-    chart_rows = [(method or "(null)", count, _conf_state(avg)) for method, count, avg, _, _ in methods]
-    out.append(bars(chart_rows, href_fn=None))
-    rows = []
-    for method, count, avg, lo, hi in methods:
-        badge = "" if (avg or 0) >= TRUST_FLOOR else " " + tag("lead only", "warn")
-        rows.append([
-            esc(method or "(null)") + badge,
-            fnum(count),
-            fpct(count, n_rows),
-            _conf(avg),
-            f"{(lo or 0):.2f}&ndash;{(hi or 0):.2f}",
-        ])
-    out.append(_details(table(
-        ["method", "bindings", "share", "avg confidence", "range"], rows, numeric={1, 2, 3, 4}
-    )))
-    out.append(
-        f'<p class="note"><b>{fnum(weak)} of {fnum(n_rows)} bindings ({fpct(weak, n_rows)}) come '
-        f"from methods whose average confidence is below {TRUST_FLOOR:.2f}.</b> Those are "
-        "candidate leads carried in the same table as identifications, not identifications. "
-        "The <code>name-*</code> methods bind on name evidence; the <code>match:*</code> methods "
-        "are promotions out of the matcher, and carry its score forward.</p>"
-    )
-    return "".join(out)
+    per_bin, p_err = query_db(
+        "SELECT binary_id, COUNT(*), COUNT(DISTINCT logical_id) FROM identity GROUP BY binary_id")
+    out["per_binary_error"] = p_err
+    out["per_binary"] = {} if p_err else {r[0]: (r[1], r[2]) for r in per_bin}
+    return out
 
 
-def _match_section() -> str:
-    rows_db, err = query_db(
+_GATE = {
+    "auto": ("accepted without review", "proven"),
+    "verify": ("queued for verification", "partial"),
+    "review": ("queued for human review", "partial"),
+    "unresolved": ("no confident target", "failed"),
+    "rejected": ("discarded", "failed"),
+}
+
+
+def _match_facts() -> dict:
+    out = {"source": "table match", "at": _db_at(), "state": "missing", "error": None}
+    rows, err = query_db(
         "SELECT status, COUNT(*), AVG(score), MIN(score), MAX(score) "
         "FROM match GROUP BY status ORDER BY COUNT(*) DESC"
     )
-    if err:
-        return missing(f"match: {err}")
-    if not rows_db:
-        return missing("match: no rows yet")
-
-    total = sum(r[1] or 0 for r in rows_db)
-    auto = sum(r[1] or 0 for r in rows_db if (r[0] or "") == "auto")
-    needs_human = sum(r[1] or 0 for r in rows_db if (r[0] or "") in ("review", "verify"))
-
-    # Status is a gate, not a label: only `auto` lands without a human.
-    gate = {
-        "auto": ("accepted without review", "ok"),
-        "verify": ("queued for verification", "warn"),
-        "review": ("queued for human review", "warn"),
-        "unresolved": ("no confident target", "dead"),
-        "rejected": ("discarded", "dead"),
-    }
-    out_rows = []
-    for status, count, avg, lo, hi in rows_db:
-        label, kind = gate.get(status or "", ("", ""))
-        count_cell = (
-            _clink(count, "/review") if (status or "") == "review" else fnum(count)
-        )
-        out_rows.append([
-            esc(status or "(null)") + (" " + tag(label, kind) if label else ""),
-            count_cell,
-            fpct(count, total),
-            _conf(avg),
-            f"{(lo or 0):.2f}&ndash;{(hi or 0):.2f}",
-        ])
-
-    # Status is the whole match queue broken into states, so the gate's own
-    # ok/warn/dead verdict becomes the bar's proven/partial/failed segment —
-    # the single value is `total`, and every row is a slice of it.
-    gate_state = {"ok": "proven", "warn": "partial", "dead": "failed"}
-    chart_rows = [(status or "(null)", count,
-                   gate_state.get(gate.get(status or "", ("", ""))[1], "unproven"))
-                  for status, count, avg, lo, hi in rows_db]
-
-    return "".join([
-        stacked_bar(chart_rows),
-        kv([
-            ("match rows", fnum(total)),
-            ("auto-accepted (no human needed)",
-             f'<span class="good">{fnum(auto)}</span> &middot; {fpct(auto, total)}'),
-            ("still awaiting a human",
-             f'<span class="warnt">{_clink(needs_human, "/review")}</span>'
-             f' &middot; {fpct(needs_human, total)}'),
-        ]),
-        _details(table(["status", "matches", "share", "avg score", "range"],
-                       out_rows, numeric={1, 2, 3, 4})),
-        '<p class="note"><b>The largest bucket is not the trustworthy one.</b> Only '
-        f"{fnum(auto)} matches ({fpct(auto, total)}) cleared the bar to be accepted without a "
-        f"human; {fnum(needs_human)} sit in "
-        f'<a href="/review">review</a> or verify queues. A high average score inside '
-        "a review bucket does not promote it — the bucket is where the matcher declined to "
-        "decide.</p>",
-    ])
-
-
-def _bsim_section() -> str:
-    out = [
-        '<p class="note">BSim is Ghidra\'s structural function-similarity index: it decompiles '
-        "each function, reduces it to a feature vector, and finds near neighbours in other "
-        "programs. Generating a signature set per binary is a prerequisite for any all-pairs "
-        "cross-query — a binary without signatures cannot appear on either side of one.</p>"
-    ]
-
-    if not BSIM_DIR.exists():
-        return "".join(out) + missing(f"not available yet ({rel(BSIM_DIR)} missing)")
-
-    # --- database file -----------------------------------------------------
-    if BSIM_DB.exists():
-        try:
-            st = BSIM_DB.stat()
-            db_line = f"{_human_bytes(st.st_size)} &middot; {_file_link(BSIM_DB)}"
-        except OSError as exc:  # noqa: BLE001
-            db_line = f'<span class="bad">unreadable: {esc(exc)}</span>'
-    else:
-        db_line = f'<span class="warnt">absent ({esc(rel(BSIM_DB))})</span>'
-
-    # --- signature sets on disk -------------------------------------------
-    signed: list[str] = []
-    empty: list[str] = []
-    if BSIM_SIGS.exists():
-        try:
-            for entry in sorted(BSIM_SIGS.iterdir()):
-                if not entry.is_dir():
-                    continue
-                # A committed set writes a sigs_<md5>/ folder; an empty dir is a
-                # job that ran and produced nothing.
-                (signed if any(entry.iterdir()) else empty).append(entry.name)
-        except OSError as exc:  # noqa: BLE001
-            out.append(missing(f"could not list {rel(BSIM_SIGS)}: {exc}"))
-    else:
-        out.append(missing(f"no signature sets yet ({rel(BSIM_SIGS)} missing)"))
-
-    # Corpus-wide view: which binaries in the DB have signatures at all.
-    placeholders = ",".join("?" for _ in DRM_EXCLUDED)
-    bins, b_err = query_db(
-        f"SELECT slug FROM binary WHERE repo_path NOT IN ({placeholders}) ORDER BY slug",
-        tuple(DRM_EXCLUDED),
+    if err or not rows:
+        out["error"] = f"match: {err or 'no rows yet'}"
+        return out
+    total = sum(r[1] or 0 for r in rows)
+    auto = sum(r[1] or 0 for r in rows if (r[0] or "") == "auto")
+    needs = sum(r[1] or 0 for r in rows if (r[0] or "") in ("review", "verify"))
+    out.update(
+        state="partial", total=total, auto=auto, auto_share=_share(auto, total),
+        awaiting_human=needs, awaiting_human_share=_share(needs, total),
+        statuses=[
+            {"status": s or "(null)", "count": c, "share": _share(c, total),
+             "avg_score": _num(avg), "min_score": _num(lo), "max_score": _num(hi),
+             "meaning": _GATE.get(s or "", ("", ""))[0],
+             "state": _GATE.get(s or "", ("", "unproven"))[1]}
+            for s, c, avg, lo, hi in rows
+        ],
     )
-    all_slugs = [r[0] for r in bins] if not b_err else []
-    have = [s for s in all_slugs if s in set(signed)]
-    lack = [s for s in all_slugs if s not in set(signed)]
-
-    pairs = [("bsim/kotor.mv.db", db_line), ("signature sets with content", fnum(len(signed)))]
-    if empty:
-        pairs.append(("signature dirs created but empty",
-                      f'<span class="bad">{fnum(len(empty))}</span>'))
-    if all_slugs:
-        pairs.append((
-            "corpus binaries covered (DRM pair excluded)",
-            f'<span class="{"good" if len(have) == len(all_slugs) else "warnt"}">'
-            f"{fnum(len(have))}</span> of {fnum(len(all_slugs))} &middot; "
-            f"{fpct(len(have), len(all_slugs))}",
-        ))
-    if all_slugs:
-        # Part of whole: how much of the corpus can even take part in a
-        # cross-query. "no signatures yet" is absence of evidence, not a
-        # failed check, so it stays the neutral/default state rather than red.
-        out.append(donut(
-            [("signatures present", len(have), "proven"),
-             ("no signatures yet", len(lack), "unproven")],
-            total=len(all_slugs), title="BSim signature coverage",
-        ))
-    out.append(kv(pairs))
-
-    def _name_cell(name: str) -> str:
-        slug = _slug_of(name)
-        if not slug:
-            return esc(name)
-        return f'<a href="{esc(_bin_href(slug))}">{esc(name)}</a>'
-
-    if signed or empty:
-        srows = [[_name_cell(name), tag("signatures present", "ok")] for name in signed]
-        srows += [[_name_cell(name), tag("empty — job produced nothing", "dead")]
-                  for name in empty]
-        out.append(_details(table(["signature set", "state"], srows)))
-    if lack:
-        out.append(
-            f'<p class="note"><b>{fnum(len(lack))} corpus binaries have no BSim signatures</b>, '
-            "so they cannot take part in any cross-query: "
-            + ", ".join(f'<a href="{esc(_bin_href(s))}"><code>{esc(s)}</code></a>'
-                        for s in lack)
-            + ".</p>"
-        )
-    return "".join(out) + _bsim_logs()
+    return out
 
 
-def _bsim_logs() -> str:
-    """Reconcile the batch log against the per-job logs.
-
-    The batch script marks a job ok on exit status, but Ghidra's bsim launcher
-    exits 0 after printing "Connection to server failed (localhost:13300)". A run
-    can therefore look clean at the batch level while most jobs produced nothing.
-    Trust the per-job logs, not the batch summary.
-    """
-    out: list[str] = []
-
-    batch_ok = batch_fail = batch_skip = 0
-    batch_done = False
-    if BSIM_BATCH_LOG.exists():
-        for line in _read_log_lines(BSIM_BATCH_LOG):
-            if line.startswith("[ok]"):
-                batch_ok += 1
-            elif line.startswith("[FAIL]"):
-                batch_fail += 1
-            elif line.startswith("[skip]"):
-                batch_skip += 1
-            elif "BATCH DONE" in line:
-                batch_done = True
-    else:
-        out.append(missing(f"not available yet ({rel(BSIM_BATCH_LOG)} missing)"))
-
-    jobs: list[tuple[str, str, str, str, float]] = []  # (name, state, cause, line, mtime)
-    if BSIM_JOB_LOGS.is_dir():
+def _bsim_paths() -> dict:
+    bsim = _root_join(_BSIM_REL)
+    db = None
+    if bsim.is_dir():
         try:
-            for log in sorted(BSIM_JOB_LOGS.glob("*.log")):
+            dbs = sorted(bsim.glob("*.mv.db"))
+            db = dbs[0] if dbs else None
+        except OSError:
+            db = None
+    batch = None
+    logs = _root_join(_LOGS_REL)
+    if logs.is_dir():
+        try:
+            cands = sorted(logs.glob("bsim*.log"), key=lambda p: p.stat().st_mtime)
+            batch = cands[-1] if cands else None
+        except OSError:
+            batch = None
+    return {"dir": bsim, "sigs": bsim / "sigs", "db": db, "batch": batch,
+            "jobs": _root_join(*_JOB_LOGS_REL)}
+
+
+def _bsim_facts(binaries: list[dict], bins_err: str | None) -> dict:
+    p = _bsim_paths()
+    slugs = [b["slug"] for b in binaries] if not bins_err else []
+    # Same shape on every path: an absent BSim directory is "no build signed
+    # yet", not a different payload the readers have to special-case.
+    out = {"source": rel(p["dir"]), "at": _mtime(p["dir"]), "state": "missing", "error": None,
+           "database": None, "signed": [], "empty": [], "errors": [],
+           "covered": 0, "corpus_binaries": len(slugs), "covered_share": _share(0, len(slugs)),
+           "lacking": list(slugs), "per_binary": {s: "unproven" for s in slugs}, "alias": {},
+           "logs": {"state": "missing", "errors": [], "batch": None, "jobs": [], "by_cause": [],
+                    "undercounted": False}}
+    if not p["dir"].exists():
+        out["error"] = f"not available yet ({rel(p['dir'])} missing)"
+        return out
+
+    if p["db"] is not None:
+        try:
+            st = p["db"].stat()
+            out["database"] = {"source": rel(p["db"]), "at": st.st_mtime, "bytes": st.st_size,
+                               "state": "proven"}
+        except OSError as exc:
+            out["database"] = {"source": rel(p["db"]), "at": None, "bytes": None,
+                               "state": "failed", "error": f"unreadable: {exc}"}
+    else:
+        out["database"] = {"source": rel(p["dir"]), "at": None, "bytes": None,
+                           "state": "missing", "error": "no BSim database file found"}
+
+    if p["sigs"].exists():
+        try:
+            for entry in sorted(p["sigs"].iterdir()):
+                if entry.is_dir():
+                    (out["signed"] if any(entry.iterdir()) else out["empty"]).append(entry.name)
+        except OSError as exc:
+            out["errors"].append(f"could not list {rel(p['sigs'])}: {exc}")
+    else:
+        out["errors"].append(f"no signature sets yet ({rel(p['sigs'])} missing)")
+
+    sset = set(out["signed"])
+    eset = set(out["empty"])
+    have = [s for s in slugs if s in sset]
+    out["covered"] = len(have)
+    out["corpus_binaries"] = len(slugs)
+    out["covered_share"] = _share(len(have), len(slugs))
+    out["lacking"] = [s for s in slugs if s not in sset]
+    out["state"] = ("proven" if slugs and len(have) == len(slugs)
+                    else "partial" if have else "unproven")
+    out["per_binary"] = {
+        s: ("proven" if s in sset else "failed" if s in eset else "unproven") for s in slugs}
+    # Signature-set names that are not a build slug (names come from repo names).
+    alias = {}
+    for b in binaries:
+        for key in (b["slug"], b["repo_path"], os.path.basename(b["repo_path"])):
+            alias[key] = b["slug"]
+    out["alias"] = alias
+    out["logs"] = _bsim_log_facts(p)
+    return out
+
+
+def _bsim_log_facts(p: dict) -> dict:
+    """Reconcile the batch log against the per-job logs. The launcher exits 0
+    after a connection failure, so judge from the per-job logs."""
+    out = {"state": "missing", "errors": [], "batch": None, "jobs": [], "by_cause": [],
+           "undercounted": False}
+    batch = p["batch"]
+    ok = fail = skip = 0
+    done = False
+    if batch is not None and batch.exists():
+        for line in _read_log_lines(batch):
+            if line.startswith("[ok]"):
+                ok += 1
+            elif line.startswith("[FAIL]"):
+                fail += 1
+            elif line.startswith("[skip]"):
+                skip += 1
+            elif "BATCH DONE" in line:
+                done = True
+        out["batch"] = {"source": rel(batch), "at": _mtime(batch), "ok": ok, "fail": fail,
+                        "skip": skip, "done_marker": done}
+    else:
+        out["errors"].append("not available yet (no BSIM batch log found under logs)")
+
+    jobs = []
+    if p["jobs"].is_dir():
+        try:
+            for log in sorted(p["jobs"].glob("*.log")):
                 lines = _read_log_lines(log)
                 blob = "\n".join(lines)
                 hit = next(((m, why) for m, why in BSIM_FAILURES if m in blob), None)
                 if hit:
                     marker, cause = hit
-                    # The trailing line is usually a generic "ERROR Unavailable";
-                    # the line carrying the marker names the real cause.
-                    detail = next(
-                        (ln for ln in reversed(lines) if marker in ln),
-                        next((ln for ln in reversed(lines) if "ERROR" in ln), cause),
-                    )
-                    state = "fail"
+                    detail = next((ln for ln in reversed(lines) if marker in ln),
+                                  next((ln for ln in reversed(lines) if "ERROR" in ln), cause))
+                    state = "failed"
                 elif BSIM_SUCCESS in blob:
-                    cause, detail, state = "signatures written", "", "ok"
+                    cause, detail, state = "signatures written", "", "proven"
                 else:
-                    cause, detail, state = "no verdict in log", "", "unknown"
-                try:
-                    mtime = log.stat().st_mtime
-                except OSError:
-                    mtime = 0.0
-                jobs.append((log.stem, state, cause, detail, mtime))
-        except OSError as exc:  # noqa: BLE001
-            out.append(missing(f"could not list {rel(BSIM_JOB_LOGS)}: {exc}"))
-    elif BSIM_BATCH_LOG.exists():
-        out.append(missing(f"per-job logs unavailable ({rel(BSIM_JOB_LOGS)} missing)"))
+                    cause, detail, state = "no verdict in log", "", "unproven"
+                jobs.append({"name": log.stem, "state": state, "cause": cause,
+                             "line": detail[:240], "source": rel(log), "at": _mtime(log)})
+        except OSError as exc:
+            out["errors"].append(f"could not list {rel(p['jobs'])}: {exc}")
+    elif batch is not None:
+        out["errors"].append(f"per-job logs unavailable ({rel(p['jobs'])} missing)")
 
-    if not jobs and not BSIM_BATCH_LOG.exists():
-        return "".join(out)
-
-    failed = [j for j in jobs if j[1] == "fail"]
-    passed = [j for j in jobs if j[1] == "ok"]
-    unknown = [j for j in jobs if j[1] == "unknown"]
-
-    pairs = []
-    if BSIM_BATCH_LOG.exists():
-        pairs.append((
-            f"{rel(BSIM_BATCH_LOG)} says",
-            f'ok {fnum(batch_ok)} &middot; fail {fnum(batch_fail)} &middot; '
-            f"skip {fnum(batch_skip)}"
-            + ("" if batch_done else ' &middot; <span class="warnt">no BATCH DONE line</span>')
-            + " &middot; " + _file_link(BSIM_BATCH_LOG),
-        ))
+    out["jobs"] = jobs
+    failed = [j for j in jobs if j["state"] == "failed"]
+    out["passed"] = sum(1 for j in jobs if j["state"] == "proven")
+    out["failed"] = len(failed)
+    out["no_verdict"] = sum(1 for j in jobs if j["state"] == "unproven")
+    if out["batch"] and len(failed) > out["batch"]["fail"]:
+        out["undercounted"] = True
+    by_cause: dict[str, int] = {}
+    for j in failed:
+        by_cause[j["cause"]] = by_cause.get(j["cause"], 0) + 1
+    out["by_cause"] = [{"cause": c, "count": n} for c, n in
+                       sorted(by_cause.items(), key=lambda kvp: -kvp[1])]
+    out["newest_failure"] = max(failed, key=lambda j: j["at"] or 0) if failed else None
     if jobs:
-        pairs.append(("per-job logs inspected", fnum(len(jobs))))
-        pairs.append(("jobs that wrote signatures",
-                      f'<span class="good">{fnum(len(passed))}</span>'))
-        pairs.append(("jobs that failed",
-                      f'<span class="{"bad" if failed else "good"}">{fnum(len(failed))}</span>'))
-        if unknown:
-            pairs.append(("jobs with no verdict",
-                          f'<span class="warnt">{fnum(len(unknown))}</span>'))
-    out.append(kv(pairs))
-
-    if failed:
-        # The gap between the batch count and the real count is the bug, so name it.
-        if BSIM_BATCH_LOG.exists() and len(failed) > batch_fail:
-            out.append(
-                f'<p class="note"><b class="bad">The batch log undercounts failures: it records '
-                f"{fnum(batch_fail)}, the per-job logs show {fnum(len(failed))}.</b> Ghidra's bsim "
-                "launcher exits 0 after a connection failure, so the batch script marks those "
-                "jobs ok. Any run of this batch must be judged from "
-                f"<code>{esc(rel(BSIM_JOB_LOGS))}</code>.</p>"
-            )
-        # Cluster by cause: one dead server explaining six jobs is the finding,
-        # not six unrelated failures.
-        by_cause: dict[str, int] = {}
-        for _, _, cause, _, _ in failed:
-            by_cause[cause] = by_cause.get(cause, 0) + 1
-        out.append(bars([(c, n, "failed") for c, n in by_cause.items()]))
-        out.append(_details(table(
-            ["failure cause", "jobs"],
-            [[esc(c), fnum(n)] for c, n in sorted(by_cause.items(), key=lambda kvp: -kvp[1])],
-            numeric={1},
-        )))
-
-        newest = max(failed, key=lambda j: j[4])
-        out.append(
-            f'<p class="note">Most recent failure &mdash; <code>{esc(newest[0])}</code>: '
-            f'<span class="bad">{esc(newest[3][:240])}</span></p>'
-        )
-        out.append(_details(table(
-            ["failed job", "cause", "log line"],
-            [[_file_link(BSIM_JOB_LOGS / f"{n}.log"), esc(c), esc(d[:150])]
-             for n, _, c, d, _ in sorted(failed, key=lambda j: -j[4])],
-        ), "per-job failure log lines"))
-    elif jobs:
-        out.append(f'<p class="note">All {fnum(len(passed))} inspected jobs wrote signatures.</p>')
-    return "".join(out)
+        out["state"] = "failed" if failed else ("proven" if out["passed"] else "unproven")
+    elif out["batch"]:
+        out["state"] = "unproven"
+    return out
 
 
-def _reuse_section() -> str:
-    out = [
-        '<p class="note">The concrete payoff of cross-matching: a function whose C body was '
-        "verified byte-exact in one fork, carried into another build through its logical id. "
-        "Written for the MizuchiRE effort, which recovers C one function at a time and has no "
-        "identity layer of its own.</p>"
-    ]
-
-    data, err = load_json(REUSE_SUMMARY)
+def _reuse_facts() -> dict:
+    """Source propagation: reuse candidates carried between builds. Not identity."""
+    summary = _root_join(*_REUSE_SUMMARY_REL)
+    cands = _root_join(*_REUSE_CANDIDATES_REL)
+    out = {"source": rel(summary), "at": _mtime(summary), "state": "missing", "error": None,
+           "candidates_file": None}
+    data, err = load_json(summary)
     if err:
-        out.append(missing(err))
+        out["error"] = err
     elif not isinstance(data, dict):
-        out.append(missing(f"{rel(REUSE_SUMMARY)} is not a JSON object"))
+        out["error"] = f"{rel(summary)} is not a JSON object"
     else:
         scanned = data.get("recovered_functions_scanned")
         exact = data.get("recovered_byte_exact")
-        no_identity = data.get("recovered_without_identity")
-        reuse_rows = data.get("reuse_rows")
-        high_conf = data.get("high_confidence_rows")
-        same_size = data.get("same_size_rows")
-
-        pairs = [
-            ("recovered functions scanned", fnum(scanned)),
-            ("byte-exact in their own build", fnum(exact)),
-        ]
-        if no_identity is not None:
-            cls = "bad" if no_identity else "good"
-            pairs.append(("recovered but bound to no logical id",
-                          f'<span class="{cls}">{fnum(no_identity)}</span>'))
-        pairs.append((
-            "reuse candidates emitted",
-            f'<span class="{"good" if (reuse_rows or 0) else "warnt"}">{fnum(reuse_rows)}</span>',
-        ))
-        if high_conf is not None:
-            pairs.append(("of those, high confidence", fnum(high_conf)))
-        if same_size is not None:
-            pairs.append(("of those, same size in the target build", fnum(same_size)))
-        pairs.append(("read from", _file_link(REUSE_SUMMARY)))
-        # The candidate count alone overstates the payoff (see the note below);
-        # splitting it into high-confidence vs the rest is the single value the
-        # kv pairs already state, drawn instead of just stated.
-        if reuse_rows:
-            rest = max(0, reuse_rows - (high_conf or 0))
-            out.append(stacked_bar([
-                ("high confidence", high_conf or 0, "proven"),
-                ("lower confidence", rest, "partial"),
-            ]))
-        out.append(kv(pairs))
-
-        # State the shortfall plainly; a zero here is the headline, not a footnote.
-        if scanned and not (reuse_rows or 0):
-            reason = (
-                f"all {fnum(no_identity)} of them are bound to no logical id"
-                if no_identity else "none of them cleared the reuse test"
-            )
-            out.append(
-                f'<p class="note"><b class="bad">No reuse candidates yet.</b> '
-                f"{fnum(scanned)} recovered functions were scanned and {fnum(exact)} are "
-                f"byte-exact, but {reason} — with no identity there is no second build to carry "
-                "the body into. The bridge is built; nothing has crossed it yet.</p>"
-            )
-        elif reuse_rows:
-            out.append(
-                f'<p class="note">{fnum(high_conf)} of {fnum(reuse_rows)} candidates are high '
-                f"confidence ({fpct(high_conf or 0, reuse_rows)}). Judge the payoff by that "
-                "column, not by the candidate count.</p>"
-            )
-
-    if REUSE_CANDIDATES.exists():
-        lines = _count_lines(REUSE_CANDIDATES)
+        no_id = data.get("recovered_without_identity")
+        rows = data.get("reuse_rows")
+        high = data.get("high_confidence_rows")
+        same = data.get("same_size_rows")
+        out.update(
+            scanned=_num(scanned), byte_exact=_num(exact), without_identity=_num(no_id),
+            reuse_rows=_num(rows), high_confidence=_num(high), same_size=_num(same),
+        )
+        out["state"] = ("proven" if rows else "unproven" if scanned else "missing")
+        out["no_candidates"] = bool(scanned and not (rows or 0))
+        out["no_candidates_reason"] = (
+            ("all scanned recovered functions are bound to no logical id"
+             if no_id and no_id == scanned else
+             "no recovered function cleared the reuse test")
+            if out["no_candidates"] else None)
+    if cands.exists():
         try:
-            size = REUSE_CANDIDATES.stat().st_size
+            size = cands.stat().st_size
         except OSError:
             size = 0
-        out.append(kv([(
-            rel(REUSE_CANDIDATES),
-            ("empty file" if not size
-             else f"{fnum(lines)} rows &middot; {_human_bytes(size)}")
-            + " &middot; " + _file_link(REUSE_CANDIDATES),
-        )]))
+        out["candidates_file"] = {
+            "source": rel(cands), "at": _mtime(cands), "bytes": size,
+            "rows": None if not size else _count_lines(cands),
+            "state": "unproven" if not size else "proven"}
     else:
-        out.append(missing(f"not available yet ({rel(REUSE_CANDIDATES)} missing)"))
-    return "".join(out)
+        out["candidates_file"] = {"source": rel(cands), "at": None, "bytes": None,
+                                  "rows": None, "state": "missing",
+                                  "error": f"not available yet ({rel(cands)} missing)"}
+    return out
 
 
-def _matrix_section() -> str:
-    """Build x build density from the `match` table — the project in one picture.
-
-    `match.src_binary` / `match.dst_binary` already store this as a real
-    matrix; every other view on this page collapses it to a status or method
-    breakdown, which is the exact thing 10-relationship-layout.md calls out —
-    a relationship shown as prose instead of the grid it already is.
-    """
-    # `_gen_matches.md` is written by the offline matcher from the same grouped
-    # result. Reading its bounded summary avoids regrouping the entire match
-    # table whenever this lazy panel's cache expires.
+def _matrix_facts(binaries: list[dict], bins_err: str | None) -> dict:
+    """Build x build candidate pairings. Read from the offline matcher's bounded
+    summary so a cache miss does not regroup the whole match table."""
+    report = _root_join(*_MATCH_REPORT_REL)
+    out = {"source": rel(report), "at": _mtime(report), "state": "missing", "error": None}
     try:
-        report = MATCH_REPORT.read_text(encoding="utf-8")
+        text = report.read_text(encoding="utf-8")
     except OSError as exc:
-        return missing(f"match matrix summary unavailable ({rel(MATCH_REPORT)}: {exc})")
-    pairs = {}
-    for src, dst, count in MATCH_REPORT_ROW.findall(report):
+        out["error"] = f"match matrix summary unavailable ({rel(report)}: {exc})"
+        return out
+    pairs: dict[tuple[str, str], int] = {}
+    for src, dst, count in _MATCH_REPORT_ROW.findall(text):
         pairs[(src, dst)] = pairs.get((src, dst), 0) + int(count.replace(",", ""))
     if not pairs:
-        return missing(f"match matrix summary has no rows ({rel(MATCH_REPORT)})")
+        out["error"] = f"match matrix summary has no rows ({rel(report)})"
+        return out
+    if bins_err:
+        out["error"] = f"binary slugs: {bins_err}"
+        return out
+    aliases: dict[str, str] = {}
+    for b in binaries:
+        short = b["slug"].split("__", 1)[-1]
+        for key in (b["slug"], short, b["repo_path"], os.path.basename(b["repo_path"])):
+            aliases[key] = b["slug"]
+    cells: dict[tuple[str, str], int] = {}
+    for (src, dst), count in pairs.items():
+        key = (aliases.get(src, src), aliases.get(dst, dst))
+        cells[key] = cells.get(key, 0) + count
+    rows = sorted({r for r, _ in cells})
+    cols = sorted({c for _, c in cells})
+    known = {b["slug"] for b in binaries}
+    values = [[cells.get((r, c), 0) for c in cols] for r in rows]
+    out.update(
+        state="partial", rows=rows, cols=cols, values=values,
+        max=max((v for row in values for v in row), default=0),
+        total=sum(cells.values()),
+        row_totals=[sum(row) for row in values],
+        col_totals=[sum(values[i][j] for i in range(len(rows))) for j in range(len(cols))],
+        unknown_slugs=sorted((set(rows) | set(cols)) - known),
+        meaning="candidate pairings, not identities")
+    return out
 
-    bins, b_err = query_db("SELECT id, slug, repo_path FROM binary")
-    if b_err:
-        return missing(f"binary slugs: {b_err}")
-    aliases = {}
-    for _bid, slug, repo in bins:
-        short_slug = str(slug).split("__", 1)[-1]
-        for key in (slug, short_slug, repo, os.path.basename(str(repo))):
-            aliases[str(key)] = str(slug)
-    cells = {(aliases.get(src, src), aliases.get(dst, dst)): count
-             for (src, dst), count in pairs.items()}
-    row_labels = sorted({r for r, _ in cells})
-    col_labels = sorted({c for _, c in cells})
-    matrix = [[cells.get((r, c), 0) for c in col_labels] for r in row_labels]
 
-    chart = heatmap(matrix, row_labels, col_labels,
-                    href_fn=lambda r, *_: _bin_href(r))
-    note = (
-        f'<p class="note">Density from the offline summary {_file_link(MATCH_REPORT)}: '
-        f'{fnum(len(row_labels))} builds queried as a source against '
-        f"{fnum(len(col_labels))} builds that have "
-        "appeared as a target. These are candidate pairings, not identities — see "
-        "the match queue above for how many of them clear the bar to be accepted. A "
-        "binary missing from the row axis has not been run as a source yet; one "
-        "missing from the column axis has never been matched against.</p>"
-    )
-    return chart + note
+def _collect() -> dict:
+    """Gather every figure once. Both render() and as_payload() read this."""
+    binaries, bins_err = _binaries()
+    errors: list[str] = []
+    if bins_err:
+        errors.append(f"binary: {bins_err}")
+    facts = {
+        "binaries_list": binaries,
+        "binaries_error": bins_err,
+        "logical": _logical_safe(_logical_facts),
+        "identity": _logical_safe(lambda: _identity_facts(binaries, bins_err)),
+        "match": _logical_safe(_match_facts),
+        "bsim": _logical_safe(lambda: _bsim_facts(binaries, bins_err)),
+        "reuse": _logical_safe(_reuse_facts),
+        "matrix": _logical_safe(lambda: _matrix_facts(binaries, bins_err)),
+    }
+    for key in ("logical", "identity", "match", "bsim", "reuse", "matrix"):
+        f = facts[key]
+        if f.get("error"):
+            errors.append(f"{key}: {f['error']}")
+    facts["errors"] = errors
+    return facts
+
+
+def _logical_safe(fn) -> dict:
+    """A section must degrade, never raise."""
+    try:
+        return fn()
+    except Exception as exc:  # noqa: BLE001
+        return {"state": "failed", "error": f"section failed: {type(exc).__name__}: {exc}",
+                "source": "", "at": None}
 
 
 # --------------------------------------------------------------------------
+# payload
+# --------------------------------------------------------------------------
+
+def as_payload() -> dict:
+    """Structured facts for the workbench. No markup; numbers are numbers."""
+    f = _collect()
+    lg, idn, mt, bs, ru, mx = (f["logical"], f["identity"], f["match"], f["bsim"],
+                               f["reuse"], f["matrix"])
+
+    def keep(d: dict, drop: tuple = ()) -> dict:
+        return {k: v for k, v in d.items() if k not in drop}
+
+    identity = keep(idn, ("per_binary",))
+    bsim = keep(bs, ("alias", "signed", "empty", "lacking", "per_binary"))
+    if "signed" in bs:
+        bsim["signature_sets"] = (
+            [{"name": n, "slug": bs["alias"].get(n, ""), "state": "proven"} for n in bs["signed"]]
+            + [{"name": n, "slug": bs["alias"].get(n, ""), "state": "failed",
+                "note": "job created the directory and produced nothing"} for n in bs["empty"]])
+        bsim["lacking_slugs"] = bs["lacking"]
+
+    per_ident = idn.get("per_binary") or {}
+    per_bsim = bs.get("per_binary") or {}
+    row_idx = {s: i for i, s in enumerate(mx.get("rows") or [])}
+    col_idx = {s: i for i, s in enumerate(mx.get("cols") or [])}
+    binaries = []
+    for b in f["binaries_list"]:
+        bound = per_ident.get(b["id"])
+        slug = b["slug"]
+        binaries.append({
+            "slug": slug,
+            "game": b["game"],
+            "platform": b["platform"],
+            "func_count": _num(b["func_count"]),
+            "identity_bindings": _num(bound[0]) if bound else None,
+            "identity_logical_ids": _num(bound[1]) if bound else None,
+            "identity_state": ("missing" if idn.get("per_binary_error") or not idn.get("per_binary")
+                               and idn.get("state") != "proven" else
+                               "proven" if bound else "unproven"),
+            "bsim_state": per_bsim.get(slug, "missing" if not per_bsim else "unproven"),
+            "match_as_source": _num(mx["row_totals"][row_idx[slug]]) if slug in row_idx else None,
+            "match_as_target": _num(mx["col_totals"][col_idx[slug]]) if slug in col_idx else None,
+        })
+
+    return {
+        "at": _db_at(),
+        "errors": list(f["errors"]),
+        "slug_key": "slug",
+        "logical": keep(lg),
+        "identity": identity,
+        "matches": keep(mt),
+        "bsim": bsim,
+        "propagation": keep(ru),
+        "matrix": keep(mx),
+        "binaries": binaries,
+        "notes": {
+            "identity_vs_propagation": (
+                "identity counts bindings of one function across builds; propagation counts "
+                "reuse candidates carried between builds. They are separate and never summed."),
+            "trust_floor": TRUST_FLOOR,
+        },
+    }
+
+
+# --------------------------------------------------------------------------
+# HTML sections, drawn from the collected facts
+# --------------------------------------------------------------------------
+
+def _explainer() -> str:
+    return (
+        '<p class="note">A <b>logical function</b> is an address-independent identity. The same '
+        "function sits at a different address in every build, but all of those addresses bind to "
+        "a single logical id. That binding is the whole point: a name, signature or recovered "
+        "body written once against one build propagates to every other build that shares the "
+        "logical id, instead of being re-derived for each.</p>"
+        '<p class="note">The <code>identity</code> table holds those bindings '
+        "(logical id &rarr; binary + address, with a method and a confidence). The "
+        "<code>match</code> table holds candidate pairings that have not yet become identities. "
+        "<b>Read both with their confidence attached</b>: the honest number is always smaller "
+        "than the row count.</p>"
+    )
+
+
+def _logical_section(f: dict) -> str:
+    lg = f["logical"]
+    if lg.get("error"):
+        return missing(lg["error"])
+    n = lg["total"]
+    pairs = [
+        ("logical functions", fnum(n)),
+        ("with a source_file attributed",
+         f"{fnum(lg['with_source_file'])} &middot; {fpct(lg['with_source_file'], n)}"),
+    ]
+    if "spread" in lg:
+        pairs.append(("reach 2+ builds (actually bridge)",
+                      f'<span class="good">{fnum(lg["multi_build"])}</span> &middot; '
+                      f'{fpct(lg["multi_build"], n)}'))
+        pairs.append(("reach exactly 1 build (bridge nothing)",
+                      f'<span class="warnt">{fnum(lg["single_build"])}</span> &middot; '
+                      f'{fpct(lg["single_build"], n)}'))
+    if "cross_game" in lg:
+        pairs.append(("cross a game boundary",
+                      f"{fnum(lg['cross_game'])} &middot; {fpct(lg['cross_game'], n)}"))
+    out = [kv(pairs)]
+    if lg.get("spread_error"):
+        out.append(missing(f"build-spread histogram unavailable: {lg['spread_error']}"))
+    else:
+        out.append(bars([(s["label"], s["count"], s["state"]) for s in lg["spread"]], sort=False))
+        rows = [[s["label"], fnum(s["count"]), fpct(s["count"], n)] for s in lg["spread"]]
+        out.append(_details(table(["builds reached", "logical functions", "share"],
+                                  rows, numeric={1, 2})))
+        nine = next((s["count"] for s in lg["spread"] if s["label"] == "9+ builds"), 0)
+        out.append(
+            '<p class="note">Reach is the payoff multiplier. A name written against one of the '
+            f'{fnum(nine)} logical functions that reach nine or more builds lands in all of them '
+            "at once; a name written against a single-build logical function lands once.</p>")
+    return "".join(out)
+
+
+def _identity_section(f: dict) -> str:
+    idn = f["identity"]
+    if idn.get("error"):
+        return missing(idn["error"])
+    n_rows = idn["rows"]
+    pairs = [
+        ("identity rows", fnum(n_rows)),
+        ("distinct (binary, addr) bound", _clink(idn["bound_addresses"], "/functions?bound=1")),
+        ("distinct logical ids covered", fnum(idn["logical_ids"])),
+        ("binaries with at least one binding", fnum(idn["binaries_with_bindings"])),
+    ]
+    if idn.get("total_functions"):
+        pairs.append(("bound share of all functions (binary.func_count sum)",
+                      f"{fpct(idn['bound_addresses'], idn['total_functions'])} of "
+                      f"{fnum(idn['total_functions'])}"))
+    if idn.get("binaries_without_bindings"):
+        pairs.append(("binaries with no bindings",
+                      f'<span class="warnt">{fnum(idn["binaries_without_bindings"])}</span>'))
+    out = [kv(pairs)]
+    if idn.get("denominator_note"):
+        out.append(missing(idn["denominator_note"]))
+    if idn.get("methods_error"):
+        out.append(missing(f"identity method breakdown unavailable: {idn['methods_error']}"))
+        return "".join(out)
+    ms = idn["methods"]
+    out.append(bars([(m["method"], m["count"], m["state"]) for m in ms], href_fn=None))
+    rows = []
+    for m in ms:
+        badge = " " + tag("lead only", "warn") if m["lead_only"] else ""
+        rows.append([
+            esc(m["method"]) + badge, fnum(m["count"]), fpct(m["count"], n_rows),
+            _conf(m["avg_confidence"]),
+            f"{(m['min_confidence'] or 0):.2f}&ndash;{(m['max_confidence'] or 0):.2f}",
+        ])
+    out.append(_details(table(
+        ["method", "bindings", "share", "avg confidence", "range"], rows,
+        numeric={1, 2, 3, 4})))
+    out.append(
+        f'<p class="note"><b>{fnum(idn["weak_bindings"])} of {fnum(n_rows)} bindings '
+        f'({fpct(idn["weak_bindings"], n_rows)}) come from methods whose average confidence is '
+        f"below {TRUST_FLOOR:.2f}.</b> Those are candidate leads carried in the same table as "
+        "identifications, not identifications. The <code>name-*</code> methods bind on name "
+        "evidence; the <code>match:*</code> methods are promotions out of the matcher, and carry "
+        "its score forward.</p>")
+    return "".join(out)
+
+
+def _match_section(f: dict) -> str:
+    mt = f["match"]
+    if mt.get("error"):
+        return missing(mt["error"])
+    total, auto, needs = mt["total"], mt["auto"], mt["awaiting_human"]
+    tbl = []
+    for s in mt["statuses"]:
+        kind = {"proven": "ok", "partial": "warn", "failed": "dead"}.get(s["state"], "")
+        count_cell = _clink(s["count"], "/review") if s["status"] == "review" else fnum(s["count"])
+        tbl.append([
+            esc(s["status"]) + (" " + tag(s["meaning"], kind) if s["meaning"] else ""),
+            count_cell, fpct(s["count"], total), _conf(s["avg_score"]),
+            f"{(s['min_score'] or 0):.2f}&ndash;{(s['max_score'] or 0):.2f}",
+        ])
+    return "".join([
+        stacked_bar([(s["status"], s["count"], s["state"]) for s in mt["statuses"]]),
+        kv([
+            ("match rows", fnum(total)),
+            ("auto-accepted (no human needed)",
+             f'<span class="good">{fnum(auto)}</span> &middot; {fpct(auto, total)}'),
+            ("still awaiting a human",
+             f'<span class="warnt">{_clink(needs, "/review")}</span> &middot; '
+             f"{fpct(needs, total)}"),
+        ]),
+        _details(table(["status", "matches", "share", "avg score", "range"], tbl,
+                       numeric={1, 2, 3, 4})),
+        '<p class="note"><b>The largest bucket is not the trustworthy one.</b> Only '
+        f"{fnum(auto)} matches ({fpct(auto, total)}) cleared the bar to be accepted without a "
+        f'human; {fnum(needs)} sit in <a href="/review">review</a> or verify queues. A high '
+        "average score inside a review bucket does not promote it.</p>",
+    ])
+
+
+def _bsim_section(f: dict) -> str:
+    bs = f["bsim"]
+    out = [
+        '<p class="note">BSim is a structural function-similarity index: it decompiles each '
+        "function, reduces it to a feature vector, and finds near neighbours in other programs. "
+        "A signature set per binary is a prerequisite for any all-pairs cross-query.</p>"]
+    if bs.get("error"):
+        return "".join(out) + missing(bs["error"])
+    for e in bs["errors"]:
+        out.append(missing(e))
+    db = bs["database"]
+    if db.get("bytes") is not None:
+        db_line = f"{_human_bytes(db['bytes'])} &middot; {_file_link(_bsim_paths()['db'])}"
+    elif db.get("state") == "failed":
+        db_line = f'<span class="bad">{esc(db.get("error"))}</span>'
+    else:
+        db_line = f'<span class="warnt">absent ({esc(db["source"])})</span>'
+    pairs = [("BSim database", db_line), ("signature sets with content", fnum(len(bs["signed"])))]
+    if bs["empty"]:
+        pairs.append(("signature dirs created but empty",
+                      f'<span class="bad">{fnum(len(bs["empty"]))}</span>'))
+    total = bs["corpus_binaries"]
+    if total:
+        pairs.append(("corpus binaries covered",
+                      f'<span class="{"good" if bs["covered"] == total else "warnt"}">'
+                      f'{fnum(bs["covered"])}</span> of {fnum(total)} &middot; '
+                      f'{fpct(bs["covered"], total)}'))
+        out.append(donut(
+            [("signatures present", bs["covered"], "proven"),
+             ("no signatures yet", total - bs["covered"], "unproven")],
+            total=total, title="BSim signature coverage"))
+    out.append(kv(pairs))
+
+    def name_cell(name: str) -> str:
+        slug = bs["alias"].get(name, "")
+        return f'<a href="{esc(_bin_href(slug))}">{esc(name)}</a>' if slug else esc(name)
+
+    if bs["signed"] or bs["empty"]:
+        srows = [[name_cell(n), tag("signatures present", "ok")] for n in bs["signed"]]
+        srows += [[name_cell(n), tag("empty: job produced nothing", "dead")] for n in bs["empty"]]
+        out.append(_details(table(["signature set", "state"], srows)))
+    if bs["lacking"]:
+        out.append(
+            f'<p class="note"><b>{fnum(len(bs["lacking"]))} corpus binaries have no BSim '
+            "signatures</b>, so they cannot take part in any cross-query: "
+            + ", ".join(f'<a href="{esc(_bin_href(s))}"><code>{esc(s)}</code></a>'
+                        for s in bs["lacking"]) + ".</p>")
+    return "".join(out) + _bsim_logs_html(bs["logs"])
+
+
+def _bsim_logs_html(lg: dict) -> str:
+    out = [missing(e) for e in lg["errors"]]
+    batch, jobs = lg["batch"], lg["jobs"]
+    if not jobs and not batch:
+        return "".join(out)
+    pairs = []
+    if batch:
+        pairs.append((
+            f"{batch['source']} says",
+            f"ok {fnum(batch['ok'])} &middot; fail {fnum(batch['fail'])} &middot; "
+            f"skip {fnum(batch['skip'])}"
+            + ("" if batch["done_marker"] else ' &middot; <span class="warnt">no BATCH DONE line</span>')
+            + f' &middot; <a href="/artifact?p={esc(batch["source"])}"><code>{esc(batch["source"])}</code></a>'))
+    if jobs:
+        pairs.append(("per-job logs inspected", fnum(len(jobs))))
+        pairs.append(("jobs that wrote signatures", f'<span class="good">{fnum(lg["passed"])}</span>'))
+        pairs.append(("jobs that failed",
+                      f'<span class="{"bad" if lg["failed"] else "good"}">{fnum(lg["failed"])}</span>'))
+        if lg["no_verdict"]:
+            pairs.append(("jobs with no verdict",
+                          f'<span class="warnt">{fnum(lg["no_verdict"])}</span>'))
+    out.append(kv(pairs))
+    failed = [j for j in jobs if j["state"] == "failed"]
+    if failed:
+        if lg["undercounted"]:
+            out.append(
+                f'<p class="note"><b class="bad">The batch log undercounts failures: it records '
+                f'{fnum(batch["fail"])}, the per-job logs show {fnum(lg["failed"])}.</b> The BSim '
+                "launcher exits 0 after a connection failure, so the batch script marks those jobs "
+                "ok. Judge a run from the per-job logs.</p>")
+        out.append(bars([(c["cause"], c["count"], "failed") for c in lg["by_cause"]]))
+        out.append(_details(table(["failure cause", "jobs"],
+                                  [[esc(c["cause"]), fnum(c["count"])] for c in lg["by_cause"]],
+                                  numeric={1})))
+        nf = lg["newest_failure"]
+        out.append(f'<p class="note">Most recent failure &mdash; <code>{esc(nf["name"])}</code>: '
+                   f'<span class="bad">{esc(nf["line"])}</span></p>')
+        out.append(_details(table(
+            ["failed job", "cause", "log line"],
+            [[f'<a href="/artifact?p={esc(j["source"])}"><code>{esc(j["source"])}</code></a>',
+              esc(j["cause"]), esc(j["line"][:150])]
+             for j in sorted(failed, key=lambda j: -(j["at"] or 0))]),
+            "per-job failure log lines"))
+    elif jobs:
+        out.append(f'<p class="note">All {fnum(lg["passed"])} inspected jobs wrote signatures.</p>')
+    return "".join(out)
+
+
+def _reuse_section(f: dict) -> str:
+    ru = f["reuse"]
+    out = [
+        '<p class="note">The concrete payoff of cross-matching: a function whose C body was '
+        "verified byte-exact in one build, carried into another build through its logical id. "
+        "This is source propagation. It is counted apart from identity above.</p>"]
+    if ru.get("error"):
+        out.append(missing(ru["error"]))
+    else:
+        rows, high = ru.get("reuse_rows"), ru.get("high_confidence")
+        pairs = [("recovered functions scanned", fnum(ru.get("scanned"))),
+                 ("byte-exact in their own build", fnum(ru.get("byte_exact")))]
+        if ru.get("without_identity") is not None:
+            cls = "bad" if ru["without_identity"] else "good"
+            pairs.append(("recovered but bound to no logical id",
+                          f'<span class="{cls}">{fnum(ru["without_identity"])}</span>'))
+        pairs.append(("reuse candidates emitted",
+                      f'<span class="{"good" if (rows or 0) else "warnt"}">{fnum(rows)}</span>'))
+        if high is not None:
+            pairs.append(("of those, high confidence", fnum(high)))
+        if ru.get("same_size") is not None:
+            pairs.append(("of those, same size in the target build", fnum(ru["same_size"])))
+        summary = _root_join(*_REUSE_SUMMARY_REL)
+        pairs.append(("read from", _file_link(summary)))
+        if rows:
+            out.append(stacked_bar([("high confidence", high or 0, "proven"),
+                                    ("lower confidence", max(0, rows - (high or 0)), "partial")]))
+        out.append(kv(pairs))
+        if ru.get("no_candidates"):
+            out.append(
+                '<p class="note"><b class="bad">No reuse candidates yet.</b> '
+                f"{fnum(ru['scanned'])} recovered functions were scanned and "
+                f"{fnum(ru.get('byte_exact'))} are byte-exact, but {esc(ru['no_candidates_reason'])}."
+                " With no identity there is no second build to carry the body into.</p>")
+        elif rows:
+            out.append(
+                f'<p class="note">{fnum(high)} of {fnum(rows)} candidates are high confidence '
+                f"({fpct(high or 0, rows)}). Judge the payoff by that column, not by the "
+                "candidate count.</p>")
+    cf = ru.get("candidates_file") or {}
+    path = _root_join(*_REUSE_CANDIDATES_REL)
+    if cf.get("state") == "missing":
+        out.append(missing(cf.get("error") or f"not available yet ({rel(path)} missing)"))
+    else:
+        out.append(kv([(rel(path),
+                        ("empty file" if not cf.get("bytes")
+                         else f"{fnum(cf.get('rows'))} rows &middot; {_human_bytes(cf['bytes'])}")
+                        + " &middot; " + _file_link(path))]))
+    return "".join(out)
+
+
+def _matrix_section(f: dict) -> str:
+    mx = f["matrix"]
+    if mx.get("error"):
+        return missing(mx["error"])
+    chart = heatmap(mx["values"], mx["rows"], mx["cols"],
+                    href_fn=lambda r, *_: _bin_href(r))
+    report = _root_join(*_MATCH_REPORT_REL)
+    note = (
+        f'<p class="note">Density from the offline summary {_file_link(report)}: '
+        f"{fnum(len(mx['rows']))} builds queried as a source against {fnum(len(mx['cols']))} "
+        "builds that have appeared as a target. These are candidate pairings, not identities; "
+        "see the match queue for how many clear the bar. A binary missing from the row axis has "
+        "not been run as a source yet; one missing from the column axis has never been matched "
+        "against.</p>")
+    return chart + note
+
 
 _SECTIONS = (
-    ("What a logical function is", _explainer),
-    ("Cross-match density — build × build (table `match`)", _matrix_section),
-    ("Logical functions — the address-independent layer", _logical_section),
-    ("Identity bindings — logical id to a real address", _identity_section),
-    ("Match queue — candidates that are not identities yet", _match_section),
-    ("BSim — structural similarity index", _bsim_section),
-    ("Reuse into MizuchiRE — what cross-matching bought", _reuse_section),
+    ("What a logical function is", lambda f: _explainer()),
+    ("Cross-match density: build x build (table `match`)", _matrix_section),
+    ("Logical functions: the address-independent layer", _logical_section),
+    ("Identity bindings: logical id to a real address", _identity_section),
+    ("Match queue: candidates that are not identities yet", _match_section),
+    ("BSim: structural similarity index", _bsim_section),
+    ("Reuse: what cross-matching bought", _reuse_section),
 )
 
 
 def render() -> str:
+    f = _collect()
     parts = []
     for heading, fn in _SECTIONS:
         try:
-            body = fn()
-        except Exception as exc:  # noqa: BLE001 — a panel must degrade, never raise
+            body = fn(f)
+        except Exception as exc:  # noqa: BLE001 - a panel must degrade, never raise
             body = missing(f"section failed: {type(exc).__name__}: {exc}")
         parts.append(
-            f'<div class="panel"><div class="ptitle"><b>{esc(heading)}</b></div>{body}</div>'
-        )
+            f'<div class="panel"><div class="ptitle"><b>{esc(heading)}</b></div>{body}</div>')
     return "".join(parts)

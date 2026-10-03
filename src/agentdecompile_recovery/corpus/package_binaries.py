@@ -76,7 +76,7 @@ def project_manifests(root: pathlib.Path) -> dict[str, list[pathlib.Path]]:
 def main() -> None:
     if OUT.exists():
         raise SystemExit(f"refusing to overwrite existing collection: {OUT}")
-    con = db.connect(ROOT / "db" / "kotorxid.sqlite")
+    con = db.connect()
     rows = [dict(r) for r in con.execute("SELECT * FROM binary ORDER BY repo_path")]
     # The database also contains one imported repository-directory placeholder.
     # It is not an executable and must not get a binary folder.

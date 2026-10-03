@@ -1,4 +1,4 @@
-"""Identity matcher surface matching kotorxid ``kx.match``.
+"""Identity matcher surface, API-compatible with the ``kx.match`` toolkit module.
 
 List snapshots use :mod:`match_engine`. Store-backed runs use :mod:`match_store`.
 """

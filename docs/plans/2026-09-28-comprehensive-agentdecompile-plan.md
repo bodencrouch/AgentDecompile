@@ -25001,7 +25001,7 @@ Every source below was captured as available at consolidation. Worktree sources 
 | S033 | canonical | `docs/plans/2026-09-27-weekend-unit-delivery.json` | 861509 | `ed68532594552579f07bdd9a75da138a4f18286633de1635da8d35666451b31f` |
 | S034 | canonical | `docs/dashboard-design/2026-09-20-delivery-reconciliation.md` | 8515 | `913e40f7a4973e00837a5d6fb45cd4e7bb8ca516ac742aef79777b1ebf6ab59a` |
 | S035 | canonical | `docs/dashboard-design/2026-09-20-ghidra-guide-capability-inventory.md` | 22758 | `3acec1a7080de08c72394ff9eab4806fdfb668838799a518ebc7c3b39e0e9f2f` |
-| S036 | canonical | `docs/dashboard-design/2026-09-20-kotorxid-capability-inventory.md` | 16503 | `2c42563b98c08b9be967756d8f291329d066d1c5d3bede57ee0395ccdc8f4541` |
+| S036 | canonical | `docs/dashboard-design/2026-09-20-donor-dashboard-capability-inventory.md` | 16503 | `2c42563b98c08b9be967756d8f291329d066d1c5d3bede57ee0395ccdc8f4541` |
 | S037 | canonical | `docs/dashboard-design/2026-09-20-unified-workstation-spec.md` | 10964 | `25a6ad42b63c85d3d6e122039e27c2244f89877b1ddde7c6c704e39b42d0ac63` |
 | S038 | canonical | `docs/dashboard-design/2026-09-21-consolidated-design-plan.md` | 47601 | `dcd1d83c9d6f987b0cfcc41f8e9f1e532748e7acb26f660e16a0721c4f99abf8` |
 | S039 | canonical | `docs/dashboard-design/2026-09-21-improvement-recommendations.md` | 12034 | `fc53db7ebbae37d1a35099680be2c7086184217514e900dc34609a19831193d2` |
@@ -36251,7 +36251,7 @@ Source `docs/plans/2026-09-27-weekend-design-scope.md` lines 21–40; accountabl
 | [September 21 distributed-compute design](2026-09-21-distributed-compute-design.md) | Reusable grid-of-one foundation, bounded tasks, content-addressed proposals, independent verification, materialized views, capability access and later fleet scaling |
 | [September 21 requirements ledger](2026-09-21-user-requirements-ledger.md) and [goal](2026-09-21-goal.md) | User intent, deterministic usable exports, unattended progress and the original unit-level acceptance requirements |
 | [September 20 workstation specification](../dashboard-design/2026-09-20-unified-workstation-spec.md), [implementation plan](2026-09-20-unified-reversing-workstation.md) and [frontend intent](../FRONTEND_INTENT.md) | Dense unified workspace, source/history locators, actual-work visibility, two real consumers of shared capabilities/state |
-| [Guide capability inventory](../dashboard-design/2026-09-20-ghidra-guide-capability-inventory.md) and [donor capability inventory](../dashboard-design/2026-09-20-kotorxid-capability-inventory.md) | All substantive workflow families inherited by F01–F28 and the workstation's eight implementation tasks; inventory labels are not current runtime proof |
+| [Guide capability inventory](../dashboard-design/2026-09-20-ghidra-guide-capability-inventory.md) and [donor capability inventory](../dashboard-design/2026-09-20-donor-dashboard-capability-inventory.md) | All substantive workflow families inherited by F01–F28 and the workstation's eight implementation tasks; inventory labels are not current runtime proof |
 | [September 21 improvement recommendations](../dashboard-design/2026-09-21-improvement-recommendations.md), [risk register](2026-09-21-risk-register.md), [loop charter](2026-09-21-loop-charter.md) and audits [2](2026-09-21-plan-audit-2.md), [3](2026-09-21-plan-audit-3.md), [4](2026-09-21-plan-audit-4.md) | Failure findings, continuation requirements and explicit corrections to the detailed plan; historical commands and completion marks require current qualification |
 | [Diagram sources and companions](../dashboard-design/pipeline-diagram/README.md) | Preserve the recovery stages and all capability lanes, including the extended runtime/entity/distributed scope; overview and companion diagrams are views of the same requirements |
 
@@ -54990,7 +54990,7 @@ Avoid reimplementing providers. Reuse `CodeBrowser`, `FunctionEditor`, `GuideWor
 
 #### S036-C0001: KotORXID dashboard capability inventory
 
-Source `docs/dashboard-design/2026-09-20-kotorxid-capability-inventory.md` lines 1–6; accountable coverage owner U17.
+Source `docs/dashboard-design/2026-09-20-donor-dashboard-capability-inventory.md` lines 1–6; accountable coverage owner U17.
 
 ```md
 # KotORXID dashboard capability inventory
@@ -55002,7 +55002,7 @@ Claim boundary: this is a read-only source inventory. Source presence and histor
 
 #### S036-C0002: Operating boundary
 
-Source `docs/dashboard-design/2026-09-20-kotorxid-capability-inventory.md` lines 7–12; accountable coverage owner U17.
+Source `docs/dashboard-design/2026-09-20-donor-dashboard-capability-inventory.md` lines 7–12; accountable coverage owner U17.
 
 ```md
 ## Operating boundary
@@ -55014,7 +55014,7 @@ Consequently, this redesign should port KotORXID's analysis semantics and intera
 
 #### S036-C0003: Source map
 
-Source `docs/dashboard-design/2026-09-20-kotorxid-capability-inventory.md` lines 13–30; accountable coverage owner U17.
+Source `docs/dashboard-design/2026-09-20-donor-dashboard-capability-inventory.md` lines 13–30; accountable coverage owner U17.
 
 ```md
 ## Source map
@@ -55038,7 +55038,7 @@ The documents under `docs/dashboard-design/` and `docs/plans/2026-08-24-0136-fea
 
 #### S036-C0004: Implemented routes and user workflows
 
-Source `docs/dashboard-design/2026-09-20-kotorxid-capability-inventory.md` lines 31–32; accountable coverage owner U17.
+Source `docs/dashboard-design/2026-09-20-donor-dashboard-capability-inventory.md` lines 31–32; accountable coverage owner U17.
 
 ```md
 ## Implemented routes and user workflows
@@ -55046,7 +55046,7 @@ Source `docs/dashboard-design/2026-09-20-kotorxid-capability-inventory.md` lines
 
 #### S036-C0005: Application shell and navigation
 
-Source `docs/dashboard-design/2026-09-20-kotorxid-capability-inventory.md` lines 33–59; accountable coverage owner U17.
+Source `docs/dashboard-design/2026-09-20-donor-dashboard-capability-inventory.md` lines 33–59; accountable coverage owner U17.
 
 ```md
 ### Application shell and navigation
@@ -55079,7 +55079,7 @@ Path-identity dispatch validates build, function, and logical-identity segments 
 
 #### S036-C0006: Overview and pipeline state
 
-Source `docs/dashboard-design/2026-09-20-kotorxid-capability-inventory.md` lines 60–77; accountable coverage owner U17.
+Source `docs/dashboard-design/2026-09-20-donor-dashboard-capability-inventory.md` lines 60–77; accountable coverage owner U17.
 
 ```md
 ### Overview and pipeline state
@@ -55103,7 +55103,7 @@ The pipeline collector reads the corpus database plus export, STABS, coverage, q
 
 #### S036-C0007: Builds
 
-Source `docs/dashboard-design/2026-09-20-kotorxid-capability-inventory.md` lines 78–85; accountable coverage owner U17.
+Source `docs/dashboard-design/2026-09-20-donor-dashboard-capability-inventory.md` lines 78–85; accountable coverage owner U17.
 
 ```md
 ### Builds
@@ -55117,7 +55117,7 @@ The richer binary panel visualizes function coverage, duplicate relationships, e
 
 #### S036-C0008: Concrete functions
 
-Source `docs/dashboard-design/2026-09-20-kotorxid-capability-inventory.md` lines 86–101; accountable coverage owner U17.
+Source `docs/dashboard-design/2026-09-20-donor-dashboard-capability-inventory.md` lines 86–101; accountable coverage owner U17.
 
 ```md
 ### Concrete functions
@@ -55139,7 +55139,7 @@ Function routes are mounted at `scripts/dashboard.py:1626-1642` and `1675-1704`.
 
 #### S036-C0009: Logical identities and cross-build reuse
 
-Source `docs/dashboard-design/2026-09-20-kotorxid-capability-inventory.md` lines 102–109; accountable coverage owner U17.
+Source `docs/dashboard-design/2026-09-20-donor-dashboard-capability-inventory.md` lines 102–109; accountable coverage owner U17.
 
 ```md
 ### Logical identities and cross-build reuse
@@ -55153,7 +55153,7 @@ Cross-corpus summaries include logical-function coverage, identity methods and c
 
 #### S036-C0010: Relationships and call graphs
 
-Source `docs/dashboard-design/2026-09-20-kotorxid-capability-inventory.md` lines 110–126; accountable coverage owner U17.
+Source `docs/dashboard-design/2026-09-20-donor-dashboard-capability-inventory.md` lines 110–126; accountable coverage owner U17.
 
 ```md
 ### Relationships and call graphs
@@ -55176,7 +55176,7 @@ Evidence: `scripts/panels/callgraph.py:208-375`, `433-678`, `757-976`, and `1000
 
 #### S036-C0011: Recovery and rebuild proof
 
-Source `docs/dashboard-design/2026-09-20-kotorxid-capability-inventory.md` lines 127–134; accountable coverage owner U17.
+Source `docs/dashboard-design/2026-09-20-donor-dashboard-capability-inventory.md` lines 127–134; accountable coverage owner U17.
 
 ```md
 ### Recovery and rebuild proof
@@ -55190,7 +55190,7 @@ The round-trip panel consumes image reconstruction receipts, universal coverage,
 
 #### S036-C0012: Review queue
 
-Source `docs/dashboard-design/2026-09-20-kotorxid-capability-inventory.md` lines 135–138; accountable coverage owner U17.
+Source `docs/dashboard-design/2026-09-20-donor-dashboard-capability-inventory.md` lines 135–138; accountable coverage owner U17.
 
 ```md
 ### Review queue
@@ -55200,7 +55200,7 @@ Source `docs/dashboard-design/2026-09-20-kotorxid-capability-inventory.md` lines
 
 #### S036-C0013: Evidence and traceability
 
-Source `docs/dashboard-design/2026-09-20-kotorxid-capability-inventory.md` lines 139–146; accountable coverage owner U17.
+Source `docs/dashboard-design/2026-09-20-donor-dashboard-capability-inventory.md` lines 139–146; accountable coverage owner U17.
 
 ```md
 ### Evidence and traceability
@@ -55214,7 +55214,7 @@ The database helper opens SQLite with URI `mode=ro` and a timeout (`scripts/pane
 
 #### S036-C0014: Ghidra knowledge and original-symbol evidence
 
-Source `docs/dashboard-design/2026-09-20-kotorxid-capability-inventory.md` lines 147–152; accountable coverage owner U17.
+Source `docs/dashboard-design/2026-09-20-donor-dashboard-capability-inventory.md` lines 147–152; accountable coverage owner U17.
 
 ```md
 ### Ghidra knowledge and original-symbol evidence
@@ -55226,7 +55226,7 @@ The STABS panel covers extraction indexes, record types, files, provenance, logi
 
 #### S036-C0015: Operations
 
-Source `docs/dashboard-design/2026-09-20-kotorxid-capability-inventory.md` lines 153–156; accountable coverage owner U17.
+Source `docs/dashboard-design/2026-09-20-donor-dashboard-capability-inventory.md` lines 153–156; accountable coverage owner U17.
 
 ```md
 ### Operations
@@ -55236,7 +55236,7 @@ The operations view classifies processes under the repository cwd and shows boun
 
 #### S036-C0016: Implemented browser behavior
 
-Source `docs/dashboard-design/2026-09-20-kotorxid-capability-inventory.md` lines 157–180; accountable coverage owner U17.
+Source `docs/dashboard-design/2026-09-20-donor-dashboard-capability-inventory.md` lines 157–180; accountable coverage owner U17.
 
 ```md
 ## Implemented browser behavior
@@ -55266,21 +55266,21 @@ The core disclosure interaction uses native `<details>`, so it remains useful wi
 
 #### S036-C0017: Existing 8080 capabilities to reuse
 
-Source `docs/dashboard-design/2026-09-20-kotorxid-capability-inventory.md` lines 181–188; accountable coverage owner U17.
+Source `docs/dashboard-design/2026-09-20-donor-dashboard-capability-inventory.md` lines 181–188; accountable coverage owner U17.
 
 ```md
 ## Existing 8080 capabilities to reuse
 
-Historical production dogfood records the canonical 8080 workbench as already providing a Ghidra-style tool strip, binary dock, windowed function list, inspector, typed `/docs` operations, shared job runner, path registration, copy-in upload, confirm-remove, role/label editing, stage bars, and same-process `/mcp` (`docs/dogfood-reports/2026-08-31-feat-corpus-kotorxid-library-dogfood.md:3-18`, `57-66`). These receipts are historical, so current source and runtime still require read-only corroboration before making a current claim.
+Historical production dogfood records the canonical 8080 workbench as already providing a Ghidra-style tool strip, binary dock, windowed function list, inspector, typed `/docs` operations, shared job runner, path registration, copy-in upload, confirm-remove, role/label editing, stage bars, and same-process `/mcp` (`docs/dogfood-reports/2026-08-31-feat-corpus-library-dogfood.md:3-18`, `57-66`). These receipts are historical, so current source and runtime still require read-only corroboration before making a current claim.
 
-The same report says the leftover port 5173 is unused and that `/atlas` and `/docs` on 8080 are the product links (`docs/dogfood-reports/2026-08-31-feat-corpus-kotorxid-library-dogfood.md:101-105`). The donor's generated `:5173` Atlas link (`scripts/dashboard.py:667`, `2155-2158`) must not be ported.
+The same report says the leftover port 5173 is unused and that `/atlas` and `/docs` on 8080 are the product links (`docs/dogfood-reports/2026-08-31-feat-corpus-library-dogfood.md:101-105`). The donor's generated `:5173` Atlas link (`scripts/dashboard.py:667`, `2155-2158`) must not be ported.
 
 The canonical outcome ledger describes the interaction obligations whose acceptance remains unreassessed: corpus and per-binary ladders, actionable counts, one-click function/sibling/identity navigation, subject-grouped visualizations, raw output on demand, source and age on figures, honest real-C versus byte-exact counts, and preserved selection/deep-link/refresh state (`docs/PROTOTYPE_OUTCOMES.md:24-26`).
 ```
 
 #### S036-C0018: Important implementation gaps
 
-Source `docs/dashboard-design/2026-09-20-kotorxid-capability-inventory.md` lines 189–202; accountable coverage owner U17.
+Source `docs/dashboard-design/2026-09-20-donor-dashboard-capability-inventory.md` lines 189–202; accountable coverage owner U17.
 
 ```md
 ## Important implementation gaps
@@ -55300,7 +55300,7 @@ Source `docs/dashboard-design/2026-09-20-kotorxid-capability-inventory.md` lines
 
 #### S036-C0019: Porting recommendation
 
-Source `docs/dashboard-design/2026-09-20-kotorxid-capability-inventory.md` lines 203–215; accountable coverage owner U17.
+Source `docs/dashboard-design/2026-09-20-donor-dashboard-capability-inventory.md` lines 203–215; accountable coverage owner U17.
 
 ```md
 ## Porting recommendation
@@ -55351,7 +55351,7 @@ canonical policy. This spec organizes the GUI, not another recovery policy.
 
 Source inventories, with implemented/partial/missing distinctions:
 
-- 2026-09-20-kotorxid-capability-inventory.md
+- 2026-09-20-donor-dashboard-capability-inventory.md
 - 2026-09-20-ghidra-guide-capability-inventory.md
 - 2026-09-20-delivery-reconciliation.md
 ```
@@ -66709,7 +66709,7 @@ Integrate these in the shared entity workspace rather than embed a second dashbo
 with another database, navigation model and server.
 
 The existing donor and guide inventories remain supporting implementation evidence:
-[KotORXID inventory](dashboard-design/2026-09-20-kotorxid-capability-inventory.md),
+[KotORXID inventory](dashboard-design/2026-09-20-donor-dashboard-capability-inventory.md),
 [guide inventory](dashboard-design/2026-09-20-ghidra-guide-capability-inventory.md).
 Their existence does not close any missing capability.
 ```

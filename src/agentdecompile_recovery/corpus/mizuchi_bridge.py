@@ -5,17 +5,17 @@ this join:
 
 * MizuchiRE recovers **byte-exact C for one function in one binary**, at roughly
   30-180 s of model time each, and knows those functions only as `FUN_00621cb0`.
-* kotorxid knows **what that function actually is** — its canonical
-  `Class::method`, its parameter types, the `.cpp` and `.o` it was compiled
-  from, and its counterpart address in up to a dozen other builds.
+* The cross-build identity layer knows **what that function actually is** — its
+  canonical `Class::method`, its parameter types, the `.cpp` and `.o` it was
+  compiled from, and its counterpart address in up to a dozen other builds.
 
 So this module emits two artefacts:
 
 1. `enrichment/<program>.json` — for every function in a program, the best
-   canonical name / signature / source file kotorxid can supply, keyed by entry
-   address. Intended to be folded into Mizuchi's per-function prompt, replacing
-   `FUN_00621cb0` with `CSWSCombatRound::AddCutsceneAttackAction` plus the
-   compilation unit it belongs to. Prompt quality is the lever that matters here:
+   canonical name / signature / source file the identity layer can supply, keyed
+   by entry address. Intended to be folded into Mizuchi's per-function prompt,
+   replacing `FUN_00621cb0` with a recovered name such as `CWidget::OnUpdate`
+   plus the compilation unit it belongs to. Prompt quality is the lever that matters here:
    per MizuchiRE's own measurements ~97% of pipeline cost is model time, and
    retries dominate that.
 
@@ -24,7 +24,8 @@ So this module emits two artefacts:
    builds. Each row is a candidate for destination compilation, not proof that
    the same source compiles byte-exactly in the target build.
 
-Nothing here writes into MizuchiRE's tree; artefacts land under kotorxid/output.
+Nothing here writes into MizuchiRE's tree; artefacts land under
+``<workspace>/output/mizuchi``.
 """
 
 from __future__ import annotations
@@ -46,7 +47,7 @@ REV_MAP = {v: k for k, v in PROGRAM_MAP.items()}
 
 
 def emit_enrichment(con) -> dict:
-    """Per-program map: entry address -> everything kotorxid knows about it."""
+    """Per-program map: entry address -> everything the identity layer knows about it."""
     (OUTDIR / "enrichment").mkdir(parents=True, exist_ok=True)
     stats = {}
     for mz_name, repo_path in PROGRAM_MAP.items():

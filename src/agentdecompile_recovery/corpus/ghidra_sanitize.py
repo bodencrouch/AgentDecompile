@@ -1,4 +1,4 @@
-"""Mechanical Ghidra-C cleanup measured in the kotorxid compile pass.
+"""Mechanical Ghidra-C cleanup measured in the corpus compile pass.
 
 These transforms exist so Ghidra decompilation can be compiled as C without
 an LLM. Do not add a spelling fix unless a compiler diagnostic asked for it.

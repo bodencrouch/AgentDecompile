@@ -1,4 +1,4 @@
-"""Naming precedence from kotorxid `kx/name_precedence.py`.
+"""Naming precedence, ported from the `kx/name_precedence.py` toolkit module.
 
 human > stabs > symbol > ghidra/derived > placeholder.
 A placeholder may fill an empty slot. It never displaces a real name.

@@ -871,7 +871,9 @@ def create_dashboard_router() -> APIRouter:
         from agentdecompile_recovery.corpus.dashboard.pages import panel_payload_json
 
         sid = request.query_params.get("id") or ""
-        payload, status = panel_payload_json(sid)
+        # Collection can take seconds on a busy disk; keep it off the event loop
+        # so /mcp and every other route stay responsive meanwhile.
+        payload, status = await asyncio.to_thread(panel_payload_json, sid)
         return JSONResponse(payload, status_code=status)
 
     @router.get("/dashboard/static/{name}")

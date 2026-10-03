@@ -35,7 +35,7 @@ def test_dashboard_rejects_legacy_totals_and_terminal_booleans(tmp_path,monkeypa
         'verified':True,'compilerProducedWholeImage':True,'wholeFileByteIdentical':True,'target':sc.fingerprint(target)}))
     monkeypatch.setenv(byte_parity._REPORT_ENV,str(report));monkeypatch.setenv(byte_parity._VARIANTS_ENV,str(variants))
     monkeypatch.setenv(byte_parity._FULL_IMAGE_RECEIPT_ENV,str(receipt))
-    monkeypatch.setattr(byte_parity,'_TARGET',str(target));monkeypatch.setattr(byte_parity,'_REBUILT',str(target))
+    monkeypatch.setattr(byte_parity,'_parity_config',lambda:{'target':str(target),'rebuilt':str(target)})
     monkeypatch.setattr(byte_parity,'_text_permuter_closed_count',lambda:20)
     state=byte_parity.byte_parity_state()
     assert state['placedCompiledRegions'] == state['byteExactRecoveredC'] == 0
@@ -49,7 +49,7 @@ def test_explicit_live_observation_reaches_finish_and_dashboard(tmp_path,monkeyp
     target,observations=compiled_pair(tmp_path)
     output=tmp_path/'out.exe';image=sc.reconstruct(target=target,output=output,observations=observations)
     assert finish_binary.contribution_state(image,target_path=target)['placedCompiledRegions'] == 2
-    monkeypatch.setattr(byte_parity,'_TARGET',str(target));monkeypatch.setattr(byte_parity,'_REBUILT',str(output))
+    monkeypatch.setattr(byte_parity,'_parity_config',lambda:{'target':str(target),'rebuilt':str(output)})
     state=byte_parity.byte_parity_state(reconstruction_observation=image)
     assert state['placedCompiledRegions'] == 2
     assert state['placedCompiledBytes'] == 12
@@ -85,7 +85,7 @@ def test_qualified_dashboard_and_watch_use_selected_corpus_denominator(tmp_path,
         con.executemany('INSERT INTO func VALUES(1,?,?)',[(0x401000,6),(0x401010,6),(0x401020,1),(0x401021,1)])
     target,observations=compiled_pair(tmp_path,db=db,binary_id=1)
     output=tmp_path/'out.exe';image=sc.reconstruct(target=target,output=output,observations=observations)
-    monkeypatch.setattr(byte_parity,'_TARGET',str(target));monkeypatch.setattr(byte_parity,'_REBUILT',str(output))
+    monkeypatch.setattr(byte_parity,'_parity_config',lambda:{'target':str(target),'rebuilt':str(output)})
     state=byte_parity.byte_parity_state(reconstruction_observation=image,db=db,binary_id=1)
     assert state['placedCompiledRegions']==state['qualifiedCorpusFunctions']==2
     assert state['totalFunctions']==4 and state['coveragePct']==50

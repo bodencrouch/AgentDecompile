@@ -1165,19 +1165,32 @@ def panel_payload_json(sid: str) -> tuple[dict, int]:
     if section is None:
         return {"ok": False, "error": f"no such panel {sid}"}, 404
     payload = None
-    if section.module is not None:
-        as_payload = getattr(section.module, "as_payload", None)
-        if callable(as_payload):
+    collected_at = None
+    as_payload = getattr(section.module, "as_payload", None) if section.module is not None else None
+    if callable(as_payload):
+        # Same single-flight TTL cache as the HTML panels: several tabs and the
+        # Refresh button must not start the same multi-second store read twice.
+        def collect() -> str:
             try:
-                payload = as_payload()
-            except Exception as exc:  # noqa: BLE001
-                payload = {"error": str(exc)}
+                return json.dumps(as_payload(), default=str)
+            except Exception as exc:  # noqa: BLE001 - say why, like the HTML panels do
+                return json.dumps({"error": str(exc),
+                                   "errors": [f"this panel raised while collecting its data: {exc}"]})
+
+        entry = render_cached(f"payload:{section.id}", collect, section.ttl)
+        collected_at = entry.at
+        if entry.failed:
+            payload = {"error": "this panel raised while collecting its data",
+                       "errors": ["this panel raised while collecting its data"]}
+        else:
+            payload = json.loads(entry.html)
     return {
         "ok": True,
         "id": section.id,
         "title": section.title,
         "why": section.why,
         "window": PANEL_WINDOW.get(section.id, "wb-overview"),
+        "collectedAt": collected_at,
         "payload": payload,
     }, 200
 
@@ -2779,7 +2792,7 @@ def render_function_page(slug: str, raw_addr: str, query: dict | None = None) ->
 
 
 def recovery_report_fragment() -> str:
-    """Live SQL tiles for recovered_function — same body as /recovery in kotorxid."""
+    """Live SQL tiles for recovered_function — the recovery report body."""
     return _recovery_inner_html()
 
 

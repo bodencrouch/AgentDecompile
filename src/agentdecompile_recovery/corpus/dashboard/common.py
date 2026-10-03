@@ -2,8 +2,8 @@
 
 ROOT and DB_PATH come from AgentDecompile environment variables when set,
 falling back to the same ``./agentdecompile_projects`` default as the rest
-of the corpus tooling (see ``corpus_env``). There is no kotorxid repo
-default and no db/kotorxid.sqlite fallback.
+of the corpus tooling (see ``corpus_env``). There is no external project
+checkout default and no hardcoded database-file fallback.
 """
 
 from __future__ import annotations
@@ -295,7 +295,7 @@ def runtime_work_dir() -> Path | None:
 
 
 def as_root() -> Path:
-    """Join target for artifact paths. Never a kotorxid checkout default."""
+    """Join target for artifact paths. Never an external project checkout default."""
     return live_root() or ROOT or _UNSET_ROOT
 
 

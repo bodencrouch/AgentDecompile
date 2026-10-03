@@ -19,6 +19,8 @@ def setup_recipe(root):
     target.write_bytes(pe_fixture()[0])
     db = root / 'fixture.sqlite'
     with sqlite3.connect(db) as con:
+        con.execute('CREATE TABLE binary (id INTEGER, content_sha256 TEXT)')
+        con.execute('INSERT INTO binary VALUES (1,?)', (hashlib.sha256(target.read_bytes()).hexdigest(),))
         con.execute('CREATE TABLE func (binary_id INTEGER, addr INTEGER, size INTEGER)')
         con.executemany('INSERT INTO func VALUES (1,?,6)', [(0x401000,), (0x401010,)])
     rows = []
@@ -199,3 +201,32 @@ def test_database_uri_delimiters_refuse(tmp_path, delimiter):
     with pytest.raises(ValueError, match='database_uri_delimiter'):
         run_recipe(tmp_path, doc)
     assert not (tmp_path/'fresh').exists()
+
+
+@pytest.mark.parametrize('case', ['wrong_image', 'unknown_identity', 'missing_binary_table'])
+def test_selected_target_content_preflight_refuses_before_producer(tmp_path, monkeypatch, case):
+    doc = setup_recipe(tmp_path)
+    with sqlite3.connect(tmp_path / 'fixture.sqlite') as con:
+        if case == 'missing_binary_table':
+            con.execute('DROP TABLE binary')
+        else:
+            other = bytearray((tmp_path / 'target.exe').read_bytes())
+            other[-1] ^= 1
+            value = hashlib.sha256(other).hexdigest() if case == 'wrong_image' else None
+            con.execute('UPDATE binary SET content_sha256=? WHERE id=1', (value,))
+
+    def forbidden_producer(**kwargs):
+        pytest.fail('selected target content must refuse in revalidation preflight')
+
+    monkeypatch.setattr(sc, 'compile_observation', forbidden_producer)
+    result = run_recipe(tmp_path, doc)
+    reason = ('selected_binary_content_mismatch' if case == 'wrong_image'
+              else 'missing_or_invalid_selected_binary_content_identity')
+    assert all(row['reason'] == reason and 'invocation' not in row
+               for row in result.diagnostic['candidates'])
+    assert result.diagnostic['matchingStatus']['counts']['byte_exact'] == 0
+    assert result.diagnostic['matchingStatus']['placedCompiledRegions'] == 0
+    assert result.diagnostic['matchingStatus']['contribution']['wholeFileByteIdentical'] is True
+    assert result.diagnostic['matchingStatus']['contribution']['compilerProducedWholeImage'] is False
+    assert not list((tmp_path / 'fresh').rglob('unit.obj'))
+    assert all(Path(row['source']).is_file() for row in doc['candidates'])

@@ -158,7 +158,8 @@ def revalidate(*, recipe: bytes, target, db, binary_id: int, workspace) -> Reval
             attempt["observedSourceSha256"] = observed
             if observed != row["sha256"]:
                 raise ValueError("bound_digest_mismatch")
-            sc._db_row(db_path, binary_id, row["address"], row["size"])
+            sc._db_row(db_path, binary_id, row["address"], row["size"],
+                       target_sha256=doc["target"]["sha256"])
             obs = sc.compile_observation(source=row["source"], target=target_path,
                 address=row["address"], size=row["size"], workspace=root,
                 program=row["program"], name=row["name"], binary_id=binary_id, db=db_path)

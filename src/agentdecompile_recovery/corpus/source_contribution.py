@@ -228,15 +228,35 @@ def _toolchain(compiler: Path) -> list[dict]:
     return closure
 
 
-def _db_row(db, binary_id, address, size):
+def _db_row(db, binary_id, address, size, *, target_sha256=None):
     if db is None:
         return None  # Explicit standalone fixture/unit scope; no database claim.
-    with sqlite3.connect(f"file:{Path(db).resolve()}?mode=ro", uri=True) as connection:
-        rows = connection.execute("SELECT addr,size FROM func WHERE binary_id=? AND addr=?",
-                                  (binary_id, address)).fetchall()
+    reason = "missing_or_invalid_selected_binary_content_identity"
+    if not isinstance(target_sha256, str) or not re.fullmatch(r"[0-9a-f]{64}", target_sha256):
+        raise ValueError(reason)
+    path = Path(db).resolve()
+    try:
+        with sqlite3.connect(path.as_uri() + "?mode=ro", uri=True) as connection:
+            # Both facts belong to one selected-target snapshot, not the mutable
+            # database file as a whole or unrelated semantic identity state.
+            connection.execute("BEGIN")
+            binaries = connection.execute("SELECT content_sha256 FROM binary WHERE id=?",
+                                          (binary_id,)).fetchall()
+            if (len(binaries) != 1 or not isinstance(binaries[0][0], str)
+                    or not re.fullmatch(r"[0-9a-f]{64}", binaries[0][0])):
+                raise ValueError(reason)
+            binary_sha256 = binaries[0][0]
+            if binary_sha256 != target_sha256:
+                raise ValueError("selected_binary_content_mismatch")
+            reason = "selected_database_row_changed_or_ambiguous"
+            rows = connection.execute("SELECT addr,size FROM func WHERE binary_id=? AND addr=?",
+                                      (binary_id, address)).fetchall()
+    except sqlite3.Error as exc:
+        raise ValueError(reason) from exc
     if rows != [(address, size)]:
         raise ValueError("selected_database_row_changed_or_ambiguous")
-    return {"path": str(Path(db).resolve()), "binaryId": binary_id, "address": address, "size": size}
+    return {"path": str(path), "binaryId": binary_id, "address": address, "size": size,
+            "binarySha256": binary_sha256}
 
 
 def compile_observation(*, source, target, address: int, size: int, workspace,
@@ -261,7 +281,7 @@ def compile_observation(*, source, target, address: int, size: int, workspace,
             ("#", "%:", "??", "\\\n", "\\\r", "__attribute__", "__declspec"))):
         raise ValueError("unsupported_source_preprocessor_asm_or_attributes")
     region = pe_region(target_raw, address, size)
-    selected_row = _db_row(db, binary_id, address, size)
+    selected_row = _db_row(db, binary_id, address, size, target_sha256=digest(target_raw))
     implementation = _implementation()
     implementation_dependencies = [fingerprint(module.__file__) for module in
                                    (source_claims, verify_recovered_byteexact)]
@@ -299,7 +319,8 @@ def compile_observation(*, source, target, address: int, size: int, workspace,
             or snapshot.read_bytes() != source_raw or not all(current(dep) for dep in
                [implementation, *implementation_dependencies, *toolchain])):
         raise ValueError("inputs_changed_during_compilation")
-    _db_row(db, binary_id, address, size)
+    if _db_row(db, binary_id, address, size, target_sha256=digest(target_raw)) != selected_row:
+        raise ValueError("selected_database_row_changed_or_ambiguous")
     observation = CompileObservation(canonical(record).decode())
     # Publication happens last; an orphan object/audit JSON is never a capability.
     (owned / "compile-observation.json").write_bytes(canonical(record))
@@ -323,7 +344,9 @@ def validate_compile(observation) -> tuple[dict | None, bytes | None, str | None
             raise ValueError("input_snapshot_mismatch")
         row = record["selectedRow"]
         if row:
-            _db_row(row["path"], row["binaryId"], row["address"], row["size"])
+            if _db_row(row["path"], row["binaryId"], row["address"], row["size"],
+                       target_sha256=record["target"]["sha256"]) != row:
+                raise ValueError("selected_database_row_changed_or_ambiguous")
         parsed = parse_coff(Path(record["object"]["path"]).read_bytes())
         if {key: value for key, value in parsed.items() if key != "bytes"} != record["coff"]:
             raise ValueError("object_extraction_changed")
@@ -400,7 +423,8 @@ def evaluate_reconstruction(observation, *, target_path=None, output_path=None, 
             credit = 0
             if error is None and db is not None:
                 try:
-                    expected_row = _db_row(db, binary_id, item["region"]["address"], item["region"]["size"])
+                    expected_row = _db_row(db, binary_id, item["region"]["address"], item["region"]["size"],
+                                           target_sha256=item["target"]["sha256"])
                     if item["selectedRow"] != expected_row or item["candidate"]["binary_id"] != binary_id:
                         error = "required_database_candidate_identity_mismatch"
                 except (OSError, ValueError, sqlite3.Error) as exc:

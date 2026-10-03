@@ -12,7 +12,16 @@ def bridge():
     path = Path(__file__).resolve().parents[1] / 'src/agentdecompile_recovery/corpus/dashboard/mcp_bridge.py'
     spec = importlib.util.spec_from_file_location('ownership_bridge', path)
     module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
+    # KTD10 added a @dataclass (_PeerSession) to mcp_bridge; dataclass's
+    # ClassVar/InitVar detection looks the defining module up in sys.modules,
+    # so a module loaded via exec_module without being registered there first
+    # crashes. Register it under its own name before executing, per the usual
+    # importlib.util idiom.
+    sys.modules[spec.name] = module
+    try:
+        spec.loader.exec_module(module)
+    finally:
+        sys.modules.pop(spec.name, None)
     return module
 
 
@@ -71,4 +80,6 @@ def test_uncertain_acquisition_stops_follow_on_checkout(bridge, monkeypatch, kin
     result = bridge.ensure_program('/fixture', 'program', inspected={'ok': True, 'kind': kind}, include_inventory=False)
     assert result['ownershipResolved'] is False
     assert len(calls) == 1
-    assert not bridge._OPENED
+    # KTD10: _OPENED moved onto the per-peer _PeerSession; legacy callers
+    # (no program_context) read/write _LEGACY_SESSION.opened.
+    assert not bridge._LEGACY_SESSION.opened

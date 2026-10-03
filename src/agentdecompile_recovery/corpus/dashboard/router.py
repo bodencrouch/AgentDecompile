@@ -663,6 +663,26 @@ def create_dashboard_router() -> APIRouter:
         )
         return JSONResponse(payload, status_code=200 if payload.get("ok") else 400)
 
+    @router.get("/dashboard/api/workbench/decompiler-runners")
+    async def workbench_decompiler_runners() -> JSONResponse:
+        from agentdecompile_recovery.corpus.dashboard.decompiler_runners import list_runners
+
+        payload = await asyncio.to_thread(list_runners)
+        return JSONResponse(payload)
+
+    @router.get("/dashboard/api/workbench/decompiler-output")
+    async def workbench_decompiler_output(request: Request) -> JSONResponse:
+        from agentdecompile_recovery.corpus.dashboard.decompiler_runners import fetch_output
+
+        payload = await asyncio.to_thread(
+            fetch_output,
+            request.query_params.get("runner") or "",
+            request.query_params.get("locator") or "",
+            request.query_params.get("program") or "",
+            request.query_params.get("addr") or "",
+        )
+        return JSONResponse(payload, status_code=200 if payload.get("ok") else 400)
+
     @router.get("/dashboard/api/workbench/workspace")
     async def workbench_workspace(request: Request) -> JSONResponse:
         from agentdecompile_recovery.corpus.dashboard.workbench import program_workspace

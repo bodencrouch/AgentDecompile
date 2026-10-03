@@ -1,4 +1,5 @@
 import {ContainerTree} from './ContainerTree';
+import {DecompilerCompare} from './DecompilerCompare';
 import {ExpertView} from './ExpertView';
 import {useEffect,useState} from 'react';
 import {API,query,type Data,type SurfaceProps} from '../contracts';
@@ -21,6 +22,7 @@ export function AnalysisView({tab,props,onEvidence}:{tab:AnalysisTab;props:Surfa
   useEffect(()=>{onEvidence(local?{provider:'Local artifact parser',binaryHash:selection.binaryHash,status:'Metadata only; no source or match proof'}:normalized);},[raw,selection.binaryHash,local,onEvidence]);
   if(tab==='Container')return <ContainerTree selection={selection} revision={revision} onSelect={onSelect}/>;
   if(tab==='Expert')return <ExpertView selection={selection} revision={revision} onSelect={onSelect}/>;
+  if(tab==='Decompilers')return <DecompilerCompare selection={selection} revision={revision}/>;
   if(tab==='Providers')return <ProviderView revision={revision} onAction={props.onAction}/>;
   if(local)return <LocalBytes tab={tab} hash={selection.binaryHash!} addr={selection.addr} revision={revision} onSelect={onSelect}/>;
   if(tab==='Scripts')return <div className="ws-empty"><h2>Script console</h2><p>Review script, target, and approval before execution. Output is retained in Logs.</p><button disabled={!selection.program} onClick={()=>props.onAction('mcp.execute-script',{code:'print(currentProgram.getName())'})}>Open script editor</button></div>;

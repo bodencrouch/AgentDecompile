@@ -11,3 +11,7 @@ Existing outer transaction preservation is conditional on SQLite retaining it; f
 Source-only dispatch: no tests/collection/build/typecheck/proof/project imports/DB open/query/create/migrate or fingerprint/key/crypto/compiler/checker/runtime/process/live/provisioning/capture operations. AST parse, literal/source signature comparisons/diff/link checks allowed. All authored operation fixtures unrun. Parent current live-health-decomp-admission.json/live-process-decomp-admission.json corroborate healthy8080 PID2697197/startticks68973313/NVMe cwd with watchedFiles0/restarts0/revisionblank; retained same-process module __file__/revision only historical provenance, no fresh loaded-module or checkout activation claim. Edit this checkout only; no serving root sync/restart/activation.
 
 Return READY_TO_COMMIT exact paths/report with checks and limits; no job/test/DB run or runtime admission inferred.
+
+## Controller ownership split — concurrent regression completion
+
+Production and CORPUS_PIPELINE documentation remain exclusively /root/implement_decomp_schema_ownership. All five regression files listed above transfer exclusively to /root/complete_decomp_regressions; the production worker paused test edits before transfer. Regression worker owns W/task-2-decomp-tests-report.md. Independent /root/review_decomp_production reviews production now and final authored regressions when ready, writing only W/task-2-decomp-review.md. No execution scope changes. Preparation authority source remains queued until production review/fixes release preparation.py.

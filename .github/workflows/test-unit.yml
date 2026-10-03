@@ -31,9 +31,11 @@ jobs:
           enable-cache: true
 
       - name: Install dependencies
+        id: dependencies
         run: uv sync --all-extras --dev
 
       - name: Ruff (src and tests)
+        id: lint
         run: uv run ruff check --no-fix src/ tests/ native/python/gnsdk
 
       - name: Install anonymization gate dependencies
@@ -51,6 +53,8 @@ jobs:
           AGENT_DECOMPILE_NAME_DENYLIST="$RUNNER_TEMP/name-denylist.txt" bash scripts/check-anonymization.sh
 
       - name: Run unit tests
+        # Preserve the privacy gate failure while collecting independent test evidence.
+        if: ${{ !cancelled() && steps.dependencies.outcome == 'success' && steps.lint.outcome == 'success' }}
         run: uv run pytest -m unit -q --timeout=120 --tb=short --cov --cov-report=xml:coverage.xml
 
       - name: Upload coverage artifact

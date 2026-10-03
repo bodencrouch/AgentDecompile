@@ -121,7 +121,9 @@ def test_fresh_store_is_at_schema_version_with_one_ledger_row_per_migration(tmp_
     golden = _table_infos(con)
     assert set(golden) >= {"binary", "func", "match", "identity", "schema_migration"}
     assert "content_sha256" in {c[1] for c in golden["binary"]}
-    assert "cfg_nodes" in {c[1] for c in golden["func"]}
+    assert {"cfg_nodes", "stabs_name", "stabs_type"} <= {c[1] for c in golden["func"]}
+    store.require_stabs_schema(con)
+    assert con.execute("SELECT COUNT(*) FROM stabs_type").fetchone()[0] == 0
     con.close()
 
     again = store.connect(db)

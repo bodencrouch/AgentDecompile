@@ -266,6 +266,25 @@ def _match_metadata(con: sqlite3.Connection) -> None:
     con.execute("CREATE INDEX IF NOT EXISTS ix_match_algorithm_confidence ON match(algorithm,confidence)")
 
 
+def _stabs_schema_ownership(con: sqlite3.Connection) -> None:
+    """Version 10: adopt existing STABS attribution without inventing values."""
+    if not con.in_transaction:
+        raise ValueError("STABS migration requires an owned transaction")
+    version = user_version(con)
+    if version == 10:
+        _store.require_stabs_schema(con)
+        return
+    require_ledger(con, version=9)
+    _store._require_stabs_shape(con, complete=False)
+    columns = {row[1] for row in con.execute("PRAGMA main.table_xinfo(func)")}
+    for name in ("stabs_name", "stabs_type"):
+        if name not in columns:
+            con.execute(f"ALTER TABLE main.func ADD COLUMN {name} TEXT")
+    for sql in (*_store.STABS_INDEX_SQL.values(), _store.STABS_FUNC_INDEX_SQL):
+        con.execute(sql)
+    _store._require_stabs_shape(con, complete=True)
+
+
 MIGRATIONS: list[Migration] = [
     Migration(1, "baseline", _baseline),
     Migration(2, "analyzer_identity", _analyzer_identity),
@@ -276,6 +295,7 @@ MIGRATIONS: list[Migration] = [
     Migration(7, "matching_evidence", _matching_evidence),
     Migration(8, "pcode_channel", _pcode_channel),
     Migration(9, "match_metadata", _match_metadata),
+    Migration(10, "stabs_schema_ownership", _stabs_schema_ownership),
 ]
 
 SCHEMA_VERSION = MIGRATIONS[-1].version
@@ -296,6 +316,35 @@ _check_registry(MIGRATIONS)
 
 def user_version(con: sqlite3.Connection) -> int:
     return int(con.execute("PRAGMA user_version").fetchone()[0])
+
+
+def require_ledger(con: sqlite3.Connection, *, version: int) -> None:
+    """Inspect an exact supported ledger prefix, including its column shape.
+
+    NULL historic basis hashes remain valid. SQL/I/O errors propagate unchanged.
+    This helper never initializes schema or takes transaction ownership.
+    """
+    if version not in {step.version for step in MIGRATIONS} or user_version(con) != version:
+        raise ValueError(f"incompatible schema version; expected {version}")
+    if con.execute("SELECT 1 FROM temp.sqlite_schema WHERE name=?", (LEDGER_TABLE,)).fetchone():
+        raise ValueError("shadowing migration ledger")
+    obj = con.execute(
+        "SELECT type,sql FROM main.sqlite_schema WHERE name=?", (LEDGER_TABLE,)
+    ).fetchone()
+    expected_columns = [
+        (0, "version", "INTEGER", 0, None, 1, 0),
+        (1, "name", "TEXT", 1, None, 0, 0),
+        (2, "applied_at", "TEXT", 1, None, 0, 0),
+        (3, "basis_hash", "TEXT", 0, None, 0, 0),
+    ]
+    if obj is None or obj[0] != "table" or [tuple(row) for row in con.execute(
+        "PRAGMA main.table_xinfo(schema_migration)"
+    )] != expected_columns:
+        raise ValueError("missing or malformed migration ledger")
+    rows = con.execute("SELECT version, name FROM main.schema_migration ORDER BY version").fetchall()
+    expected = [(step.version, step.name) for step in MIGRATIONS if step.version <= version]
+    if [tuple(row) for row in rows] != expected:
+        raise ValueError("inconsistent migration ledger")
 
 
 def ledger_rows(con: sqlite3.Connection) -> list[dict]:

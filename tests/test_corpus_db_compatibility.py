@@ -143,6 +143,9 @@ def test_explicit_fresh_and_known_v0_migrate_and_preserve_unknown_data(tmp_path)
             assert [tuple(r) for r in con.execute(
                 "SELECT version, name FROM schema_migration ORDER BY version"
             )] == expected
+        for con in (fresh, migrated):
+            store.require_stabs_schema(con)
+            assert con.execute("SELECT COUNT(*) FROM stabs_type").fetchone()[0] == 0
         fresh_shape, legacy_shape = _schema_shape(fresh), _schema_shape(migrated)
         legacy_shape.pop("extension_table")
         # ALTER positions differ when an extension precedes migration columns.
@@ -192,7 +195,7 @@ def _assert_reader_only(statements, migrate, backfill):
     migrate.assert_not_called()
     backfill.assert_not_called()
     assert statements
-    assert all(sql.lstrip().upper().startswith(("SELECT ", "PRAGMA BUSY_TIMEOUT=", "PRAGMA USER_VERSION", "PRAGMA TABLE_INFO(")) for sql in statements)
+    assert all(sql.lstrip().upper().startswith(("SELECT ", "PRAGMA BUSY_TIMEOUT=", "PRAGMA USER_VERSION", "PRAGMA TABLE_INFO(", "PRAGMA MAIN.TABLE_XINFO(")) for sql in statements)
 
 
 def test_current_read_only_admission_never_attempts_backfill_or_writes(tmp_path, monkeypatch):
@@ -420,3 +423,36 @@ def test_malformed_sqlite_propagates_database_error_and_closes(tmp_path, monkeyp
     assert len(opened) == 1 and opened[0].close_count == 1
     migrate.assert_not_called()
     backfill.assert_not_called()
+
+
+@pytest.mark.parametrize("damage", [
+    "ALTER TABLE func DROP COLUMN stabs_name",
+    "ALTER TABLE func DROP COLUMN stabs_type",
+    "DROP INDEX ix_func_srcfile",
+    "DROP INDEX ix_stabs_type_bin",
+    "DROP INDEX ix_stabs_type_src",
+    "DROP TABLE stabs_type",
+])
+def test_read_only_claimed_v10_requires_stabs_postcondition(tmp_path, monkeypatch, damage):
+    path = tmp_path / "incomplete-v10.sqlite"
+    con = store.connect(path)
+    con.execute(damage)
+    con.commit()
+    con.close()
+    opened, statements, migrate, backfill = _instrument_admission(monkeypatch)
+    with pytest.raises(store.SchemaCompatibilityError, match="STABS schema required"):
+        store.connect(path, read_only=True)
+    _assert_reader_only(statements, migrate, backfill)
+    assert opened[0].close_count == 1
+
+
+def test_actual_v9_read_only_refuses_without_upgrading(tmp_path, monkeypatch):
+    path = tmp_path / "actual-v9.sqlite"
+    con = sqlite3.connect(path)
+    migrations.apply_pending(con, target=9)
+    con.close()
+    opened, statements, migrate, backfill = _instrument_admission(monkeypatch)
+    with pytest.raises(store.SchemaCompatibilityError, match="observed schema version 9"):
+        store.connect(path, read_only=True)
+    _assert_reader_only(statements, migrate, backfill)
+    assert opened[0].close_count == 1

@@ -12,7 +12,7 @@ import sqlite3
 import pytest
 
 from agentdecompile_recovery.corpus import delete_registry as deletion
-from agentdecompile_recovery.corpus import store
+from agentdecompile_recovery.corpus import migrations, store
 
 
 OPTIONAL_DECLARATIONS = (
@@ -44,10 +44,13 @@ def _snapshot(con):
     return {name: _rows(con, name) for name in names}
 
 
-@pytest.fixture
-def populated(tmp_path):
+@pytest.fixture(params=[9, 10], ids=["frozen-v9", "canonical-v10"])
+def populated(tmp_path, request):
     path = tmp_path / 'corpus.sqlite'
-    con = store.connect(path)
+    con = sqlite3.connect(path)
+    con.row_factory = sqlite3.Row
+    con.execute("PRAGMA journal_mode=WAL")
+    migrations.apply_pending(con, target=request.param)
     for filename, variable in OPTIONAL_DECLARATIONS:
         con.executescript(_writer_ddl(filename, variable))
     con.execute('CREATE TABLE binary_source_alias (source_path TEXT PRIMARY KEY, binary_slug TEXT NOT NULL, sha256 TEXT NOT NULL)')
@@ -212,7 +215,7 @@ def test_every_optional_table_can_be_absent_without_creation(populated, table):
         assert result['deleted'][table] == 0
 
 
-@pytest.mark.parametrize('version', [0, 8, 10])
+@pytest.mark.parametrize('version', [0, 8, 11])
 def test_other_versions_refuse_without_migration(populated, version):
     con, _ = populated
     con.execute(f'PRAGMA user_version={version}')
@@ -477,9 +480,10 @@ def test_optional_child_requires_its_recognized_parent(populated, parent, child)
 def test_known_additions_and_old_optional_layout_are_admitted(populated):
     con, _ = populated
     con.execute('ALTER TABLE binary ADD COLUMN code_func_count INTEGER')
-    con.execute('ALTER TABLE func ADD COLUMN stabs_name TEXT')
-    con.execute('ALTER TABLE func ADD COLUMN stabs_type TEXT')
-    con.execute('CREATE INDEX ix_func_srcfile ON func(binary_id, source_file)')
+    if con.execute('PRAGMA user_version').fetchone()[0] == 9:
+        con.execute('ALTER TABLE func ADD COLUMN stabs_name TEXT')
+        con.execute('ALTER TABLE func ADD COLUMN stabs_type TEXT')
+        con.execute('CREATE INDEX ix_func_srcfile ON func(binary_id, source_file)')
     con.execute('ALTER TABLE ghidra_type ADD COLUMN origin TEXT')
     con.execute('ALTER TABLE decomp DROP COLUMN ast_fingerprint')
     con.commit()
@@ -552,3 +556,28 @@ def test_removal_never_initializes_reconstructs_or_replaces_proof(populated, mon
         for name in names:
             monkeypatch.setattr(module, name, forbidden)
     assert store.remove_binary(con, slug='a')['deleted']['binary'] == 1
+
+
+def test_falsely_stamped_v10_does_not_initialize_v9(populated):
+    con, _ = populated
+    if con.execute('PRAGMA user_version').fetchone()[0] != 9:
+        pytest.skip('requires independently constructed v9')
+    con.execute('PRAGMA user_version=10')
+    _refuses_unchanged(con, 'binary_delete_schema_unsupported:')
+
+
+@pytest.mark.parametrize('damage', [
+    'ALTER TABLE func DROP COLUMN stabs_name',
+    'ALTER TABLE func DROP COLUMN stabs_type',
+    'DROP INDEX ix_func_srcfile',
+    'DROP INDEX ix_stabs_type_bin',
+    'DROP INDEX ix_stabs_type_src',
+    "DELETE FROM schema_migration WHERE version=10",
+    "UPDATE schema_migration SET name='wrong' WHERE version=10",
+])
+def test_v10_stabs_postconditions_required_without_initialization(populated, damage):
+    con, _ = populated
+    if con.execute('PRAGMA user_version').fetchone()[0] != 10:
+        pytest.skip('v9 intentionally retains optional STABS fields/index')
+    con.execute(damage)
+    _refuses_unchanged(con, 'binary_delete_schema_unsupported:')

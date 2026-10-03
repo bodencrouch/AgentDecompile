@@ -18,7 +18,30 @@ import json
 import pathlib
 import sqlite3
 
-SCHEMA = """
+STABS_TYPE_DDL = """
+CREATE TABLE IF NOT EXISTS stabs_type (
+    id INTEGER PRIMARY KEY,
+    binary_id INTEGER NOT NULL,
+    source_file TEXT,
+    object_file TEXT,
+    name TEXT NOT NULL,
+    kind TEXT,
+    stab TEXT NOT NULL,
+    func_addr INTEGER,
+    UNIQUE(binary_id, source_file, name, kind, stab, func_addr)
+)
+"""
+STABS_INDEX_SQL = {
+    "ix_stabs_type_bin": "CREATE INDEX IF NOT EXISTS ix_stabs_type_bin ON stabs_type(binary_id, kind)",
+    "ix_stabs_type_src": "CREATE INDEX IF NOT EXISTS ix_stabs_type_src ON stabs_type(binary_id, source_file)",
+}
+STABS_FUNC_INDEX_SQL = "CREATE INDEX IF NOT EXISTS ix_func_srcfile ON func(binary_id, source_file)"
+STABS_FUNC_COLUMNS = (
+    ("source_file", "TEXT"), ("object_file", "TEXT"),
+    ("stabs_name", "TEXT"), ("stabs_type", "TEXT"),
+)
+
+SCHEMA = f"""
 PRAGMA journal_mode=WAL;
 
 CREATE TABLE IF NOT EXISTS binary (
@@ -124,19 +147,9 @@ CREATE TABLE IF NOT EXISTS identity (
 CREATE INDEX IF NOT EXISTS ix_identity_logical ON identity(logical_id);
 CREATE UNIQUE INDEX IF NOT EXISTS ux_identity_bin_addr ON identity(binary_id, addr);
 
-CREATE TABLE IF NOT EXISTS stabs_type (
-    id INTEGER PRIMARY KEY,
-    binary_id INTEGER NOT NULL,
-    source_file TEXT,
-    object_file TEXT,
-    name TEXT NOT NULL,
-    kind TEXT,
-    stab TEXT NOT NULL,
-    func_addr INTEGER,
-    UNIQUE(binary_id, source_file, name, kind, stab, func_addr)
-);
-CREATE INDEX IF NOT EXISTS ix_stabs_type_bin ON stabs_type(binary_id, kind);
-CREATE INDEX IF NOT EXISTS ix_stabs_type_src ON stabs_type(binary_id, source_file);
+{STABS_TYPE_DDL.strip()};
+{STABS_INDEX_SQL["ix_stabs_type_bin"]};
+{STABS_INDEX_SQL["ix_stabs_type_src"]};
 
 CREATE TABLE IF NOT EXISTS match (
     id          INTEGER PRIMARY KEY,
@@ -176,6 +189,74 @@ class SchemaCompatibilityError(ValueError):
         )
 
 
+def _require_stabs_shape(con: sqlite3.Connection, *, complete: bool) -> None:
+    """Inspect main's declared STABS objects; never repair an observed shape.
+
+    The migration may admit missing additive fields/indexes. Writers require
+    the complete postcondition. Unrelated func extensions are left untouched.
+    """
+    from .match_review_schema import _normalized
+
+    if con.execute(
+        "SELECT 1 FROM temp.sqlite_schema WHERE name IN ('func','stabs_type')"
+    ).fetchone():
+        raise ValueError("shadowing STABS temp object")
+    rows = [tuple(row) for row in con.execute(
+        "SELECT type,name,tbl_name,sql FROM main.sqlite_schema"
+    )]
+    objects = {row[1]: row for row in rows}
+    # Triggers have a separate name namespace. A dict alone could hide a
+    # trigger sharing a declared index/table name, depending on schema order.
+    declared = {"func", "stabs_type", "ix_func_srcfile", *STABS_INDEX_SQL}
+    for name in declared:
+        if sum(row[1] == name for row in rows) > 1:
+            raise ValueError(f"occupied STABS object name {name}")
+    for name in ("func", "stabs_type"):
+        obj = objects.get(name)
+        if obj is None or obj[0] != "table" or not obj[3] or not obj[3].startswith("CREATE TABLE"):
+            raise ValueError(f"missing or unsupported STABS table {name}")
+    if _normalized(objects["stabs_type"][3]) != _normalized(STABS_TYPE_DDL):
+        raise ValueError("unsupported STABS table stabs_type")
+    columns = {row[1]: tuple(row)[2:] for row in con.execute("PRAGMA main.table_xinfo(func)")}
+    # type, notnull, default, primary-key ordinal, hidden/generated flag
+    expected = {"binary_id": ("INTEGER", 1, None, 0, 0)}
+    expected.update({name: (typ, 0, None, 0, 0) for name, typ in STABS_FUNC_COLUMNS})
+    for name, shape in expected.items():
+        if name not in columns and not complete and name in {"stabs_name", "stabs_type"}:
+            continue
+        if columns.get(name) != shape:
+            raise ValueError(f"missing or unsupported STABS column func.{name}")
+    indexes = {**STABS_INDEX_SQL, "ix_func_srcfile": STABS_FUNC_INDEX_SQL}
+    for name, sql in indexes.items():
+        obj = objects.get(name)
+        if obj is None and not complete:
+            continue
+        owner = "func" if name == "ix_func_srcfile" else "stabs_type"
+        if obj is None or obj[0] != "index" or obj[2] != owner or not obj[3] or _normalized(obj[3]) != _normalized(sql):
+            raise ValueError(f"missing or unsupported STABS index {name}")
+    for kind, name, owner, sql in rows:
+        if owner != "stabs_type" or kind == "table" or name in STABS_INDEX_SQL:
+            continue
+        if kind == "index" and sql is None and name.startswith("sqlite_autoindex_stabs_type_"):
+            continue  # The exact table declaration above owns this UNIQUE key.
+        raise ValueError(f"undeclared STABS object {name}")
+
+
+def require_stabs_schema(con: sqlite3.Connection) -> None:
+    """Require current ledger and STABS postconditions without changing *con*."""
+    from . import migrations
+
+    version = migrations.user_version(con)
+    try:
+        migrations.require_ledger(con, version=migrations.SCHEMA_VERSION)
+        _require_stabs_shape(con, complete=True)
+    except ValueError as exc:
+        raise ValueError(
+            f"STABS schema required: observed version {version}, "
+            f"supported version {migrations.SCHEMA_VERSION}: {exc}"
+        ) from exc
+
+
 def connect(
     path: pathlib.Path | str, *, read_only: bool = False, create: bool = True
 ) -> sqlite3.Connection:
@@ -207,21 +288,10 @@ def connect(
         if version > supported or (read_only and version != supported):
             raise SchemaCompatibilityError(dest, version, supported, "incompatible schema version")
         if read_only:
-            # Inspect shape before selecting: missing ledger/columns is an
-            # admission failure; unrelated SQL errors propagate unchanged.
-            ledger = con.execute(
-                "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?",
-                (migrations.LEDGER_TABLE,),
-            ).fetchone()
-            columns = {row[1] for row in con.execute(f"PRAGMA table_info({migrations.LEDGER_TABLE})")}
-            if ledger is None or not {"version", "name", "applied_at", "basis_hash"} <= columns:
-                raise SchemaCompatibilityError(dest, version, supported, "missing or malformed migration ledger")
-            rows = con.execute(
-                f"SELECT version, name FROM {migrations.LEDGER_TABLE} ORDER BY version"
-            ).fetchall()
-            expected = [(step.version, step.name) for step in migrations.MIGRATIONS]
-            if [tuple(row) for row in rows] != expected:
-                raise SchemaCompatibilityError(dest, version, supported, "inconsistent migration ledger")
+            try:
+                require_stabs_schema(con)
+            except ValueError as exc:
+                raise SchemaCompatibilityError(dest, version, supported, str(exc)) from exc
         else:
             # Cannot run inside a transaction, so it stays out of the migration.
             con.execute("PRAGMA journal_mode=WAL")
@@ -246,7 +316,7 @@ def remove_binary(
     repo_path: str | None = None,
     slug: str | None = None,
 ) -> dict:
-    """Remove one binary using the bounded v9 registry; preserve logical rows.
+    """Remove one binary using the bounded v9/v10 registry; preserve logical rows.
 
     With a caller-owned transaction, the returned receipt is provisional until
     the caller commits. This operation releases only its own savepoint.

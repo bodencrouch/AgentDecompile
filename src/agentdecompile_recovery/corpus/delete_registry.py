@@ -372,6 +372,15 @@ LEDGER = tuple(enumerate((
     'match_metadata',
 ), 1))
 
+# Frozen compatibility deltas: future migration registry edits grant no deletion
+# permission. Version 9 retains optional STABS attribution exactly as reviewed.
+LEDGER_V10 = LEDGER + ((10, 'stabs_schema_ownership'),)
+VERSION_PROFILES = {
+    9: (LEDGER, (), frozenset()),
+    10: (LEDGER_V10, ('stabs_name TEXT', 'stabs_type TEXT'),
+         frozenset({'ix_func_srcfile', 'ix_stabs_type_bin', 'ix_stabs_type_src'})),
+}
+
 
 def open_for_delete(path: pathlib.Path | str) -> sqlite3.Connection:
     """Open an existing store without DDL, backfill, journal changes or mkdir."""
@@ -441,9 +450,14 @@ def _schema_preflight(con: sqlite3.Connection) -> frozenset[str]:
             raise BinaryDeleteUnsupported('schema_unsupported', 'attached.' + row[1])
     if con.execute('SELECT 1 FROM temp.sqlite_schema LIMIT 1').fetchone():
         raise BinaryDeleteUnsupported('schema_unsupported', 'temp')
-    if con.execute('PRAGMA main.user_version').fetchone()[0] != 9:
+    version = con.execute('PRAGMA main.user_version').fetchone()[0]
+    if version not in VERSION_PROFILES:
         raise BinaryDeleteUnsupported('schema_unsupported', 'user_version')
+    expected_ledger, func_additions, required_indexes = VERSION_PROFILES[version]
     objects = list(con.execute('SELECT type,name,tbl_name,sql FROM main.sqlite_schema'))
+    missing_indexes = required_indexes - {row[1] for row in objects if row[0] == 'index'}
+    if missing_indexes:
+        raise BinaryDeleteUnsupported('schema_unsupported', sorted(missing_indexes)[0])
     present = frozenset(row[1] for row in objects if row[0] == 'table' and row[1] in TABLE_SQL)
     missing = MANDATORY_TABLES - present
     if missing:
@@ -457,6 +471,8 @@ def _schema_preflight(con: sqlite3.Connection) -> frozenset[str]:
             required.update(_tokens(item, name) for item in REQUIRED_ADDITIONS.get(name, ()))
             optional = {_tokens(item, name) for item in OPTIONAL_ADDITIONS.get(name, ())}
             required -= optional
+            if name == 'func':
+                required.update(_tokens(item, name) for item in func_additions)
             if not required <= actual or not actual <= required | optional:
                 raise BinaryDeleteUnsupported('schema_unsupported', name)
         elif kind == 'index':
@@ -475,7 +491,7 @@ def _schema_preflight(con: sqlite3.Connection) -> frozenset[str]:
             raise BinaryDeleteUnsupported('schema_unsupported', parent)
     ledger = tuple(tuple(row) for row in con.execute(
         'SELECT version,name FROM main.schema_migration ORDER BY version'))
-    if ledger != LEDGER:
+    if ledger != expected_ledger:
         raise BinaryDeleteUnsupported('schema_unsupported', 'schema_migration')
     try:
         match_review_schema.require(con)

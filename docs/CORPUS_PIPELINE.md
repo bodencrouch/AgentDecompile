@@ -53,6 +53,18 @@ current schema version and matching migration version/name ledger. Future
 versions refuse in either mode. Migration operations require the existing 8080
 catalog and its ownership checks.
 
+Migration 10 (`stabs_schema_ownership`) adopts the two nullable STABS attribution
+columns on `func` and their source-file index; the existing `stabs_type` table
+and indexes remain canonical. Migration validates known v9 shapes before any
+DDL and preserves stored values, including NULL. STABS writers now require the
+complete current ledger and schema; `ensure_columns` validates without repairing
+or committing caller work. Raw or outdated handles must pass through the owned
+migration path first. Read-only v10 admission also checks these postconditions.
+Binary deletion independently admits frozen v9 and v10 profiles; v9's optional
+STABS fields remain optional, while incomplete v10 and future versions refuse.
+Type, decomp, recovered-source and other persistent DDL owners remain separate
+unfinished work. These are source contracts, not a fresh migration or live receipt.
+
 The deprecated [`corpus.db`](../src/agentdecompile_recovery/corpus/db.py) facade
 retains public symbols and the exact historical module-relative `DB_PATH`.
 Omitting a path emits `FutureWarning` with that path and now refuses missing-file

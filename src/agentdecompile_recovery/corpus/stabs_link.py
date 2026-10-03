@@ -10,39 +10,20 @@ from __future__ import annotations
 import json
 from collections import Counter
 from pathlib import Path
+from uuid import uuid4
 
+from . import store
 from .machostabs import analyze as analyze_macho
 from .stabs_manifest import build_records
 
-STABS_TYPE_DDL = """
-CREATE TABLE IF NOT EXISTS stabs_type (
-    id INTEGER PRIMARY KEY,
-    binary_id INTEGER NOT NULL,
-    source_file TEXT,
-    object_file TEXT,
-    name TEXT NOT NULL,
-    kind TEXT,
-    stab TEXT NOT NULL,
-    func_addr INTEGER,
-    UNIQUE(binary_id, source_file, name, kind, stab, func_addr)
-)
-"""
-
-ADD_COLUMNS = [
-    ("source_file", "TEXT"),
-    ("object_file", "TEXT"),
-    ("stabs_name", "TEXT"),
-    ("stabs_type", "TEXT"),
-]
+# Retained public aliases; only the canonical migration installs this schema.
+STABS_TYPE_DDL = store.STABS_TYPE_DDL
+ADD_COLUMNS = store.STABS_FUNC_COLUMNS
 
 
 def ensure_columns(con) -> None:
-    have = {r[1] for r in con.execute("PRAGMA table_info(func)")}
-    for name, typ in ADD_COLUMNS:
-        if name not in have:
-            con.execute(f"ALTER TABLE func ADD COLUMN {name} {typ}")
-    con.execute("CREATE INDEX IF NOT EXISTS ix_func_srcfile ON func(binary_id, source_file)")
-    con.commit()
+    """Validate migrated STABS schema, preserving caller transaction ownership."""
+    store.require_stabs_schema(con)
 
 
 def _normalise_arch(arch: str | None) -> str:
@@ -80,10 +61,7 @@ def select_slices(result: dict, binary_arch: str | None) -> list[dict]:
 
 def replace_stabs_types(con, binary_id: int, types: list[dict]) -> int:
     """Atomically refresh one binary's parsed types, including nullable rows."""
-    con.execute(STABS_TYPE_DDL)
-    con.execute("CREATE INDEX IF NOT EXISTS ix_stabs_type_bin ON stabs_type(binary_id, kind)")
-    con.execute("CREATE INDEX IF NOT EXISTS ix_stabs_type_src ON stabs_type(binary_id, source_file)")
-    con.commit()
+    ensure_columns(con)
     payload = list(dict.fromkeys(
         (
             binary_id,
@@ -97,7 +75,10 @@ def replace_stabs_types(con, binary_id: int, types: list[dict]) -> int:
         for t in types
         if t.get("name")
     ))
-    with con:
+    owned = not con.in_transaction
+    savepoint = "stabs_replace_" + uuid4().hex
+    con.execute("BEGIN IMMEDIATE" if owned else f"SAVEPOINT {savepoint}")
+    try:
         con.execute("DELETE FROM stabs_type WHERE binary_id=?", (binary_id,))
         con.executemany(
             """INSERT INTO stabs_type
@@ -105,11 +86,23 @@ def replace_stabs_types(con, binary_id: int, types: list[dict]) -> int:
                VALUES (?,?,?,?,?,?,?)""",
             payload,
         )
+        if owned:
+            con.commit()
+        else:
+            con.execute(f"RELEASE SAVEPOINT {savepoint}")
+    except BaseException:
+        if owned:
+            con.rollback()
+        else:
+            con.execute(f"ROLLBACK TO SAVEPOINT {savepoint}")
+            con.execute(f"RELEASE SAVEPOINT {savepoint}")
+        raise
     return len(payload)
 
 
 def apply_manifest_records(con, binary_id: int, records: list[dict], *, commit: bool = True) -> int:
     """Attach only records admitted by the reviewed address-level manifest."""
+    ensure_columns(con)
     allowed = {"attach_stabs", "already_attached", "keep_human_attach_metadata"}
     payload = [
         (
@@ -235,6 +228,7 @@ def propagate_source_files(
     donor_rows: list[dict] | None = None,
 ) -> int:
     """Carry source/object attribution across the logical identity layer."""
+    ensure_columns(con)
     if donor_rows is not None:
         con.execute("PRAGMA temp_store=MEMORY")
         con.execute(

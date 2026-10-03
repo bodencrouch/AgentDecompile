@@ -17,7 +17,7 @@ import secrets
 import stat
 import time
 from collections import deque
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 PROFILE_ID = "linux-x86_64-native-objdiff-region-runtime-v1"
@@ -418,6 +418,8 @@ class OwnedAllocation:
     device: int
     inode: int
     mount_id: int
+    parent_identity: tuple[int, int, int] | None = field(default=None, kw_only=True)
+    boot_nonce: str | None = field(default=None, kw_only=True)
 
     def close(self) -> None:
         """Release handles only, without inferring that removal is safe."""
@@ -446,7 +448,7 @@ class CaptureFailed(ProfileRefused):
     helper lifecycle must confirm exit before bounded cleanup; it must never
     infer ownership from a runtime/digest path. None means allocation never began.
     """
-    def __init__(self, code: str, detail: str, partial: OwnedAllocation | None) -> None:
+    def __init__(self, code: str, detail: str, partial: OwnedAllocation | AllocationUncertain | None) -> None:
         super().__init__(code, detail)
         self.partial = partial
 
@@ -699,15 +701,51 @@ def _freeze(root: int, children: dict[str, list[InventoryEntry]], prefix: str, b
     os.fchmod(root, 0o555)
 
 
-def capture_private(profile: NativeProfile, *, donor_fd: int, private_parent_fd: int,
-                    absolute_deadline: float) -> OwnedCapture:
-    """Fresh capture under trusted descriptor anchors; no caller-selected name.
+@dataclass
+class AllocationUncertain:
+    """Intent retained when exclusive mkdir/open has no authenticated outcome.
 
-    The supplied absolute deadline already reserves later lifecycle phases.
-    Synchronous I/O can exceed it; call ONLY inside the future owned helper.
-    Failure retains a freshly allocated partial in CaptureFailed.partial, never
-    deletes someone else's directory and never reports successful cleanup.
+    This is never deletion authority. Parent FD is retained even on unknown
+    mkdir outcome; collision is recorded separately and never adopted.
     """
+    allocation_name: str
+    parent_fd: int
+    parent_identity: tuple[int, int, int]
+    disposition: str
+    root_fd: int = -1
+    boot_nonce: str | None = None
+
+    def close(self) -> None:
+        """Explicit handle release only; unknown disposition is never removal.
+
+        Supervisor callers must transfer this record to their registry before
+        releasing anchors. Compatibility fixtures may release their own handles.
+        """
+        for field_name in ("root_fd", "parent_fd"):
+            fd = getattr(self, field_name)
+            if fd >= 0:
+                os.close(fd)
+                setattr(self, field_name, -1)
+
+
+@dataclass
+class CaptureRootView:
+    """Single-use child view: no private-parent FD and no pathname authority."""
+    root_fd: int
+    device: int
+    inode: int
+    mount_id: int
+    used: bool = False
+
+
+@dataclass(frozen=True)
+class CopyResult:
+    identity: CaptureIdentity
+    entry_count: int
+    total_file_bytes: int
+
+
+def _capture_budget(absolute_deadline: float) -> _Budget:
     try:
         finite = type(absolute_deadline) in (int, float) and math.isfinite(absolute_deadline)
     except OverflowError:
@@ -716,17 +754,19 @@ def capture_private(profile: NativeProfile, *, donor_fd: int, private_parent_fd:
         _refuse("deadline must be finite monotonic seconds", "deadline_exceeded")
     budget = _Budget(min(time.monotonic() + CAPTURE_SECONDS, absolute_deadline))
     budget.check()
-    # Reparse immutable bytes at the authority boundary; public dataclass
-    # constructors are convenience, not trusted proof of validation.
-    checked = load_profile(profile.canonical_bytes, profile.inventory.canonical_bytes,
-                           expected_profile_sha256=profile.sha256,
-                           expected_inventory_sha256=profile.inventory.sha256)
-    budget.check()
-    partial: OwnedAllocation | None = None
-    parent = -1
-    root = -1
-    donor = -1
-    name: str | None = None
+    return budget
+
+
+def allocate_private_capture(*, private_parent_fd: int,
+                             absolute_deadline: float) -> OwnedAllocation:
+    """Quiescent parent allocation only. No donor/profile contents are read.
+
+    CaptureFailed.partial may be AllocationUncertain: an unknown mkdir/open
+    outcome retains the intent, never a removable or capture-ready capability.
+    """
+    budget = _capture_budget(absolute_deadline)
+    parent = root = -1
+    partial = None
     try:
         parent = os.dup(private_parent_fd)
         os.set_inheritable(parent, False)
@@ -735,19 +775,73 @@ def capture_private(profile: NativeProfile, *, donor_fd: int, private_parent_fd:
             _refuse("private parent must belong to supervisor UID with mode 0700", "supervisor_domain_unavailable")
         _xattrs(parent, budget)
         parent_mount = _mount_id(parent, budget)
-        donor = os.dup(donor_fd)
+        boot_nonce = secrets.token_hex(32)
+        candidate = "capture-" + secrets.token_hex(16)
+        # Record before entering the potentially blocking mkdir syscall.
+        partial = AllocationUncertain(candidate, parent,
+                                      (owner.st_dev, owner.st_ino, parent_mount), "mkdir_unknown", boot_nonce=boot_nonce)
+        budget.check()
+        try:
+            os.mkdir(candidate, 0o700, dir_fd=parent)
+        except FileExistsError:
+            # A collision is definitively not our allocation.
+            partial = None
+            raise
+        partial.disposition = "created_identity_unknown"
+        root = _open_dir(parent, candidate, budget)
+        partial.root_fd = root
+        identity = os.fstat(root)
+        root_mount = _mount_id(root, budget)
+        if (not stat.S_ISDIR(identity.st_mode) or stat.S_IMODE(identity.st_mode) != 0o700
+                or identity.st_uid != os.geteuid() or root_mount != parent_mount
+                or identity.st_dev != owner.st_dev):
+            _refuse("fresh root identity/owner/mode/mount mismatch")
+        _xattrs(root, budget)
+        if _names(root, "", budget, [0]):
+            _refuse("new capture must be empty")
+        named = os.stat(candidate, dir_fd=parent, follow_symlinks=False)
+        _same(identity, named)
+        budget.check()
+        return OwnedAllocation(candidate, root, parent, identity.st_dev, identity.st_ino, root_mount,
+                               parent_identity=(owner.st_dev, owner.st_ino, parent_mount), boot_nonce=boot_nonce)
+    except Exception as exc:
+        if partial is None:
+            if root >= 0:
+                os.close(root)
+            if parent >= 0:
+                os.close(parent)
+        code = exc.code if isinstance(exc, ProfileRefused) else "capture_integrity_failed"
+        raise CaptureFailed(code, str(exc), partial) from exc
+
+
+def capture_into_owned(profile: NativeProfile, *, donor_fd: int,
+                       allocation: CaptureRootView, absolute_deadline: float) -> CopyResult:
+    """Copy/rehash/freeze into one inherited empty root; never allocate a root.
+
+    The caller retains allocation authority. Even failure consumes this view.
+    Blocking I/O remains cooperative; the parent owns process cancellation.
+    """
+    if allocation.used:
+        _refuse("capture root view already consumed", "capture_integrity_failed")
+    allocation.used = True
+    budget = _capture_budget(absolute_deadline)
+    checked = load_profile(profile.canonical_bytes, profile.inventory.canonical_bytes,
+                           expected_profile_sha256=profile.sha256,
+                           expected_inventory_sha256=profile.inventory.sha256)
+    root = allocation.root_fd
+    identity = os.fstat(root)
+    if ((identity.st_dev, identity.st_ino, _mount_id(root, budget)) !=
+            (allocation.device, allocation.inode, allocation.mount_id)
+            or not stat.S_ISDIR(identity.st_mode) or stat.S_IMODE(identity.st_mode) != 0o700
+            or identity.st_uid != os.geteuid()):
+        _refuse("inherited capture identity/mode/owner mismatch", "capture_integrity_failed")
+    _xattrs(root, budget)
+    if _names(root, "", budget, [0]):
+        _refuse("capture root already used", "capture_integrity_failed")
+    donor = os.dup(donor_fd)
+    try:
         os.set_inheritable(donor, False)
         _mode(os.fstat(donor), "directory")
-        budget.check()
-        # No retry/adoption on collision. The name is not a digest-cache lookup.
-        candidate = "capture-" + secrets.token_hex(16)
-        os.mkdir(candidate, 0o700, dir_fd=parent)
-        name = candidate
-        root = _open_dir(parent, name, budget)
-        identity = os.fstat(root)
-        partial = OwnedAllocation(name, root, parent, identity.st_dev, identity.st_ino, parent_mount)
-        if _mount_id(root, budget) != parent_mount:
-            _refuse("new capture crosses private mount")
         observed: list[InventoryEntry] = []
         entries = {entry.path: entry for entry in checked.inventory.entries}
         _walk(donor, root, "", entries, _mount_id(donor, budget), budget, [0], observed)
@@ -760,23 +854,43 @@ def capture_private(profile: NativeProfile, *, donor_fd: int, private_parent_fd:
         _freeze(root, children, "", budget)
         _verify_tree(root, checked.inventory, budget, staging=False)
         budget.check()
-        if (os.fstat(root).st_dev, os.fstat(root).st_ino) != (identity.st_dev, identity.st_ino):
+        final = os.fstat(root)
+        if (final.st_dev, final.st_ino, _mount_id(root, budget)) != (allocation.device, allocation.inode, allocation.mount_id):
             _refuse("retained capture identity changed", "capture_integrity_failed")
-        return OwnedCapture(name, root, parent, identity.st_dev, identity.st_ino, parent_mount,
-                            CaptureIdentity(checked.sha256, checked.inventory.sha256,
-                                            identity.st_dev, identity.st_ino, parent_mount))
-    except (OSError, ProfileRefused) as exc:
-        if name is not None and partial is None:
-            # Even an open/deadline failure after mkdir must leave an explicit
-            # owned allocation record. No claim of frozen or readable contents.
-            partial = OwnedAllocation(name, root, parent, -1, -1, -1)
-        if partial is None:
-            if root >= 0:
-                os.close(root)
-            if parent >= 0:
-                os.close(parent)
-        code = exc.code if isinstance(exc, ProfileRefused) else "capture_integrity_failed"
-        raise CaptureFailed(code, str(exc), partial) from exc
+        return CopyResult(CaptureIdentity(checked.sha256, checked.inventory.sha256,
+                                         allocation.device, allocation.inode, allocation.mount_id),
+                          len(entries), checked.inventory.total_file_bytes)
     finally:
-        if donor >= 0:
-            os.close(donor)
+        os.close(donor)
+
+
+def capture_private(profile: NativeProfile, *, donor_fd: int, private_parent_fd: int,
+                    absolute_deadline: float) -> OwnedCapture:
+    """Compatibility composition; synchronous I/O has no hard-walltime claim.
+
+    Failure retains partial/uncertain allocation. close() is not removal.
+    """
+    budget = _capture_budget(absolute_deadline)
+    checked = load_profile(profile.canonical_bytes, profile.inventory.canonical_bytes,
+                           expected_profile_sha256=profile.sha256,
+                           expected_inventory_sha256=profile.inventory.sha256)
+    try:
+        _mode(os.fstat(donor_fd), "directory")
+    except (OSError, ProfileRefused) as exc:
+        code = exc.code if isinstance(exc, ProfileRefused) else "capture_integrity_failed"
+        raise CaptureFailed(code, str(exc), None) from exc
+    allocation = allocate_private_capture(private_parent_fd=private_parent_fd,
+                                         absolute_deadline=budget.deadline)
+    try:
+        result = capture_into_owned(checked, donor_fd=donor_fd,
+                                    allocation=CaptureRootView(allocation.root_fd, allocation.device,
+                                                               allocation.inode, allocation.mount_id),
+                                    absolute_deadline=budget.deadline)
+        capture = OwnedCapture(allocation.allocation_name, allocation.root_fd, allocation.parent_fd,
+                               allocation.device, allocation.inode, allocation.mount_id, result.identity,
+                               parent_identity=allocation.parent_identity, boot_nonce=allocation.boot_nonce)
+        allocation.root_fd = allocation.parent_fd = -1
+        return capture
+    except Exception as exc:
+        code = exc.code if isinstance(exc, ProfileRefused) else "capture_integrity_failed"
+        raise CaptureFailed(code, str(exc), allocation) from exc

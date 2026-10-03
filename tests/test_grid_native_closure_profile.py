@@ -356,6 +356,49 @@ def test_cooperative_timeout_after_allocation_retains_partial(donor, monkeypatch
     monkeypatch.setattr(native.time, "monotonic", lambda: real_clock() + (100 if expired else 0))
     with pytest.raises(native.CaptureFailed, match="deadline_exceeded") as error:
         capture()
-    assert type(error.value.partial) is native.OwnedAllocation
+    # Split allocation now distinguishes unknown root identity from a usable
+    # owned root. It retains the creation intent and cannot enter copy/removal.
+    assert type(error.value.partial) is native.AllocationUncertain
+    assert error.value.partial.disposition == "created_identity_unknown"
     assert error.value.partial.root_fd == -1
+    assert error.value.partial.parent_fd >= 0
+    assert len(error.value.partial.boot_nonce) == 64
     assert (parent / error.value.partial.allocation_name).is_dir()
+
+
+def test_split_capture_is_single_use_and_matches_compatibility_capture(donor):
+    """Authored only: same real copy/rehash/freeze path, no helper qualification."""
+    root, parent, rows, compatibility_capture = donor
+    selected = load(*documents(rows))
+    source_fd = os.open(root, os.O_RDONLY | os.O_DIRECTORY)
+    parent_fd = os.open(parent, os.O_RDONLY | os.O_DIRECTORY)
+    allocation = None
+    try:
+        allocation = native.allocate_private_capture(private_parent_fd=parent_fd,
+                                                      absolute_deadline=time.monotonic() + 90)
+        assert allocation.parent_identity is not None
+        assert len(allocation.boot_nonce) == 64
+        view = native.CaptureRootView(allocation.root_fd, allocation.device, allocation.inode, allocation.mount_id)
+        copied = native.capture_into_owned(selected, donor_fd=source_fd, allocation=view,
+                                           absolute_deadline=time.monotonic() + 90)
+        assert copied.entry_count == len(selected.inventory.entries)
+        assert copied.total_file_bytes == selected.inventory.total_file_bytes
+        assert copied.identity.profile_sha256 == selected.sha256
+        assert stat.S_IMODE(os.fstat(allocation.root_fd).st_mode) == 0o555
+        with pytest.raises(native.ProfileRefused, match="already consumed"):
+            native.capture_into_owned(selected, donor_fd=source_fd, allocation=view,
+                                      absolute_deadline=time.monotonic() + 90)
+        legacy = compatibility_capture()
+        try:
+            assert legacy.identity.profile_sha256 == copied.identity.profile_sha256
+            assert legacy.identity.inventory_sha256 == copied.identity.inventory_sha256
+            assert legacy.inode != copied.identity.inode
+            assert legacy.parent_identity is not None
+            assert len(legacy.boot_nonce) == 64
+        finally:
+            legacy.close()  # descriptor release only; fixture owns final cleanup
+    finally:
+        if allocation is not None:
+            allocation.close()
+        os.close(source_fd)
+        os.close(parent_fd)

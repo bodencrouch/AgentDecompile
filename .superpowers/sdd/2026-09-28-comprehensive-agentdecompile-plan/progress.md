@@ -552,3 +552,13 @@ Ruling: Defer P1 M1 coverage strengthening to final-review triage while starting
 Ruling: Adopt P2's versioned objdiff3.8.0 native Linux-x86_64 checker profile with exhaustive single-section i386 COFF inventory and a fixed register-leaf grammar — producer mode names and zero relocations alone do not establish complete reference freedom — cost if wrong: conservative unsupported results for most functions, requiring later explicitly qualified profiles; no generic relocation or source/whole-image claim.
 Ruling: P2 identifies its comparison contract by policy/method and explicitly marks implementation source/runtime closure not_evaluated until P3 — no capture scheme presently binds loaded code to disk/source dependencies — cost if wrong: current accepted-source admission remains unavailable until the concrete P3 closure exists; no caller hash is promoted.
 Task11.4 P2: implementation-ready task-11-region-brief.md from515d3de6, adopting full next-parity-region-contract.md. New lane/parser and narrow registry/planner only; no P1/target overlap.
+
+Task2.1: source committed7a0ffdfa; task-2-review.diff reviews exact nine source/test/docs paths fromdd7f2af0. Eight ASTs and diff/call-site checks pass; sixteen new regression functions unrun.
+Task11.4 implementation dispatched /root/implement_parity_region from515d3de6; exclusive new lane/parser and narrow registry/planner/test paths.
+U22 delete-registry contract dispatched /root/resolve_delete_registry_contract; source-only exact ownership/transaction inventory, report-only.
+
+Read-only runtime corroboration: live-health-parity-schema-wave.json records healthy8080, unchanged PID2697197/start1790595674.5226107/startticks68973313/NVMe cwd/source roots and restarts0. watchedFiles remains0 and revision blank; no loaded-module freshness or this checkout activation is inferred. No catalog action, restart or writer launched.
+P3 next prerequisite: current-admission-contract-brief.md prepared from retained next-acceptance-adapter and narrow existing signed-verdict/keyring/config source; queue after current contracts/reviews. No owner keys/config or runtime admission fabricated.
+
+Task2.1: complete bounded source slice (basedd7f2af0..7a0ffdfa); task-2-review.md spec/quality approved, no findings. Canonical facade and strict read-only admission close source review only. Literal U82 removal, U22 wider DDL/delete ownership, historical migration/installed behavior and full U2 remain open.
+P3 current-admission contract dispatched /root/resolve_current_admission_contract; owns next-current-admission-contract.md only, existing source primitives and explicit actual-closure boundaries. No owner config/keys/runtime inspection or new authority.

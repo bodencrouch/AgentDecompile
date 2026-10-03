@@ -198,7 +198,7 @@ def _require_stabs_shape(con: sqlite3.Connection, *, complete: bool) -> None:
     from .match_review_schema import _normalized
 
     if con.execute(
-        "SELECT 1 FROM temp.sqlite_schema WHERE name IN ('func','stabs_type')"
+        "SELECT 1 FROM temp.sqlite_schema WHERE name COLLATE NOCASE IN ('func','stabs_type')"
     ).fetchone():
         raise ValueError("shadowing STABS temp object")
     rows = [tuple(row) for row in con.execute(
@@ -208,6 +208,10 @@ def _require_stabs_shape(con: sqlite3.Connection, *, complete: bool) -> None:
     # Triggers have a separate name namespace. A dict alone could hide a
     # trigger sharing a declared index/table name, depending on schema order.
     declared = {"func", "stabs_type", "ix_func_srcfile", *STABS_INDEX_SQL}
+    ascii_lower = str.maketrans("ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz")
+    for _, name, _, _ in rows:
+        if name.translate(ascii_lower) in declared and name not in declared:
+            raise ValueError(f"unsupported STABS object spelling {name}")
     for name in declared:
         if sum(row[1] == name for row in rows) > 1:
             raise ValueError(f"occupied STABS object name {name}")
@@ -221,6 +225,9 @@ def _require_stabs_shape(con: sqlite3.Connection, *, complete: bool) -> None:
     # type, notnull, default, primary-key ordinal, hidden/generated flag
     expected = {"binary_id": ("INTEGER", 1, None, 0, 0)}
     expected.update({name: (typ, 0, None, 0, 0) for name, typ in STABS_FUNC_COLUMNS})
+    for name in columns:
+        if name.translate(ascii_lower) in expected and name not in expected:
+            raise ValueError(f"unsupported STABS column spelling func.{name}")
     for name, shape in expected.items():
         if name not in columns and not complete and name in {"stabs_name", "stabs_type"}:
             continue

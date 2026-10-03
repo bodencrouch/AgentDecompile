@@ -326,7 +326,7 @@ def require_ledger(con: sqlite3.Connection, *, version: int) -> None:
     """
     if version not in {step.version for step in MIGRATIONS} or user_version(con) != version:
         raise ValueError(f"incompatible schema version; expected {version}")
-    if con.execute("SELECT 1 FROM temp.sqlite_schema WHERE name=?", (LEDGER_TABLE,)).fetchone():
+    if con.execute("SELECT 1 FROM temp.sqlite_schema WHERE name COLLATE NOCASE = ?", (LEDGER_TABLE,)).fetchone():
         raise ValueError("shadowing migration ledger")
     obj = con.execute(
         "SELECT type,sql FROM main.sqlite_schema WHERE name=?", (LEDGER_TABLE,)

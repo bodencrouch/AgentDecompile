@@ -311,3 +311,109 @@ def test_stabs_schema_aliases_and_writer_sources_have_no_persistent_installer():
             assert not any('ALTER TABLE' in value or 'CREATE INDEX' in value or 'CREATE TABLE' in value for value in literals)
             if node.name == 'ensure_columns':
                 assert not any(isinstance(part, ast.Attribute) and part.attr == 'commit' for part in ast.walk(node))
+
+
+_MIXED_TEMP_SHADOWS = [('func', 'FuNc'), ('stabs_type', 'StAbS_TyPe'),
+                       ('schema_migration', 'ScHeMa_MiGrAtIoN')]
+
+
+def _mixed_temp_shadow(con, canonical, spelling, kind):
+    # Keep observable contents in the shadow, not an empty incompatible shell.
+    if kind == 'table':
+        con.execute(f'CREATE TEMP TABLE "{spelling}" AS SELECT * FROM main.{canonical}')
+    else:
+        con.execute(f'CREATE TEMP VIEW "{spelling}" AS SELECT * FROM main.{canonical}')
+
+
+def _temp_snapshot(con):
+    objects = list(con.execute('SELECT type,name,tbl_name,sql FROM temp.sqlite_schema ORDER BY name'))
+    rows = {name: sorted(con.execute(f'SELECT * FROM temp."{name}"'), key=repr)
+            for kind, name, _, _ in objects if kind in {'table', 'view'}}
+    return objects, rows
+
+
+@pytest.mark.parametrize('canonical,spelling', _MIXED_TEMP_SHADOWS)
+@pytest.mark.parametrize('kind', ['table', 'view'])
+@pytest.mark.parametrize('caller_owned', [False, True])
+def test_mixed_case_temp_shadow_refuses_actual_v9_before_any_migration_ddl(canonical, spelling, kind, caller_owned):
+    con = _v9()
+    try:
+        _mixed_temp_shadow(con, canonical, spelling, kind)
+        con.commit()
+        if caller_owned:
+            con.execute("INSERT INTO main.eval(run,metric) VALUES ('caller','pending')")
+        before = _snapshot(con), _temp_snapshot(con)
+        seen = []
+        con.set_trace_callback(seen.append)
+        with pytest.raises(ValueError, match='shadowing'):
+            if caller_owned:
+                migrations._stabs_schema_ownership(con)
+            else:
+                migrations.apply_pending(con)
+        assert con.in_transaction is caller_owned
+        assert (_snapshot(con), _temp_snapshot(con)) == before
+        assert _ledger(con) == V9_LEDGER
+        assert not any(sql.lstrip().upper().startswith(
+            ('CREATE ', 'ALTER ', 'DROP ', 'INSERT ', 'UPDATE ', 'DELETE ')) for sql in seen)
+    finally:
+        con.close()
+
+
+@pytest.mark.parametrize('canonical,spelling', _MIXED_TEMP_SHADOWS)
+@pytest.mark.parametrize('kind', ['table', 'view'])
+@pytest.mark.parametrize('operation', ['ensure', 'replace', 'manifest', 'propagate', 'link'])
+def test_mixed_case_temp_shadow_refuses_current_direct_writers_and_keeps_caller_work(canonical, spelling, kind, operation):
+    con = _v9()
+    try:
+        migrations.apply_pending(con)
+        _mixed_temp_shadow(con, canonical, spelling, kind)
+        con.commit()
+        con.execute("INSERT INTO main.eval(run,metric) VALUES ('caller','pending')")
+        operations = {
+            'ensure': lambda: stabs_link.ensure_columns(con),
+            'replace': lambda: stabs_link.replace_stabs_types(con, 1, [{'name': 'New', 'stab': 'new'}]),
+            'manifest': lambda: stabs_link.apply_manifest_records(con, 1, [
+                {'addr': 16, 'action': 'attach_stabs', 'stabs_name': 'New'}]),
+            'propagate': lambda: stabs_link.propagate_source_files(con, donor_rows=[]),
+            # Path sentinels make any premature filesystem access fail; the
+            # public link must refuse at admission before inspecting either.
+            'link': lambda: stabs_link.link(con, raw_dir=None, manifest_dir=None),
+        }
+        before = _snapshot(con), _temp_snapshot(con)
+        seen = []
+        con.set_trace_callback(seen.append)
+        with pytest.raises(ValueError, match='STABS schema required.*shadowing'):
+            operations[operation]()
+        assert con.in_transaction
+        assert (_snapshot(con), _temp_snapshot(con)) == before
+        assert _ledger(con) == V10_LEDGER
+        assert con.execute('SELECT run,metric FROM main.eval').fetchall() == [('caller', 'pending')]
+        assert _mutations(seen) == []
+        assert not any(sql.lstrip().upper().startswith(('ROLLBACK', 'RELEASE ', 'PRAGMA TEMP_STORE')) for sql in seen)
+        con.rollback()
+        assert con.execute('SELECT COUNT(*) FROM main.eval').fetchone()[0] == 0
+    finally:
+        con.close()
+
+
+@pytest.mark.parametrize('ddl', [
+    'CREATE INDEX IX_FUNC_SRCFILE ON func(binary_id,source_file)',
+    'CREATE TRIGGER IX_STABS_TYPE_BIN AFTER INSERT ON stabs_type BEGIN SELECT 1; END',
+    'ALTER TABLE func ADD COLUMN StAbS_NaMe TEXT',
+    'ALTER TABLE func ADD COLUMN StAbS_TyPe TEXT',
+])
+def test_mixed_case_reserved_main_names_refuse_before_v10_ddl(ddl):
+    con = _v9()
+    try:
+        con.execute(ddl)
+        con.commit()
+        before = _snapshot(con)
+        seen = []
+        con.set_trace_callback(seen.append)
+        with pytest.raises(ValueError, match='unsupported STABS .*spelling'):
+            migrations.apply_pending(con)
+        assert _snapshot(con) == before
+        assert not any(sql.lstrip().upper().startswith(
+            ('CREATE ', 'ALTER ', 'INSERT ', 'UPDATE ', 'DELETE ')) for sql in seen)
+    finally:
+        con.close()

@@ -70,3 +70,29 @@ No tests, collection, build, typecheck, proof script, project import, DB open/qu
 - `tests/test_corpus_stabs_migration.py` (new)
 - `docs/CORPUS_PIPELINE.md`
 - `.superpowers/sdd/2026-09-28-comprehensive-agentdecompile-plan/task-2-stabs-report.md` (this report)
+
+## Fix round 1 — Important P1 mixed-case TEMP shadow refusal
+
+Status: READY_TO_COMMIT for independent controller review. Reviewed input is `325ec899ac1535c2413ea6534f6346be1a48f328`; this round performed no Git operations or commits. The prior implementation report above remains historical source-check evidence, not a new execution receipt.
+
+Addressed the sole Important finding from `task-2-stabs-review.md`. The STABS TEMP-name predicate now uses `name COLLATE NOCASE IN ('func','stabs_type')`; the migration-ledger TEMP-name predicate uses `name COLLATE NOCASE = ?`. This matches SQLite ASCII identifier resolution rather than ordinary case-sensitive schema text equality. Both table and view shadows are refused before any writer mutation or migration10 DDL, preserving the existing refusal policy instead of redirecting operations.
+
+Reviewed the other newly introduced reserved-name comparisons for the same root cause. In the main schema validator, mixed-case reserved table/index/trigger spellings and mixed-case required/optional STABS column spellings now explicitly refuse before DDL. The comparison translates only ASCII A–Z, rather than applying Unicode case-folding that SQLite identifier rules do not promise. Canonical declarations and supported historical lowercase shapes remain unchanged. Existing main-ledger exact-name lookup already refuses a differently spelled table as absent before DDL; it was not broadened. Undeclared STABS-local objects remain rejected. There is no general schema-normalization or migration redesign.
+
+Authored additions in `tests/test_corpus_stabs_migration.py`:
+
+- Mixed-case TEMP tables and views for `FuNc`, `StAbS_TyPe`, and `ScHeMa_MiGrAtIoN`, populated from their actual main objects rather than empty incompatible shells.
+- Actual target=9 runner refusal before DDL and direct migration-body refusal inside a caller-owned transaction; main/TEMP schema and contents, user_version, exact v9 ledger, and pending caller rows remain unchanged.
+- Current v10 direct `ensure_columns`, `replace_stabs_types`, `apply_manifest_records`, `propagate_source_files` and `link` refusal before persistent/TEMP writes, commits, rollback, release or temp-store mutation. Cases retain main/TEMP contents, exact version/ledger and the pending outer transaction; caller rollback still removes only its provisional marker. `link` uses path sentinels so an admission bypass cannot proceed to filesystem work.
+- Mixed-case reserved main index/trigger/column names refuse before migration DDL, covering the additional spelling audit.
+
+Checks performed in this fix round: standard-library AST parsing and direct whitespace checks passed for all three changed Python files. During editing, in-memory before/after AST comparisons confirmed that only `store._require_stabs_shape` and `migrations.require_ledger` changed in production source: SCHEMA/declarations, migrations1–9, migration10 body and registry, runner, and all other functions remained AST-identical. Text inspection confirmed both TEMP predicates carry COLLATE NOCASE. No project module was imported and no test was collected or executed. No database, build, typecheck, proof script, cryptographic, runtime/live, provisioning, Git or subagent operation occurred.
+
+Exact paths changed in this fix round:
+
+- `src/agentdecompile_recovery/corpus/store.py`
+- `src/agentdecompile_recovery/corpus/migrations.py`
+- `tests/test_corpus_stabs_migration.py`
+- `.superpowers/sdd/2026-09-28-comprehensive-agentdecompile-plan/task-2-stabs-report.md` (append only)
+
+No additional focused test file was needed. SQLite behavior, historical compatibility, test results and installed/runtime acceptance remain unverified under the source-only constraints. The new regression sources express required behavior; they do not establish that it has passed.

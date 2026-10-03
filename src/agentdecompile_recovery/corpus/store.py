@@ -784,6 +784,10 @@ _BACKFILL_SKIP_CODES = frozenset(
         getattr(sqlite3, "SQLITE_READONLY", 8),
     }
 )
+# A skipped, best-effort family backfill is retried on the next connect. Do not
+# make an otherwise usable open wait for the full connection timeout behind a
+# concurrent writer.
+_BACKFILL_BUSY_TIMEOUT_MS = 250
 
 
 def ensure_binary_columns(con: sqlite3.Connection) -> None:
@@ -847,6 +851,8 @@ def backfill_recovery_family(con: sqlite3.Connection) -> int:
         # winner and the visit order cannot change what gets written. Only
         # the lock/read-only cases are tolerated; any other failure surfaces.
         owns = not con.in_transaction
+        saved_timeout = int(con.execute("PRAGMA busy_timeout").fetchone()[0])
+        con.execute(f"PRAGMA busy_timeout={min(saved_timeout, _BACKFILL_BUSY_TIMEOUT_MS)}")
         try:
             if owns:
                 con.execute("BEGIN IMMEDIATE")
@@ -865,6 +871,8 @@ def backfill_recovery_family(con: sqlite3.Connection) -> int:
             if owns and con.in_transaction:
                 con.execute("ROLLBACK")
             raise
+        finally:
+            con.execute(f"PRAGMA busy_timeout={saved_timeout}")
     return int(unclassifiable[0]) if unclassifiable else 0
 
 

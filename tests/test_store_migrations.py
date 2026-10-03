@@ -228,7 +228,7 @@ def test_read_only_connect_to_migrated_store_writes_nothing(tmp_path: Path) -> N
 def test_read_only_connect_to_legacy_store_raises(tmp_path: Path) -> None:
     legacy = tmp_path / "legacy.sqlite"
     _legacy_db(legacy)
-    with pytest.raises(sqlite3.OperationalError, match="readonly"):
+    with pytest.raises(store.SchemaCompatibilityError, match="observed schema version 0"):
         store.connect(legacy, read_only=True)
     # Nothing was recorded by the failed attempt.
     raw = sqlite3.connect(legacy)

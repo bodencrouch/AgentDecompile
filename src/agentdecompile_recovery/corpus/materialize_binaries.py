@@ -37,7 +37,7 @@ def replace_link_and_move(source: pathlib.Path | None, destination: pathlib.Path
 def main() -> None:
     if not OUT.is_dir():
         raise SystemExit(f"missing collection: {OUT}")
-    con = db.connect(ROOT / "db" / "kotorxid.sqlite")
+    con = db.connect(ROOT / "db" / "kotorxid.sqlite", read_only=True)
     rows = [dict(r) for r in con.execute("SELECT * FROM binary ORDER BY repo_path")]
     rows = [r for r in rows if pathlib.PurePosixPath(r["repo_path"]).name != "repos"]
     known = {r["repo_path"] for r in rows}

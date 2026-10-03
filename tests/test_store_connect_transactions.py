@@ -80,8 +80,11 @@ def test_connect_closes_even_when_failure_rollback_raises(
         in_transaction = True
         closed = False
 
-        def execute(self, _sql: str) -> None:
-            return None
+        def execute(self, _sql: str):
+            return self
+
+        def fetchone(self):
+            return (0,)
 
         def rollback(self) -> None:
             raise RuntimeError("synthetic rollback failure")
@@ -145,7 +148,7 @@ def test_actual_busy_is_tolerated_without_stealing_transaction_ownership(tmp_pat
         holder.close()
 
 
-def test_read_only_backfill_failure_is_tolerated_and_handle_remains_usable(tmp_path: Path) -> None:
+def test_read_only_connect_skips_backfill_and_handle_remains_usable(tmp_path: Path) -> None:
     db = _stale_hashed_store(tmp_path / "readonly.sqlite")
     con = store.connect(db, read_only=True)
     try:

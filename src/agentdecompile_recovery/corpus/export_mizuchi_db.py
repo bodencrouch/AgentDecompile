@@ -177,7 +177,7 @@ def _vector(row: dict) -> list[float]:
 
 def build(repo_path: str, max_functions: int | None = None,
           with_asm: bool = True, with_c: bool = True) -> dict:
-    con = db.connect()
+    con = db.connect(read_only=True)
     b = con.execute(
         "SELECT id, slug, repo_path, arch, bits, platform, func_count FROM binary "
         "WHERE repo_path=?", (repo_path,)).fetchone()
@@ -426,7 +426,7 @@ def estimate(per_window: int = _SAMPLE_PER) -> None:
     table is half a gigabyte; measuring by generating would cost more than the
     generation this is meant to avoid.
     """
-    con = db.connect()
+    con = db.connect(read_only=True)
     kn = sqlite3.connect(f"file:{KNOWLEDGE_DB}?mode=ro", uri=True)
     done = {r[0]: r[1] for r in kn.execute(
         "SELECT program, functions_done FROM ingest_status")}
@@ -495,7 +495,7 @@ def main() -> None:
         estimate(per_window=a.sample)
         return
 
-    con = db.connect()
+    con = db.connect(read_only=True)
     if a.all:
         targets = [r["repo_path"] for r in con.execute(
             "SELECT repo_path FROM binary ORDER BY repo_path")]

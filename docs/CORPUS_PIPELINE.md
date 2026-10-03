@@ -42,6 +42,28 @@ lifetime checks, installation/removal, and observed behavior. Runtime calls do n
 increase recovered-source coverage. Use the existing catalog to inspect available
 operations; source-described actions are not a fresh live observation.
 
+## Corpus database compatibility
+
+[`corpus.store.connect(path, *, read_only=False, create=True)`](../src/agentdecompile_recovery/corpus/store.py)
+is the canonical connection API; its baseline DDL and existing versioned
+migrations are the single initialization path. Explicit writable paths retain
+creation and migration behavior. `create=False` requires an existing file at
+SQLite open. Read-only admission never migrates or backfills: it requires the
+current schema version and matching migration version/name ledger. Future
+versions refuse in either mode. Migration operations require the existing 8080
+catalog and its ownership checks.
+
+The deprecated [`corpus.db`](../src/agentdecompile_recovery/corpus/db.py) facade
+retains public symbols and the exact historical module-relative `DB_PATH`.
+Omitting a path emits `FutureWarning` with that path and now refuses missing-file
+creation; configured/workbench selections never redirect it. Existing writable
+legacy files now pass through canonical migrations. Export and inventory readers
+refuse outdated stores instead of migrating them. Removing the facade still
+requires explicit-path migration of every caller and a public compatibility
+removal decision; broader DDL-ledger and per-binary delete ownership remain open.
+New manifest roles are `donor` and `member`; legacy read-side `anchor`, NULL and
+unknown stored roles are preserved without normalization.
+
 ## Catalog operations and CLI reference
 
 Use the existing 8080 workbench and `GET /api/v1/actions` for recovery; inspect

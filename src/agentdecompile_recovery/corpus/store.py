@@ -5,6 +5,11 @@ any binary. Each `identity` row binds one concrete function in one binary to a
 logical function, with the evidence and confidence that produced the binding.
 
 There is no default database path. Callers pass the store file they own.
+This module owns baseline DDL; ``migrations`` owns versioned initialization.
+
+New manifest roles are ``donor`` and ``member``. Read-side consumers also
+recognize the legacy ``anchor`` role. NULL and unknown stored roles retain their
+historical meaning; connection admission does not normalize or constrain them.
 """
 
 from __future__ import annotations
@@ -159,35 +164,69 @@ CREATE TABLE IF NOT EXISTS eval (
 """
 
 
-def connect(path: pathlib.Path | str, *, read_only: bool = False) -> sqlite3.Connection:
-    """Open (or create) a corpus identity store at *path*. Path is required.
+class SchemaCompatibilityError(ValueError):
+    """The selected store cannot be admitted with this schema contract."""
 
-    Schema lives in ``migrations``: the first connection to a new or legacy
-    file brings it to ``migrations.SCHEMA_VERSION``; every later connection
-    only reads ``PRAGMA user_version`` and touches nothing. The one data step
-    that stays per-connect is the ``recovery_family`` backfill, which is
-    read-checked, writes only when a row needs it, and commits that write
-    itself: the connection returned here holds no transaction.
+    def __init__(self, path: pathlib.Path, observed: int, supported: int, reason: str) -> None:
+        super().__init__(
+            f"Corpus store {path.resolve()}: observed schema version {observed}, "
+            f"supported version {supported}: {reason}. Use the existing 8080 "
+            "workbench action catalog for migration under its ownership/admission "
+            "checks; no migration is performed by read-only admission."
+        )
 
-    ``read_only=True`` opens a ``mode=ro`` handle. It never migrates; on a
-    store that has not been migrated yet it raises.
+
+def connect(
+    path: pathlib.Path | str, *, read_only: bool = False, create: bool = True
+) -> sqlite3.Connection:
+    """Open the selected corpus store. Path is required; no fallback is chosen.
+
+    Writable opens use canonical migrations and the per-connect recovery-family
+    backfill, retaining their transaction and lock-contention semantics. Set
+    ``create=False`` to require an existing file atomically at SQLite open.
+
+    ``read_only=True`` always uses ``mode=ro``, never creates, and admits only
+    the current version with the complete matching migration ledger. It never
+    calls migrations or data backfills. Future versions refuse in both modes
+    before journal changes or migration/backfill writes.
     """
     from . import migrations
 
     dest = pathlib.Path(path)
-    if read_only:
-        con = sqlite3.connect(dest.resolve().as_uri() + "?mode=ro", uri=True, timeout=30)
+    if read_only or not create:
+        mode = "ro" if read_only else "rw"
+        con = sqlite3.connect(dest.resolve().as_uri() + f"?mode={mode}", uri=True, timeout=30)
     else:
         dest.parent.mkdir(parents=True, exist_ok=True)
         con = sqlite3.connect(dest, timeout=30)
     try:
         con.execute("PRAGMA busy_timeout=30000")
         con.row_factory = sqlite3.Row
-        if not read_only:
+        version = migrations.user_version(con)
+        supported = migrations.SCHEMA_VERSION
+        if version > supported or (read_only and version != supported):
+            raise SchemaCompatibilityError(dest, version, supported, "incompatible schema version")
+        if read_only:
+            # Inspect shape before selecting: missing ledger/columns is an
+            # admission failure; unrelated SQL errors propagate unchanged.
+            ledger = con.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?",
+                (migrations.LEDGER_TABLE,),
+            ).fetchone()
+            columns = {row[1] for row in con.execute(f"PRAGMA table_info({migrations.LEDGER_TABLE})")}
+            if ledger is None or not {"version", "name", "applied_at", "basis_hash"} <= columns:
+                raise SchemaCompatibilityError(dest, version, supported, "missing or malformed migration ledger")
+            rows = con.execute(
+                f"SELECT version, name FROM {migrations.LEDGER_TABLE} ORDER BY version"
+            ).fetchall()
+            expected = [(step.version, step.name) for step in migrations.MIGRATIONS]
+            if [tuple(row) for row in rows] != expected:
+                raise SchemaCompatibilityError(dest, version, supported, "inconsistent migration ledger")
+        else:
             # Cannot run inside a transaction, so it stays out of the migration.
             con.execute("PRAGMA journal_mode=WAL")
-        migrations.apply_pending(con)
-        backfill_recovery_family(con)
+            migrations.apply_pending(con)
+            backfill_recovery_family(con)
     except BaseException:
         # This function owns the newly opened handle until it returns.  Failed
         # initialization must not leak it through a retained traceback, even

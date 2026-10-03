@@ -921,7 +921,7 @@ def census_names(program: GhidraProgram) -> dict[str, Any]:
 
     return {
         "schema": "agentdecompile.name-census.v1",
-        "program": program.name,
+        "program": program.program_name,
         "language": program.language_id,
         "functions": {
             "total": func_total,

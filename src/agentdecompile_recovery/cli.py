@@ -591,11 +591,22 @@ def run_headers(args: argparse.Namespace) -> int:
 
 def run_name_census(args: argparse.Namespace) -> int:
     from .ghidra_db import census_names, open_program
+    from .ghidra_db.buffer_file import BufferFileError
     from .ghidra_db.project import list_programs, open_project_program
 
     if args.db is not None:
         try:
             program = open_program(args.db)
+        except BufferFileError as exc:
+            print(
+                json.dumps(
+                    {"error": f"not a Ghidra program database: {args.db}: {exc}",
+                     "hint": "pass an existing db.N.gbf, or use --project instead"},
+                    indent=2,
+                ),
+                file=sys.stderr,
+            )
+            return 1
         except FileNotFoundError as exc:
             if exc.filename is None or Path(exc.filename).resolve() != Path(args.db).resolve():
                 raise

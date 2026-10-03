@@ -27,6 +27,8 @@
     matchDecide: "/dashboard/api/workbench/match-decide",
     matchDecideBatch: "/dashboard/api/workbench/match-decide-batch",
     matchReview: "/dashboard/api/workbench/match-review",
+    crossBuildMatrix: "/dashboard/api/workbench/cross-build-matrix",
+    pairMatches: "/dashboard/api/workbench/pair-matches",
     recoverStatus: "/dashboard/api/workbench/recover-status",
     corpusStatus: "/dashboard/api/workbench/corpus-status",
     corpusDb: "/dashboard/api/workbench/corpus-db",
@@ -73,6 +75,7 @@
      table and the rest stay in More — they are not a second row of chrome. */
   const EDITOR_PRIMARY = [
     { id: "decompile", title: "Listing" },
+    { id: "wb-peers", title: "Peers" },
     { id: "wb-fnbrowse", title: "Functions" },
     { id: "graph", title: "Call trees" },
     { id: "wb-match", title: "Match" },
@@ -800,6 +803,251 @@
         </tbody>
       </table>` : html`<p className="wb-hint">No Ghidra programs listed on this project.</p>`}
     </div>`;
+  }
+
+  /* U7: a project tab holds every binary as a peer lane on one shared cursor
+     (R15-R18), replacing the old "one active program drives the cursor" model
+     for the peers list itself (the rest of the editor still switches by
+     centerTab -- see PeerLanes' own "Focus" action). A light row is corpus-only:
+     build name, readiness/stage read from the already-loaded corpus ladder
+     (no live Ghidra read), and the shared-cursor identity binding for the
+     currently selected function (from function_detail's existing `siblings`
+     join). Click or Enter focuses one peer at a time; the row for the
+     currently focused peer renders full (U6 providers load for it elsewhere
+     in renderEditorBody), every other peer stays light. */
+  function peerStageInfo(steps) {
+    const list = steps || [];
+    if (!list.length) return { state: "unknown", label: "no ladder facts yet", next: "" };
+    const blocked = list.find(function (step) { return (step.state || step.status) === "blocked"; });
+    const active = blocked || list.find(function (step) {
+      const st = step.state || step.status;
+      return st && st !== "done" && st !== "complete" && st !== "unmeasured";
+    }) || list[list.length - 1];
+    const st = (active && (active.state || active.status)) || "unmeasured";
+    return { state: st, label: (active && (active.title || active.key)) || "", next: (active && active.next) || "" };
+  }
+
+  function PeerLanes({ binaries, activeSlug, selected, siblings, onFocusPeer }) {
+    const peers = binaries || [];
+    const boundBySlug = {};
+    (siblings || []).forEach(function (sib) { if (sib && sib.slug) boundBySlug[sib.slug] = sib; });
+    if (!peers.length) {
+      return html`<div className="wb-empty wb-empty-surface"><p>No binaries in this project yet. File → Open, then Add to project…</p></div>`;
+    }
+    return html`<div className="wb-peer-lanes" id="wb-peer-lanes" role="list" aria-label="Project peers">
+      ${peers.map(function (peer) {
+        const slug = peer.slug || peer.name || "";
+        const focused = slug === activeSlug;
+        const stage = peerStageInfo(peer.steps);
+        const bound = focused ? { addr: selected && selected.addr, name: selected && selected.name } : boundBySlug[slug];
+        return html`<div key=${slug} role="listitem" tabIndex="0"
+          className=${"wb-peer-lane" + (focused ? " focused" : " light") + (stage.state === "blocked" ? " st-blocked" : "")}
+          onClick=${function () { if (!focused) onFocusPeer(slug); }}
+          onKeyDown=${function (ev) { if ((ev.key === "Enter" || ev.key === " ") && !focused) { ev.preventDefault(); onFocusPeer(slug); } }}>
+          <div className="wb-peer-lane-head">
+            <span className="wb-peer-name">${peer.name || slug}</span>
+            <span className=${"wb-peer-readiness st-" + stage.state}>${stage.state}</span>
+            ${stage.label ? html`<span className="wb-peer-stage">${stage.label}</span>` : null}
+          </div>
+          ${stage.state === "blocked" && stage.next ? html`<p className="wb-hint wb-peer-next">Next: ${stage.next}</p>` : null}
+          <p className="wb-hint wb-peer-binding">
+            ${bound && (bound.addr || bound.name)
+              ? html`Bound: ${bound.name || bound.addr} ${bound.addr ? html`<code>${bound.addr}</code>` : null}`
+              : (selected && selected.addr ? "no identity binding" : "Pick a function to see its binding across peers.")}
+          </p>
+          ${!focused ? html`<button type="button" className="wb-btn wb-btn-mini wb-peer-focus"
+              onClick=${function (ev) { ev.stopPropagation(); onFocusPeer(slug); }}>Focus</button>` : null}
+        </div>`;
+      })}
+    </div>`;
+  }
+
+  /* U8: cross-build map dock (R19-R23). Docked inside the CodeBrowser layout
+     (see the Listing surface below), not a landing-view tab. The matrix
+     itself is cheap (one pair_availability cell per build pair, from
+     /cross-build-matrix); sampling raw match rows with their kind label is
+     deferred to /pair-matches and only runs for the one cell a user opens,
+     so opening the dock on a project with many peers does not fan out one
+     heavy query per pair. */
+  function matchKindLabel(row) {
+    if (row && row.kind) return String(row.kind).replace(/_/g, " ");
+    if (row && row.algorithm) return "channel " + row.algorithm;
+    return "kind unavailable";
+  }
+
+  function cellStateClass(cell) {
+    if (!cell) return "st-empty";
+    return "st-" + (cell.state || "unknown").replace(/[^a-z-]/gi, "");
+  }
+
+  function MatchCellDetail({ cell, onClose, onJumpAddr }) {
+    const [band, setBand] = useState(80);
+    const [matchState, setMatchState] = useState({ status: "idle" });
+    const [reviewRows, setReviewRows] = useState(null);
+    const [reviewError, setReviewError] = useState("");
+    const [busy, setBusy] = useState(false);
+    const [result, setResult] = useState(null);
+
+    useEffect(function () {
+      let alive = true;
+      setMatchState({ status: "loading" });
+      const params = new URLSearchParams({ src_binary: String(cell.srcBinary), dst_binary: String(cell.dstBinary) });
+      fetch(API.pairMatches + "?" + params, { cache: "no-store" })
+        .then(function (r) { return r.json().then(function (b) { return { ok: r.ok, body: b }; }); })
+        .then(function (res) { if (!alive) return;
+          if (!res.body.ok) { setMatchState({ status: "failed", error: res.body.error || "match sample unavailable" }); return; }
+          setMatchState({ status: "ok", matches: res.body.matches || [] });
+        })
+        .catch(function (err) { if (alive) setMatchState({ status: "failed", error: String(err && err.message || err) }); });
+      return function () { alive = false; };
+    }, [cell.srcBinary, cell.dstBinary]);
+
+    function loadCandidates() {
+      setReviewError(""); setResult(null);
+      fetch(API.matchReview + "?after_id=0&limit=100", { cache: "no-store" })
+        .then(function (r) { return r.json(); })
+        .then(function (body) {
+          if (!body.ok) { setReviewError(body.error || "match-review unavailable"); return; }
+          const filtered = (body.rows || []).filter(function (row) {
+            const m = row.match || {};
+            return (m.src_binary === cell.srcBinary && m.dst_binary === cell.dstBinary)
+              || (m.src_binary === cell.dstBinary && m.dst_binary === cell.srcBinary);
+          });
+          setReviewRows({ selection: body.selection, rows: filtered });
+        })
+        .catch(function (err) { setReviewError(String(err && err.message || err)); });
+    }
+
+    function acceptAboveBand() {
+      if (!reviewRows) return;
+      const entries = reviewRows.rows
+        .filter(function (row) { return Number(row.match.score) >= Number(band); })
+        .map(function (row) { return { matchId: row.match.id, token: row.token, decision: "accept" }; });
+      if (!entries.length) { setResult({ ok: false, message: "No pending candidates at or above that score." }); return; }
+      setBusy(true);
+      fetch(API.matchDecideBatch, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ entries: entries, selection: reviewRows.selection }),
+      })
+        .then(function (r) { return r.json().then(function (b) { return { ok: r.ok, body: b }; }); })
+        .then(function (res) {
+          setBusy(false);
+          if (!res.body.ok && !res.body.pending) { setResult({ ok: false, message: res.body.error || "decide failed" }); return; }
+          setResult({ ok: true, message: res.body.pending
+            ? ("Submitted " + entries.length + " candidates; job " + res.body.job_id + " is deciding.")
+            : ("Accepted " + entries.length + " candidates.") });
+          loadCandidates();
+        })
+        .catch(function (err) { setBusy(false); setResult({ ok: false, message: String(err && err.message || err) }); });
+    }
+
+    return html`<div className="wb-matrix-cell-detail" role="dialog" aria-label="Build pair detail">
+      <div className="wb-fn-tools" role="toolbar">
+        <strong>${cell.srcSlug} ↔ ${cell.dstSlug}</strong>
+        <button type="button" className="wb-btn wb-btn-mini" onClick=${onClose}>Close</button>
+      </div>
+      <p className="wb-hint">${cell.state}${cell.reason ? ": " + cell.reason : ""}${cell.schedule ? " · scheduling: " + (cell.schedule.reason || "") : ""}</p>
+      ${cell.tiers ? html`<p className="wb-hint wb-tier-counts">
+        ${[["src", cell.srcSlug], ["dst", cell.dstSlug]].map(function (pair) {
+          const side = cell.tiers[pair[0]];
+          if (!side) return null;
+          if (!side.ok) return html`<span key=${pair[0]}>${pair[1]}: report unavailable (${side.reason})</span>`;
+          const t = side.tiers || {};
+          const verified = (t["verified-byte-exact"] && t["verified-byte-exact"].functions) || 0;
+          const advisory = (t["advisory-ghidra"] && t["advisory-ghidra"].functions) || 0;
+          return html`<span key=${pair[0]}>${pair[1]}: verified ${verified} · advisory ${advisory}</span>`;
+        })}
+      </p>` : null}
+      ${matchState.status === "loading" ? html`<p role="status" className="wb-hint">Reading sampled matches…</p>` : null}
+      ${matchState.status === "failed" ? html`<p className="wb-dialog-error">Match sample unavailable: ${matchState.error}</p>` : null}
+      ${matchState.status === "ok" && matchState.matches.length ? html`<table className="wb-provider-table" role="table" aria-label="Sampled matches">
+        <thead><tr><th>Match</th><th>Kind</th><th>Confidence</th><th>Src</th><th>Dst</th></tr></thead>
+        <tbody>${matchState.matches.map(function (m) { return html`<tr key=${m.matchId}>
+          <td>${m.matchId}</td>
+          <td><span className=${"wb-match-kind-chip kind-" + (m.kind || "unavailable")}>${matchKindLabel(m)}</span></td>
+          <td>${m.confidence == null ? "—" : m.confidence}</td>
+          <td>${m.srcAddr ? html`<button type="button" className="wb-text-action" onClick=${function () { if (onJumpAddr) onJumpAddr(m.srcAddr); }}><code>${m.srcAddr}</code></button>` : "—"}</td>
+          <td>${m.dstAddr || "—"}</td>
+        </tr>`; })}</tbody>
+      </table>` : null}
+      ${matchState.status === "ok" && !matchState.matches.length ? html`<p className="wb-empty">No sampled match rows for this pair.</p>` : null}
+      <div className="wb-fn-tools" role="toolbar" aria-label="Batch review">
+        <button type="button" className="wb-btn wb-btn-mini" onClick=${loadCandidates}>Load review candidates</button>
+        <label>Accept score ≥ <input type="number" value=${band} onInput=${function (ev) { setBand(ev.target.value); }} style="width:4em"/></label>
+        <button type="button" className="wb-btn wb-btn-mini" disabled=${!reviewRows || busy} onClick=${acceptAboveBand}>Accept all above band</button>
+      </div>
+      ${reviewError ? html`<p className="wb-dialog-error">${reviewError}</p>` : null}
+      ${reviewRows ? html`<p className="wb-hint">${reviewRows.rows.length} pending review candidate${reviewRows.rows.length === 1 ? "" : "s"} for this pair.</p>` : null}
+      ${result ? html`<p className=${result.ok ? "wb-hint" : "wb-dialog-error"}>${result.message}</p>` : null}
+    </div>`;
+  }
+
+  function CrossBuildDock({ binaries, selected, onJumpAddr }) {
+    const [state, setState] = useState({ status: "idle" });
+    const [activeCell, setActiveCell] = useState(null);
+    const slugs = (binaries || []).map(function (b) { return b.slug; }).filter(Boolean);
+    const key = slugs.join(",") + "|" + ((selected && selected.addr) || "");
+
+    useEffect(function () {
+      let alive = true;
+      setActiveCell(null);
+      if (slugs.length < 2) { setState({ status: "empty" }); return undefined; }
+      setState({ status: "loading" });
+      // include_tiers (U43) adds each side's verified/advisory counts from
+      // U26's report; the core matrix below renders fine whether or not a
+      // given binary's report basis is available.
+      const params = new URLSearchParams({ slugs: slugs.join(","), addr: (selected && selected.addr) || "", include_tiers: "true" });
+      fetch(API.crossBuildMatrix + "?" + params, { cache: "no-store" })
+        .then(function (r) { return r.json().then(function (b) { return { ok: r.ok, body: b }; }); })
+        .then(function (result) { if (!alive) return;
+          if (!result.body.ok) { setState({ status: "failed", error: result.body.error || "matrix unavailable" }); return; }
+          setState({ status: "ok", data: result.body });
+        })
+        .catch(function (err) { if (alive) setState({ status: "failed", error: String(err && err.message || err) }); });
+      return function () { alive = false; };
+    }, [key]);
+
+    if (state.status === "empty") {
+      return html`<section className="wb-cross-build-dock wb-empty" aria-label="Cross-build map">
+        <p>Add another binary to this project to compare builds here.</p>
+      </section>`;
+    }
+    if (state.status === "loading" || state.status === "idle") {
+      return html`<section className="wb-cross-build-dock" aria-label="Cross-build map"><p role="status" className="wb-hint">Reading cross-build matrix…</p></section>`;
+    }
+    if (state.status === "failed") {
+      return html`<section className="wb-cross-build-dock" aria-label="Cross-build map"><p className="wb-dialog-error">Cross-build matrix unavailable: ${state.error}</p></section>`;
+    }
+    const data = state.data;
+    const bins = data.binaries || [];
+    const cellBySlugs = {};
+    (data.cells || []).forEach(function (cell) {
+      cellBySlugs[cell.srcSlug + "|" + cell.dstSlug] = cell;
+      cellBySlugs[cell.dstSlug + "|" + cell.srcSlug] = cell;
+    });
+    return html`<section className="wb-cross-build-dock" aria-label="Cross-build map">
+      <p className="wb-hint">One cell per build pair. "not-scheduled" means the donor scheduler never selected that pair; it is distinct from a pair that ran and failed.</p>
+      <table className="wb-matrix-table" role="table">
+        <thead><tr><th scope="col"></th>${bins.map(function (b) { return html`<th key=${b.id} scope="col">${b.slug}</th>`; })}</tr></thead>
+        <tbody>
+          ${bins.map(function (rowBin) {
+            return html`<tr key=${rowBin.id}>
+              <th scope="row">${rowBin.slug}</th>
+              ${bins.map(function (colBin) {
+                if (colBin.id === rowBin.id) return html`<td key=${colBin.id} className="wb-matrix-diag">—</td>`;
+                const cell = cellBySlugs[rowBin.slug + "|" + colBin.slug];
+                return html`<td key=${colBin.id} className=${"wb-matrix-cell " + cellStateClass(cell)}
+                  title=${cell ? (cell.state + (cell.reason ? ": " + cell.reason : "")) : "no data"}
+                  onClick=${function () { if (cell) setActiveCell(cell); }}>
+                  ${cell ? (cell.matchRows != null ? cell.matchRows : cell.state) : "—"}
+                </td>`;
+              })}
+            </tr>`;
+          })}
+        </tbody>
+      </table>
+      ${activeCell ? html`<${MatchCellDetail} cell=${activeCell} onClose=${function () { setActiveCell(null); }} onJumpAddr=${onJumpAddr} />` : null}
+    </section>`;
   }
 
   /* Legacy panels answer immediately with a `data-pending="1"` placeholder while the
@@ -1661,20 +1909,23 @@
     "defined-strings": [["addr", "Address"], ["datatype", "Type"]],
   };
 
-  function ProviderTable({ program, locator, kind }) {
+  function ProviderTable({ program, locator, kind, selectedAddr }) {
     const [data, setData] = useState(null);
     const [error, setError] = useState("");
     useEffect(function () {
       const controller = new AbortController();
       let alive = true;
       setData(null); setError("");
-      const params = new URLSearchParams({ program: program || "", locator: locator || "", kind: kind, limit: "200" });
+      // R12 hook: pass the Listing's selected address through as `near` so the
+      // address-ordered providers (defined-strings, bookmarks) page to the row
+      // nearest the current selection instead of always starting at the top.
+      const params = new URLSearchParams({ program: program || "", locator: locator || "", kind: kind, limit: "200", near: selectedAddr || "" });
       fetch(API.providers + "?" + params, { cache: "no-store", signal: controller.signal })
         .then(function (response) { return response.json().then(function (body) { return { ok: response.ok, body: body }; }); })
         .then(function (result) { if (alive) { if (!result.body.ok) setError(result.body.error || "Provider unavailable"); else setData(result.body); } })
         .catch(function (err) { if (alive && err.name !== "AbortError") setError(String(err.message || err)); });
       return function () { alive = false; controller.abort(); };
-    }, [program, locator, kind]);
+    }, [program, locator, kind, selectedAddr]);
     const columns = PROVIDER_COLUMNS[kind] || [];
     if (error) return html`<p className="wb-dialog-error">${error}</p>`;
     if (!data) return html`<p role="status">Reading ${kind}…</p>`;
@@ -1693,7 +1944,7 @@
     </div>`;
   }
 
-  function CodeBrowserProviders({ program, locator }) {
+  function CodeBrowserProviders({ program, locator, selectedAddr }) {
     const [active, setActive] = useState("equates");
     return html`<section className="wb-cb-providers" aria-label="CodeBrowser providers">
       <div role="tablist" aria-label="CodeBrowser providers" className="wb-cb-provider-tabs">
@@ -1702,7 +1953,7 @@
           className=${"wb-tab-btn" + (active === item.id ? " active" : "")}
           onClick=${function () { setActive(item.id); }}>${item.title}</button>`; })}
       </div>
-      <${ProviderTable} program=${program} locator=${locator} kind=${active} />
+      <${ProviderTable} program=${program} locator=${locator} kind=${active} selectedAddr=${selectedAddr} />
     </section>`;
   }
 
@@ -2751,7 +3002,7 @@
     return rows.length && found ? rows : null;
   }
 
-  function ListingRows({ addr, name, program, runReadAction, fallbackText, onJumpAddr, budgetMs, assemblyText }) {
+  function ListingRows({ addr, name, program, runReadAction, fallbackText, onJumpAddr, budgetMs, assemblyText, comments }) {
     const [state, setState] = useState({ status: "idle" });
     const [focusIdx, setFocusIdx] = useState(0);
     const seqRef = useRef(0);
@@ -2842,13 +3093,23 @@
     }
 
     if (state.status === "ok" && state.rows && state.rows.length) {
+      // Comments are supplied by the caller (function_detail's `comments` list,
+      // already read from the existing ghidra_db comments reader) and joined
+      // here by address; a row with no recorded comment renders an empty cell.
+      const commentByAddr = {};
+      (comments || []).forEach(function (item) {
+        if (!item || !item.addr) return;
+        const key = String(item.addr).toLowerCase();
+        commentByAddr[key] = (commentByAddr[key] ? commentByAddr[key] + " · " : "") + (item.text || "");
+      });
       return html`<div className="wb-listing-rows-wrap">
         <table id="wb-listing-rows" className="wb-listing-rows" role="table" aria-label=${"Listing for " + (name || addr)}>
           <thead>
-            <tr><th scope="col">Address</th><th scope="col">Bytes</th><th scope="col">Mnemonic</th><th scope="col">Operands</th><th scope="col">Xref</th></tr>
+            <tr><th scope="col">Address</th><th scope="col">Bytes</th><th scope="col">Mnemonic</th><th scope="col">Operands</th><th scope="col">Xref</th><th scope="col">Comment</th></tr>
           </thead>
           <tbody>
             ${state.rows.map(function (row, idx) {
+              const comment = commentByAddr[String(row.addr).toLowerCase()] || "";
               return html`<tr key=${row.addr} ref=${function (el) { rowRefs.current[idx] = el; }}
                 tabIndex=${idx === focusIdx ? 0 : -1}
                 className="wb-listing-row"
@@ -2863,6 +3124,7 @@
                     title=${"Jump to " + target}
                     onClick=${function (ev) { ev.stopPropagation(); onJumpAddr(target); }}>→${target}</button>`;
                 })}</td>
+                <td className="wb-listing-comment">${comment}</td>
               </tr>`;
             })}
           </tbody>
@@ -6018,6 +6280,20 @@
           }} />
         </${Surface}>`;
       }
+      if (tab === "wb-peers") {
+        const ladder = (corpusStatus && corpusStatus.ladder) || {};
+        return html`<${Surface} id="wb-peers" title="Peers" actions=${panelActions(
+          html`<button type="button" className="wb-btn wb-btn-mini" onClick=${function () { loadCorpusStatus(); }}>Refresh facts</button>`
+        )}>
+          <p className="wb-hint">Every binary in this project as a peer lane on one shared cursor. Focus loads Listing/U6 providers for that peer; the rest stay light.</p>
+          <${PeerLanes} binaries=${ladder.binaries} activeSlug=${slug}
+            selected=${selected} siblings=${detail && detail.siblings}
+            onFocusPeer=${function (peerSlug) {
+              setSlug(peerSlug);
+              setCenterTab("decompile");
+            }} />
+        </${Surface}>`;
+      }
       if (tab === "wb-atlas") {
         return html`<${Surface} id="wb-atlas" title="Atlas" actions=${panelActions(
           runActionButton("corpus.export-atlas-db", "Export atlas DB"),
@@ -6317,11 +6593,23 @@
          decompileDock() below), so Listing here is always single-column there. */
       const showInlineDecompile = classicLayout && Boolean(decompileText);
       const listingTitle = (selected && selected.name) || program || "Listing";
+      // R10's function header: name, signature (when known from a recovered-source
+      // or on-disk function record) and entry address. wb-listing-marks (U8) shows
+      // how many other builds share this function's identity, from the same
+      // `siblings` join U7's peer binding already reads -- no extra fetch here;
+      // the cross-build dock below does the heavier per-pair match sampling.
+      const listingSignature = (detail && detail.function && detail.function.signature)
+        || (detail && detail.decompile && detail.decompile.signature) || "";
+      const listingSiblings = (detail && detail.siblings) || [];
       return html`<${Surface} id="wb-inspect" title=${"Listing: " + (program || "—")}>
         <div id="wb-inspect-body" className=${"wb-workspace-split" + (showInlineDecompile ? "" : " wb-listing-only")}>
           <div className="wb-listing-pane">
           ${overview || selected || program ? html`<div>
-            <h3>Listing ${listingTitle} ${(selected && selected.addr) ? html`<code>${selected.addr}</code>` : null}</h3>
+            <h3 className="wb-listing-header">Listing ${listingTitle} ${(selected && selected.addr) ? html`<code>${selected.addr}</code>` : null}
+              <span id="wb-listing-marks" className="wb-listing-marks" title=${listingSiblings.map(function (s) { return s.slug + " " + s.addr; }).join(", ")}>
+                ${listingSiblings.length ? html`<span className="wb-match-mark">${listingSiblings.length} other build${listingSiblings.length === 1 ? "" : "s"}</span>` : null}
+              </span></h3>
+            ${listingSignature ? html`<p className="wb-hint wb-listing-signature"><code>${listingSignature}</code></p>` : null}
             <p className="wb-hint">${(detail && detail.path) || (overview && overview.path) || ""}</p>
             <div className="wb-fn-tools" role="toolbar" aria-label="Listing tools">
               <button type="button" id="wb-listing-decompile" className="wb-btn wb-btn-mini"
@@ -6350,6 +6638,7 @@
               ? html`<${ListingRows} addr=${selected.addr} name=${selected.name} program=${program}
                   runReadAction=${runReadAction}
                   assemblyText=${detail && detail.assembly && detail.assembly.text}
+                  comments=${(detail && detail.comments) || []}
                   fallbackText=${(detail && detail.preview) || ("Reading " + program + " from the Ghidra project on disk…")}
                   onJumpAddr=${function (target) { selectRow({ addr: target, name: target }); }} />`
               : html`<pre className="wb-preview" id="wb-listing-preview">${(detail && detail.preview) || (program
@@ -6368,7 +6657,10 @@
               : "Decompiler pane."}</p>
             <pre className="wb-preview" id="wb-decompile-preview">${decompileText}</pre>
           </div>` : null}
-          ${program ? html`<${CodeBrowserProviders} program=${program} locator=${currentLocator()}/>` : null}
+          ${program ? html`<${CodeBrowserProviders} program=${program} locator=${currentLocator()} selectedAddr=${selected && selected.addr}/>` : null}
+          <${CrossBuildDock} binaries=${(corpusStatus && corpusStatus.ladder && corpusStatus.ladder.binaries) || []}
+            selected=${selected}
+            onJumpAddr=${function (target) { selectRow({ addr: target, name: target }); }} />
           <div id="wb-reaction" className="wb-reaction">
             ${reaction && /analyze|decompile|match-function|export-c|one-shot|recover/.test(String(reaction.id || ""))
               && String(reaction.id || "").indexOf("add-binary") < 0

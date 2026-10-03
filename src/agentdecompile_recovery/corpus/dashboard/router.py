@@ -773,6 +773,7 @@ def create_dashboard_router() -> APIRouter:
             request.query_params.get("kind") or "",
             offset=offset,
             limit=limit,
+            near=request.query_params.get("near") or "",
         )
         return JSONResponse(payload, status_code=200 if payload.get("ok") else 400)
 
@@ -860,6 +861,40 @@ def create_dashboard_router() -> APIRouter:
             return JSONResponse(await asyncio.to_thread(read))
         except ReviewError as exc:
             return JSONResponse(exc.result(), status_code=review_error_status(exc))
+
+    @router.get("/dashboard/api/workbench/cross-build-matrix")
+    async def workbench_cross_build_matrix(request: Request) -> JSONResponse:
+        from agentdecompile_recovery.corpus.dashboard.workbench import cross_build_matrix
+
+        raw = request.query_params.get("binary_ids", "")
+        try:
+            binary_ids = [int(part) for part in raw.split(",") if part.strip()]
+        except ValueError:
+            return JSONResponse({"ok": False, "error": "binary_ids must be a comma-separated list of integers", "cells": []}, status_code=400)
+        slugs = [part for part in request.query_params.get("slugs", "").split(",") if part.strip()]
+        payload = await asyncio.to_thread(
+            cross_build_matrix, binary_ids, slugs=slugs,
+            addr=request.query_params.get("addr") or "",
+            selection=request.query_params.get("selection") or "",
+            include_tiers=(request.query_params.get("include_tiers") or "").lower() in ("1", "true", "yes"),
+        )
+        return JSONResponse(payload, status_code=200 if payload.get("ok") else 400)
+
+    @router.get("/dashboard/api/workbench/pair-matches")
+    async def workbench_pair_matches(request: Request) -> JSONResponse:
+        from agentdecompile_recovery.corpus.dashboard.workbench import pair_matches
+
+        try:
+            binary_a = int(request.query_params.get("src_binary") or "")
+            binary_b = int(request.query_params.get("dst_binary") or "")
+        except ValueError:
+            return JSONResponse({"ok": False, "error": "src_binary and dst_binary must be integers", "matches": []}, status_code=400)
+        payload = await asyncio.to_thread(
+            pair_matches, binary_a, binary_b,
+            addr=request.query_params.get("addr") or "",
+            selection=request.query_params.get("selection") or "",
+        )
+        return JSONResponse(payload, status_code=200 if payload.get("ok") else 400)
 
     @router.get("/dashboard/api/workbench/match-review")
     async def workbench_match_review(request: Request) -> JSONResponse:

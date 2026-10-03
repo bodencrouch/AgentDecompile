@@ -1,4 +1,4 @@
-"""Validate cave plan candidates against complete, image-bound decode evidence.
+"""Scan static candidates for consistency with declared image-bound evidence.
 
 All coordinates supplied here are raw file offsets, with half-open ranges. The
 existing asm_extent decoder only qualifies narrow PE32 function extents; it does

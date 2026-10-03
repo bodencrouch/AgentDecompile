@@ -9,6 +9,7 @@ import copy
 import hashlib
 import json
 import math
+import re
 from pathlib import Path
 
 from .determinism_basis import basis
@@ -18,12 +19,34 @@ STATUSES = frozenset({"resolved", "pinned", "degraded", "ambiguous", "unresolved
 KINDS = frozenset("function patch_point immediate call_site global singleton struct class_ctor vtable rtti string table enum jump_table import export dispatch_table vm_opcode_table tls unwind section resource initializer entry_loop site_frame site_regs allocator library_fn inlined_region integrity_check".split())
 
 
+JSON_CONTAINER_LIMIT = 64
+
+
+class CaveEvidenceError(ValueError):
+    """A stable local refusal, also usable for explicit provider unavailability."""
+
+    def __init__(self, code, *, build=None, details=None):
+        self.code, self.build, self.details = code, build, details or {}
+        super().__init__(code + (":build=" + build if build is not None else "") +
+                         ":details=" + json.dumps(self.details, sort_keys=True, separators=(",", ":")))
+
+
+def _nesting_error(build=None, depth=None):
+    return CaveEvidenceError("cave_evidence_nesting_limit_exceeded", build=build,
+                             details={"limit": JSON_CONTAINER_LIMIT, "depth": depth})
+
+
 def canonical_bytes(value: dict) -> bytes:
-    return (json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=True, allow_nan=False) + "\n").encode()
+    # Generated member fingerprints contain tuples; exact JSON-type checks are
+    # deliberately confined to submitted evidence and complete v2 packs.
+    try:
+        return (json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=True, allow_nan=False) + "\n").encode()
+    except RecursionError as exc:
+        raise _nesting_error() from exc
 
 
-def _require_json_native(value) -> None:
-    """Validate exact JSON types with depth-sized state and cycle detection."""
+def _require_json_native(value, *, build=None) -> None:
+    """Accept up to 64 active containers (root=1), without a flat node budget."""
     stack = [(None, iter((value,)))]
     active = set()
     while stack:
@@ -47,6 +70,9 @@ def _require_json_native(value) -> None:
         marker = id(item)
         if marker in active:
             raise ValueError("cyclic_json_evidence")
+        depth = len(stack)
+        if depth > JSON_CONTAINER_LIMIT:
+            raise _nesting_error(build, depth)
         if item_type is dict:
             if any(type(key) is not str for key in item):
                 raise TypeError("json_object_keys_must_be_strings")
@@ -57,12 +83,89 @@ def _require_json_native(value) -> None:
         stack.append((marker, children))
 
 
+def _detached_json(value, *, build=None):
+    _require_json_native(value, build=build)
+    try:
+        return copy.deepcopy(value)
+    except RecursionError as exc:
+        raise _nesting_error(build) from exc
+
+
 def seal_pack(pack: dict) -> dict:
     """Hash the canonical complete payload excluding only its own hash field."""
-    result = copy.deepcopy(pack)
+    if pack.get("format") == FORMAT:
+        result = _detached_json(pack)
+    else:
+        result = copy.deepcopy(pack)
     result.pop("pack_sha256", None)
     result["pack_sha256"] = hashlib.sha256(canonical_bytes(result)).hexdigest()
     return result
+
+
+def _cave_plan_order(cave):
+    return (cave["build"], cave["anchor"]["key"], -cave["capacity"], cave["offset"], cave["id"])
+
+
+def _candidates_sha256(plans):
+    return hashlib.sha256(canonical_bytes(sorted(plans, key=_cave_plan_order))).hexdigest()
+
+
+def _require_cave_receipt_basis(receipt, *, build, image_sha256, arch, basis_sha256, plans):
+    """Check local bindings before asking independent acceptance authority."""
+    _require_json_native(receipt, build=build)
+    expected = {"build": build, "image_sha256": image_sha256, "arch": arch,
+                "basis_sha256": basis_sha256, "candidates_sha256": _candidates_sha256(plans)}
+    for field, value in expected.items():
+        if receipt.get(field) != value or value is None:
+            raise CaveEvidenceError("cave_discovery_" + field + "_mismatch", build=build)
+    for field in ("image_sha256", "evidence_sha256", "basis_sha256", "candidates_sha256"):
+        if type(receipt.get(field)) is not str or re.fullmatch(r"[0-9a-f]{64}", receipt[field]) is None:
+            raise CaveEvidenceError("cave_discovery_" + field + "_required", build=build)
+    if type(arch) is not str or not arch or not receipt.get("decoder"):
+        raise CaveEvidenceError("cave_discovery_target_or_decoder_required", build=build)
+    qualification = receipt.get("qualification")
+    if type(qualification) is not dict:
+        raise CaveEvidenceError("cave_discovery_qualification_required", build=build)
+    reference = qualification.get("producer_reference_sha256")
+    if type(reference) is not str or re.fullmatch(r"[0-9a-f]{64}", reference) is None:
+        raise CaveEvidenceError("cave_discovery_producer_reference_required", build=build)
+    for field in ("policy_revision", "generation"):
+        if type(qualification.get(field)) is not str or not qualification[field].strip():
+            raise CaveEvidenceError("cave_discovery_" + field + "_required", build=build)
+    if type(receipt.get("candidate_count")) is not int or receipt["candidate_count"] != len(plans):
+        raise CaveEvidenceError("cave_discovery_candidate_count_mismatch", build=build)
+    if any(plan.get("arch") != arch for plan in plans):
+        raise CaveEvidenceError("cave_discovery_candidate_arch_mismatch", build=build)
+
+
+def _verify_cave_receipt(receipt, verify_cave_receipt):
+    """Return a blocker reason or None; JSON never supplies this authority.
+
+    A provider explicitly signals unavailable with CaveEvidenceError carrying
+    independent_cave_verifier_unavailable. All other exceptions fail closed.
+    """
+    if not callable(verify_cave_receipt):
+        return "independent_cave_verifier_unavailable"
+    build = receipt["build"]
+    detached = _detached_json(receipt, build=build)
+    before = canonical_bytes(detached)
+    failure = None
+    try:
+        accepted = verify_cave_receipt(detached)
+    except Exception as exc:
+        failure, accepted = exc, False
+    try:
+        _require_json_native(detached, build=build)
+        unchanged = canonical_bytes(detached) == before
+    except (ValueError, TypeError, RecursionError):
+        unchanged = False
+    if not unchanged:
+        raise CaveEvidenceError("cave_verifier_input_changed", build=build) from failure
+    if failure is not None:
+        if isinstance(failure, CaveEvidenceError) and failure.code == "independent_cave_verifier_unavailable":
+            return "independent_cave_verifier_unavailable"
+        raise CaveEvidenceError("cave_verifier_failed", build=build) from failure
+    return None if accepted is True else "independent_cave_qualification_refused"
 
 
 def _rows(con, sql, args=()):
@@ -83,7 +186,7 @@ def _abi(con, bid, addr):
 
 
 def build_hookpack_v2(con, *, site_policy=None, adapter_map=None, operation_contract=None,
-                      cave_evidence=None) -> dict:
+                      cave_evidence=None, verify_cave_receipt=None) -> dict:
     from .hookpack_policy import load_site_policy, load_adapter_map, lookup_site, file_sha256
     from .operation_contract import load_operation_contract
     declared = basis(con)
@@ -93,6 +196,41 @@ def build_hookpack_v2(con, *, site_policy=None, adapter_map=None, operation_cont
         raise ValueError("v2 operation-contract binding is unavailable; use v1 for this contract")
     tables = {r[0] for r in con.execute("SELECT name FROM sqlite_master WHERE type='table'")}
     builds = _rows(con, "SELECT * FROM binary ORDER BY slug")
+    evidence_snapshots = None
+    if cave_evidence is not None:
+        if type(cave_evidence) is not dict:
+            raise ValueError("cave_evidence_build_map_required")
+        if any(type(key) is not str for key in cave_evidence):
+            raise ValueError("cave_evidence_build_keys_must_be_strings")
+        supplied, expected = set(cave_evidence), {b["slug"] for b in builds}
+        if supplied != expected:
+            missing = ",".join(sorted(expected - supplied)) or "none"
+            extra = ",".join(sorted(supplied - expected)) or "none"
+            raise ValueError(f"cave_evidence_build_coverage_mismatch:missing={missing}:extra={extra}")
+        evidence_snapshots = {}
+        for slug in sorted(expected):
+            evidence = cave_evidence[slug]
+            if type(evidence) is not dict:
+                raise ValueError("cave_evidence_object_required:" + slug)
+            try:
+                _require_json_native(evidence, build=slug)
+            except CaveEvidenceError:
+                raise
+            except (TypeError, ValueError) as exc:
+                raise ValueError("cave_evidence_canonical_json_required:" + slug) from exc
+        for slug in sorted(expected):
+            evidence = cave_evidence[slug]
+            try:
+                evidence_bytes = canonical_bytes(evidence)
+                evidence_snapshots[slug] = (json.loads(evidence_bytes), evidence_bytes)
+            except CaveEvidenceError as exc:
+                if exc.build is None and exc.code == "cave_evidence_nesting_limit_exceeded":
+                    raise _nesting_error(slug, exc.details.get("depth")) from exc
+                raise
+            except RecursionError as exc:
+                raise _nesting_error(slug) from exc
+            except (TypeError, ValueError) as exc:
+                raise ValueError("cave_evidence_canonical_json_required:" + slug) from exc
     by_id = {b["id"]: b for b in builds}
     slugs = [b["slug"] for b in builds]
     binaries = []
@@ -166,7 +304,10 @@ def build_hookpack_v2(con, *, site_policy=None, adapter_map=None, operation_cont
             fields = _rows(con, "SELECT * FROM ghidra_field WHERE binary_id=? AND type_name=? ORDER BY ordinal", (t["binary_id"], t["name"])) if "ghidra_field" in tables else []
             for field in fields:
                 field.pop("binary_id", None)
-                field["type"] = json.loads(field.pop("type_json"))
+                try:
+                    field["type"] = json.loads(field.pop("type_json"))
+                except RecursionError as exc:
+                    raise _nesting_error(b["slug"]) from exc
             kind = "enum" if t.get("kind") == "enum" else "struct"
             entities.append({"key": f"{kind}:{b.get('content_sha256') or b['slug']}:{t['name']}",
                 "name": t["name"], "kind": kind, "required": False, "previous_keys": [],
@@ -193,31 +334,15 @@ def build_hookpack_v2(con, *, site_policy=None, adapter_map=None, operation_cont
             "limitations": ["Static corpus witnesses do not establish runtime readiness", "Cave qualification requires decode and restoration receipts"],
             "policy_hashes": {"site_policy": file_sha256(site_policy), "adapter_map": file_sha256(adapter_map)}}
     from .cave_discovery import discover_caves, discovery_blocker
-    if cave_evidence is None:
+    if evidence_snapshots is None:
         pack["cave_discovery"] = [discovery_blocker(slug) for slug in slugs]
     else:
-        if not isinstance(cave_evidence, dict):
-            raise ValueError("cave_evidence_build_map_required")
-        if any(not isinstance(key, str) for key in cave_evidence):
-            raise ValueError("cave_evidence_build_keys_must_be_strings")
-        supplied = set(cave_evidence)
-        expected = set(slugs)
-        if supplied != expected:
-            missing = ",".join(sorted(expected - supplied)) or "none"
-            extra = ",".join(sorted(supplied - expected)) or "none"
-            raise ValueError(f"cave_evidence_build_coverage_mismatch:missing={missing}:extra={extra}")
         from .export_hookpack import _raw_image
         receipts = []
+        basis_sha256 = hashlib.sha256(canonical_bytes(declared)).hexdigest()
         for b in builds:
             slug = b["slug"]
-            evidence = cave_evidence[slug]
-            if not isinstance(evidence, dict):
-                raise ValueError("cave_evidence_object_required:" + slug)
-            try:
-                _require_json_native(evidence)
-                evidence_bytes = canonical_bytes(evidence)
-            except (TypeError, ValueError) as exc:
-                raise ValueError("cave_evidence_canonical_json_required:" + slug) from exc
+            evidence, evidence_bytes = evidence_snapshots[slug]
             image = _raw_image(str(b.get("repo_path") or ""))
             if not isinstance(image, bytes) or not image:
                 raise ValueError("cave_image_bytes_unavailable:" + slug)
@@ -226,22 +351,61 @@ def build_hookpack_v2(con, *, site_policy=None, adapter_map=None, operation_cont
             image_sha256 = hashlib.sha256(image).hexdigest()
             if image_sha256 != b.get("content_sha256"):
                 raise ValueError("cave_registered_image_hash_mismatch:" + slug)
-            plans = discover_caves(image, build=slug, arch=b.get("arch"), evidence=evidence)
-            pack["caves"].extend(plans)
-            receipts.append({"build": slug, "status": "complete",
-                "image_sha256": image_sha256,
+            if evidence.get("image_sha256") != image_sha256 or not evidence.get("decoder"):
+                raise ValueError("decode_image_or_decoder_identity_mismatch:" + slug)
+            if evidence.get("complete") is not True:
+                raise ValueError("complete_decode_evidence_required:" + slug)
+            if evidence.get("build", slug) != slug or evidence.get("arch", b["arch"]) != b["arch"]:
+                raise ValueError("cave_evidence_target_mismatch:" + slug)
+            receipt = {"build": slug, "status": "blocked", "arch": b["arch"],
+                "basis_sha256": basis_sha256, "image_sha256": image_sha256,
                 "evidence_sha256": hashlib.sha256(evidence_bytes).hexdigest(),
-                "decoder": copy.deepcopy(evidence.get("decoder")),
-                "candidate_count": len(plans)})
-        pack["caves"].sort(key=lambda c: (c["build"], c["anchor"]["key"],
-                                           -c["capacity"], c["offset"], c["id"]))
+                "decoder": evidence.get("decoder"), "qualification": evidence.get("qualification")}
+            if not callable(verify_cave_receipt):
+                receipt["reason"] = "independent_cave_verifier_unavailable"
+                receipts.append(receipt)
+                continue
+            plans = sorted(discover_caves(image, build=slug, arch=b["arch"], evidence=evidence),
+                           key=_cave_plan_order)
+            receipt.update(status="complete", candidate_count=len(plans),
+                           candidates_sha256=_candidates_sha256(plans))
+            try:
+                _require_cave_receipt_basis(receipt, build=slug, image_sha256=image_sha256,
+                    arch=b["arch"], basis_sha256=basis_sha256, plans=plans)
+            except CaveEvidenceError as exc:
+                if exc.code == "cave_evidence_nesting_limit_exceeded":
+                    raise
+                reason = "independent_cave_qualification_refused"
+                receipt["qualification_error"] = exc.code
+            else:
+                # The complete payload has its own depth budget, including
+                # wrappers around otherwise admissible evidence fragments.
+                proposed_pack = dict(pack, caves=pack["caves"] + plans,
+                                     cave_discovery=receipts + [receipt])
+                _require_json_native(proposed_pack, build=slug)
+                reason = _verify_cave_receipt(receipt, verify_cave_receipt)
+            if reason is None:
+                pack["caves"].extend(plans)
+            else:
+                receipt.update(status="blocked", reason=reason)
+                receipt.pop("candidate_count", None)
+            receipts.append(receipt)
+        pack["caves"].sort(key=_cave_plan_order)
         pack["cave_discovery"] = receipts
     return seal_pack(pack)
 
 
 def read_hookpack(source, *, supported_kinds=None) -> dict:
     """Refuse unknown formats/statuses; ignore unknown kinds without promotion."""
-    pack = copy.deepcopy(source) if isinstance(source, dict) else json.loads(Path(source).read_text(encoding="utf-8"))
+    try:
+        if isinstance(source, dict):
+            pack = _detached_json(source) if source.get("format") == FORMAT else copy.deepcopy(source)
+        else:
+            pack = json.loads(Path(source).read_text(encoding="utf-8"))
+            if isinstance(pack, dict) and pack.get("format") == FORMAT:
+                _require_json_native(pack)
+    except RecursionError as exc:
+        raise _nesting_error() from exc
     if not isinstance(pack, dict) or pack.get("format") not in {FORMAT, "agentdecompile.hookpack/v1"}:
         raise ValueError("Unsupported hook pack format")
     if pack["format"] != FORMAT:

@@ -78,7 +78,8 @@ def verify_bundle(directory: Path | str) -> dict:
 
 
 def export_bundle(con, out: Path | str, *, site_policy=None, adapter_map=None,
-                  operation_contract=None, cave_evidence=None) -> dict:
+                  operation_contract=None, cave_evidence=None,
+                  verify_cave_receipt=None) -> dict:
     """Run required exporters in a private staging tree, then publish once.
 
     ``out`` is the export-store root. A SQLite savepoint keeps all store reads on
@@ -98,9 +99,11 @@ def export_bundle(con, out: Path | str, *, site_policy=None, adapter_map=None,
         # v1 independently binds operation contracts. The v2 reader currently
         # refuses a v1 binding; never smuggle it into v2 as a qualified operation.
         pack = build_hookpack_v2(con, site_policy=site_policy, adapter_map=adapter_map,
-                                 cave_evidence=cave_evidence)
+                                 cave_evidence=cave_evidence,
+                                 verify_cave_receipt=verify_cave_receipt)
         try:
-            validate_export_set(pack, require_caves=True)
+            validate_export_set(pack, require_caves=True,
+                                verify_cave_receipt=verify_cave_receipt)
         except ValueError as exc:
             raise BundleExportError("hookpack/caves: " + str(exc)) from exc
         divergence = build_divergence_report(pack)
@@ -109,7 +112,8 @@ def export_bundle(con, out: Path | str, *, site_policy=None, adapter_map=None,
             raise BundleExportError("divergence: " + "; ".join(reasons))
         lua = render_lua_bindings(pack)
         readiness = build_readiness_report(pack)
-        validate_export_set(pack, lua_source=lua, readiness=readiness, require_caves=True)
+        validate_export_set(pack, lua_source=lua, readiness=readiness, require_caves=True,
+                            verify_cave_receipt=verify_cave_receipt)
         rows = con.execute("SELECT id,slug,content_sha256 FROM binary ORDER BY content_sha256,slug").fetchall()
         if not rows:
             raise BundleExportError("headers: no builds")
@@ -148,7 +152,8 @@ def export_bundle(con, out: Path | str, *, site_policy=None, adapter_map=None,
             headers.append({"manifest": metadata, "content": (staging / name).read_bytes()})
             roles[name] = "types-header"
             roles[name + ".manifest.json"] = "types-header-manifest"
-        validate_export_set(pack, lua_source=lua, headers=headers, readiness=readiness, require_caves=True)
+        validate_export_set(pack, lua_source=lua, headers=headers, readiness=readiness, require_caves=True,
+                            verify_cave_receipt=verify_cave_receipt)
         put("readiness.json", readiness, "readiness")
         (staging / "readiness.md").write_bytes(render_readiness_report(readiness).encode("utf-8"))
         roles["readiness.md"] = "readiness-human"

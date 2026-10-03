@@ -1,7 +1,8 @@
 """Shared export-consistency gates for bundle publication and UI consumers.
 
-These gates establish artifact identity and cross-reference consistency only.
-They cannot manufacture runtime acceptance or qualify an evidence producer.
+These gates establish artifact identity and cross-reference consistency.
+Cave qualification additionally requires trusted process-local acceptance code;
+serialized receipts cannot supply that authority or runtime acceptance.
 """
 from __future__ import annotations
 
@@ -10,7 +11,9 @@ import json
 import re
 from pathlib import Path
 
-from .hookpack_v2 import FORMAT, STATUSES, canonical_bytes, read_hookpack
+from .hookpack_v2 import (FORMAT, STATUSES, CaveEvidenceError, canonical_bytes, read_hookpack,
+                          _nesting_error, _require_json_native,
+                          _require_cave_receipt_basis, _verify_cave_receipt)
 from .determinism_basis import BASIS_HASH_EXCLUDED, _without
 
 
@@ -32,17 +35,20 @@ def _load(value):
 
 
 def validate_export_set(pack, *, lua_source=None, headers=(), readiness=None,
-                        require_caves=False) -> dict:
-    """Validate provided artifacts and return an identity-only verification receipt.
+                        require_caves=False, verify_cave_receipt=None) -> dict:
+    """Validate consistency, with independent cave requalification when required.
 
     ``headers`` contains {manifest: dict, content: bytes} records. A provided Lua
     source must be byte-identical to the default-threshold deterministic renderer.
     Omitted optional inputs are not silently marked verified. Bundle publishers
-    must separately require their complete artifact set.
+    must separately require their complete artifact set. ``verify_cave_receipt``
+    is trusted acceptance-owner code and must recheck current policy/generation.
+    With ``require_caves=False`` the result advertises consistency only.
     """
     try:
         original = _load(pack)
         _require(isinstance(original, dict) and original.get("format") == FORMAT, "v2_pack_required")
+        _require_json_native(original)
         _require(_digest(original.get("pack_sha256")), "pack_digest_required")
         value = read_hookpack(original)
         declared = original.get("basis")
@@ -80,8 +86,10 @@ def validate_export_set(pack, *, lua_source=None, headers=(), readiness=None,
         if require_caves:
             receipts = original.get("cave_discovery", [])
             _require(isinstance(receipts, list), "cave_discovery_receipts_required")
+            _require(all(type(r) is dict for r in receipts), "cave_discovery_receipts_required")
             by_build = {r.get("build"): r for r in receipts}
             _require(len(by_build) == len(receipts) and set(by_build) == set(builds), "cave_discovery_build_coverage_incomplete")
+            basis_sha256 = hashlib.sha256(canonical_bytes(declared)).hexdigest()
             for slug, receipt in sorted(by_build.items()):
                 _require(receipt.get("status") == "complete", "cave_discovery_blocked:" + slug + ":" + str(receipt.get("reason", "missing_evidence")))
                 _require(_digest(receipt.get("evidence_sha256")) and receipt.get("image_sha256") == (builds[slug].get("content_sha256") or builds[slug].get("sha256")), "cave_discovery_evidence_required:" + slug)
@@ -92,7 +100,14 @@ def validate_export_set(pack, *, lua_source=None, headers=(), readiness=None,
                 actual_count = sum(cave.get("build") == slug for cave in original.get("caves", []))
                 _require(candidate_count == actual_count,
                          "cave_discovery_candidate_count_mismatch:" + slug)
-            checked.append("cave_discovery_receipt_identity")
+                plans = [cave for cave in original.get("caves", []) if cave.get("build") == slug]
+                _require_cave_receipt_basis(receipt, build=slug,
+                    image_sha256=builds[slug].get("content_sha256") or builds[slug].get("sha256"),
+                    arch=builds[slug].get("arch"), basis_sha256=basis_sha256, plans=plans)
+                reason = _verify_cave_receipt(receipt, verify_cave_receipt)
+                _require(reason is None, str(reason) + ":" + slug)
+            _require(callable(verify_cave_receipt), "independent_cave_verifier_unavailable")
+            checked.extend(["cave_discovery_receipt_identity", "independent_cave_qualification"])
         if lua_source is not None:
             from .export_lua_bindings import render_lua_bindings
             supplied = lua_source.encode("utf-8") if isinstance(lua_source, str) else lua_source
@@ -127,9 +142,15 @@ def validate_export_set(pack, *, lua_source=None, headers=(), readiness=None,
             checked.append("readiness")
         return {"format": "agentdecompile.export-validation/v1", "pack_sha256": original["pack_sha256"],
                 "basis_sha256": hashlib.sha256(canonical_bytes(declared)).hexdigest(),
-                "checked": checked, "scope": "artifact_identity_and_cross_reference_consistency",
+                "checked": checked, "scope": ("artifact_consistency_and_independent_cave_qualification" if require_caves
+                                              else "artifact_identity_and_cross_reference_consistency"),
                 "runtime_verification": "not_run"}
     except ExportValidationError:
         raise
+    except CaveEvidenceError as exc:
+        raise ExportValidationError(str(exc)) from exc
+    except RecursionError as exc:
+        refusal = _nesting_error()
+        raise ExportValidationError(str(refusal)) from exc
     except (ValueError, KeyError, TypeError, AttributeError, OSError) as exc:
         raise ExportValidationError("invalid_export_set:" + str(exc)) from exc

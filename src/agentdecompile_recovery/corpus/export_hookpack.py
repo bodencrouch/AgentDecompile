@@ -181,7 +181,8 @@ def _binary_entry(b: dict, image_for) -> dict:
 
 
 def export_hookpack(con, out: Path, *, site_policy=None, adapter_map=None,
-                    operation_contract=None, cave_evidence=None, format="v1") -> dict:
+                    operation_contract=None, cave_evidence=None, format="v1",
+                    verify_cave_receipt=None) -> dict:
     """Write the pack for *con* to *out*.
 
     *site_policy* and *adapter_map* are optional file paths; see
@@ -194,10 +195,16 @@ def export_hookpack(con, out: Path, *, site_policy=None, adapter_map=None,
         from .hookpack_v2 import build_hookpack_v2
         pack = build_hookpack_v2(con, site_policy=site_policy, adapter_map=adapter_map,
                                  operation_contract=operation_contract,
-                                 cave_evidence=cave_evidence)
+                                 cave_evidence=cave_evidence,
+                                 verify_cave_receipt=verify_cave_receipt)
         out = Path(out)
         out.parent.mkdir(parents=True, exist_ok=True)
-        out.write_text(json.dumps(pack, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        try:
+            payload = json.dumps(pack, indent=2, sort_keys=True) + "\n"
+        except RecursionError as exc:
+            from .hookpack_v2 import _nesting_error
+            raise _nesting_error() from exc
+        out.write_text(payload, encoding="utf-8")
         return {"wrote": str(out), "format": FORMAT_V2, "entities": len(pack["entities"]),
                 "binaries": len(pack["binaries"]), "pack_sha256": pack["pack_sha256"]}
     policy = load_site_policy(site_policy)

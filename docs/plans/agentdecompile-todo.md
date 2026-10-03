@@ -51,7 +51,7 @@ Contract: `2026-09-28-comprehensive-agentdecompile-plan.md`. Evidence: `agentdec
 - [ ] U39. Release proof — prerequisites: U36, U38; close assigned child predicates; reconcile owned source coverage without gating unrelated predecessors.
 - [ ] U40. Semantic findings and extensibility — prerequisites: U16, U17; close assigned child predicates; reconcile owned source coverage without gating unrelated predecessors.
 - [ ] U41. Collaboration, CI and controlled reporting — prerequisites: U1, U13; close assigned child predicates; reconcile owned source coverage without gating unrelated predecessors.
-- [ ] U42. Packaging, standalone reload and final integration — prerequisites: U13; close assigned child predicates; reconcile owned source coverage without gating unrelated predecessors.
+- [ ] U42. Packaging, standalone reload and final integration — prerequisites: U13; close assigned child predicates; reconcile owned source coverage without gating unrelated predecessors. Task42.1 staged additive assets/atomic entry source reviewed through1d468be5; actual build, old-chunk rollout, installed consumers, browser/reloader and full-unit gates remain open.
 
 ## Named child obligations
 

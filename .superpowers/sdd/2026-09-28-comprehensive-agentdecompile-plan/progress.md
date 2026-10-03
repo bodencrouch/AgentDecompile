@@ -474,3 +474,18 @@ Task8.1: complete (owned source commitsd966fefc..2590e25a; task-8-review.md spec
 Ruling: Task11.2 initially supports bounded LocalDirStore reads and refuses adapters without an enforceable bounded read route — size()+get() cannot prevent allocation if an adapter lies; path-based chunked copies can stop at the cap — cost if wrong: other transports require later adapter qualification; no current grid-wide transport coverage is claimed.
 
 Task3.1: implementation dispatched /root/implement_macho_stabs_witness from2a6f49a2; exclusive semantic witness/consumer/accounting paths; preserve reviewed Task8 coverage_index parser seam. Source-only; task-3-report.md.
+
+Task42.1: source committed1cdfe463; /root/review_staged_react_assets reviews task-42-review.diff against basec5c191e0. Both JS syntax checks/package JSON/scoped diff pass; actual Vite/typecheck/build/filesystem/browser execution unrun.
+Ruling: Task3.1 requires explicit known selected architecture and records parsed subtype/width/endian from the same digest-bound thin image; it never invents a selected CPU-subtype field — binary inventory has no such field — cost if wrong: stricter future subtype admission needs a reviewed input contract; any existing selected width/format contradiction still refuses.
+
+Task42.1: fix round1/5 from1cdfe463 — two Important review findings T42-R1 asset URL postfix identity and T42-R2 Node/Vitest discovery integration; original implementer resumed, source-only. Both review gates remain open until scoped re-review.
+
+Ruling: Scope matrix report queries with optional logicalId and an explicit hash-bound selection descriptor; return unbound=null/not_requested for that subset — whole-binary reads are redundant and global zero cannot be inferred from selected membership — cost if wrong: scoped clients and validators require coordinated updates; full-report callers retain compatibility, no speedup is claimed without execution.
+Task21.1: source brief prepared after controller contract check; task-21-brief.md resolves SQL filtering, exact scope, genuine zero membership and unknown global counts. Dispatch when a review slot frees, preserving target-chain priority.
+
+Task11.2: source committed24d3547f; spec/quality review package task-11-target-review.diff against base2590e25a; five ASTs, 59 fixed-closure source locators and call-site/diff checks pass. Runtime manifest/receipt sizing, reproducibility, real inputs/independent admission and catalog integration remain unrun.
+
+Task42.1: fix round1 committed1d468be5; scoped review task-42-fix-r1.diff addresses URL postfix dependency identity and Vitest runner lifecycle; syntax/diff checks only, locked-version bundler/browser behavior unrun.
+
+Task42.1: fix round1/5 (2 addressed, 0 open, 0 introduced — T42-R1 disk URL identity and T42-R2 Vitest lifecycle; commits1cdfe463..1d468be5).
+Task42.1: complete (owned source commitsc5c191e0..1cdfe463 and fix1cdfe463..1d468be5; spec/quality source review approved). Full U13/U42 and locked-version build/filesystem/browser/installed/reloader gates remain open.

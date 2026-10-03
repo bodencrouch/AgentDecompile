@@ -33,7 +33,10 @@ def test_populated_legacy_upgrade_preserves_layout_rows_and_seeds_in_id_order(tm
     before = snapshot(con)
     seen = []
     con.set_trace_callback(seen.append)
-    assert [step.version for step in migrations.apply_pending(con)] == [4]
+    # Migrations 5-9 (function_storage, typed_fields, matching_evidence,
+    # pcode_channel, match_metadata) landed after this test; they're not
+    # under test here, so pin to v4 -- the version this test is about.
+    assert [step.version for step in migrations.apply_pending(con, target=4)] == [4]
     con.set_trace_callback(None)
     assert snapshot(con) == before
     schema.require(con)

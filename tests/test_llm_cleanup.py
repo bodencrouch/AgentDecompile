@@ -6,6 +6,8 @@ from pathlib import Path
 
 import pytest
 
+import agentdecompile_recovery.corpus.llm_cleanup as llm_cleanup
+import agentdecompile_recovery.corpus.pipeline as pipeline
 from agentdecompile_recovery.corpus.llm_cleanup import (
     CliResult,
     build_get_function_command,
@@ -16,8 +18,19 @@ from agentdecompile_recovery.corpus.llm_cleanup import (
 )
 from agentdecompile_recovery.corpus.pipeline import run_corpus_pipeline
 from agentdecompile_recovery.corpus.registry import add_binary, new_corpus, save_corpus
+from agentdecompile_recovery.targeted_ai import TargetedAIState
 
 pytestmark = pytest.mark.unit
+
+
+@pytest.fixture(autouse=True)
+def _targeted_ai_enabled(monkeypatch):
+    # KTD5/R35-R38: targeted AI now defaults off (CLI > env > dashboard >
+    # compiled-default off). These tests exercise the LLM-cleanup rewrite
+    # logic itself, not the operator toggle, so force it on here.
+    state = TargetedAIState(True, "test")
+    monkeypatch.setattr(llm_cleanup, "resolve_targeted_ai", lambda: state)
+    monkeypatch.setattr(pipeline, "resolve_targeted_ai", lambda: state)
 
 BROKEN_C = "int add_one(int x) { return undeclared_ghidra_name + x; }\n"
 FIXED_C = "int add_one(int x) { return x + 1; }\n"

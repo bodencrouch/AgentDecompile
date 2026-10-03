@@ -11,10 +11,21 @@ from pathlib import Path
 
 import pytest
 
+import agentdecompile_recovery.plugin_pipeline as plugin_pipeline
 from agentdecompile_recovery import rewrite_queue
 from agentdecompile_recovery.plugin_pipeline import PluginPipeline
+from agentdecompile_recovery.targeted_ai import TargetedAIState
 
 pytestmark = pytest.mark.unit
+
+
+@pytest.fixture(autouse=True)
+def _targeted_ai_enabled(monkeypatch):
+    # KTD5/R35-R38: targeted AI now defaults off (CLI > env > dashboard >
+    # compiled-default off). plugin_pipeline._write_rewrite_request skips
+    # writing a queue entry entirely when it's off; these tests exercise
+    # the queue-write/in-process-fulfillment wiring itself, so force it on.
+    monkeypatch.setattr(plugin_pipeline, "resolve_targeted_ai", lambda: TargetedAIState(True, "test"))
 
 
 ALIGNED = [

@@ -1,0 +1,412 @@
+# SDD ledger — plan: docs/plans/2026-09-28-comprehensive-agentdecompile-plan.md
+
+Starting revision: 527b847a8b27a20edd759803325e3e119a35a38e. Current isolated worktree retained.
+
+Ruling: Import the three planning artifacts byte-for-byte from consolidation-20260928 — they are absent here and match the requested megabyte plan — cost if wrong: replace the imported documents, no source loss.
+Ruling: Use active U1–U42 as integration owners and mechanically extract them for task-brief — appendix repeats historical Task headings and is evidence, not a second queue — cost if wrong: remap briefs before implementation.
+Ruling: Parallelize independent read-only discovery/reviews and serialize implementation writers — this honors both requested skills without shared-file conflicts — cost if wrong: additional elapsed time.
+Ruling: Preserve mission restrictions on tests, builds, restarts and publication; record unverified acceptance separately — current explicit repository instructions still govern — cost if wrong: behavioral acceptance remains open until authorized execution.
+
+Preflight tables pending. No unit is marked complete from imported historical status.
+
+## Preflight rulings and tables
+
+Ruling: Treat dependency entries as consumed predicates and retain every final acceptance gate — the master explicitly permits prerequisite slices without whole-unit closure, which resolves U2/U8 and U6/U7/U8 cycles — cost if wrong: additional integration rework; no acceptance is waived.
+Ruling: Record implicit producer gates for U8 source projects (U4/U10), U16 storage (U5), U18 BSim (U11), U19 external comparison (U10), U21 final metrics/publication (U3/U4/U8/U9), and U37 live directory (U36) — these follow required actual-consumer evidence — cost if wrong: those final gates wait for more proof.
+Ruling: U9 owns continuation substrate and U12 owns M0 product acceptance — one acceptance owner prevents duplicate or missing closure — cost if wrong: remap the evidence owner without changing behavior.
+Ruling: Integrate the exact committed consolidation snapshot locally before filling apparent gaps — 423 donor commits contain already-built implementations, while only five conflict paths require semantic reconciliation — cost if wrong: revert the local merge; donor dirty work and live processes remain untouched.
+
+
+### preflight-1-report.md
+
+# Preflight 1: U1–U21 consistency and shared-seam review
+
+Scope: read-only review of `preflight-1-input.md` (global contract, requirements, decisions, U1–U21 and verification gates), with bounded path/source inventory in this checkout. The six-megabyte source plan, other units' full text, runtime state and external consumer checkouts were not reviewed. This is a plan preflight, not implementation acceptance. No tests, builds, imports, service actions or commits were performed. Existing untracked plan files were left untouched.
+
+Status key: **ruling** means the plan needs a small ownership/dependency/acceptance decision; **boundary** means the text is internally compatible if the named handoff is kept explicit; **open evidence** means source presence or old status cannot close the predicate. A predecessor denotes a consumed predicate, per the unit contract, not wholesale completion of the preceding unit.
+
+## Unit checks
+
+| Unit | Internal consistency against dependencies, acceptance and current file/interface inventory | Status / smallest action |
+|---|---|---|
+| U1 | `ingest_recovered.py`, `rebuild_ledger.py`, `collect_source.py`, `finish_binary.py`, `package_authoritative.py` and `dashboard/byte_parity.py` exist. The evaluator owns claim semantics while U4 produces comparisons and U9 controls publication. Foo/Bar refusal, changed source digest, zero contribution and policy-race cases keep these axes separate. | Boundary: state the evaluator record/API U4 and U9 must consume; no claim of acceptance from file presence. |
+| U2 | `logical.py` and corpus exports exist, but the unit's byte-identical **complete export** acceptance depends on U8, which itself depends on U2 through U5. Closing U2 against U8 creates an acceptance cycle even though U2's own schema/order work can proceed. | **Ruling:** U2 closes canonical semantic rows and a narrow serialization fixture; complete bundle repeatability belongs to U8/V3. |
+| U3 | `identity.py`, `match_store.py` and `propagate.py` exist. U3 owns identity/BSim persistence and recipient acceptance; U18 also names `match_store`, features and channel confidence. Donor logical family is insufficient for compatible implementation transfer. | **Ruling:** U3 owns persisted evidence and acceptance API; U18 owns UI workflow and may request producer work without promoting UI review to identity proof. |
+| U4 | `collect_source.py` and `finish_binary.py` exist. Region, source contribution and whole-image evidence need U1's claim evaluator; final rebuild cannot be inherited from local or linked proof. | Boundary: U4 produces scoped observations, U1 evaluator adjudicates; U10's external reports cannot self-certify. Fresh rebuild remains open. |
+| U5 | `export_types.py` and related corpus modules exist. Exact field rows, ABI storage, RTTI and roots are inputs to U6/U7/U8. It requires independent identity via U3; presence/shape cannot silently become callable readiness. | Boundary: define versioned entity/ABI/layout record supplied to runtime and export; refuse missing storage. |
+| U6 | `export_hookpack.py` exists, but the reviewed runtime assessment documents v1 and unverified v2 consumer support. U6 requires v2 version negotiation while U8 owns the v2 bundle and depends on U7, which depends on U6. This is a producer/consumer delivery cycle if full v2 artifacts are a U6 closure gate. | **Ruling:** qualify U6 reader with a versioned conformance fixture and independent runtime receipts; U8 owns production bundle and later consumer integration. |
+| U7 | Resolver and learn-build obligations use U5 data and U6 runtime operations. Six ladders' member receipts remain distinct from promoted identity; budget stop differs from exhaustion. U8 consumes these receipts. | Boundary: U7 owns ladder order/outcomes; U6 owns safe execution; U3 owns independent identity promotion. |
+| U8 | `export_hookpack.py`, `export_c.py`, `export_types.py`, `export_packages.py` and `package_authoritative.py` exist. The unit requires recovered-source/comparison projects but names U4/U10 only in prose, while the index lists U5/U7. U10 depends on U4/U9; full U8 closure is therefore missing a consumed prerequisite. | **Ruling:** add U4/U10 accepted project-recipe predicate for U8's source-project slice, or explicitly split runtime bundle closure from source-project closure. U21 owns external publication. |
+| U9 | `dashboard/preparation.py` and action catalog modules exist. R31 and text call this the M0 foundation, but say full M0 remains open; U12 claims R31/M0–M7. Durable admission, retry ownership and quarantine must have one authority. | **Ruling:** U9 closes substrate/V6; U12 owns end-to-end M0 product acceptance, consuming U9. No double completion. |
+| U10 | Its named `corpus/external_execution.py` was not found in the bounded path inventory. U10 uses U1/U4/U9 and external report envelopes; it cannot infer source equality from process exit or GREEN. | Open evidence: locate existing adapter or record missing path before implementation; make actual comparator and source-project receipt input to U8. |
+| U11 | Named `agentdecompile_grid` package was not found in the bounded path inventory. It consumes U9 authority but adds independent proposal/log/verification trust; SQLite remains a materialized view in target architecture. | Open evidence: reconcile Phase15/U125 names and source before treating an absent path as no implementation. Grid-of-one cycle precedes remote lanes. |
+| U12 | Shared operation schema and KotorPhasor adapters are named, but external consumer was not inspected. M6/M7 research can proceed separately; M1–M5 need qualified U6 operations and U9 lifecycle. The title omits M0 despite R31 and the text's M0 foundation reference. | **Ruling:** make M0 an explicit U12 acceptance child or assign it unambiguously elsewhere, with U9 as substrate. No gameplay claim from catalog/source presence. |
+| U13 | `frontend/src/main.tsx`, `vite.config.ts`, `dashboard/react_api.py`, `unified_pages.py` and static `workbench-app.js` exist. Reconciliation is a prerequisite to U14–U21 but should not become a blanket ownership claim over their shared modules. | Boundary: U13 records source/serving/package manifest and owns only concrete root/routing diffs; downstream feature edits have their own owners. Current served identity is unverified here. |
+| U14 | `dashboard/workbench.py`, `ghidra_project.py`, `mcp_bridge.py` and static/Vite surfaces exist. Explicit open/admit uses U9 and U29; browsing stays read-only. A saved `.gpr` needs actual project members, not a skeleton file. | Boundary: one admission intent and one active mutation target across tabs; source-only admission does not close live import/export. |
+| U15 | Static workbench and Vite CodeBrowser exist. Selection key includes logical entity and exact concrete target, while checked batch selection is separate. U16–U20 consume this state. | Boundary: publish a single selection-key/version contract with stale-response refusal before downstream panels claim parity. |
+| U16 | `CodeBrowser.tsx` and `FunctionEditor.tsx` exist. Storage editing demands U5's lossless ABI facts; the index only names U15/U29. UI editing could otherwise be accepted on an incomplete storage backend. | **Ruling:** add U5's accepted storage contract as a consumed predicate for storage-edit acceptance (not for all guide browsing). Enumerate all 16 chapters at closure. |
+| U17 | `unified_pages.py`, static workbench and corpus modules exist. It needs U1 proof distinctions and U15 navigation. Donor source presence is explicitly historical; generic build inventory cannot assume mounted KotORXID artifacts. | Boundary: provide source/age/missing states and count-to-set navigation; do not count old donor availability as current live proof. |
+| U18 | `match_store.py` exists; U3 owns persisted evidence. U18 acceptance asks for restart-persistent BSim hits, but the unit says an admitted BSim producer is missing and U11 includes a BSim adapter. UI can honestly show absence, but cannot prove hit persistence without a producer. | **Ruling:** split U18 availability/review closure from producer-backed BSim hit closure, or add the accepted U11 producer predicate. |
+| U19 | `DiffEvidence.tsx` and `ScratchWorkspace.tsx` exist; exact named `CompareView` was not located in bounded inventory. U19 requires actual backend receipt; U4 provides native comparisons, U10 owns external reccmp/ReAgent reports. | **Ruling:** name U10's accepted report predicate for external comparison views; keep a separate U4-backed native comparison path. Do not treat component presence as backend behavior. |
+| U20 | `dashboard/entity_activity.py`, `activity_receipts.py`, `preparation.py` and frontend activity files exist. U9 owns state transitions; U20 shows them and permits only catalog-authorized controls. | Boundary: one coordinator, intent IDs and dated reconnect snapshot; no second UI scheduler or simulated progress. |
+| U21 | `export_run_report.py` exists. U21 derives identity/member counts, recovered-C extents and publication from U3/U4/U8/U9, yet the index lists only U17/U1. A source report can exist without accepted denominator, bundle or publish authority. | **Ruling:** add consumed predicates for U3 identity, U4 accepted contribution, U8 same-basis bundle and U9 durable publication; permit a clearly scoped report-only slice earlier. External publication remains a separate approval gate. |
+
+## Pairwise shared-file/interface checks
+
+The rows below enumerate every pair within two explicitly shared seam groups in U1–U21, then the additional cross-group pairs whose unit text names the same exact file or producer/consumer interface. `F` means the explicitly repeated backend/provider + static workbench + Vite seam of U13–U21; it is a broad file group, so these rows request per-file ownership before an edit rather than assuming all pairs will edit every file. `C` means the explicitly repeated `src/agentdecompile_recovery/corpus/` seam of U1/U2/U3/U5/U8. These are integration collision checks, not claims that files were changed or behavior passed.
+
+| Pair | Shared file/interface | Pair-specific handoff or conflict test |
+|---|---|---|
+| U1–U2 | C: evidence/schema | Evaluator must reject missing/mixed basis from schema without backfilling accepted defaults. |
+| U1–U3 | C: identity/claims | Semantic binding needs independent roots; candidate source claim cannot authenticate a label. |
+| U1–U5 | C: identity/entity | Qualified identity and operation evidence remain different records. |
+| U1–U8 | C: packaging/receipts | Bundle must carry scoped receipt, not promote package existence to whole-image equality. |
+| U2–U3 | C: logical keys/migrations | Stable identity keys after membership changes; previous keys retained. |
+| U2–U5 | C: entity/schema | Platform and ABI fields migrate without reinterpreting unknown legacy values. |
+| U2–U8 | C: serialization/export | U2's local determinism fixture must not depend on closing full U8 bundle. |
+| U3–U5 | C: entity/variant | Struct/vtable correspondence needs compatible variants and non-name evidence. |
+| U3–U8 | C: identity/export | Contested/absent per-member records survive export without unsafe fallback. |
+| U5–U8 | C: ABI/layout/export | Exact storage and opaque field bounds survive headers and hookpack. |
+| U1–U4 | `collect_source.py`, `finish_binary.py` | U4 observations feed U1 evaluator; linked bytes and semantic source contribution distinct. |
+| U1–U9 | acceptance policy/publication interface | U9 fences stale commits; U1 verifies current source/dependency/policy basis. |
+| U1–U10 | external verification/claim interface | Third-party report remains raw observation until central acceptance. |
+| U1–U17 | corpus proof projection | Inventory labels distinguish C/ASM/local/whole-image and stale evidence. |
+| U1–U21 | corpus proof/metric projection | Every numerator maps to accepted set, with explicit missing denominator. |
+| U2–U11 | determinism basis/materialized SQLite | Grid replay cannot turn materialized row order into canonical proof. |
+| U3–U18 | `match_store.py`, identity, propagation | U3 persists accepted/rejected roots; U18 review UI cannot self-promote. |
+| U3–U21 | identity/member metric | Split/folded/absent members use disjoint logical accounting. |
+| U4–U10 | recovery/recipe/comparison | Actual target and rebuilt candidate required; exit status is insufficient. |
+| U4–U19 | native comparison receipt | Source/flags/ABI and target selection bind visual diff. |
+| U4–U21 | recovered-C/extent metric | ASM floor and overwritten/discarded source earn zero C credit. |
+| U5–U6 | ABI/layout/runtime export | Metadata alone cannot authorize a call; unsupported storage refuses. |
+| U5–U7 | locator/root input | Ladder records exhausted/budget/unsupported per member and decoder revision. |
+| U6–U7 | runtime resolver and learn-build | U6 executes safely, U7 orders fallback; runtime hypothesis cannot certify identity. |
+| U6–U8 | v2 consumer/hookpack | Avoid v2 producer/consumer closure cycle through conformance fixture. |
+| U6–U12 | qualified operation IDs | Capability requests require current live preflight and behavior receipt. |
+| U7–U8 | ordered member receipts/export | Bundle retains failed/contested members and exact ladder reason. |
+| U8–U10 | recovered-project recipe | Add U10 accepted recipe predicate to U8 project slice. |
+| U8–U21 | bundle/publication | Bundle creation and external publication are separate gates. |
+| U9–U10 | ownership/external process | Adapter cannot start overlap or release resource on timeout alone. |
+| U9–U11 | durable task proposal/verification | Grid result remains proposal; one acceptance owner and resource fence. |
+| U9–U12 | M0 lifecycle/capability | U9 substrate is not M0 user outcome; assign final owner. |
+| U9–U14 | admission intent | Explicit open once; passive navigation never schedules. |
+| U9–U20 | coordinator/activity projections | UI commands use durable intent IDs; unknown effects reconcile before replay. |
+| U10–U19 | external comparison report | View must expose unsupported/not-run/stale reports without false GREEN. |
+| U11–U18 | BSim producer/review | Persistence acceptance needs actual admitted producer or scoped deferral. |
+| U13–U14 | F: root/routes and project UI | Reconcile serving root before project tabs/admission changes; preserve static. |
+| U13–U15 | F: root/routes and selection | Redirects preserve exact selection; U15 owns state semantics. |
+| U13–U16 | F: root/routes and CodeBrowser | Root mount must not trigger hidden analysis; U16 owns guide features. |
+| U13–U17 | F: routes and corpus panes | Historical donor routes map to one shared backend; no duplicate server. |
+| U13–U18 | F: routes and review panes | Source reconciliation cannot infer active BSim producer. |
+| U13–U19 | F: routes and compare panes | Asset/package inventory precedes browser claims. |
+| U13–U20 | F: routes and activity dock | Root preparation effects must not remount/restart work. |
+| U13–U21 | F: routes and report/export | Publication control remains explicit after routing reconciliation. |
+| U14–U15 | F: project tabs/selection | Switching tabs clears dangerous target drafts/checks, retains views. |
+| U14–U16 | F: project context/editors | Edits bind selected project/program, never stale tab. |
+| U14–U17 | F: project/corpus navigation | Project alias and build inventory preserve provenance. |
+| U14–U18 | F: target/review | Review token and selection bind current project/build. |
+| U14–U19 | F: target/scratch | Compare and scratch receipts bind exact source/target. |
+| U14–U20 | F: admission/activity | One admission acknowledgement; reconnect does not double-submit. |
+| U14–U21 | F: project/export | Download lists and publish readiness scoped to project/build. |
+| U15–U16 | F: selection/CodeBrowser | Token/address navigation refuses stale target responses. |
+| U15–U17 | F: selection/corpus | Logical member navigation retains concrete build identity. |
+| U15–U18 | F: selection/review | Checked rows separate from active navigation and old cursors. |
+| U15–U19 | F: selection/compare | Target switch invalidates old diff and scratch mutations. |
+| U15–U20 | F: selection/activity | Event panels inspect target-bound work without moving selection unexpectedly. |
+| U15–U21 | F: selection/metrics | Count-to-set navigation preserves measure/scope/basis. |
+| U16–U17 | F: CodeBrowser/corpus | Provenance labels and symbol routes do not guess exact identity. |
+| U16–U18 | F: CodeBrowser/review | Editing and match-review conflicts share target revision. |
+| U16–U19 | F: CodeBrowser/compare | Decompiled source and instructions show same exact target and revision. |
+| U16–U20 | F: CodeBrowser/activity | Browsing remains read-only even when work events arrive. |
+| U16–U21 | F: CodeBrowser/metric links | Function proof tier shown without promoting displayed C. |
+| U17–U18 | F: corpus/match dock | Matrices distinguish missing producer from rejected match. |
+| U17–U19 | F: corpus/compare | Candidate pair and build inventory use one identity key. |
+| U17–U20 | F: corpus/activity | Liveness and accepted progress retain independent measures. |
+| U17–U21 | F: corpus/report | Inventory denominator equals metric's navigable member set. |
+| U18–U19 | F: evidence/compare | Match confidence is not byte/source parity. |
+| U18–U20 | F: review/activity | Pending review action stays pending until durable terminal outcome. |
+| U18–U21 | F: match/metric | Contested candidates cannot count as accepted coverage. |
+| U19–U20 | F: compare/activity | Historical attempt and current running attempt have dated basis. |
+| U19–U21 | F: compare/metric | Linked/local diff receipts do not close whole-image numerator. |
+| U20–U21 | F: activity/metric | Running/executed/accepted progress use separate denominators. |
+
+## Minimum rulings before allocating overlapping implementation
+
+1. Split U2's fixture-level determinism from U8's complete-bundle repeatability; retain V3 as the final integrated gate.
+2. Break U6/U7/U8's v2 consumer/producer closure cycle with a versioned conformance fixture, then close the actual U8 bundle against the real qualified consumer.
+3. Add U4/U10 to U8's recovered-project slice; add U10 to U19's external comparison slice; add U5 to U16's storage-edit slice. These are consumed predicates, not blanket predecessor completion.
+4. Assign M0 product acceptance to U12 and keep U9 as durable substrate, or name a separate unambiguous owner. Split U18 producer-backed BSim proof from an honest availability/review UI until U11 producer admission exists.
+5. Give U21 explicit U3/U4/U8/U9 predicates for final metric and publication closure, while permitting a report-only slice. Preserve the user approval boundary for any external publication.
+
+The current AGENTS.md mission allows read-only document/source checks and forbids filesystem tests/builds for documentation validation. V2–V11 remain future acceptance predicates under their own authorization, serving identity and ownership checks. The presence of source paths above is not proof that any unit, runtime consumer, game capability or frontend workflow has passed those gates.
+
+
+### preflight-2-report.md
+
+# U22–U42 read-only preflight
+
+**Scope and result.** Reviewed `preflight-2-input.md` (requirements, global constraints, U22–U42) against the current checkout's source and the repository's operator/intent/status documents. This is a consistency and integration preflight, **not** implementation or acceptance. U13 source import/reconciliation is the first execution work; this report tests later units' shared seams without moving that priority. No tests, builds, project imports, game runs, service probes, process changes, or commits were made. The three untracked comprehensive plan/living/todo files were left untouched. The repeated unit template saying “backend/provider, static workbench and Vite modules named below” supplies no concrete file ownership; the concrete seams in the tables below are inferred from each unit's detailed clause and existing source. They must be assigned exact owners before parallel editing.
+
+**Authority applied.** Current `AGENTS.md` and `STRATEGY.md` govern recovery; `README.md`, `USAGE.md`, `docs/plans/README.md`, `docs/RUNTIME_REUSE.md`, `docs/FRONTEND_INTENT.md`, `docs/DELIVERY_STATUS.md`, and `docs/PYTHON_HOT_RELOAD.md` provide current interface and evidence boundaries. The input's C03/C05/C07/C08/C17/C18/C21 decisions resolve apparent older-contract conflicts. `docs/solutions/README.md` was consulted for the documented-solution lookup boundary; no MCP/Ghidra edit is proposed here.
+
+## Unit consistency tests
+
+“Open” means the stated acceptance is not established by this read-only inspection. “Conditional” means a dependency is a consumed predicate, not a demand to finish all children of its predecessor. Paths are repository-relative.
+
+| Unit | Internal consistency test against explicit implementation/interface | Result and concrete prerequisite |
+|---|---|---|
+| U22 AI/context | One resolver must freeze policy at admission while AI-off leaves deterministic work and browser contribution consent independent. Existing `src/agentdecompile_recovery/rewrite_provider.py` is a CLI provider seam; `corpus/dashboard/settings_page.py` currently exposes notification settings, not proof of one policy resolver. | Open: inventory every AI entrypoint and settings route, specify precedence and immutable child basis, then test off/on, CSRF and stale settings through real consumers when allowed. Do not conflate U31 direct provider key with a server-side secret. |
+| U23 ABI/types | Collector → batch → export must retain ordered return/parameter storage and target ABI, including explicit unknowns. `src/agentdecompile_cli/mcp_server/providers/_collectors.py` exposes a calling convention and some storage, while `corpus/build_types_header.py` exists; that does not prove the full chain. | Open: trace exact field shape through each lossy seam and pin a build-scoped record before U24/U26 serialization. |
+| U24 hookpack v2 | v2 must carry build/identity/ABI/operation prerequisites while v1 readers remain explicit. `src/agentdecompile_recovery/corpus/export_hookpack.py:16` still declares `agentdecompile.hookpack/v1` and exports `sites`, not v2 `entities[]`. `docs/RUNTIME_REUSE.md` documents v1 adapter-key and expected-byte gaps. | Open: version an adapter/reader contract, preserve v1 path, bind every member to exact image and unknown/refusal state. Qualified native reader proof is separate. |
+| U25 caves | Image-bound capacity, occupancy, relocation, page/lifetime/reclaim evidence must precede an install plan. `docs/RUNTIME_REUSE.md` identifies raw-write/cave-inventory limits. | Open: establish a verified image producer and evidence schema; a valid empty/no-cave outcome must be an explicit refusal artifact, not inferred discovery. Native install remains external acceptance. |
+| U26 Lua/headers | Generate both from U23 ABI and U24 operation IDs, with per-build layout assertions and no portable literal VA. `corpus/build_types_header.py` is a partial seam, not the declared full bundle. | Open: define a common operation/schema version and target adapter; generated-code parsing alone cannot accept native layout or gameplay behavior. |
+| U27 readiness/divergence | Full declared denominator and separate observed runtime axis must survive missing graphs and split/inline identity. | Open: choose qualified decoder/graph source and explicit unavailable status; readiness cannot promote a located operation. Coordinate U24 member status with U28 report basis. |
+| U28 atomic export | Required pack/Lua/caves/headers/readiness/divergence/receipts must have one dependency closure and atomic publication; selected source ZIP is a separately honest deliverable. Current `corpus/dashboard/source_archive.py` has an independent source ZIP route, but no evidence here of the new same-basis v2 bundle. | Open: settle required versus optional artifacts, scoped WASM target discovery, manifest/hash/content-type rules and both UI download readers. An explicit no-cave/unsupported receipt can satisfy *representation* but not an installable cave claim. |
+| U29 MCP dispatch | Omitted program sentinel differs from explicit `None`; response, prerequisites and handlers must stay call-scoped. `mcp_server/tool_providers.py:909–963` has a sentinel, but fallback handlers still call `set_program_info(effective_program_info)` on the shared provider. | **Conflict with intended isolation:** migrate dispatch-reachable handlers before declaring A-paused/B-dispatched/A-resumed safe. Keep activation's future-call default separate and preserve U30 top-level normalization semantics. |
+| U30 input/ownership | Thirteen historical source-integrated tasks require exact False/0/empty/None/tuple/JSON and ownership release behavior; old stage launchers are superseded in normal UI by C05. Current `tool_providers.py` preserves normalized top-level last-spelling behavior. | Conditional/open: reconcile branch and live consumer before closure; retain stage metadata/hash keys, remove obsolete launch affordances, and verify DB/pair release on each failure path later. No generic registry rewrite is justified. |
+| U31 browser contributor | Opt-in Start is expressly preserved by C21; no client compile/objdiff/identity promotion. `frontend/src/ExchangeContribution.tsx` shows Start and proposal wording, while `exchange/routes.py` exposes submit. | Open: inspect worker packaging/CSP, secret storage, lease/visibility and direct provider adapter end-to-end. Must hand one unchanged idempotency key to U32's durable boundary. External provider verification is separate. |
+| U32 exchange lifecycle | Submit/replay durability, per-destination routing and coordinator compile/objdiff must not treat proposals as verified. `exchange/store.py` has worker-scoped receipt keys and persists before submit acknowledgment; `exchange/consumers.py` has forwarded acknowledgment. | Conditional/open: verify crash/restart/destination behavior and exact lease/unit/fingerprint validation. “Every accepted rewrite reaches attempt_candidate” requires qualified queue ownership and a real PE/COFF pair before objdiff economics is claimed. |
+| U33 source baseline | Exact binary/Ghidra/toolchain/source/receipt identity and clean original-game source launch precede multiplayer source claims. The checkout has a v1 hookpack and research references in the untracked plan, but `docs/research/swkotor-multiplayer/` is absent here. | **Prerequisite gap:** locate/corroborate research and recovered-engine source/receipts under current checkout authority; do not substitute pseudocode, `_emit` or copied regions for source. Current game launch and link proof unavailable here. |
+| U34 local transport | U33's source baseline must support correct ABI/callers/queue framing before changing transport. Referenced `docs/research/swkotor-multiplayer/evidence/*` files are absent in this checkout. | Blocked on locating exact evidence/loaded project and qualified original-process comparison; no new transport assumption from function names. |
+| U35 remote gameplay | Transport and server-owned identities require U34 plus U9 identity predicate. “Two clients see one authoritative world” can be demonstrated with a temporary qualified host before U36, but its basis must be explicit. | Open: specify host/server world authority, protocol/content versions, authenticated join and both modes. Real two-client acceptance unavailable in this preflight. |
+| U36 dedicated executable | U35 world protocol is consumed; headless simulation must be independent of rendering/audio/window state. | Open: identify shared recovered-engine source and server entrypoint, then prove native headless module/script/AI/combat/save behavior. A source tree or synthetic server is insufficient. |
+| U37 directory | Directory API needs a provisioned public provider and U35-compatible mode/build/content metadata; actual heartbeat also needs a server process, so U36 is an acceptance prerequisite even though not listed as a dependency. | **Dependency to clarify:** add U36's running headless server predicate to public-discovery acceptance, or explicitly distinguish directory implementation with a temporary verified registrant. Provider credentials/provisioning and cross-network proof remain external. |
+| U38 in-game browser | Join uses U35 transport and U37 directory; real recovered main-menu integration differs from the static/Vite workbench. | Open: identify game UI source/asset insertion seam and prove states, LAN/Internet, password refusal, compatibility and real client navigation. Halo-like appearance cannot be accepted from a web mock. |
+| U39 release proof | U36 and U38 plus U35 both-mode and U37 cross-network acceptance must feed one clean-build receipt. C07 correctly limits objdiff to unchanged recovered code after new features alter the image. | Open: exact source/toolchain hashes, clean Windows builds, headless server and two real clients, external directory and video/state receipts. No present local check can close it. |
+| U40 semantic findings | Selected program and static/dynamic evidence must ground Atlas/F01–F28 actions. Existing `frontend/src/AtlasAnalysis.tsx`, `GuideWorkflows.tsx`, static workbench and `react_api.py` are consumer seams. | Open: bind finding navigation through U29 program-scoped dispatch and shared backend operations; mark provider-unavailable or missing prerequisites instead of fabricated findings. |
+| U41 collaboration/CI | Qualified second reader, revocation and local-only reporting require U1/U13 identity/auth basis; external messages require current authorization. | Open: identify durable share/CI artifact reader and access revocation contract. Generate redacted local reports first; Discord/public reporting cannot be exercised by this plan. |
+| U42 packaging/reload | Installed revision, static and packaged React, retained hashed chunks and in-process rejection behavior must be proven on the executing checkout. `docs/PYTHON_HOT_RELOAD.md` describes standalone reload; `react_api.py` and `static/react/` are packaging seams. | Open: reconcile canonical/serving roots, package manifests and asset revision policy. Later verify unchanged PID/state via authorized 8080 consumer; no service probe or reload was done here. |
+
+## Pairwise shared-file/interface review
+
+Each row is one pair with a concrete shared contract. Repeated generic “backend/provider, static workbench and Vite” template wording is excluded because it does not identify a file, endpoint or data shape; treating it as a universal overlap would hide the ownership decision. Pairs in the recovered-engine family are included only where a named source, transport, directory, UI or release interface connects them.
+
+| Pair | Shared file/interface | Ordering, conflict or handoff test |
+|---|---|---|
+| U22–U31 | AI provider selection and browser contribution policy | Keep server admission settings distinct from transient browser API key; AI-off policy must define whether opted-in contribution is disabled without silently exposing a key. |
+| U22–U32 | Rewrite/model job basis | Freeze policy/model/context on admitted proposal; replay cannot pick new defaults. |
+| U22–U40 | Semantic provider/context | Provenance-bearing context may inform findings but optional embeddings cannot establish identity. |
+| U23–U24 | ABI/storage rows → `corpus/export_hookpack.py` | Version v2 fields without losing ordered pieces or treating missing storage as a generic register. |
+| U23–U26 | ABI/types → `corpus/build_types_header.py` and Lua generator | One build-scoped source of storage/layout facts; header and Lua must expose the same supported signature. |
+| U23–U27 | ABI prerequisites → readiness | Missing ABI remains an exact blocked call predicate, even if locator is resolved. |
+| U23–U28 | Typed export input basis | Hash collector/batch ABI source with bundle; stale type update invalidates dependent artifacts only. |
+| U24–U25 | Hookpack injection plan and cave references | Cave candidate is image-bound and optional; a locator cannot confer capacity or installability. |
+| U24–U26 | Operation IDs/adapter keys | Lua/header operations and v2 reader must use the same versioned IDs; preserve v1 mapping explicitly. |
+| U24–U27 | Per-member identity/operation status | Resolved/pinned/contested is distinct from installed/observed; readiness denominator includes unknowns. |
+| U24–U28 | v2 pack + bundle manifest | Pack must be complete, hash-bound and reopenable; v1 fallback is a separate compatibility path. |
+| U25–U26 | Injection/call plans → generated APIs | Generated call/install methods must refuse unsupported cave/page/lifetime conditions. |
+| U25–U28 | Cave artifact in bundle | “No qualified cave” must serialize as explicit evidence/refusal, not an empty success. |
+| U26–U27 | Generated operations → readiness | Report readiness per operation/build; code generation does not create runtime capability. |
+| U26–U28 | Lua/headers in bundle | Hash per-build ABI assumptions and compiler manifest under the same basis. |
+| U27–U28 | Readiness/divergence reports | Missing graph and unsupported operations retain honest scoped status while the bundle stays structurally complete. |
+| U28–U42 | Download routes, manifest, `/react/` assets | Bundle/source ZIP route and packaged readers must agree on content identity and asset revision through atomic rollout. |
+| U29–U30 | `mcp_server/tool_providers.py`, registry/CLI input contract | Call-scoped program migration must preserve top-level alias/last-spelling behavior and distinct `None`/omitted handling; shared-provider fallback is a live race risk. |
+| U29–U40 | Selected-program MCP dispatch → Atlas findings | Finding navigation and references must carry exact program across async requests; session default is insufficient. |
+| U29–U41 | Scoped project sharing/CI tool calls | A second reader's selected program must not mutate another caller's provider target. |
+| U30–U40 | Registry operations and guide actions | F01–F28 controls must use canonical operation identity and owner-defined danger/duration, preserving refusal behavior. |
+| U30–U42 | Package/CLI and stage presentation | Preserve shortcuts/defaults and 33 stage keys while packaging; remove old UI stage launch controls per C05. |
+| U31–U32 | `exchange/routes.py`, `exchange/store.py`, `ExchangeContribution.tsx` | Producer returns only proposal; durable submit acknowledgment, idempotency and verification belong to coordinator. |
+| U31–U42 | Packaged browser worker/CSP | Build asset and fixed provider origins must survive `/react/` packaging without persisting secrets. |
+| U32–U33 | Accepted rewrite → recovered-source candidate | Queue transfer enters compile/objdiff candidate path, never U33 source baseline merely because proposal was accepted. |
+| U32–U39 | Objdiff lane/clean source comparison | Genuine retained PE/COFF pair required for economics; exchange result cannot replace multiplayer clean-build proof. |
+| U33–U34 | Recovered engine source and original netlayer evidence | Exact binary/toolchain binding before ABI and queue edits. |
+| U33–U35 | Recovered engine source → remote transport | New network code must be separated from unchanged recovered code and source identity retained. |
+| U33–U36 | Shared recovered engine → server entrypoint | Headless build cannot be derived from an unlinked/pseudocode-only baseline. |
+| U33–U39 | Source/toolchain hashes → release comparison | Compare unchanged regions under C07; U33 original-image proof is a separate claim. |
+| U34–U35 | Local dispatch/queue → remote protocol | Preserve callback/ordering/framing semantics and do not infer Internet play from local queue names. |
+| U34–U36 | Engine message/tick interface | Server tick must consume validated messages without rendering/player assumptions. |
+| U34–U39 | Original netlayer evidence → release | Release receipt must state what recovered logic was reused and what was new. |
+| U35–U36 | Authoritative world protocol → headless simulation | U35 two-client proof needs an explicit qualified host basis; U36 then proves dedicated authority. |
+| U35–U37 | Authenticated game join and directory metadata | Directory publishes no password/hash/admin secret; join authenticates separately. |
+| U35–U38 | Join API/compatibility states | Main-menu Join must enter proven remote gameplay, not a mock/local queue. |
+| U35–U39 | Two modes/reconnect/refusal → release | Release matrix must replay both modes and lifecycle cases with real clients. |
+| U36–U37 | Headless server heartbeat/session counts | Public acceptance requires real server-owned counts and endpoint ownership; add this acceptance edge. |
+| U36–U38 | Server endpoint → browser direct connect | Browser must handle full/incompatible/password states from actual server responses. |
+| U36–U39 | `swkotorserver.exe`/headless runtime | Clean build and native behavior are mandatory, not server source presence. |
+| U37–U38 | Directory list/expiry/filter protocol | Internet rows use provisioned public provider; LAN and direct connect are separate modes. |
+| U37–U39 | Cross-network discovery receipt | Self-hosted fallback does not close requested free public default under C17. |
+| U38–U39 | Recovered main-menu UI | Capture real game navigation and Join path; desktop/static/Vite mocks do not count. |
+| U40–U41 | Linkable evidence/artifact references | Sharing and CI must resolve selected program plus evidence basis, not an unscoped finding URL. |
+| U40–U42 | Static/Vite shared backend and package | Both installed consumers must expose the F01–F28 action/missing-prerequisite inventory. |
+| U41–U42 | Shared installed artifact and report routing | Revocation, CI reader and local report need revision-bound routes; packaging cannot auto-publish. |
+
+## Actionable decisions before implementation
+
+1. **Assign exact owners and schemas.** Replace the template “modules named below” for U22–U42 with current paths, route names and versioned producer/consumer fields. In particular settle U23→U28 v2 bundle ownership and U31→U32 proposal acknowledgment.
+2. **Fix U29's dispatch boundary before parallel MCP/Atlas work.** The fallback `set_program_info` in `tool_providers.py` contradicts the stated no-dispatch-time-singleton-write acceptance. A migration inventory, including prerequisites and response paths, is a local prerequisite.
+3. **Clarify U37's acceptance dependency on U36.** Directory code may be built earlier, but real heartbeat, session counts and cross-network discoverability require a qualified running server; record that consumed predicate without forcing unrelated U36 children.
+4. **Rebind multiplayer evidence.** The plan/living/todo cite `docs/research/swkotor-multiplayer/`, absent from this checkout. Locate the exact input binary, research, recovered source and receipts and corroborate hashes before U33/U34 work. Do not copy material from the upstream donor without reconciling read-only authority.
+5. **Separate external acceptance.** Real games and native host/build/architecture combinations, headless server plus two real clients, actual provider credentials/public directory, optional external AI provider, and installed 8080 consumers are unverified here. Native/whole-image claims require the current `STRATEGY.md` proof, while publication/messaging needs current authorization. None is implied by this report.
+
+**Read-only verification performed:** source/path searches, relevant file reads and `git status --short` only. The absence of a path is stated only for this checkout. Historical status in `DELIVERY_STATUS.md` and memory was treated as orientation, not current runtime acceptance.
+
+
+### preflight-cross-pairs.md
+
+| Pair | Shared interface / producer and consumer | Preflight finding |
+|---|---|---|
+| U1 / U41 | explicit dependency basis; U1 predicate consumed by U41 | No conflicting value specified in active texts; serialize overlapping writes, consume exact completed predicate rather than entire predecessor. |
+| U2 / U24 | explicit dependency basis; U2 predicate consumed by U24 | No conflicting value specified in active texts; serialize overlapping writes, consume exact completed predicate rather than entire predecessor. |
+| U3 / U27 | explicit dependency basis; U3 predicate consumed by U27 | No conflicting value specified in active texts; serialize overlapping writes, consume exact completed predicate rather than entire predecessor. |
+| U4 / U33 | explicit dependency basis; U4 predicate consumed by U33 | No conflicting value specified in active texts; serialize overlapping writes, consume exact completed predicate rather than entire predecessor. |
+| U5 / U23 | explicit dependency basis; U5 predicate consumed by U23 | No conflicting value specified in active texts; serialize overlapping writes, consume exact completed predicate rather than entire predecessor. |
+| U5 / U25 | explicit dependency basis; U5 predicate consumed by U25 | No conflicting value specified in active texts; serialize overlapping writes, consume exact completed predicate rather than entire predecessor. |
+| U9 / U22 | explicit dependency basis; U9 predicate consumed by U22 | No conflicting value specified in active texts; serialize overlapping writes, consume exact completed predicate rather than entire predecessor. |
+| U9 / U32 | explicit dependency basis; U9 predicate consumed by U32 | No conflicting value specified in active texts; serialize overlapping writes, consume exact completed predicate rather than entire predecessor. |
+| U9 / U35 | explicit dependency basis; U9 predicate consumed by U35 | No conflicting value specified in active texts; serialize overlapping writes, consume exact completed predicate rather than entire predecessor. |
+| U11 / U31 | explicit dependency basis; U11 predicate consumed by U31 | No conflicting value specified in active texts; serialize overlapping writes, consume exact completed predicate rather than entire predecessor. |
+| U13 / U22 | shared backend / static / React capability contract; shared contract; distinct implementation ownership | No conflicting value specified in active texts; serialize overlapping writes, consume exact completed predicate rather than entire predecessor. |
+| U13 / U23 | shared backend / static / React capability contract; shared contract; distinct implementation ownership | No conflicting value specified in active texts; serialize overlapping writes, consume exact completed predicate rather than entire predecessor. |
+| U13 / U24 | shared backend / static / React capability contract; shared contract; distinct implementation ownership | No conflicting value specified in active texts; serialize overlapping writes, consume exact completed predicate rather than entire predecessor. |
+| U13 / U25 | shared backend / static / React capability contract; shared contract; distinct implementation ownership | No conflicting value specified in active texts; serialize overlapping writes, consume exact completed predicate rather than entire predecessor. |
+| U13 / U26 | shared backend / static / React capability contract; shared contract; distinct implementation ownership | No conflicting value specified in active texts; serialize overlapping writes, consume exact completed predicate rather than entire predecessor. |
+| U13 / U27 | shared backend / static / React capability contract; shared contract; distinct implementation ownership | No conflicting value specified in active texts; serialize overlapping writes, consume exact completed predicate rather than entire predecessor. |
+| U13 / U28 | shared backend / static / React capability contract; shared contract; distinct implementation ownership | No conflicting value specified in active texts; serialize overlapping writes, consume exact completed predicate rather than entire predecessor. |
+| U13 / U29 | explicit dependency basis; U13 predicate consumed by U29 | No conflicting value specified in active texts; serialize overlapping writes, consume exact completed predicate rather than entire predecessor. |
+| U13 / U30 | explicit dependency basis; U13 predicate consumed by U30 | No conflicting value specified in active texts; serialize overlapping writes, consume exact completed predicate rather than entire predecessor. |
+| U13 / U31 | shared backend / static / React capability contract; shared contract; distinct implementation ownership | No conflicting value specified in active texts; serialize overlapping writes, consume exact completed predicate rather than entire predecessor. |
+| U13 / U32 | shared backend / static / React capability contract; shared contract; distinct implementation ownership | No conflicting value specified in active texts; serialize overlapping writes, consume exact completed predicate rather than entire predecessor. |
+| U13 / U40 | shared backend / static / React capability contract; shared contract; distinct implementation ownership | No conflicting value specified in active texts; serialize overlapping writes, consume exact completed predicate rather than entire predecessor. |
+| U13 / U41 | explicit dependency basis; U13 predicate consumed by U41 | No conflicting value specified in active texts; serialize overlapping writes, consume exact completed predicate rather than entire predecessor. |
+| U13 / U42 | explicit dependency basis; U13 predicate consumed by U42 | No conflicting value specified in active texts; serialize overlapping writes, consume exact completed predicate rather than entire predecessor. |
+| U14 / U22 | explicit dependency basis; U14 predicate consumed by U22 | No conflicting value specified in active texts; serialize overlapping writes, consume exact completed predicate rather than entire predecessor. |
+| U14 / U23 | shared backend / static / React capability contract; shared contract; distinct implementation ownership | No conflicting value specified in active texts; serialize overlapping writes, consume exact completed predicate rather than entire predecessor. |
+| U14 / U24 | shared backend / static / React capability contract; shared contract; distinct implementation ownership | No conflicting value specified in active texts; serialize overlapping writes, consume exact completed predicate rather than entire predecessor. |
+| U14 / U25 | shared backend / static / React capability contract; shared contract; distinct implementation ownership | No conflicting value specified in active texts; serialize overlapping writes, consume exact completed predicate rather than entire predecessor. |
+| U14 / U26 | shared backend / static / React capability contract; shared contract; distinct implementation ownership | No conflicting value specified in active texts; serialize overlapping writes, consume exact completed predicate rather than entire predecessor. |
+| U14 / U27 | shared backend / static / React capability contract; shared contract; distinct implementation ownership | No conflicting value specified in active texts; serialize overlapping writes, consume exact completed predicate rather than entire predecessor. |
+| U14 / U28 | shared backend / static / React capability contract; shared contract; distinct implementation ownership | No conflicting value specified in active texts; serialize overlapping writes, consume exact completed predicate rather than entire predecessor. |
+| U14 / U29 | explicit dependency basis; shared contract; distinct implementation ownership | No conflicting value specified in active texts; serialize overlapping writes, consume exact completed predicate rather than entire predecessor. |
+| U14 / U30 | shared backend / static / React capability contract; shared contract; distinct implementation ownership | No conflicting value specified in active texts; serialize overlapping writes, consume exact completed predicate rather than entire predecessor. |
+| U14 / U31 | shared backend / static / React capability contract; shared contract; distinct implementation ownership | No conflicting value specified in active texts; serialize overlapping writes, consume exact completed predicate rather than entire predecessor. |
+| U14 / U32 | shared backend / static / React capability contract; shared contract; distinct implementation ownership | No conflicting value specified in active texts; serialize overlapping writes, consume exact completed predicate rather than entire predecessor. |
+| U14 / U40 | shared backend / static / React capability contract; shared contract; distinct implementation ownership | No conflicting value specified in active texts; serialize overlapping writes, consume exact completed predicate rather than entire predecessor. |
+| U14 / U41 | shared backend / static / React capability contract; shared contract; distinct implementation ownership | No conflicting value specified in active texts; serialize overlapping writes, consume exact completed predicate rather than entire predecessor. |
+| U14 / U42 | shared backend / static / React capability contract; shared contract; distinct implementation ownership | No conflicting value specified in active texts; serialize overlapping writes, consume exact completed predicate rather than entire predecessor. |
+| U15 / U22 | shared backend / static / React capability contract; shared contract; distinct implementation ownership | No conflicting value specified in active texts; serialize overlapping writes, consume exact completed predicate rather than entire predecessor. |
+| U15 / U23 | shared backend / static / React capability contract; shared contract; distinct implementation ownership | No conflicting value specified in active texts; serialize overlapping writes, consume exact completed predicate rather than entire predecessor. |
+| U15 / U24 | shared backend / static / React capability contract; shared contract; distinct implementation ownership | No conflicting value specified in active texts; serialize overlapping writes, consume exact completed predicate rather than entire predecessor. |
+| U15 / U25 | shared backend / static / React capability contract; shared contract; distinct implementation ownership | No conflicting value specified in active texts; serialize overlapping writes, consume exact completed predicate rather than entire predecessor. |
+| U15 / U26 | shared backend / static / React capability contract; shared contract; distinct implementation ownership | No conflicting value specified in active texts; serialize overlapping writes, consume exact completed predicate rather than entire predecessor. |
+| U15 / U27 | shared backend / static / React capability contract; shared contract; distinct implementation ownership | No conflicting value specified in active texts; serialize overlapping writes, consume exact completed predicate rather than entire predecessor. |
+| U15 / U28 | shared backend / static / React capability contract; shared contract; distinct implementation ownership | No conflicting value specified in active texts; serialize overlapping writes, consume exact completed predicate rather than entire predecessor. |
+| U15 / U29 | shared backend / static / React capability contract; shared contract; distinct implementation ownership | No conflicting value specified in active texts; serialize overlapping writes, consume exact completed predicate rather than entire predecessor. |
+| U15 / U30 | shared backend / static / React capability contract; shared contract; distinct implementation ownership | No conflicting value specified in active texts; serialize overlapping writes, consume exact completed predicate rather than entire predecessor. |
+| U15 / U31 | shared backend / static / React capability contract; shared contract; distinct implementation ownership | No conflicting value specified in active texts; serialize overlapping writes, consume exact completed predicate rather than entire predecessor. |
+| U15 / U32 | shared backend / static / React capability contract; shared contract; distinct implementation ownership | No conflicting value specified in active texts; serialize overlapping writes, consume exact completed predicate rather than entire predecessor. |
+| U15 / U40 | shared backend / static / React capability contract; shared contract; distinct implementation ownership | No conflicting value specified in active texts; serialize overlapping writes, consume exact completed predicate rather than entire predecessor. |
+| U15 / U41 | shared backend / static / React capability contract; shared contract; distinct implementation ownership | No conflicting value specified in active texts; serialize overlapping writes, consume exact completed predicate rather than entire predecessor. |
+| U15 / U42 | shared backend / static / React capability contract; shared contract; distinct implementation ownership | No conflicting value specified in active texts; serialize overlapping writes, consume exact completed predicate rather than entire predecessor. |
+| U16 / U22 | shared backend / static / React capability contract; shared contract; distinct implementation ownership | No conflicting value specified in active texts; serialize overlapping writes, consume exact completed predicate rather than entire predecessor. |
+| U16 / U23 | shared backend / static / React capability contract; shared contract; distinct implementation ownership | No conflicting value specified in active texts; serialize overlapping writes, consume exact completed predicate rather than entire predecessor. |
+| U16 / U24 | shared backend / static / React capability contract; shared contract; distinct implementation ownership | No conflicting value specified in active texts; serialize overlapping writes, consume exact completed predicate rather than entire predecessor. |
+| U16 / U25 | shared backend / static / React capability contract; shared contract; distinct implementation ownership | No conflicting value specified in active texts; serialize overlapping writes, consume exact completed predicate rather than entire predecessor. |
+| U16 / U26 | shared backend / static / React capability contract; shared contract; distinct implementation ownership | No conflicting value specified in active texts; serialize overlapping writes, consume exact completed predicate rather than entire predecessor. |
+| U16 / U27 | shared backend / static / React capability contract; shared contract; distinct implementation ownership | No conflicting value specified in active texts; serialize overlapping writes, consume exact completed predicate rather than entire predecessor. |
+| U16 / U28 | shared backend / static / React capability contract; shared contract; distinct implementation ownership | No conflicting value specified in active texts; serialize overlapping writes, consume exact completed predicate rather than entire predecessor. |
+| U16 / U29 | explicit dependency basis; shared contract; distinct implementation ownership | No conflicting value specified in active texts; serialize overlapping writes, consume exact completed predicate rather than entire predecessor. |
+| U16 / U30 | shared backend / static / React capability contract; shared contract; distinct implementation ownership | No conflicting value specified in active texts; serialize overlapping writes, consume exact completed predicate rather than entire predecessor. |
+| U16 / U31 | shared backend / static / React capability contract; shared contract; distinct implementation ownership | No conflicting value specified in active texts; serialize overlapping writes, consume exact completed predicate rather than entire predecessor. |
+| U16 / U32 | shared backend / static / React capability contract; shared contract; distinct implementation ownership | No conflicting value specified in active texts; serialize overlapping writes, consume exact completed predicate rather than entire predecessor. |
+| U16 / U40 | explicit dependency basis; U16 predicate consumed by U40 | No conflicting value specified in active texts; serialize overlapping writes, consume exact completed predicate rather than entire predecessor. |
+| U16 / U41 | shared backend / static / React capability contract; shared contract; distinct implementation ownership | No conflicting value specified in active texts; serialize overlapping writes, consume exact completed predicate rather than entire predecessor. |
+| U16 / U42 | shared backend / static / React capability contract; shared contract; distinct implementation ownership | No conflicting value specified in active texts; serialize overlapping writes, consume exact completed predicate rather than entire predecessor. |
+| U17 / U22 | shared backend / static / React capability contract; shared contract; distinct implementation ownership | No conflicting value specified in active texts; serialize overlapping writes, consume exact completed predicate rather than entire predecessor. |
+| U17 / U23 | shared backend / static / React capability contract; shared contract; distinct implementation ownership | No conflicting value specified in active texts; serialize overlapping writes, consume exact completed predicate rather than entire predecessor. |
+| U17 / U24 | shared backend / static / React capability contract; shared contract; distinct implementation ownership | No conflicting value specified in active texts; serialize overlapping writes, consume exact completed predicate rather than entire predecessor. |
+| U17 / U25 | shared backend / static / React capability contract; shared contract; distinct implementation ownership | No conflicting value specified in active texts; serialize overlapping writes, consume exact completed predicate rather than entire predecessor. |
+| U17 / U26 | shared backend / static / React capability contract; shared contract; distinct implementation ownership | No conflicting value specified in active texts; serialize overlapping writes, consume exact completed predicate rather than entire predecessor. |
+| U17 / U27 | shared backend / static / React capability contract; shared contract; distinct implementation ownership | No conflicting value specified in active texts; serialize overlapping writes, consume exact completed predicate rather than entire predecessor. |
+| U17 / U28 | shared backend / static / React capability contract; shared contract; distinct implementation ownership | No conflicting value specified in active texts; serialize overlapping writes, consume exact completed predicate rather than entire predecessor. |
+| U17 / U29 | shared backend / static / React capability contract; shared contract; distinct implementation ownership | No conflicting value specified in active texts; serialize overlapping writes, consume exact completed predicate rather than entire predecessor. |
+| U17 / U30 | shared backend / static / React capability contract; shared contract; distinct implementation ownership | No conflicting value specified in active texts; serialize overlapping writes, consume exact completed predicate rather than entire predecessor. |
+| U17 / U31 | shared backend / static / React capability contract; shared contract; distinct implementation ownership | No conflicting value specified in active texts; serialize overlapping writes, consume exact completed predicate rather than entire predecessor. |
+| U17 / U32 | shared backend / static / React capability contract; shared contract; distinct implementation ownership | No conflicting value specified in active texts; serialize overlapping writes, consume exact completed predicate rather than entire predecessor. |
+| U17 / U40 | explicit dependency basis; U17 predicate consumed by U40 | No conflicting value specified in active texts; serialize overlapping writes, consume exact completed predicate rather than entire predecessor. |
+| U17 / U41 | shared backend / static / React capability contract; shared contract; distinct implementation ownership | No conflicting value specified in active texts; serialize overlapping writes, consume exact completed predicate rather than entire predecessor. |
+| U17 / U42 | shared backend / static / React capability contract; shared contract; distinct implementation ownership | No conflicting value specified in active texts; serialize overlapping writes, consume exact completed predicate rather than entire predecessor. |
+| U18 / U22 | shared backend / static / React capability contract; shared contract; distinct implementation ownership | No conflicting value specified in active texts; serialize overlapping writes, consume exact completed predicate rather than entire predecessor. |
+| U18 / U23 | shared backend / static / React capability contract; shared contract; distinct implementation ownership | No conflicting value specified in active texts; serialize overlapping writes, consume exact completed predicate rather than entire predecessor. |
+| U18 / U24 | shared backend / static / React capability contract; shared contract; distinct implementation ownership | No conflicting value specified in active texts; serialize overlapping writes, consume exact completed predicate rather than entire predecessor. |
+| U18 / U25 | shared backend / static / React capability contract; shared contract; distinct implementation ownership | No conflicting value specified in active texts; serialize overlapping writes, consume exact completed predicate rather than entire predecessor. |
+| U18 / U26 | shared backend / static / React capability contract; shared contract; distinct implementation ownership | No conflicting value specified in active texts; serialize overlapping writes, consume exact completed predicate rather than entire predecessor. |
+| U18 / U27 | shared backend / static / React capability contract; shared contract; distinct implementation ownership | No conflicting value specified in active texts; serialize overlapping writes, consume exact completed predicate rather than entire predecessor. |
+| U18 / U28 | shared backend / static / React capability contract; shared contract; distinct implementation ownership | No conflicting value specified in active texts; serialize overlapping writes, consume exact completed predicate rather than entire predecessor. |
+| U18 / U29 | shared backend / static / React capability contract; shared contract; distinct implementation ownership | No conflicting value specified in active texts; serialize overlapping writes, consume exact completed predicate rather than entire predecessor. |
+| U18 / U30 | shared backend / static / React capability contract; shared contract; distinct implementation ownership | No conflicting value specified in active texts; serialize overlapping writes, consume exact completed predicate rather than entire predecessor. |
+| U18 / U31 | shared backend / static / React capability contract; shared contract; distinct implementation ownership | No conflicting value specified in active texts; serialize overlapping writes, consume exact completed predicate rather than entire predecessor. |
+| U18 / U32 | shared backend / static / React capability contract; shared contract; distinct implementation ownership | No conflicting value specified in active texts; serialize overlapping writes, consume exact completed predicate rather than entire predecessor. |
+| U18 / U40 | shared backend / static / React capability contract; shared contract; distinct implementation ownership | No conflicting value specified in active texts; serialize overlapping writes, consume exact completed predicate rather than entire predecessor. |
+| U18 / U41 | shared backend / static / React capability contract; shared contract; distinct implementation ownership | No conflicting value specified in active texts; serialize overlapping writes, consume exact completed predicate rather than entire predecessor. |
+| U18 / U42 | shared backend / static / React capability contract; shared contract; distinct implementation ownership | No conflicting value specified in active texts; serialize overlapping writes, consume exact completed predicate rather than entire predecessor. |
+| U19 / U22 | shared backend / static / React capability contract; shared contract; distinct implementation ownership | No conflicting value specified in active texts; serialize overlapping writes, consume exact completed predicate rather than entire predecessor. |
+| U19 / U23 | shared backend / static / React capability contract; shared contract; distinct implementation ownership | No conflicting value specified in active texts; serialize overlapping writes, consume exact completed predicate rather than entire predecessor. |
+| U19 / U24 | shared backend / static / React capability contract; shared contract; distinct implementation ownership | No conflicting value specified in active texts; serialize overlapping writes, consume exact completed predicate rather than entire predecessor. |
+| U19 / U25 | shared backend / static / React capability contract; shared contract; distinct implementation ownership | No conflicting value specified in active texts; serialize overlapping writes, consume exact completed predicate rather than entire predecessor. |
+| U19 / U26 | shared backend / static / React capability contract; shared contract; distinct implementation ownership | No conflicting value specified in active texts; serialize overlapping writes, consume exact completed predicate rather than entire predecessor. |
+| U19 / U27 | shared backend / static / React capability contract; shared contract; distinct implementation ownership | No conflicting value specified in active texts; serialize overlapping writes, consume exact completed predicate rather than entire predecessor. |
+| U19 / U28 | shared backend / static / React capability contract; shared contract; distinct implementation ownership | No conflicting value specified in active texts; serialize overlapping writes, consume exact completed predicate rather than entire predecessor. |
+| U19 / U29 | shared backend / static / React capability contract; shared contract; distinct implementation ownership | No conflicting value specified in active texts; serialize overlapping writes, consume exact completed predicate rather than entire predecessor. |
+| U19 / U30 | shared backend / static / React capability contract; shared contract; distinct implementation ownership | No conflicting value specified in active texts; serialize overlapping writes, consume exact completed predicate rather than entire predecessor. |
+| U19 / U31 | shared backend / static / React capability contract; shared contract; distinct implementation ownership | No conflicting value specified in active texts; serialize overlapping writes, consume exact completed predicate rather than entire predecessor. |
+| U19 / U32 | shared backend / static / React capability contract; shared contract; distinct implementation ownership | No conflicting value specified in active texts; serialize overlapping writes, consume exact completed predicate rather than entire predecessor. |
+| U19 / U40 | shared backend / static / React capability contract; shared contract; distinct implementation ownership | No conflicting value specified in active texts; serialize overlapping writes, consume exact completed predicate rather than entire predecessor. |
+| U19 / U41 | shared backend / static / React capability contract; shared contract; distinct implementation ownership | No conflicting value specified in active texts; serialize overlapping writes, consume exact completed predicate rather than entire predecessor. |
+| U19 / U42 | shared backend / static / React capability contract; shared contract; distinct implementation ownership | No conflicting value specified in active texts; serialize overlapping writes, consume exact completed predicate rather than entire predecessor. |
+| U20 / U22 | shared backend / static / React capability contract; shared contract; distinct implementation ownership | No conflicting value specified in active texts; serialize overlapping writes, consume exact completed predicate rather than entire predecessor. |
+| U20 / U23 | shared backend / static / React capability contract; shared contract; distinct implementation ownership | No conflicting value specified in active texts; serialize overlapping writes, consume exact completed predicate rather than entire predecessor. |
+| U20 / U24 | shared backend / static / React capability contract; shared contract; distinct implementation ownership | No conflicting value specified in active texts; serialize overlapping writes, consume exact completed predicate rather than entire predecessor. |
+| U20 / U25 | shared backend / static / React capability contract; shared contract; distinct implementation ownership | No conflicting value specified in active texts; serialize overlapping writes, consume exact completed predicate rather than entire predecessor. |
+| U20 / U26 | shared backend / static / React capability contract; shared contract; distinct implementation ownership | No conflicting value specified in active texts; serialize overlapping writes, consume exact completed predicate rather than entire predecessor. |
+| U20 / U27 | shared backend / static / React capability contract; shared contract; distinct implementation ownership | No conflicting value specified in active texts; serialize overlapping writes, consume exact completed predicate rather than entire predecessor. |
+| U20 / U28 | shared backend / static / React capability contract; shared contract; distinct implementation ownership | No conflicting value specified in active texts; serialize overlapping writes, consume exact completed predicate rather than entire predecessor. |
+| U20 / U29 | shared backend / static / React capability contract; shared contract; distinct implementation ownership | No conflicting value specified in active texts; serialize overlapping writes, consume exact completed predicate rather than entire predecessor. |
+| U20 / U30 | shared backend / static / React capability contract; shared contract; distinct implementation ownership | No conflicting value specified in active texts; serialize overlapping writes, consume exact completed predicate rather than entire predecessor. |
+| U20 / U31 | shared backend / static / React capability contract; shared contract; distinct implementation ownership | No conflicting value specified in active texts; serialize overlapping writes, consume exact completed predicate rather than entire predecessor. |
+| U20 / U32 | shared backend / static / React capability contract; shared contract; distinct implementation ownership | No conflicting value specified in active texts; serialize overlapping writes, consume exact completed predicate rather than entire predecessor. |
+| U20 / U40 | shared backend / static / React capability contract; shared contract; distinct implementation ownership | No conflicting value specified in active texts; serialize overlapping writes, consume exact completed predicate rather than entire predecessor. |
+| U20 / U41 | shared backend / static / React capability contract; shared contract; distinct implementation ownership | No conflicting value specified in active texts; serialize overlapping writes, consume exact completed predicate rather than entire predecessor. |
+| U20 / U42 | shared backend / static / React capability contract; shared contract; distinct implementation ownership | No conflicting value specified in active texts; serialize overlapping writes, consume exact completed predicate rather than entire predecessor. |
+| U21 / U22 | shared backend / static / React capability contract; shared contract; distinct implementation ownership | No conflicting value specified in active texts; serialize overlapping writes, consume exact completed predicate rather than entire predecessor. |
+| U21 / U23 | shared backend / static / React capability contract; shared contract; distinct implementation ownership | No conflicting value specified in active texts; serialize overlapping writes, consume exact completed predicate rather than entire predecessor. |
+| U21 / U24 | shared backend / static / React capability contract; shared contract; distinct implementation ownership | No conflicting value specified in active texts; serialize overlapping writes, consume exact completed predicate rather than entire predecessor. |
+| U21 / U25 | shared backend / static / React capability contract; shared contract; distinct implementation ownership | No conflicting value specified in active texts; serialize overlapping writes, consume exact completed predicate rather than entire predecessor. |
+| U21 / U26 | shared backend / static / React capability contract; shared contract; distinct implementation ownership | No conflicting value specified in active texts; serialize overlapping writes, consume exact completed predicate rather than entire predecessor. |
+| U21 / U27 | shared backend / static / React capability contract; shared contract; distinct implementation ownership | No conflicting value specified in active texts; serialize overlapping writes, consume exact completed predicate rather than entire predecessor. |
+| U21 / U28 | shared backend / static / React capability contract; shared contract; distinct implementation ownership | No conflicting value specified in active texts; serialize overlapping writes, consume exact completed predicate rather than entire predecessor. |
+| U21 / U29 | shared backend / static / React capability contract; shared contract; distinct implementation ownership | No conflicting value specified in active texts; serialize overlapping writes, consume exact completed predicate rather than entire predecessor. |
+| U21 / U30 | shared backend / static / React capability contract; shared contract; distinct implementation ownership | No conflicting value specified in active texts; serialize overlapping writes, consume exact completed predicate rather than entire predecessor. |
+| U21 / U31 | shared backend / static / React capability contract; shared contract; distinct implementation ownership | No conflicting value specified in active texts; serialize overlapping writes, consume exact completed predicate rather than entire predecessor. |
+| U21 / U32 | shared backend / static / React capability contract; shared contract; distinct implementation ownership | No conflicting value specified in active texts; serialize overlapping writes, consume exact completed predicate rather than entire predecessor. |
+| U21 / U40 | shared backend / static / React capability contract; shared contract; distinct implementation ownership | No conflicting value specified in active texts; serialize overlapping writes, consume exact completed predicate rather than entire predecessor. |
+| U21 / U41 | shared backend / static / React capability contract; shared contract; distinct implementation ownership | No conflicting value specified in active texts; serialize overlapping writes, consume exact completed predicate rather than entire predecessor. |
+| U21 / U42 | shared backend / static / React capability contract; shared contract; distinct implementation ownership | No conflicting value specified in active texts; serialize overlapping writes, consume exact completed predicate rather than entire predecessor. |
+
+
+## Execution queue
+
+Task 13.1: ready — restore plan and reconcile committed source snapshot; base527b847a; no unit acceptance closed.
+U1–U42 remain in docs/plans/agentdecompile-todo.md; historical checkmarks are not current delivery.
+
+Task 13.1: independent spec/quality review in progress at b871b845; implementer /root/implement_source_integration; reviewer /root/review_source_integration; base527b847a. No full-unit completion.
+Ruling: Apply a fixed 64-active-container limit at the v2 cave/pack JSON boundary, preserving large flat evidence — recursive JSON/copy consumers need a finite stack-safety policy and the schema is shallow — cost if wrong: a future deeper legitimate schema requires a reviewed policy revision; no decoder or runtime acceptance is inferred.
+Ruling: Require an owner-supplied independent cave verifier at production and required-cave consumption, with truthful blocked defaults — serialized caller evidence cannot establish its own decoder completeness or current authority — cost if wrong: previously unqualified v2 bundle production waits for a real provider, while v1 stays compatible.
+Task 1.1: ready after integration review; selected corpus target content binding; task-1-brief.md.
+Task 25.1: prepared after Task1.1 review; independent cave qualification and bounded recursion; task-25-brief.md.
+
+Task 13.1: fix round 1/5 dispatched from b871b845 — P1 surviving-descendant quarantine permanently retains executor worker capacity; reviewer confirms all five conflict seams and 23 manifest identities, but spec/quality gate is not clean. Original implementer resumes; preserve resource ownership while separating executor completion from clearance.
+
+Task 29.1: prepared — merged source already migrates program-consuming handlers; remove residual pure-control singleton writes and repair stale deterministic-gate fixture; next-dispatch-slice.md and task-29-brief.md. Full live U29 acceptance remains open.
+
+Ruling: Repair authoritative packaging with explicit workspace/recovered/coverage basis and preserve its existing relative layout — required parser arguments never had valid implicit defaults and installation-relative paths select the wrong workspace — cost if wrong: callers of the formerly broken out-only module entrypoint must supply explicit inputs; no live route changes.
+Task 8.1: prepared — explicit inputs plus real-C classification, checked target-region address, coherent ledger and copied-byte snapshot; next-packaging-slice.md and task-8-brief.md; full portable/atomic/installed U8 acceptance stays open.
+
+Task 13.1: fix round1 implemented b871b845..d43a86fb; source-only AST/diff checks pass; scoped re-review /root/review_source_integration pending in task-13-fix-r1-review.md. Runner terminalization restores executor capacity while retained quarantine/identity/generation/lease require qualified repair; tests remain unexecuted.
+Live read-only recheck: 8080 healthy PID2697197/start1790595674.5226107/startTicks68973313, same NVMe cwd, restarts0/watchedFiles0, serving source HEAD753d7fce unchanged. live-health-continuation.json retains response; no activation.
+
+U1/U21 producer discovery: next-acceptance-adapter.md confirms no complete trusted persisted accepted-source join in scoped source. Current not_connected/null verified counts remain correct. Queue actual raw-image-to-target-object producer under U10/U11 before connecting dashboard; require independently authenticated compile object, full parity and current policy/generation. Runtime inputs unverified, not declared absent. Compile actual-object/receipt binding is receiving a bounded follow-up check.
+Ruling: Preserve unavailable accepted-source counts until a complete independently verified producer chain exists — immutable storage or signed fields alone do not bind the selected raw binary/function/source to parity objects — cost if wrong: dashboard verified metrics remain unavailable longer; advisory evidence remains usable.
+
+Task 13.1: fix round 1/5 (1 addressed, 0 open — executor-slot retention; commits b871b845..d43a86fb).
+Task 13.1: complete (commits 527b847a..d43a86fb, review clean for bounded source reconciliation only). Full U13 remains open; no tests/builds/live acceptance.
+Task 1.1: next implementation; fresh implementer after this ledger commit.

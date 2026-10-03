@@ -30,7 +30,7 @@ Contract: `2026-09-28-comprehensive-agentdecompile-plan.md`. Evidence: `agentdec
 - [ ] U18. Match evidence, availability and review — prerequisites: U15, U3; close assigned child predicates; reconcile owned source coverage without gating unrelated predecessors.
 - [ ] U19. Compare and recovery workspaces — prerequisites: U15, U4; close assigned child predicates; reconcile owned source coverage without gating unrelated predecessors.
 - [ ] U20. Actual work visualization, supervision and spectators — prerequisites: U15, U9; close assigned child predicates; reconcile owned source coverage without gating unrelated predecessors.
-- [ ] U21. Metric and publish contract — prerequisites: U17, U1; close assigned child predicates; reconcile owned source coverage without gating unrelated predecessors.
+- [ ] U21. Metric and publish contract — prerequisites: U17, U1; close assigned child predicates; reconcile owned source coverage without gating unrelated predecessors. Task21.1 selected-function SQL/report/client scope source reviewed atbb414041; nonblocking fixed legacy fixture M1 deferred. Actual query/browser/performance, connected current acceptance, publication and full-unit gates remain open.
 - [ ] U22. Optional AI and bounded context — prerequisites: U14, U9; close assigned child predicates; reconcile owned source coverage without gating unrelated predecessors.
 - [ ] U23. ABI and type data preservation — prerequisites: U5; close assigned child predicates; reconcile owned source coverage without gating unrelated predecessors.
 - [ ] U24. Hook pack v2 and compatible readers — prerequisites: U23, U2; close assigned child predicates; reconcile owned source coverage without gating unrelated predecessors.

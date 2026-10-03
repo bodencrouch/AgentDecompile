@@ -1545,10 +1545,10 @@ class ImportExportToolProvider(ToolProvider):
                 program_file_name=repo_program_name,
                 program_info=program_info,
             )
-            shared_result.pop("_sharedImportIdentity", None)
+            shared_identity = shared_result.pop("_sharedImportIdentity", None)
             return create_success_response(
                 shared_result,
-                program_info=program_info,
+                program_info=self._program_info_for_shared_import_result(shared_result, shared_identity) or program_info,
             )
 
         imported_programs: list[dict[str, Any]] = []

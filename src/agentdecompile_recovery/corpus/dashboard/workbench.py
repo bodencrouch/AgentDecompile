@@ -2372,6 +2372,157 @@ def program_providers(
     }
 
 
+def cross_build_matrix(binary_ids: list[int] | None = None, *, slugs: list[str] | None = None,
+                        addr: str = "", selection: str = "") -> dict[str, Any]:
+    """U8's matrix cells: one `pair_availability` cell per unordered build pair.
+
+    Reuses U14's `matching_availability.pair_availability` for the per-pair
+    status (ran / unavailable / not-scheduled) and recomputes, read-only, the
+    same spanning-forest-plus-hub-anchor schedule `preparation.py` already
+    uses (via `donor_schedule.spanning_forest_pairs`) so "not scheduled" cells
+    carry the real scheduling reason instead of a guess. This performs no
+    scheduling of its own -- it is a display-time recomputation over binaries
+    already registered in the corpus, grouped by `recovery_family` exactly as
+    `preparation.py`'s comparison-target scheduler groups them.
+
+    ``slugs`` is accepted because the static dashboard's already-loaded corpus
+    ladder (``panels/steps.py``'s ``as_payload``) only carries binary slugs,
+    not numeric ids; this resolves them read-only against ``binary.slug``
+    inside the same transaction rather than adding a new field to that panel.
+    """
+    from agentdecompile_recovery.corpus.donor_schedule import spanning_forest_pairs
+    from agentdecompile_recovery.corpus.dashboard.common import match_review_context
+    from agentdecompile_recovery.corpus.match_review import ReviewError, _transaction
+    from agentdecompile_recovery.corpus.matching_availability import pair_availability
+
+    ids = [int(value) for value in dict.fromkeys(binary_ids or []) if isinstance(value, int) or str(value).isdigit()]
+    wanted_slugs = [str(value) for value in dict.fromkeys(slugs or []) if str(value).strip()]
+    if (not ids and not wanted_slugs) or len(ids) + len(wanted_slugs) > 50:
+        return {"ok": False, "error": "binary_ids or slugs must contain 1-50 distinct values", "cells": []}
+    addr_i = parse_address(addr) if addr else None
+
+    try:
+        with match_review_context(selection) as context:
+            with _transaction(context, write=False) as con:
+                if wanted_slugs:
+                    placeholders = ",".join("?" for _ in wanted_slugs)
+                    resolved = con.execute(
+                        f"SELECT id FROM binary WHERE slug IN ({placeholders})", wanted_slugs,
+                    ).fetchall()
+                    ids = list(dict.fromkeys(ids + [row[0] for row in resolved]))
+                placeholders = ",".join("?" for _ in ids)
+                rows = con.execute(
+                    f"SELECT id,slug,arch,bits,func_count,recovery_family FROM binary WHERE id IN ({placeholders})",
+                    ids,
+                ).fetchall()
+                by_id = {row[0]: {"id": row[0], "slug": row[1], "arch": row[2], "bits": row[3],
+                                   "func_count": row[4], "recovery_family": row[5]} for row in rows}
+                present_ids = [value for value in ids if value in by_id]
+                families: dict[str, list[dict[str, Any]]] = {}
+                for value in present_ids:
+                    families.setdefault(str(by_id[value].get("recovery_family") or ""), []).append(by_id[value])
+                scheduled: set[frozenset] = set()
+                for members in families.values():
+                    for src, dst in spanning_forest_pairs(members):
+                        scheduled.add(frozenset((src, dst)))
+                    groups: dict[tuple, list[dict[str, Any]]] = {}
+                    for member in members:
+                        groups.setdefault((member.get("arch"), member.get("bits")), []).append(member)
+                    hubs = [max(group, key=lambda row: (int(row.get("func_count") or 0), str(row["id"])))
+                            for group in groups.values()]
+                    if hubs:
+                        anchor = max(hubs, key=lambda row: (int(row.get("func_count") or 0), str(row["id"])))
+                        for hub in hubs:
+                            if hub["id"] != anchor["id"]:
+                                scheduled.add(frozenset((anchor["id"], hub["id"])))
+                cells = []
+                for i in range(len(present_ids)):
+                    for j in range(i + 1, len(present_ids)):
+                        src_id, dst_id = present_ids[i], present_ids[j]
+                        is_scheduled = frozenset((src_id, dst_id)) in scheduled
+                        schedule = {"selected": is_scheduled,
+                                    "reason": "spanning_forest_or_hub_anchor_edge" if is_scheduled
+                                    else "pair_outside_spanning_forest_and_hub_anchor_set"}
+                        cell = pair_availability(con, src_id, dst_id, src_addr=addr_i, schedule=schedule)
+                        cell["srcSlug"] = by_id[src_id]["slug"]
+                        cell["dstSlug"] = by_id[dst_id]["slug"]
+                        cells.append(cell)
+                missing_ids = [value for value in ids if value not in by_id]
+                return {"ok": True, "selection": context.selection, "cells": cells,
+                        "binaries": [by_id[value] for value in present_ids], "missingBinaryIds": missing_ids}
+    except ReviewError as exc:
+        return {"ok": False, "error": str(exc), "cells": []}
+    except sqlite3.Error as exc:
+        return {"ok": False, "error": f"query failed: {exc}", "cells": []}
+
+
+def pair_matches(binary_a: int, binary_b: int, *, addr: str = "", selection: str = "", limit: int = 20) -> dict[str, Any]:
+    """On-demand sample of raw match rows for one pair, with visually distinct kind labels (AE6).
+
+    Separate from `cross_build_matrix` on purpose: sampling match rows is one
+    more query per pair, and the matrix can hold many pairs, so this only
+    runs for the one pair a user actually opens. Prefers U13's `kind`/
+    `confidence`/`algorithm` columns when the corpus database has had that
+    migration applied; falls back to parsing the always-present `evidence`
+    JSON blob (the same source those columns are backfilled from) when it
+    has not, rather than failing on `no such column`.
+    """
+    import json as _json
+
+    from agentdecompile_recovery.corpus.dashboard.common import match_review_context
+    from agentdecompile_recovery.corpus.match_review import ReviewError, _transaction
+
+    addr_i = parse_address(addr) if addr else None
+    capped_limit = max(1, min(int(limit or 20), 100))
+    try:
+        with match_review_context(selection) as context:
+            with _transaction(context, write=False) as con:
+                columns = {row[1] for row in con.execute("PRAGMA table_info(match)")}
+                params: list = [binary_a, binary_b]
+                addr_clause = ""
+                if addr_i is not None:
+                    addr_clause = " AND src_addr=?"
+                    params.append(addr_i)
+                if {"kind", "confidence", "algorithm"} <= columns:
+                    rows = con.execute(
+                        "SELECT id,kind,confidence,algorithm,src_addr,dst_addr FROM match "
+                        "WHERE src_binary=? AND dst_binary=?" + addr_clause + " ORDER BY id LIMIT ?",
+                        (*params, capped_limit),
+                    ).fetchall()
+                    matches = [
+                        {"matchId": row[0], "kind": row[1], "confidence": row[2], "algorithm": row[3],
+                         "srcAddr": format_address(row[4]) if row[4] is not None else None,
+                         "dstAddr": format_address(row[5]) if row[5] is not None else None}
+                        for row in rows
+                    ]
+                else:
+                    rows = con.execute(
+                        "SELECT id,evidence,src_addr,dst_addr FROM match "
+                        "WHERE src_binary=? AND dst_binary=?" + addr_clause + " ORDER BY id LIMIT ?",
+                        (*params, capped_limit),
+                    ).fetchall()
+                    matches = []
+                    for row in rows:
+                        try:
+                            evidence = _json.loads(row[1] or "{}")
+                        except (ValueError, TypeError):
+                            evidence = {}
+                        if not isinstance(evidence, dict):
+                            evidence = {}
+                        matches.append({
+                            "matchId": row[0], "kind": evidence.get("kind"),
+                            "confidence": evidence.get("confidence"),
+                            "algorithm": evidence.get("primary_channel") or evidence.get("channel"),
+                            "srcAddr": format_address(row[2]) if row[2] is not None else None,
+                            "dstAddr": format_address(row[3]) if row[3] is not None else None,
+                        })
+                return {"ok": True, "selection": context.selection, "matches": matches}
+    except ReviewError as exc:
+        return {"ok": False, "error": str(exc), "matches": []}
+    except sqlite3.Error as exc:
+        return {"ok": False, "error": f"query failed: {exc}", "matches": []}
+
+
 def function_detail(slug: str, raw_addr: str, *, locator: str = "", program: str = "") -> dict[str, Any]:
     from agentdecompile_recovery.corpus.dashboard.function_evidence import read, ensure_observation
     request_state = ensure_observation(locator, program, raw_addr)

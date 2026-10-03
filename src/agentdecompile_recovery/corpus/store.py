@@ -164,11 +164,19 @@ def connect(path: pathlib.Path | str) -> sqlite3.Connection:
     dest = pathlib.Path(path)
     dest.parent.mkdir(parents=True, exist_ok=True)
     con = sqlite3.connect(dest, timeout=30)
-    con.execute("PRAGMA busy_timeout=30000")
-    con.row_factory = sqlite3.Row
-    con.executescript(SCHEMA)
-    ensure_func_columns(con)
-    ensure_match_columns(con)
+    try:
+        con.execute("PRAGMA busy_timeout=30000")
+        con.row_factory = sqlite3.Row
+        con.executescript(SCHEMA)
+        # Keep additive upgrades and their data backfill in one committed
+        # boundary; callers may immediately close this connection after init.
+        with con:
+            con.execute("BEGIN")
+            ensure_func_columns(con)
+            ensure_match_columns(con)
+    except BaseException:
+        con.close()
+        raise
     return con
 
 

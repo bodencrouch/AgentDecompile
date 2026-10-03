@@ -1,7 +1,7 @@
 """Store-backed identity matcher (kotorxid ``kx.match.Binary`` / ``match_binaries``).
 
 Evidence-fusion cascade: identical-image short-circuit, authentic symbols, unique
-reloc/instr hashes, rare refs, call-graph, structural islands, optional BSim/ABI
+raw-byte hashes, rare refs, call-graph, structural islands, optional BSim/ABI
 corroboration. Candidate generation is not acceptance. Identity bind is not
 objdiff-0 byte proof and does not authorize type/source copy.
 """
@@ -285,7 +285,8 @@ def _fuse_bsim(con, sa: Binary, sb: Binary, mapping: dict[int, int], results: di
             sim_f = sim_f / 100.0
         by_src[int(src)].append((int(dst), max(0.0, min(1.0, sim_f)), float(sig or 0)))
     for src, hits in by_src.items():
-        if src in mapping or src not in sa.funcs:
+        if (src in mapping or src not in sa.funcs
+                or results.get(src, {}).get("evidence", {}).get("quarantine")):
             continue
         hits = sorted(hits, key=lambda t: (-t[2], -t[1]))
         if not hits:
@@ -447,8 +448,6 @@ def match_binaries(
     anchor_sets: list[tuple[str, dict[int, int]]] = [
         ("I", unique_index_anchors(sa.candidates_named_authentic(), sb.candidates_named_authentic(), src_eligible=src_eligible, dst_eligible=dst_eligible)),
         ("H", unique_index_anchors(sa.by_hash_raw, sb.by_hash_raw, src_eligible=src_eligible, dst_eligible=dst_eligible, key_ok=lambda key: str(key).startswith("B_raw:"))),
-        ("H", unique_index_anchors(sa.by_hash_reloc, sb.by_hash_reloc, src_eligible=src_eligible, dst_eligible=dst_eligible, key_ok=lambda key: bool(key) and len(str(key)) >= 16)),
-        ("H", unique_index_anchors(sa.by_hash_instr, sb.by_hash_instr, src_eligible=src_eligible, dst_eligible=dst_eligible, key_ok=lambda key: bool(key) and len(str(key)) >= 16)),
         ("X", unique_index_anchors(sa.by_string, sb.by_string, src_eligible=src_eligible, dst_eligible=dst_eligible, key_ok=interesting_string)),
         ("X", unique_index_anchors(sa.by_const, sb.by_const, src_eligible=src_eligible, dst_eligible=dst_eligible, key_ok=interesting_const)),
     ]
@@ -460,13 +459,20 @@ def match_binaries(
     for src, candidates in proposals.items():
         for dst, _channel in candidates:
             by_destination[dst].add(src)
-    quarantined: set[int] = set()
+    # Rejected seeds and contradictory anchors stay blocked for this run.
+    # Histogram hashes remain candidate indexes, never identity anchors.
+    quarantined = {src for src, result in results.items()
+                   if result.get("evidence", {}).get("quarantine")}
     for src, candidates in proposals.items():
+        if src in quarantined:
+            continue
         destinations = {dst for dst, _ in candidates}
         conflicting_destinations = {dst for dst in destinations if len(by_destination[dst]) != 1}
         if len(destinations) != 1 or conflicting_destinations:
             quarantined.add(src)
-            mapping.pop(src, None)
+            previous_dst = mapping.pop(src, None)
+            if previous_dst is not None:
+                taken.discard(previous_dst)
             dst = next(iter(destinations))
             results[src] = {
                 "dst": dst, "score": 0.0, "margin": 0.0, "kind": "anchor", "status": "review", "round": "anchor",
@@ -474,8 +480,9 @@ def match_binaries(
             }
             continue
         dst = next(iter(destinations))
-        if src not in mapping and dst not in set(mapping.values()):
+        if src not in mapping and dst not in taken:
             mapping[src] = dst
+            taken.add(dst)
     record_pairs(
         results,
         [(src, dst, "anchor") for src, dst in mapping.items()],
@@ -507,10 +514,9 @@ def match_binaries(
                 result["status"] = "verify"
                 continue
             raw_digest = sa.funcs[addr].get("hash_raw")
-            reloc_digest = sa.funcs[addr].get("hash_reloc")
             code_eq = (
-                "raw_bytes" if raw_digest and sb.funcs[result["dst"]].get("hash_raw") == raw_digest
-                else "reloc" if reloc_digest and sb.funcs[result["dst"]].get("hash_reloc") == reloc_digest
+                "raw_bytes" if raw_digest and raw_digest.startswith("B_raw:")
+                and sb.funcs[result["dst"]].get("hash_raw") == raw_digest
                 else None
             )
             channels = sorted({channel for dst, channel in proposals.get(addr, ()) if dst == result["dst"]})
@@ -532,9 +538,11 @@ def match_binaries(
             n_instr=sa.funcs[addr].get("n_instr"), margin=result.get("margin"), unique=True,
         )
         if not allows_verify(confidence, unique=True):
-            mapping.pop(addr, None)
+            taken.discard(mapping.pop(addr))
+            quarantined.add(addr)
             result["status"] = "review"
             result["evidence"] = enrich_evidence(ev, kind="anchor", status="review", identity_claim=False, quarantine=True)
+    src_eligible -= quarantined
     record_pairs(
         results,
         propagate_call_graph(
@@ -570,7 +578,7 @@ def match_binaries(
     # cannot consume a candidate that has a unique structural correspondence.
     taken = set(mapping.values())
     for src_addr, dst_addr in unique_structural_pairs(
-        [sa.funcs[a] for a in src_addrs if a not in mapping],
+        [sa.funcs[a] for a in src_addrs if a not in mapping and a not in quarantined],
         [sb.funcs[b] for b in dst_eligible if b not in taken],
         id_of=lambda fn: fn["addr"],
     ):
@@ -642,7 +650,7 @@ def match_binaries(
         int_map = {str(k): str(v) for k, v in mapping.items()} if mapping else None
         report(0, round_index=rnd)
         for scanned, a in enumerate(src_addrs, 1):
-            if a in mapping:
+            if a in mapping or a in quarantined:
                 if scanned % 64 == 0:
                     report(scanned, round_index=rnd)
                 continue
@@ -817,9 +825,10 @@ def match_binaries(
 
     # A self-comparison has no disappeared function or grown counterpart and
     # therefore cannot establish a block-level non-1:1 correspondence.
+    taken = set(mapping.values())
     inlines = [] if src_id == dst_id else leftover_inlines(
-        [sa.funcs[a] for a in src_addrs if a not in mapping],
-        [sb.funcs[b] for b in dst_eligible if b not in mapping.values()],
+        [sa.funcs[a] for a in src_addrs if a not in mapping and a not in quarantined],
+        [sb.funcs[b] for b in dst_eligible if b not in taken],
     )
     for hit in inlines:
         src_addr = hit["missing_id"]

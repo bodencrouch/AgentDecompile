@@ -171,7 +171,9 @@ def bind_identities(con, run: str, *, commit: bool = True) -> int:
     conflicts: list[tuple[str, int, int, int]] = []
     for row in cur:
         evidence = json.loads(row["evidence"] or "{}")
-        if not allows_identity_binding(evidence, "one_to_one", quarantined_sources):
+        # Dependency rejection is finalized after conflicts have been found.
+        if (f"{row['src_binary']}:{row['src_addr']}" in quarantined_sources
+                or not allows_identity_binding(evidence, "one_to_one", set())):
             continue
         key = (row["dst_binary"], row["dst_addr"])
         if key in owned:
@@ -189,8 +191,38 @@ def bind_identities(con, run: str, *, commit: bool = True) -> int:
             f"match:{run}:{row['status']}",
             row["evidence"],
         )
-        candidates.append((conf, cand, dict(row)))
+        candidate_row = dict(row)
+        candidate_row["parsed_evidence"] = evidence
+        candidates.append((conf, cand, candidate_row))
+
+    def is_blocked(row: dict) -> bool:
+        return (f"{row['src_binary']}:{row['src_addr']}" in quarantined_sources
+                or not allows_identity_binding(row["parsed_evidence"], "one_to_one", quarantined_sources))
+
+    def quarantine_dependency(row: dict) -> None:
+        evidence = enrich_evidence(
+            row["parsed_evidence"], status="ambiguous",
+            identity_claim=False, quarantine=True, stage="identity_bind",
+        )
+        evidence["reason"] = "quarantined_dependency"
+        conflicts.append((json.dumps(evidence), row["src_binary"], row["src_addr"], row["dst_addr"]))
+        quarantined_sources.add(f"{row['src_binary']}:{row['src_addr']}")
+
+    # Remove already blocked chains before they can displace valid candidates
+    # in destination selection, including chains with only direct dependencies.
+    while True:
+        remaining = []
+        for candidate in candidates:
+            row = candidate[2]
+            if is_blocked(row):
+                quarantine_dependency(row)
+            else:
+                remaining.append(candidate)
+        if len(remaining) == len(candidates):
+            break
+        candidates = remaining
     best: dict[tuple[int, int], tuple] = {}
+    selected_rows: dict[tuple[int, int], dict] = {}
     selected_logical: dict[tuple[int, int], int] = dict(logical_members)
     for _conf, cand, row in sorted(candidates, key=lambda item: item[0], reverse=True):
         key = (row["dst_binary"], row["dst_addr"])
@@ -204,9 +236,25 @@ def bind_identities(con, run: str, *, commit: bool = True) -> int:
             evidence["reason"] = "logical_id_binary_conflict"
             evidence["conflicting_addr"] = occupied
             conflicts.append((json.dumps(evidence), row["src_binary"], row["src_addr"], row["dst_addr"]))
+            quarantined_sources.add(f"{row['src_binary']}:{row['src_addr']}")
             continue
         best[key] = cand
+        selected_rows[key] = row
         selected_logical[logical_key] = row["dst_addr"]
+    # A collision can quarantine a parent selected earlier in this pass. Walk
+    # the selected descendants to a fixed point before any identity is inserted;
+    # each removed child's source key can invalidate another generation.
+    while True:
+        invalidated = []
+        for key, row in selected_rows.items():
+            if is_blocked(row):
+                quarantine_dependency(row)
+                invalidated.append(key)
+        if not invalidated:
+            break
+        for key in invalidated:
+            del best[key]
+            del selected_rows[key]
     if conflicts:
         con.executemany(
             "UPDATE match SET status='review', evidence=? WHERE run=? AND src_binary=? AND src_addr=? AND dst_addr=?",

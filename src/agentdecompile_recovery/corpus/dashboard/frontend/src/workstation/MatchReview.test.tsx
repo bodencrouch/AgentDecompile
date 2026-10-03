@@ -13,7 +13,8 @@
  * (state transitions, guards, closures) rather than React DOM's commit,
  * batching or effect timing, which this harness only approximates.
  */
-import {beforeEach, describe, expect, it, vi} from 'vitest';
+import {beforeEach, describe, expect, it, vi, type Mock} from 'vitest';
+import type {Notify} from '../contracts';
 import * as H from './matchReviewHarness';
 
 vi.mock('react', async orig => {
@@ -37,7 +38,7 @@ const json = (body: unknown, status = 200) => new Response(JSON.stringify(body),
 
 describe('MatchReview', () => {
   let fetchMock: ReturnType<typeof vi.fn>;
-  let notify: ReturnType<typeof vi.fn>;
+  let notify: Mock<Notify>;
   const props = () => ({active: true, revision: 0, notify});
 
   beforeEach(() => {
@@ -54,7 +55,7 @@ describe('MatchReview', () => {
     // still incrementing this test's setStateAfterUnmountCount. Clearing timers
     // up front removes the leftover callback before it can fire here.
     vi.clearAllTimers();
-    notify = vi.fn();
+    notify = vi.fn<Notify>();
     fetchMock = vi.fn(async (url: string) => {
       if (String(url).includes('match-review')) return json(page([]));
       throw new Error(`unhandled fetch: ${url}`);

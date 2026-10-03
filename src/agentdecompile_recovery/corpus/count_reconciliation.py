@@ -18,19 +18,29 @@ silently folded into any bucket.
 
 from __future__ import annotations
 
+import sqlite3
+
 from .report_accounting import reconcile_inventory
 from .semantic_identity import recorded_export_name
+
+
+def _named_rows(con, sql, params):
+    """Run a query whose rows are read by column name, whatever the caller's row_factory is."""
+    cur = con.cursor()
+    cur.row_factory = sqlite3.Row
+    return cur.execute(sql, params).fetchall()
 
 
 def _recovered_by_addr(con, binary_id: int) -> dict:
     columns = {row[1] for row in con.execute("PRAGMA table_info(recovered_function)")}
     optional = ("target_sha256", "semantic_status", "semantic_reason", "semantic_evidence")
     extra = ", ".join(col if col in columns else f"NULL AS {col}" for col in optional)
-    rows = con.execute(
+    rows = _named_rows(
+        con,
         "SELECT addr, name, real_c, logical_id, path, evidence, binary_id, " + extra +
         " FROM recovered_function WHERE binary_id = ? AND addr IS NOT NULL",
         (binary_id,),
-    ).fetchall()
+    )
     return {row["addr"]: dict(row) for row in rows}
 
 
@@ -51,10 +61,11 @@ def classify_member(func_row: dict, recovered_row: dict | None) -> tuple[str, st
 
 def build_assignments(con, binary_id: int) -> tuple[list, list[dict]]:
     recovered = _recovered_by_addr(con, binary_id)
-    func_rows = con.execute(
+    func_rows = _named_rows(
+        con,
         "SELECT addr, size, is_thunk, source, canon_class, n_instr FROM func WHERE binary_id = ?",
         (binary_id,),
-    ).fetchall()
+    )
     inventory: list = []
     assignments: list[dict] = []
     for row in func_rows:

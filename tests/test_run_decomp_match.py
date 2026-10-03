@@ -92,7 +92,9 @@ def test_build_decomp_match_objdiff_report_parsed(
         "units": [
             {
                 "name": "d_a_wall",
-                "measures": {"fuzzy_match_percent": 42.5, "total_functions": 10, "matched_functions": 4},
+                # KTD7/U26: overall match is size-weighted by measures.total_code;
+                # a unit missing it can't contribute weight, so give it one.
+                "measures": {"fuzzy_match_percent": 42.5, "total_functions": 10, "matched_functions": 4, "total_code": 96},
                 "functions": [
                     {"name": "fn_a", "fuzzy_match_percent": 100.0, "size": 32},
                     {"name": "fn_b", "fuzzy_match_percent": 80.0, "size": 64},
@@ -123,7 +125,8 @@ def test_build_decomp_match_objdiff_100_percent_suggests_tier1(
         "units": [
             {
                 "name": "tu",
-                "measures": {"fuzzy_match_percent": 100.0},
+                # KTD7/U26: overall match is size-weighted by measures.total_code.
+                "measures": {"fuzzy_match_percent": 100.0, "total_code": 8},
                 "functions": [{"name": "fn", "fuzzy_match_percent": 100.0, "size": 8}],
             }
         ]

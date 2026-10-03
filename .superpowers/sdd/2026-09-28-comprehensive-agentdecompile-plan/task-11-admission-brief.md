@@ -1,0 +1,27 @@
+## Task 11: Reusable donated compute foundation and adapters
+
+- **Requirements:** R21–R22; assigned named obligations and applicable source details are mandatory; cross-cutting clause coverage does not add unrelated prerequisite edges.
+- **Dependencies:** U1, U9. These denote consumed predicates, not a requirement to finish every unrelated child of a predecessor.
+- **Files and interfaces:** agentdecompile_grid package, exchange and corpus task-kind adapters. Preserve existing public routing and inspect current symbols before changes; paths in archived contracts are version-specific leads.
+- **Execution:** reconcile retained implementation and evidence first; implement the missing vertical slice, exercise the named positive and refusal cases, then integrate the real consumer and capture the required proof.
+
+Implement content-addressed immutable objects, per-partition signed logs and conditional heads, bounded ready/verification frontier and replayed materialized SQLite views. Publish/work/verify/materialize locally first, then S3 conditional PUT, static mirror, peer HTTP, outbound HTTPS presigned write-once transport. Ed25519 identities/invites/revocation/rate limits and capability canaries determine actual eligible lanes; every result is a proposal, even fleet-owned. Independent verifier keys and acceptance rules reject bad hashes/receipts. Task IDs use per-kind basis projections; compaction/pruning preserves required history and durable outcomes.
+
+Reconcile portable-plan-2026-09-21:U125 integration names before expansion: task-kinds entrypoint, vocabulary and actual landed interfaces. Include toolchain manifests/canaries, analyzer packed-program canaries, parity canaries, sandbox and idle policy, cloud fleet verbs, compile/group/parity/analyzer/import/decompile/identity/delta-bind/BSim/residue/export/window/relink/attestation adapters, browser module-worker contribution, similarity applier and bundle manifest. Preserve all51 Phase15 records and shared acceptance. Performance numbers labeled measured versus estimates, report two compile-pass populations, and never assume donated node role grants correctness.
+
+Acceptance: grid-of-one actual cycle; stale heads/CAS starvation, stopped peer/provider, duplicate events, bad output, verifier overload/frontier, resume and compaction tested under bounded contracts; worker canary determines supported architecture; incomplete packed-program/library input refuses; adapters consume real task contracts; offline/replayed view deterministic. A successful skeleton historical receipt does not qualify all adapters/fleet.
+
+- **Completion:** close assigned named child obligations and unit-specific predicates against the exact input/version scope; discharge owned source-clause coverage through explicit child evidence or contextual disposition; record changed paths, verification receipts and any remaining blocked predicates in the living plan. Commit only owned, reviewed changes during a separately authorized implementation run.
+
+
+## Task11.5 P3.1 bounded implementation — current signed native observation
+
+Base: `adf0bbb4d14c7a7721873fa42da6dbfc49f141a2`. Adopt next-current-admission-contract.md in full. Implement only P3.1 current-signed-observation-v1; P3.2 runtime closure, compile/source/corpus join, dashboard connection and whole-image remain open.
+
+Ownership: new src/agentdecompile_recovery/corpus/current_admission.py; narrow src/agentdecompile_grid/config.py AdmissionConfig/GridConfig/validation/documentation fields; dedicated tests/test_current_admission.py (and only narrow existing config regression updates if genuinely required); task-11-admission-report.md. Preserve generic log/view/verifier/producer APIs and all dashboard/source acceptance values. No key/config/root provisioning; do not read actual private/user key files for implementation.
+
+Positive path must use actual existing Ed25519 signature/authorization and current disjoint trusted lineage, exact signed TASK→RESULT→VERIFIED tuple, bounded actual CAS/log/public-key bytes and owner-only pinned admission snapshot. Missing authority is unavailable. No null/HMAC/development fallback, callback, result-selected root or invented closure. New pure source support does not admit any live policy. Strict snapshot/key/log/record/result/P1 schema/ref associations, complete current trusted negative-verdict scan, immutable outcome/current identity and uncached revalidation are load-bearing. Grade match/mismatch/error stays distinct; implementation source/runtime closure and source acceptance remain not_evaluated. No checker execution in reader.
+
+You are not alone: parity-region source and deletion-registry source run concurrently; preserve all edits. Controller owns Git and plans/progress. No staging/commits/subagents. Read repository authority and SDD implementer prompt. Author actual-crypto and refusal regression sources, but no tests/collection/import execution/key generation/runtime operations. No builds/typechecks/proof scripts/project imports/DB query or creation/compiler/checker/Ghidra/process/catalog/service/systemctl/restart/port/publication. AST/text/diff/source checks only, no real owner configuration changes.
+
+Stop READY_TO_COMMIT with exact owned paths and complete task-11-admission-report.md, self-review, checks performed and unexecuted qualification. If real signed record schema contradicts the contract, report the exact concrete issue before weakening association or trusting a body flag. Do not grow P3.2 supervisor/sandbox work into this slice.

@@ -463,3 +463,9 @@ Runtime recheck: live-health-parallel-wave.json and /proc confirm same healthy80
 Task25.1: fix round1/5 (Q25-1 addressed, 0 open, 0 introduced; source-only re-review task-25-fix-r1-review.md).
 Task25.1: complete (owned source commits6e4b313d..f059c0bb and fixf059c0bb..c5c191e0; spec and quality approved). Full U25/U28 and executable/producer/live gates remain open.
 Task11.2: bounded architectural contract investigation dispatched /root/resolve_target_producer_contract; owns next-target-object-contract.md only. No implementation yet.
+
+Ruling: Implement Task11.2 as reference-free-only mkobj-target v1, correcting conservative C7/XBEGIN screening and executing no external decoder — no qualified external decoder closure exists in the inspected integration; a bounded real producer can still bind supported raw image functions to actual objects — cost if wrong: conservative false refusals and later decoder-mode work; no general target coverage, source acceptance or live qualification is claimed.
+Ruling: Adopt explicit v1 admission caps (snapshot256MiB, raw128MiB, function64KiB, receipt32KiB, SMALL60s) and fixed lane-local loaded-source consistency manifest — bound owned work and prevent current disk hashes labeling stale loaded code — cost if wrong: larger supported targets require a reviewed revision; these limits are not measurements or hermetic-runtime claims.
+Task8.1: source commit2590e25a; /root/review_authoritative_packaging reviews scoped diff against based966fefc. Parser ownership remains reserved until review/fix loop closes.
+
+Task11.2: implementation dispatched /root/implement_target_object_producer from base2590e25a; requirements task-11-target-brief.md; report task-11-target-report.md. Exclusive new target lane/registry/planner and narrow mkobj predicate/keyword paths; no compile or parser overlap. Source-only, controller owns Git.

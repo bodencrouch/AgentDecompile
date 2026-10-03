@@ -1,0 +1,85 @@
+# Task11.6a — native profile, inventory and private capture source
+
+Date: 2026-10-02. Status: **READY_TO_COMMIT** for this bounded source packet, subject to independent review. The new primitives and test specifications were authored, never imported, invoked, run or collected. A successful AST parse is the only executable verification of their source syntax; it is not capture, runtime qualification or admission evidence.
+
+Owned files:
+
+- `src/agentdecompile_grid/worker/native_closure_profile.py`
+- `tests/test_grid_native_closure_profile.py`
+- this report
+
+No shared config, sandbox, loop, recovery adapter, signing writer, reader or fixture file changed. The contract adoption and original/r1/r2 review decisions were retained. This packet supplies no launcher, registration, configured profile, current-admission reader or recovery-specific import. The fixed profile ID names the adopted family; it does not establish that the selected checker/interpreter bytes actually implement that family.
+
+## Public data contract
+
+Canonical JSON means UTF-8, no BOM or trailing newline, `ensure_ascii=False`, lexicographically sorted object keys, separators `,` and `:`, no insignificant whitespace. Strings must be valid Unicode scalar sequences; paths additionally reject NUL, control characters, backslashes and non-normalized components. Documents reject duplicate, unknown and missing fields, wrong types, all floating-point/nonfinite values and bool-as-integer. Hash means exactly 64 lowercase hexadecimal characters. Digests are SHA-256 of exact canonical bytes. The parser compares the supplied owner pin before decoding. A bounded lexical preflight caps nesting at 8, objects at 16,400, arrays at 16 and member punctuation at 262,400 before JSON container allocation; accepted schemas are substantially shallower.
+
+`load_profile(profile_bytes, inventory_bytes, *, expected_profile_sha256, expected_inventory_sha256) -> NativeProfile` is pure and performs no filesystem reads. Both expected digests come from trusted supervisor/owner configuration outside the documents. They are not task parameters. Profile bytes are capped at 64 KiB. Exact top-level fields:
+
+| Field | Exact value or shape |
+|---|---|
+| `schema` | `agentdecompile.native-closure-profile.v1` |
+| `profile_id` | `linux-x86_64-native-objdiff-region-runtime-v1` |
+| `root_inventory_sha256` | Hash equal to the independently supplied inventory pin |
+| `implementation_source_sha256` | Hash of the exact source projection below |
+| `interpreter` | Exactly `{path:"/usr/bin/python3.12",family:"cpython-3.12",sha256:Hash}` |
+| `entrypoint` | Exactly `{path:"/app/native_closure_entry.py",sha256:Hash}` |
+| `checker` | Exactly `{id:Id,path:"/tools/objdiff",sha256:Hash}`; Id is nonempty, NUL-free UTF-8, at most 256 bytes |
+| `launcher` | Exactly `{family:"bubblewrap",source_version:"0.11.0",sha256:Hash}` |
+| `policy` | Exactly `{id:"linux-x86_64-native-closure-policy-v1",filter_sha256:Hash}` |
+| `environment` | Exactly the seven string pairs below |
+| `environment_sha256` | Hash of canonical `environment` |
+| `supervisor_domain` | `dedicated-trusted-uid` |
+| `work_filesystem` | Exactly `{flags:["noexec","nosuid","nodev"],max_bytes:1073741824}` |
+
+The environment is exactly `AGENT_DECOMPILE_OBJDIFF=/tools/objdiff`, `HOME=/work/home`, `LANG=C`, `LC_ALL=C`, `PATH=/tools`, `TMPDIR=/work/tmp`, `TZ=UTC`. Paths, environment, policy ID and caps cannot be overridden by a request. Launcher/filter hashes are owner pins only in this packet: no launcher/filter bytes or installation were inspected, loaded or provisioned.
+
+`validate_inventory(raw, *, expected_sha256) -> RootInventory` is also pure. Exact document fields are `{schema:"agentdecompile.native-root-inventory.v1",entries:[Entry,...]}`. The implicit root itself is omitted. Every descendant directory/file/symlink must appear, in strictly increasing UTF-8 path-byte order. Exact entry variants:
+
+- Directory: `{path,type:"directory",permission_class:"directory"}`.
+- Regular file: `{path,type:"file",permission_class:"data"|"executable",size:UInt,sha256:Hash}`.
+- Symlink: `{path,type:"symlink",permission_class:"symlink",target:String}`.
+
+Relative paths have at most 512 UTF-8 bytes and 24 components; no empty, `.` or `..` components, leading/trailing slash, backslash or controls. The parent of each entry must already be a declared actual directory. Symlink targets have at most 512 UTF-8 bytes, may be absolute within the final root or relative (including `.`/`..`), and may not contain NUL/backslash/controls. Pure resolution rejects root escapes, missing targets, traversal through ordinary files, repeated link resolution, more than 40 links or excessive expansion. A separate directory-containment graph also rejects recursive directory alias cycles; safe acyclic directory aliases remain supported. These are root-relative rules, never host `realpath` resolution.
+
+Limits are fixed: 8 MiB inventory; 1–16,384 entries; 256 MiB per file; 1 GiB total declared ordinary file bytes. Unknown entries and device/socket/FIFO kinds are refused. Bytecode `.pyc`/`.pyo`, `.pth`, `pyvenv.cfg`, `sitecustomize.py`, `usercustomize.py` are prohibited throughout this profile (a conservative superset of the measured Python tree restriction). `.zip` under `app/` or `usr/lib/python3.12/`, `etc/ld.so.preload` and `etc/ld.so.cache` are prohibited.
+
+Layout validation requires actual regular files at the fixed interpreter/checker/entrypoint paths; the first two are executable-class, and the shim is data-class. Their inventory hashes must equal their profile hashes. Required directories are `usr/lib/python3.12`, `usr/lib/python3.12/lib-dynload`, `app/src`, `app/vendor`, `work`, `dev`; explicit parent-directory entries follow from inventory rules. `work` is empty. `dev` contains exactly the ordinary zero-byte data file `null`, never a copied device. At least one ordinary file is present below `app/src`.
+
+The implementation source projection is canonical `{schema:"agentdecompile.native-source-inventory.v1",entries:[...]}` containing all inventory entries whose paths start with `app/src/` or `app/vendor/`, retaining complete entry records and original order. Its hash must equal `implementation_source_sha256`. The entry shim has its independent exact pin. The whole inventory also binds runtime files and symlink destinations outside these source prefixes. This deterministic projection is a byte identity, not an inference about transitive imports, actual loaded modules or source semantics.
+
+`NativeProfile`, `RootInventory`, `InventoryEntry` are frozen data records retaining canonical bytes, exact hashes and immutable entry tuples. `describe_profile(profile)` returns profile/root pins, counts and byte totals with `status="source_primitives_only"`, `launch_available=false`, `current_admission_available=false`, `static_dependency_qualification="pending"`; it never probes or captures a filesystem.
+
+## Actual capture primitive and ownership
+
+`capture_private(profile, *, donor_fd, private_parent_fd, absolute_deadline) -> OwnedCapture` is authored actual filesystem code, **never invoked here**. Descriptor arguments belong to the trusted supervisor and must not originate in task/child-selected paths. Public dataclass constructors are not a security boundary; capture reparses immutable profile/inventory bytes before copying, while the owner-provenance requirement for their pins remains an external trust premise. The root donor descriptor and parent descriptor must be retained directory anchors. No path-based reopen of a donor root, digest-cache adoption, archive extraction, link/reflink copy or donor bind mount exists.
+
+The private parent must be a directory owned by the effective supervisor UID with exact mode 0700 and no security xattrs. That check is necessary but does not prove the protected supervisor domain. The adopted deployment premise still excludes unrelated unconfined processes under that UID; the supervisor must retain control and never mutate a completed capture while it is in use. No domain, noexec/work-capacity, namespace or host qualification is implemented by this check.
+
+Capture duplicates the supplied descriptor anchors as noninheritable descriptors and creates one fresh random `capture-<32hex>` directory with exclusive `mkdir`. A collision refuses without adopting, changing or deleting the preexisting directory. Allocation names are generated internally and do not encode caller-selected digests. All subordinate destination directories and files are exclusive fresh objects. Files use byte copies into distinct inodes; source regular-file hardlinks and symlink hardlinks are refused.
+
+Source directory descent is descriptor-relative, `O_DIRECTORY|O_NOFOLLOW`. For each regular source, capture first obtains a descriptor-relative `O_PATH|O_NOFOLLOW` anchor, validates regular type, link count, mode, size and mount identity, and then opens only that already retained regular inode through trusted Linux `/proc/self/fd`. This prevents a donor substitution from opening a device/FIFO for I/O and does not follow donor symlinks. The regular read descriptor is checked against the pinned anchor. Procfs kernel descriptor aliases are part of the trusted Linux substrate, not untrusted path authority.
+
+Each entry and root use descriptor `mnt_id` from bounded `/proc/self/fdinfo` reads, so same-device bind mounts are refused as well as other mount crossings. Missing/denied/malformed procfs or xattr support refuses. Security namespace xattrs (including capabilities) are rejected for directories/files/symlinks. Ordinary non-security xattrs are not identity fields and are not copied. For symlink xattrs, Linux's `O_PATH` cannot list xattrs: no-follow enumeration uses the retained parent procfs alias, with identity/ctime checks before/after; the target itself is read through the retained symlink descriptor. This relies on trusted procfs and the same fail-closed mutation checks, not a caller pathname.
+
+Every file read uses at most 64 KiB chunks; writes handle partial writes, and the stream's size/hash must match the owner inventory. A final one-byte read detects growth. Source entry checks bind device/inode, mode, link count, UID/GID, size and mtime/ctime before and after read; names must still identify the retained entry. Parent-directory metadata brackets complete bounded enumeration/recursion. Actual entry count is capped before appending names; no unbounded `listdir` allocation is used. The pin detects torn/mixed generations even when individually read files appear stable. Later donor mutations cannot change the distinct destination inodes.
+
+Permission classes are intentionally explicit: ordinary data files may have any low-nine-bit permission pattern with **no execute bits**, including normal 0644/0664/0600 writable donor data; actual read access is required. An executable has at least one execute bit and **no write bit for any class**. Directories require owner-read and owner-search and may be ordinarily writable in the donor. Setuid, setgid and sticky bits are refused for regular files/directories. POSIX ACLs and other ordinary attributes are not propagated. The destination is frozen to exact 0444 data, 0555 executable and 0555 directories, retaining measured executable versus data class rather than original ACLs or per-user mode distinctions. Symlink mode is kernel-managed; immutable private parent-directory ownership controls link replacement.
+
+Every writable file descriptor closes before the freeze phase. Capture traverses and rehashes the complete destination in its temporary 0600-file/0700-directory state, rejects extra/missing/inconsistent entries, recomputes canonical inventory, then freezes using retained read-only descriptors. A second complete traversal rehashes and enforces exact final modes/classes and inventory digest. Freeze traversal uses a parent-to-children index rather than scanning all entries per directory. Successful return retains only read-only root/parent directory descriptors and `CaptureIdentity(profile_sha256, inventory_sha256, device, inode, mount_id)`. This is a process-local source capability for later supervisor use, never signed execution evidence or permission to launch.
+
+## Deadlines, failures and open cleanup
+
+The phase deadline is `min(monotonic_entry+90s, supplied_absolute_deadline)`. The future supervisor must pass a deadline already reserving later phases; this primitive does not start/reset the outer 600-second job timer or infer reservations from a request. Deadline values reject bool, nonfinite values and integer overflow. Checks occur before allocation/read/write/traversal steps and before successful return. Size/count limits precede file/directory allocations and read-buffer growth. Calls remain synchronous: open/read/write/stat/xattr/procfs operations can block beyond the cap. **There is no hard-walltime or D-state cancellation claim.** Later integration must run this in the one owned trusted helper process with phase-specific descriptor access and retained pidfd ownership.
+
+`ProfileRefused` exposes a fixed contract refusal code plus detail. `CaptureFailed` additionally carries `partial: OwnedAllocation | None`. `OwnedAllocation` retains only the freshly created allocation name, root/parent FDs, device/inode/mount identity (or -1 for the root fields if deadline/open failed immediately after mkdir). It is a distinct type from successful `OwnedCapture`. If no allocation began, the primitive closes duplicated parent handles and returns no partial. Donor duplicates and per-entry read/write handles close on normal/refusal paths; caller descriptors remain caller-owned. A partial retains parent/root ownership handles for quarantine. `close()` closes those handles idempotently; it **does not delete files or certify safe cleanup**.
+
+Controller explicitly accepted retained owned quarantine for this first packet. There is no synchronous deletion routine. The future lifecycle must confirm helper/process disappearance before bounded removal of its own partial allocation, retain ownership during D-state/ambiguous I/O and block reuse/new writers while unresolved. It must not infer ownership from a root path or delete a caller's preexisting directory. A helper killed outside normal Python unwinding also requires the future supervisor's allocation/descriptor handoff protocol; this module alone cannot make that crash lifecycle durable or transfer trusted ownership across IPC.
+
+## Source-only specifications and verification
+
+The one focused test file authors canonical positive profile/inventory and actual filesystem copy fixtures using synthetic byte payloads. It explicitly does not call the payloads CPython/objdiff or qualify ELF semantics. Negative source specifications cover independent pins, source/runtime/entrypoint/environment/policy mismatch, unknown/missing/type errors, duplicate keys, nonfinite/noncanonical/invalid UTF-8/surrogate input, path/depth/byte limits, unsorted/duplicate/count/size/aggregate manifests, loader/bytecode files, escaping/dangling/cyclic links, torn source bytes, extra/missing files, hardlinks, writable executable/setid/FIFO replacement, symlink-target changes, actual copy inode separation, frozen permissions and donor edits after capture. Deadline/collision tests assert retained partial ownership and preserved foreign allocations. Security-xattr and same-device mount negatives use explicit test seams; they do not provision privileged attributes/mounts. A normal user-xattr test is filesystem-conditional. Race specification mutates a real source during its read. Tests are source only and unrun/uncollected.
+
+Performed: local contract/review/source reads; authoring only the three owned files; Python standard-library `ast.parse` over the two authored source texts (no module import or function invocation); bounded text/source checks. No tests, collection, builds, typechecks, project scripts/imports, DB operations, cryptographic signing/key operations, compiler/checker/runtime invocation, filesystem fixture/capture execution, live endpoint/process/service operations, root/key/config provisioning, Git operations or publication occurred. No memory entry informed implementation; the narrow memory keyword search had no hit.
+
+Remaining mandatory packets: actual static ELF loader/dependency/executable-stack/RPATH qualification and transitive Python import closure; owner profile/domain/work provision; pinned launcher/filter authentication; namespace/seccomp/noexec enforcement and startup barrier; helper/process lifecycle and safe cleanup; fixed recovery role-plan/entrypoint integration; loop dispatch before unbounded reads; authenticated exports/collection; current-authority guarded local seal/retry/restart handling; separately versioned current-P2 reader. Launcher and current admission must remain unavailable until those capabilities and authorized qualification exist. P3.1, producer qualification, source/compile/corpus joins, whole-image acceptance and runtime-game readiness are unchanged and unestablished.

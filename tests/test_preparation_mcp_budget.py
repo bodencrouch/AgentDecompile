@@ -18,8 +18,10 @@ def scope(tmp_path, monkeypatch):
     monkeypatch.setattr(job_history, 'directory', lambda: tmp_path / 'jobs')
     monkeypatch.setattr(threading.Thread, 'start', lambda _: None)
     monkeypatch.setattr(mcp_bridge, '_ensure_initialized', lambda **_: None)
-    monkeypatch.setattr(mcp_bridge, '_ACTIVE_LOCATOR', '')
-    monkeypatch.setattr(mcp_bridge, '_OPENED', {})
+    # KTD10: module-level session globals moved onto per-peer _PeerSession
+    # objects; the legacy (no program_context) path reads/writes _LEGACY_SESSION.
+    monkeypatch.setattr(mcp_bridge._LEGACY_SESSION, 'active_locator', '')
+    monkeypatch.setattr(mcp_bridge._LEGACY_SESSION, 'opened', {})
     lease = (tmp_path / 'lease').open('w')
     row = {'id': 'e' * 32, 'actions': {}, 'status': 'blocked'}
     monkeypatch.setattr(preparation, '_LEASES', {row['id']: lease})
@@ -114,7 +116,7 @@ def test_unknown_spending_restart_and_forged_params(scope, monkeypatch):
 
 def test_controls_migration_projection_and_cached_noop(scope, monkeypatch):
     row, reserve, calls = scope
-    monkeypatch.setattr(mcp_bridge, '_ACTIVE_LOCATOR', 'project')
+    monkeypatch.setattr(mcp_bridge._LEGACY_SESSION, 'active_locator', 'project')
     with mcp_budget.dispatch_scope(reserve):
         assert mcp_bridge.ensure_project('project')['reused']
     assert not calls and row['providerBudget']['consumed'] == 0

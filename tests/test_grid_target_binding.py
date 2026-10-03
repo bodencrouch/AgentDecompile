@@ -500,3 +500,46 @@ def test_cross_section_region_refuses(tmp_path):
     struct.pack_into("<IIII", raw, section + 48, 1, 0x1001, 1, 0x401)
     with pytest.raises(Refused, match="mapping_unsupported"):
         planned(tmp_path, raw=bytes(raw))
+
+
+def test_object_ref_hex_replacement_refuses_before_materialization_or_publication(tmp_path, monkeypatch):
+    objects, spec = planned(tmp_path)
+    original_class = ObjectRef
+    reached = []
+
+    def unexpected_storage(*args, **kwargs):
+        reached.append("storage")
+        raise AssertionError("materialization or publication reached")
+
+    monkeypatch.setattr(objects, "size", unexpected_storage)
+    monkeypatch.setattr(objects, "put", unexpected_storage)
+    monkeypatch.setattr(ObjectRef, "hex", property(lambda self: "f" * 64))
+    assert target.ObjectRef is original_class
+    with pytest.raises(Refused) as refusal:
+        target.MkobjTarget().run(spec, objects, str(tmp_path / "run"))
+    assert refusal.value.reason == "mkobj_target_loaded_source_mismatch"
+    assert reached == []
+
+
+def test_object_ref_hex_source_edit_without_reimport_refuses_before_storage(tmp_path, monkeypatch):
+    objects, spec = planned(tmp_path)
+    original_getter = ObjectRef.hex.fget
+    source = Path(target.core.__file__).read_text()
+    accessor_body = 'return self.split(":", 1)[1]'
+    assert source.count(accessor_body) == 1
+    replacement = tmp_path / "core-accessor-edited.py"
+    replacement.write_text(source.replace(accessor_body, 'return "f" * 64', 1))
+    reached = []
+
+    def unexpected_storage(*args, **kwargs):
+        reached.append("storage")
+        raise AssertionError("materialization or publication reached")
+
+    monkeypatch.setattr(objects, "size", unexpected_storage)
+    monkeypatch.setattr(objects, "put", unexpected_storage)
+    monkeypatch.setattr(target.core, "__file__", str(replacement))
+    assert ObjectRef.hex.fget is original_getter
+    with pytest.raises(Refused) as refusal:
+        target.MkobjTarget().run(spec, objects, str(tmp_path / "run"))
+    assert refusal.value.reason == "mkobj_target_loaded_source_mismatch"
+    assert reached == []

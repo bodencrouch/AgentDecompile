@@ -97,3 +97,61 @@ No alternate-port or direct-CLI route was added. General decoder support is
 unsupported. The dashboard remains outside this slice: it cannot connect until
 this target binding plus exact source/compile binding, full parity and current
 admission form one independently authenticated chain.
+
+## Review fix round 1 — source checks for I1
+
+Against reviewed head `24d3547fcba59ad2b3b7cd5126ccd1f24d45e360`, the explicit
+core helper list now includes `ObjectRef.hex`. Existing property-to-`fget`
+resolution supplies both loaded binding identity and captured-source code
+comparison. The fixed closure now contains 60 functions; regression source now
+contains 44 test functions. Earlier counts in this note describe the first pass.
+
+Authored, unrun regressions:
+
+- `test_object_ref_hex_replacement_refuses_before_materialization_or_publication`
+- `test_object_ref_hex_source_edit_without_reimport_refuses_before_storage`
+
+Both plan before the change, instrument the adapter's size/put entry points,
+require `Refused.reason == "mkobj_target_loaded_source_mismatch"`, and assert the
+storage-entry list remains empty. The first preserves class identity; the
+second preserves the loaded accessor identity while exposing an edited temporary
+source copy. These are source assertions, not observed passing behavior.
+
+The following standard-library-only command was run (no project imports or code
+execution), followed by narrow read-only Git checks:
+
+```bash
+python3 - <<'PY'
+import ast
+from pathlib import Path
+for name in ('src/agentdecompile_recovery/grid_lanes/target.py', 'tests/test_grid_target_binding.py'):
+    source = Path(name).read_text()
+    ast.parse(source, filename=name)
+    assert all(line == line.rstrip() for line in source.splitlines()), name
+    print('AST and whitespace OK:', name)
+tree = ast.parse(Path('src/agentdecompile_recovery/grid_lanes/target.py').read_text())
+closure = next(node.value for node in tree.body if isinstance(node, ast.Assign) and any(isinstance(name, ast.Name) and name.id == '_CLOSURE' for name in node.targets))
+core_entry = next(row for row in closure.elts if isinstance(row.elts[0], ast.Name) and row.elts[0].id == 'core')
+assert ast.literal_eval(core_entry.elts[1]).count('ObjectRef.hex') == 1
+core_tree = ast.parse(Path('src/agentdecompile_grid/core.py').read_text())
+ref_class = next(node for node in core_tree.body if isinstance(node, ast.ClassDef) and node.name == 'ObjectRef')
+getter = next(node for node in ref_class.body if isinstance(node, ast.FunctionDef) and node.name == 'hex')
+assert any(isinstance(decorator, ast.Name) and decorator.id == 'property' for decorator in getter.decorator_list)
+print('Fixed closure explicitly includes ObjectRef.hex once; source accessor is a property')
+print('Fixed closure function count:', sum(len(ast.literal_eval(row.elts[1])) for row in closure.elts))
+regressions = ast.parse(Path('tests/test_grid_target_binding.py').read_text())
+print('Regression function count:', sum(isinstance(node, ast.FunctionDef) and node.name.startswith('test_') for node in regressions.body))
+PY
+git diff --check -- src/agentdecompile_recovery/grid_lanes/target.py tests/test_grid_target_binding.py
+git diff --stat -- src/agentdecompile_recovery/grid_lanes/target.py tests/test_grid_target_binding.py
+```
+
+All returned exit 0. AST/whitespace checks reported OK for both Python files;
+the property/closure assertion passed, and counts were 60 and 44 respectively.
+The diff check produced no diagnostics. Python diff statistics were 44 insertions
+and 1 deletion across two files. Task-note appendices are separate documentation
+changes.
+
+No tests, imports, builds, database actions, runtime/catalog/service/process work,
+Git mutation or subagents were used. The prior cannot-verify predicates, including
+actual behavior and independent/current admission, remain open.

@@ -116,3 +116,47 @@ action remain integration gates. The implementation creates no acceptance keys,
 permissive resolver or dashboard connection. General reference-bearing regions
 remain unsupported. Source/compile/full-object parity and current report admission
 are separate unfinished prerequisites for accepted-source progress.
+
+## Review fix round 1 — I1, 2026-10-02
+
+Reviewed head: `24d3547fcba59ad2b3b7cd5126ccd1f24d45e360`.
+The independent report identified that `ObjectRef.hex`, which supplies expected
+CAS digests and image/receipt bindings, was missing from the fixed loaded helper
+closure. Checking the class alias alone cannot detect replacement of a property
+on the same class.
+
+Added exactly `ObjectRef.hex` to the explicit core function list. Existing
+`_function` property handling captures its `fget`; the existing binding-identity
+and captured-source code checks now apply to the accessor. The fixed closure
+contains 60 helpers. No generic runtime or trust mechanism was added.
+
+Prepared two regressions after ordinary planning:
+
+- Replace `ObjectRef.hex` on the same class while leaving disk source unchanged.
+  Confirm the class alias is retained, require the exact
+  `mkobj_target_loaded_source_mismatch` reason, and require no instrumented CAS
+  size/read-entry or publication call.
+- Point the loaded core module at a temporary source copy with only the accessor
+  body changed, without reimporting it. Confirm the original loaded getter is
+  retained, require the same exact mismatch reason and no instrumented storage
+  access. The repository core source is not edited by the fixture.
+
+The regression file now contains 44 test functions. Both added cases remain
+unexecuted under the source-only mission. Standard-library AST/whitespace review
+passed for the two edited Python files. A source-shape audit confirmed one
+`ObjectRef.hex` closure entry and the retained `@property` accessor. Narrow
+`git diff --check` passed with no diagnostics. Exact commands/results are in the
+verification note's round-1 appendix.
+
+Self-review: the change relies on existing property `fget` support, checks both
+loaded-property replacement and stale-loaded/source-only edits, and instruments
+adapter methods rather than monkeypatching the closure's materializer (which
+would cause an unrelated mismatch and weaken the regression). Only `target.py`,
+`test_grid_target_binding.py`, this report and the verification note were changed
+in this round. Other owners' Mach-O/matrix work was preserved. No staging,
+commit, subagent, imports, tests, builds, database or runtime operation occurred.
+
+Status: READY_TO_COMMIT for controller review. Prior runtime/admission gates
+remain open, including actual regression execution, receipt bounds, independent
+persisted verification and current catalog admission. This source correction
+does not establish full U11 completion.

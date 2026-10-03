@@ -665,7 +665,7 @@ _CLOSURE = (
     (match_engine, (), ("PAIR_POLICY", "CONTENT_FLOOR", "CONTENT_FLOORS", "WEIGHTS", "MAX_STRING_DF", "MAX_CONST_DF")),
     (channel_confidence, (), ("BASE", "TINY_INSTR", "TINY_PENALTY", "NONUNIQUE_PENALTY", "TIGHT_MARGIN_PENALTY", "CHANNEL_BONUS")),
     (symbol_map, (), ("BSIM_TRUSTED_SIGNIFICANCE",)),
-    (core, ("canonical_json", "digest", "digest_value", "ObjectRef.of_bytes", "ObjectRef.of_value",
+    (core, ("canonical_json", "digest", "digest_value", "ObjectRef.of_bytes", "ObjectRef.of_value", "ObjectRef.hex",
             "TaskSpec.task_id", "TaskResult.to_record"), ("HASH_ALGORITHM",)),
     (_common, ("verify_by_recompute",), ()),
 )

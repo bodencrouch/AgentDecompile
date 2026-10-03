@@ -527,7 +527,7 @@ def cmd_fleet(args: argparse.Namespace) -> int:
     objects = grid.objects()
     provider_config = dict(grid.cfg.fleet.provider_config)
     if args.fleet_cmd == "status":
-        emit({"provider": args.provider, **fleet.fleet_status(objects)} if hasattr(fleet, "fleet_status") else {"provider": args.provider}, as_json=args.json)
+        emit({"provider": args.provider, "nodes": fleet.fleet_status(objects)} if hasattr(fleet, "fleet_status") else {"provider": args.provider}, as_json=args.json)
         return 0
     if args.fleet_cmd in ("up", "replace"):
         join_url = args.join_url or os.environ.get(INVITE_ENV, "") or grid.cfg.join_url

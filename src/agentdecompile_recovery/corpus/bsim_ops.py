@@ -303,7 +303,17 @@ def ingest(
         names = _discover_programs(repo, list_programs=list_programs)
     if not names:
         return {"ok": False, "error": "no programs found in repository", "repository": repo}
-    dest = Path(receipt) if receipt else Path(datadir or repo) / RECEIPT_NAME
+    if receipt:
+        dest = Path(receipt)
+    elif datadir:
+        dest = Path(datadir) / RECEIPT_NAME
+    else:
+        repo_path = Path(repo)
+        # repo is commonly a Ghidra .gpr *file* path; writing the receipt
+        # under a name that collides with that file (mkdir on an existing
+        # non-directory, exist_ok notwithstanding) raises FileExistsError.
+        base = repo_path.parent if repo_path.suffix == ".gpr" or repo_path.is_file() else repo_path
+        dest = base / RECEIPT_NAME
     prior = _read_receipt(dest)
     already = {
         str(item.get("name") or "")

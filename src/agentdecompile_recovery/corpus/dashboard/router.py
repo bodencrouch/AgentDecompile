@@ -676,6 +676,28 @@ def create_dashboard_router() -> APIRouter:
         )
         return JSONResponse(payload, status_code=200 if payload.get("ok") else 400)
 
+    @router.get("/dashboard/api/workbench/providers")
+    async def workbench_providers(request: Request) -> JSONResponse:
+        from agentdecompile_recovery.corpus.dashboard.workbench import program_providers
+
+        try:
+            offset = int(request.query_params.get("offset") or 0)
+        except ValueError:
+            offset = 0
+        try:
+            limit = int(request.query_params.get("limit") or 200)
+        except ValueError:
+            limit = 200
+        payload = await asyncio.to_thread(
+            program_providers,
+            request.query_params.get("locator") or request.query_params.get("path") or "",
+            request.query_params.get("program") or "",
+            request.query_params.get("kind") or "",
+            offset=offset,
+            limit=limit,
+        )
+        return JSONResponse(payload, status_code=200 if payload.get("ok") else 400)
+
     @router.get("/dashboard/api/workbench/match-status")
     async def workbench_match_status() -> JSONResponse:
         from agentdecompile_recovery.corpus.dashboard.workbench import match_status

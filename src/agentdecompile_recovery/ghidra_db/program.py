@@ -51,6 +51,34 @@ FUNCTION_DATA_TABLE = "Function Data"
 COMMENTS_TABLE = "Comments"
 MEMORY_BLOCKS_TABLE = "Memory Blocks"
 COMPOSITE_DATA_TYPES_TABLE = "Composite Data Types"
+EQUATES_TABLE = "Equates"
+EQUATE_REFERENCES_TABLE = "Equate References"
+RELOCATIONS_TABLE = "Relocations"
+BOOKMARK_TYPES_TABLE = "Bookmark Types"
+DATA_TABLE = "Data"
+BUILTIN_DATATYPES_TABLE = "Built-in datatypes"
+
+# Built-in datatype classes (ghidra.program.model.data.*) that render as a
+# string in the Listing. A Data row's encoded `Data Type ID` resolves to one of
+# these only when its top byte is 0 (the built-in archive); every other
+# encoding -- composites, typedefs, pointers to these types, arrays of char --
+# is real curated knowledge this join does not attempt, so it is excluded
+# rather than guessed at.
+STRING_BUILTIN_TYPE_NAMES = frozenset(
+    {
+        "string",
+        "string-utf8",
+        "unicode",
+        "unicode32",
+        "TerminatedCString",
+        "TerminatedUnicode",
+        "TerminatedUnicode32",
+        "char",
+        "wchar_t",
+        "wchar16",
+        "uchar",
+    }
+)
 
 # ProgramDB string-map keys.
 IMAGE_OFFSET_KEY = "Image Offset"
@@ -303,6 +331,82 @@ class CompositeDataType:
     length: int | None
     component_count: int | None
     comment: str | None
+
+
+@dataclass(frozen=True)
+class Equate:
+    """A named constant (`Equates` table), independent of where it is used."""
+
+    equate_id: int
+    name: str
+    value: int
+
+
+@dataclass(frozen=True)
+class EquateReference:
+    """One operand that displays an equate's name instead of its literal value."""
+
+    equate_id: int
+    entry: int
+    operand_index: int | None
+
+
+@dataclass(frozen=True)
+class Relocation:
+    """One row of the `Relocations` table, address resolved to a VA.
+
+    `relocation_type` and `status` are the raw processor-specific and
+    `RelocationResult` ordinals as stored; decoding them further depends on
+    the loader that wrote them and is left to the caller.
+    """
+
+    index: int
+    entry: int | None
+    relocation_type: int
+    status: int
+    symbol_name: str | None
+    byte_length: int | None
+
+
+@dataclass(frozen=True)
+class BookmarkType:
+    """A bookmark category id, e.g. 0 -> "Warning", as declared per-program."""
+
+    type_id: int
+    name: str
+
+
+@dataclass(frozen=True)
+class Bookmark:
+    """One bookmark, address resolved to a VA.
+
+    Ghidra stores bookmarks in a table named `Bookmarks<typeId>` per type, and
+    only creates that table once a bookmark of the type exists; a type with no
+    bookmarks set simply has no table, which this reader treats the same as
+    an empty one rather than an error.
+    """
+
+    bookmark_id: int
+    entry: int | None
+    type_name: str
+    category: str | None
+    comment: str | None
+
+
+@dataclass(frozen=True)
+class DefinedString:
+    """A `Data` row whose datatype is one of the built-in string types.
+
+    Only data typed directly as a built-in string type is reported (see
+    `STRING_BUILTIN_TYPE_NAMES`). A `char[N]` array, a typedef over `string`,
+    or a struct field holding a string are real strings Ghidra would also
+    show here, but resolving them needs the full datatype-manager join this
+    module does not otherwise implement, so they are left out rather than
+    reported under a guessed type.
+    """
+
+    entry: int
+    datatype_name: str
 
 
 class GhidraProgram:
@@ -628,6 +732,135 @@ class GhidraProgram:
                 component_count=row.get("Number Of Components"),
                 comment=row.get("Comment") or None,
             )
+
+    # -- equates -------------------------------------------------------
+
+    def equates(self) -> Iterator[Equate]:
+        """Stream the program's named constants, independent of their uses."""
+
+        table = self.require_table(EQUATES_TABLE)
+        key_name = table.schema().key_name
+        for row in iter_rows(self.buffer_file, table):
+            yield Equate(
+                equate_id=int(row[key_name]),
+                name=str(row.get("Equate Name") or ""),
+                value=int(row.get("Equate Value") or 0),
+            )
+
+    def equate_references(self) -> Iterator[EquateReference]:
+        """Stream the operands that display an equate instead of a literal.
+
+        A reference whose address does not decode to memory (for example one
+        attached to a now-deleted instruction) is skipped rather than emitted
+        with no address.
+        """
+
+        table = self.require_table(EQUATE_REFERENCES_TABLE)
+        for row in iter_rows(self.buffer_file, table):
+            entry = self.virtual_address(row.get("Equate Reference"))
+            if entry is None:
+                continue
+            operand_index = row.get("Operand Index")
+            yield EquateReference(
+                equate_id=int(row.get("Equate ID") or 0),
+                entry=entry,
+                operand_index=None if operand_index is None or operand_index < 0 else int(operand_index),
+            )
+
+    # -- relocations ---------------------------------------------------
+
+    def relocations(self) -> Iterator[Relocation]:
+        """Stream the `Relocations` table, address resolved to a VA.
+
+        A relocation whose address does not decode to memory still has real
+        curated knowledge (type, status, symbol name) worth reporting, so the
+        entry is `None` rather than the row being dropped.
+        """
+
+        table = self.require_table(RELOCATIONS_TABLE)
+        key_name = table.schema().key_name
+        for row in iter_rows(self.buffer_file, table):
+            byte_values = row.get("Bytes")
+            yield Relocation(
+                index=int(row[key_name]),
+                entry=self.virtual_address(row.get("Address")),
+                relocation_type=int(row.get("Type") or 0),
+                status=int(row.get("Status") or 0),
+                symbol_name=row.get("Symbol Name") or None,
+                byte_length=None if byte_values is None else len(byte_values),
+            )
+
+    # -- bookmarks -------------------------------------------------------
+
+    def bookmark_types(self) -> list[BookmarkType]:
+        """The program's declared bookmark categories (id -> display name)."""
+
+        table = self.require_table(BOOKMARK_TYPES_TABLE)
+        key_name = table.schema().key_name
+        return [
+            BookmarkType(type_id=int(row[key_name]), name=str(row.get("Name") or ""))
+            for row in iter_rows(self.buffer_file, table)
+        ]
+
+    def bookmarks(self) -> Iterator[Bookmark]:
+        """Stream every bookmark across all declared types.
+
+        Each type's rows live in a separate `Bookmarks<typeId>` table that
+        Ghidra only creates once a bookmark of that type is set; a type with
+        none yet has no table at all, so a missing table is an empty result,
+        not an error.
+        """
+
+        for bookmark_type in self.bookmark_types():
+            table = self.table(f"Bookmarks{bookmark_type.type_id}")
+            if table is None:
+                continue
+            key_name = table.schema().key_name
+            for row in iter_rows(self.buffer_file, table):
+                yield Bookmark(
+                    bookmark_id=int(row[key_name]),
+                    entry=self.virtual_address(row.get("Address")),
+                    type_name=bookmark_type.name,
+                    category=row.get("Category") or None,
+                    comment=row.get("Comment") or None,
+                )
+
+    # -- defined strings -------------------------------------------------
+
+    def defined_strings(self) -> Iterator[DefinedString]:
+        """Stream `Data` rows typed as a built-in string type.
+
+        The `Data Type ID` is an encoded long; only the built-in-archive
+        encoding (top byte 0) is resolved here, against `Built-in datatypes`.
+        Composites, typedefs, pointers and arrays that are strings in the
+        Listing are real data this does not attempt to join (see
+        `DefinedString`), so they are excluded rather than mis-typed.
+        """
+
+        builtin_names: dict[int, str] = {}
+        builtin_table = self.table(BUILTIN_DATATYPES_TABLE)
+        if builtin_table is not None:
+            for row in iter_rows(self.buffer_file, builtin_table):
+                builtin_id = row.get("Data Type ID")
+                if builtin_id is not None:
+                    builtin_names[int(builtin_id)] = str(row.get("Name") or "")
+
+        table = self.require_table(DATA_TABLE)
+        key_name = table.schema().key_name
+        for row in iter_rows(self.buffer_file, table):
+            datatype_id = row.get("Data Type ID")
+            if datatype_id is None:
+                continue
+            datatype_id = int(datatype_id)
+            if datatype_id >> 56 != 0:
+                continue
+            name = builtin_names.get(datatype_id & ((1 << 56) - 1))
+            if name is None or name not in STRING_BUILTIN_TYPE_NAMES:
+                continue
+            entry = self.virtual_address(row.get(key_name))
+            if entry is None:
+                continue
+            yield DefinedString(entry=entry, datatype_name=name)
 
     # -- summary -----------------------------------------------------------
 

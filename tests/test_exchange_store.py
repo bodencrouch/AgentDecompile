@@ -826,3 +826,80 @@ async def test_rate_limit_and_caps_bound_a_broken_client(tmp_path: Path) -> None
     await store.offer(lane="rewrite", payload=REWRITE_PAYLOAD)
     with pytest.raises(CapacityExceeded):
         await store.offer(lane="permute", payload={"entry": "0x401000", "seeds": [1, 2, 3]})
+
+
+@pytest.mark.asyncio
+async def test_slow_claim_persistence_does_not_block_other_worker_heartbeat(tmp_path, monkeypatch):
+    store = make_store(tmp_path)
+
+    async def no_disk(text, generation=None):
+        pass
+
+    monkeypatch.setattr(store, "_persist", no_disk)
+    first_worker = await enroll(store, "llm")
+    second_worker = await enroll(store, "llm")
+    await store.offer(lane="rewrite", payload=REWRITE_PAYLOAD)
+    await store.offer(lane="rewrite", payload={**REWRITE_PAYLOAD, "functionName": "other"})
+    first_lease = await store.claim(worker_id=first_worker)
+    assert first_lease is not None
+    writing = asyncio.Event()
+    release_write = asyncio.Event()
+
+    async def slow_disk(text, generation=None):
+        if text is not None:
+            writing.set()
+            await release_write.wait()
+
+    monkeypatch.setattr(store, "_persist", slow_disk)
+    claim = asyncio.create_task(store.claim(worker_id=second_worker))
+    try:
+        await asyncio.wait_for(writing.wait(), timeout=2)
+        beat = await asyncio.wait_for(
+            store.heartbeat(worker_id=first_worker, lease_token=first_lease["leaseToken"]),
+            timeout=2,
+        )
+        assert beat["unitId"] == first_lease["unit"]["unitId"]
+        assert not claim.done()
+    finally:
+        release_write.set()
+        await asyncio.wait_for(claim, timeout=2)
+
+
+@pytest.mark.asyncio
+async def test_cancelled_snapshot_drains_before_releasing_mutable_state(tmp_path, monkeypatch):
+    import threading
+
+    store = make_store(tmp_path)
+
+    async def no_disk(text, generation=None):
+        pass
+
+    monkeypatch.setattr(store, "_persist", no_disk)
+    await enroll(store, "llm")
+    snapshot = store._snapshot_text
+    entered = threading.Event()
+    release = threading.Event()
+
+    def blocked_snapshot():
+        entered.set()
+        assert release.wait(3), "snapshot release was not signalled"
+        return snapshot()
+
+    monkeypatch.setattr(store, "_snapshot_text", blocked_snapshot)
+    mutation = asyncio.create_task(enroll(store, "llm"))
+    reader = None
+    try:
+        assert await asyncio.to_thread(entered.wait, 2)
+        mutation.cancel()
+        await asyncio.sleep(0)
+        mutation.cancel()
+        reader = asyncio.create_task(store.roster())
+        await asyncio.sleep(0)
+        assert not mutation.done()
+        assert not reader.done()
+    finally:
+        release.set()
+        with pytest.raises(asyncio.CancelledError):
+            await asyncio.wait_for(mutation, timeout=2)
+        if reader is not None:
+            await asyncio.wait_for(reader, timeout=2)

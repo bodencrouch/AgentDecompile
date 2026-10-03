@@ -42,6 +42,7 @@ one event loop.
 from __future__ import annotations
 
 import asyncio
+import copy
 import errno
 import hashlib
 import json
@@ -382,8 +383,10 @@ class Worker:
 class ExchangeStore:
     """In-memory work exchange with a durable, quarantine-safe JSON snapshot.
 
-    Every mutation snapshots under an `asyncio.Lock` and writes off-thread, so
-    no request path blocks on disk while holding the loop. Enrollment is open
+    Every mutation snapshots off-thread while retaining an `asyncio.Lock`.
+    Disk writes also run off-thread, with their original acknowledgement lock
+    boundaries preserved.
+    Enrollment is open
     per the project's stated posture; the caps and the per-worker rate limit
     exist so one broken client cannot drain or flood the queue, and are not
     authentication.
@@ -425,6 +428,9 @@ class ExchangeStore:
         self._units: dict[str, WorkUnit] = {}
         self._workers: dict[str, Worker] = {}
         self._receipts: dict[str, dict[str, Any]] = {}
+        self._encoded_records: dict[str, dict[str, tuple[dict[str, Any], str]]] = {
+            "units": {}, "workers": {}, "receipts": {},
+        }
         self._fence = 0
         # Monotonic snapshot ordering. _snapshot_text bumps it under the
         # asyncio lock so a write's generation is fixed at the moment its text
@@ -550,24 +556,47 @@ class ExchangeStore:
         self.quarantined_path = target
 
     def _snapshot_text(self) -> str:
-        """Serialize under the lock; the write itself happens off-thread.
+        """Serialize in the persistence worker while the caller retains the lock.
 
         Handing live dicts to a worker thread would let the next coroutine
         mutate them mid-serialization.
         """
 
-        state = {
-            "schema": SCHEMA,
-            "claimBoundary": CLAIM_BOUNDARY,
-            "fence": self._fence,
-            "units": {unit_id: unit.state_view() for unit_id, unit in self._units.items()},
-            "workers": {worker_id: worker.state_view() for worker_id, worker in self._workers.items()},
-            "receipts": self._receipts,
-        }
-        # Called only under the asyncio lock, so this ordering stamp is fixed
-        # against the state it describes.
+        # Cache individual records, not the whole snapshot. Unchanged source
+        # artifacts need not be JSON-encoded on every lease or acknowledgement.
+        # Deep copies make equality detect nested forwarding metadata changes,
+        # even when callers retain a reference to a returned state view.
+        encoder = json.JSONEncoder(sort_keys=True, default=str)
+
+        def records(name: str, rows: Iterable[tuple[str, dict[str, Any]]]) -> str:
+            cache = self._encoded_records[name]
+            present: set[str] = set()
+            chunks = []
+            for key, row in rows:
+                present.add(key)
+                previous = cache.get(key)
+                if previous is None or previous[0] != row:
+                    stable = copy.deepcopy(row)
+                    encoded = "".join(encoder.iterencode(stable))
+                    cache[key] = (stable, encoded)
+                else:
+                    encoded = previous[1]
+                chunks.append(json.dumps(key) + ":" + encoded)
+            for key in cache.keys() - present:
+                del cache[key]
+            return "{" + ",".join(chunks) + "}"
+
+        units = records("units", ((key, unit.state_view()) for key, unit in self._units.items()))
+        workers = records("workers", ((key, worker.state_view()) for key, worker in self._workers.items()))
+        receipts = records("receipts", self._receipts.items())
         self._generation += 1
-        return json.dumps(state, indent=2, sort_keys=True, default=str) + "\n"
+        return (
+            '{"schema":' + json.dumps(SCHEMA)
+            + ',"claimBoundary":' + json.dumps(CLAIM_BOUNDARY)
+            + ',"fence":' + str(self._fence)
+            + ',"units":' + units + ',"workers":' + workers
+            + ',"receipts":' + receipts + "}\n"
+        )
 
     def _prepare_state_directory(self) -> None:
         """Anchor automatic mkdir before snapshots, recovering interrupted setup.
@@ -611,19 +640,9 @@ class ExchangeStore:
         with self._write_lock:
             self._prepare_state_directory()
             with _file_lock(path.with_name(f"{path.name}.lock")):
-                # Snapshot text is built under the asyncio lock but written
-                # outside it, so two mutations can reach this point in either
-                # order. fcntl.flock only excludes *other processes*; it does
-                # not order these two local threads (and is a no-op entirely
-                # on Windows), so without self._write_lock above, both threads
-                # could pass this check before either commits, and the one
-                # carrying the older generation could write last and silently
-                # revert the snapshot -- the exact hazard this check exists to
-                # prevent, arriving through the thread scheduler instead of
-                # through disk ordering. self._write_lock makes the check,
-                # write, and commit atomic with respect to every thread in
-                # this process; _file_lock is what still matters for a
-                # hypothetical second process on the same host.
+                # Normal mutations retain _lock through persistence. Keep this
+                # generation guard atomic as well for direct snapshot writers
+                # and failure-retry calls that arrive out of order.
                 if generation <= self._committed_generation:
                     return
                 if self._pending_directory_sync:
@@ -662,6 +681,36 @@ class ExchangeStore:
             self._generation += 1
             generation = self._generation
         await asyncio.to_thread(self._write_snapshot, text, generation)
+
+    async def _finish_state_task(self, task: asyncio.Task[Any]) -> Any:
+        """Drain a state worker before cancellation can release its caller's lock."""
+        cancelled = False
+        while not task.done():
+            try:
+                await asyncio.shield(task)
+            except asyncio.CancelledError:
+                cancelled = True
+        result = task.result()
+        if cancelled:
+            raise asyncio.CancelledError
+        return result
+
+    async def _snapshot_locked(self) -> tuple[str, int]:
+        # Every caller holds _lock. Cancelling to_thread does not stop its
+        # worker, so drain serialization before another mutation can begin.
+        text = await self._finish_state_task(asyncio.create_task(asyncio.to_thread(self._snapshot_text)))
+        return text, self._generation
+
+    async def _persist_locked(self) -> None:
+        """Preserve the durable acknowledgement boundary for offer/submit/ack."""
+        if self.read_only:
+            raise OSError("exchange store is read-only; snapshot not persisted")
+
+        async def persist() -> None:
+            text = await asyncio.to_thread(self._snapshot_text)
+            await self._persist(text, self._generation)
+
+        await self._finish_state_task(asyncio.create_task(persist()))
 
     # -- housekeeping -------------------------------------------------------
 
@@ -754,13 +803,11 @@ class ExchangeStore:
                     required_capabilities=required_capabilities_for(lane, required_capabilities),
                     offered_at=now,
                 )
-            text = self._snapshot_text()
-            generation = self._generation
             # An initial write can fail after it mutates memory. Do not let a
             # content-addressed replay acknowledge the offer until it makes
             # the current state durable; keeping the lock prevents a later
             # mutation from overtaking this snapshot.
-            await self._persist(text, generation)
+            await self._persist_locked()
             return unit_id
 
     async def unit_state(self, unit_id: str) -> dict[str, Any] | None:
@@ -792,7 +839,7 @@ class ExchangeStore:
                 return True
             forwarded[destination] = {"state": "forwarded", "forwardedAt": self.clock()}
             try:
-                await self._persist(self._snapshot_text(), self._generation)
+                await self._persist_locked()
             except BaseException:
                 # A failed acknowledgement must remain retryable in this
                 # process too. The queue receipt makes redelivery harmless.
@@ -820,9 +867,8 @@ class ExchangeStore:
                 "units": {"byStatus": by_status, "byLane": by_lane, "total": len(self._units)},
                 "throughput": {"windowSeconds": THROUGHPUT_WINDOW_SECONDS, "submissions": len(window), "byLane": per_lane},
             }
-            text = self._snapshot_text() if changed else None
-            generation = self._generation
-        await self._persist(text, generation)
+            pending = await self._snapshot_locked() if changed else (None, self._generation)
+        await self._persist(*pending)
         return snapshot
 
     # -- fulfiller side -----------------------------------------------------
@@ -862,9 +908,8 @@ class ExchangeStore:
                 last_seen=now,
                 window_started=now,
             )
-            text = self._snapshot_text()
-            generation = self._generation
-        await self._persist(text, generation)
+            pending = await self._snapshot_locked()
+        await self._persist(*pending)
         return {"workerId": worker_id, "leaseSeconds": self.lease_seconds, "lanes": list(LANES)}
 
     def _evict_idle_workers(self, now: float) -> None:
@@ -930,9 +975,8 @@ class ExchangeStore:
                 }
             # An empty claim is the common case for a polling worker; only a
             # real state change is worth a disk write.
-            text = self._snapshot_text() if changed or lease is not None else None
-            generation = self._generation
-        await self._persist(text, generation)
+            pending = await self._snapshot_locked() if changed or lease is not None else (None, self._generation)
+        await self._persist(*pending)
         return lease
 
     async def heartbeat(self, *, worker_id: str, lease_token: str) -> dict[str, Any]:
@@ -949,9 +993,8 @@ class ExchangeStore:
             # Heartbeats are the hottest endpoint and a lease deadline does not
             # survive a restart anyway (a reloaded claim is re-offered), so only
             # a reclaim is worth persisting here.
-            text = self._snapshot_text() if changed else None
-            generation = self._generation
-        await self._persist(text, generation)
+            pending = await self._snapshot_locked() if changed else (None, self._generation)
+        await self._persist(*pending)
         return result
 
     def _unit_for_lease(self, worker_id: str, lease_token: str) -> WorkUnit | None:
@@ -1054,9 +1097,7 @@ class ExchangeStore:
                 # replay must make the current state durable before confirming
                 # success, while holding the lock so no later mutation races
                 # this submission's snapshot.
-                text = self._snapshot_text()
-                generation = self._generation
-                await self._persist(text, generation)
+                await self._persist_locked()
                 return dict(receipt["response"])
             unit = self._unit_for_lease(worker_id, lease_token)
             if unit is None or unit.fence != int(fence):
@@ -1090,10 +1131,8 @@ class ExchangeStore:
                 "fingerprint": fingerprint,
                 "response": response,
             }
-            text = self._snapshot_text()
-            generation = self._generation
             # Submission success is an external acknowledgement. Do not return
             # it until this exact snapshot reaches disk; lock scope also keeps
             # another mutation from overtaking it while the write runs off-loop.
-            await self._persist(text, generation)
+            await self._persist_locked()
             return dict(response)

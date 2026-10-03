@@ -774,10 +774,12 @@ def create_dashboard_router() -> APIRouter:
             binary_ids = [int(part) for part in raw.split(",") if part.strip()]
         except ValueError:
             return JSONResponse({"ok": False, "error": "binary_ids must be a comma-separated list of integers", "cells": []}, status_code=400)
+        slugs = [part for part in request.query_params.get("slugs", "").split(",") if part.strip()]
         payload = await asyncio.to_thread(
-            cross_build_matrix, binary_ids,
+            cross_build_matrix, binary_ids, slugs=slugs,
             addr=request.query_params.get("addr") or "",
             selection=request.query_params.get("selection") or "",
+            include_tiers=(request.query_params.get("include_tiers") or "").lower() in ("1", "true", "yes"),
         )
         return JSONResponse(payload, status_code=200 if payload.get("ok") else 400)
 

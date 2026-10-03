@@ -2373,7 +2373,7 @@ def program_providers(
 
 
 def cross_build_matrix(binary_ids: list[int] | None = None, *, slugs: list[str] | None = None,
-                        addr: str = "", selection: str = "") -> dict[str, Any]:
+                        addr: str = "", selection: str = "", include_tiers: bool = False) -> dict[str, Any]:
     """U8's matrix cells: one `pair_availability` cell per unordered build pair.
 
     Reuses U14's `matching_availability.pair_availability` for the per-pair
@@ -2389,11 +2389,21 @@ def cross_build_matrix(binary_ids: list[int] | None = None, *, slugs: list[str] 
     ladder (``panels/steps.py``'s ``as_payload``) only carries binary slugs,
     not numeric ids; this resolves them read-only against ``binary.slug``
     inside the same transaction rather than adding a new field to that panel.
+
+    ``include_tiers`` is U43 (tier-split counts in cross-build matrix cells):
+    when set, each cell also carries each side's verified/advisory counts
+    from U26's `objdiff_report.build_report`, built once per binary (not per
+    pair) and cached across the pair loop. A binary without a usable content
+    identity or report basis gets an explicit `{"ok": False, "reason": ...}`
+    entry rather than a zero or invented count, and the base matrix (without
+    tiers) stays usable either way -- the core U8 matrix has no dependency on
+    this succeeding.
     """
     from agentdecompile_recovery.corpus.donor_schedule import spanning_forest_pairs
     from agentdecompile_recovery.corpus.dashboard.common import match_review_context
     from agentdecompile_recovery.corpus.match_review import ReviewError, _transaction
     from agentdecompile_recovery.corpus.matching_availability import pair_availability
+    from agentdecompile_recovery.corpus.objdiff_report import build_report
 
     ids = [int(value) for value in dict.fromkeys(binary_ids or []) if isinstance(value, int) or str(value).isdigit()]
     wanted_slugs = [str(value) for value in dict.fromkeys(slugs or []) if str(value).strip()]
@@ -2411,13 +2421,33 @@ def cross_build_matrix(binary_ids: list[int] | None = None, *, slugs: list[str] 
                     ).fetchall()
                     ids = list(dict.fromkeys(ids + [row[0] for row in resolved]))
                 placeholders = ",".join("?" for _ in ids)
+                binary_columns = {row[1] for row in con.execute("PRAGMA table_info(binary)")}
+                has_content_identity = "content_sha256" in binary_columns
+                select_cols = "id,slug,arch,bits,func_count,recovery_family" + (",content_sha256" if has_content_identity else "")
                 rows = con.execute(
-                    f"SELECT id,slug,arch,bits,func_count,recovery_family FROM binary WHERE id IN ({placeholders})",
+                    f"SELECT {select_cols} FROM binary WHERE id IN ({placeholders})",
                     ids,
                 ).fetchall()
                 by_id = {row[0]: {"id": row[0], "slug": row[1], "arch": row[2], "bits": row[3],
-                                   "func_count": row[4], "recovery_family": row[5]} for row in rows}
+                                   "func_count": row[4], "recovery_family": row[5],
+                                   "content_sha256": row[6] if has_content_identity else None}
+                         for row in rows}
                 present_ids = [value for value in ids if value in by_id]
+                tier_cache: dict[int, dict[str, Any]] = {}
+
+                def binary_tiers(bid: int) -> dict[str, Any]:
+                    if bid in tier_cache:
+                        return tier_cache[bid]
+                    version = by_id[bid].get("content_sha256")
+                    if not version:
+                        tier_cache[bid] = {"ok": False, "reason": "binary_content_identity_required"}
+                        return tier_cache[bid]
+                    try:
+                        report = build_report(con, bid, version=version)
+                        tier_cache[bid] = {"ok": True, "tiers": report["tiers"], "version": version}
+                    except (ValueError, sqlite3.Error) as exc:
+                        tier_cache[bid] = {"ok": False, "reason": str(exc)}
+                    return tier_cache[bid]
                 families: dict[str, list[dict[str, Any]]] = {}
                 for value in present_ids:
                     families.setdefault(str(by_id[value].get("recovery_family") or ""), []).append(by_id[value])
@@ -2446,6 +2476,8 @@ def cross_build_matrix(binary_ids: list[int] | None = None, *, slugs: list[str] 
                         cell = pair_availability(con, src_id, dst_id, src_addr=addr_i, schedule=schedule)
                         cell["srcSlug"] = by_id[src_id]["slug"]
                         cell["dstSlug"] = by_id[dst_id]["slug"]
+                        if include_tiers:
+                            cell["tiers"] = {"src": binary_tiers(src_id), "dst": binary_tiers(dst_id)}
                         cells.append(cell)
                 missing_ids = [value for value in ids if value not in by_id]
                 return {"ok": True, "selection": context.selection, "cells": cells,

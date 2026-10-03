@@ -947,6 +947,17 @@
         <button type="button" className="wb-btn wb-btn-mini" onClick=${onClose}>Close</button>
       </div>
       <p className="wb-hint">${cell.state}${cell.reason ? ": " + cell.reason : ""}${cell.schedule ? " · scheduling: " + (cell.schedule.reason || "") : ""}</p>
+      ${cell.tiers ? html`<p className="wb-hint wb-tier-counts">
+        ${[["src", cell.srcSlug], ["dst", cell.dstSlug]].map(function (pair) {
+          const side = cell.tiers[pair[0]];
+          if (!side) return null;
+          if (!side.ok) return html`<span key=${pair[0]}>${pair[1]}: report unavailable (${side.reason})</span>`;
+          const t = side.tiers || {};
+          const verified = (t["verified-byte-exact"] && t["verified-byte-exact"].functions) || 0;
+          const advisory = (t["advisory-ghidra"] && t["advisory-ghidra"].functions) || 0;
+          return html`<span key=${pair[0]}>${pair[1]}: verified ${verified} · advisory ${advisory}</span>`;
+        })}
+      </p>` : null}
       ${matchState.status === "loading" ? html`<p role="status" className="wb-hint">Reading sampled matches…</p>` : null}
       ${matchState.status === "failed" ? html`<p className="wb-dialog-error">Match sample unavailable: ${matchState.error}</p>` : null}
       ${matchState.status === "ok" && matchState.matches.length ? html`<table className="wb-provider-table" role="table" aria-label="Sampled matches">
@@ -982,7 +993,10 @@
       setActiveCell(null);
       if (slugs.length < 2) { setState({ status: "empty" }); return undefined; }
       setState({ status: "loading" });
-      const params = new URLSearchParams({ slugs: slugs.join(","), addr: (selected && selected.addr) || "" });
+      // include_tiers (U43) adds each side's verified/advisory counts from
+      // U26's report; the core matrix below renders fine whether or not a
+      // given binary's report basis is available.
+      const params = new URLSearchParams({ slugs: slugs.join(","), addr: (selected && selected.addr) || "", include_tiers: "true" });
       fetch(API.crossBuildMatrix + "?" + params, { cache: "no-store" })
         .then(function (r) { return r.json().then(function (b) { return { ok: r.ok, body: b }; }); })
         .then(function (result) { if (!alive) return;

@@ -934,6 +934,22 @@ diagrams until it is imported and a topology decision is made.
   the targeted-AI setting and the report spine. It supersedes the external
   7-slice redesign spec as the working plan for that surface.
 
+### Delta Update — 2026-10-03 (frontends plan complete in source)
+
+- Landed: all 43 units of the frontends plan are on
+  `codex/branch-consolidation-20260928` (HEAD `4e2500ab`), including U4, U6
+  providers and Listing rebuild, U7 peers, U8 cross-build map, U19/U20/U23/U25
+  Vite views, U28 reconciliation gate, U29 publish approval (static and Vite),
+  U30 tests, and the U43 tier counts. Full suite on a clean checkout: 4,205
+  passed; every remaining failure also fails at `526f535a` (147 pre-existing).
+- Partial: U7 adds a peers view but keeps the single active-pane model for
+  the other tabs; new static elements are unstyled; the Vite bundle is not
+  rebuilt (needs package install); no live 8080 check yet (the running
+  server imports another tree).
+- Next: relaunch 8080 with the intended `PYTHONPATH` and run the usability
+  tasks T1–T11; rebuild the Vite bundle; fix the pre-existing hanging test
+  and the match-metadata backfill revision bump (both split out as tasks).
+
 No diagram topology changed in this reconciliation, so the rendered artifacts were not
 regenerated. Update their source and all formats together when an actual design contract
 changes, then keep the Documents overview synchronized.

@@ -1371,4 +1371,3 @@ The following complete source record retains original acceptance, dependency, su
 ```text
 | M0 Reliable continuation | Existing preparation/recovery retains attempts, reports exact next step and avoids repeated unchanged failures across resume | Real coordinator tests and isolated child-process checks; no claim of autonomous live game delivery |
 ```
-

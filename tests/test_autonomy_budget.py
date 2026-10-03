@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 
+import agentdecompile_recovery.autonomy_budget as autonomy_budget
 from agentdecompile_recovery.autonomy_budget import (
     AutonomyBudget,
     budget_from_args,
@@ -16,8 +17,17 @@ from agentdecompile_recovery.autonomy_budget import (
 from agentdecompile_recovery.mismatch_classify import CLASS_OPERAND, PLAYBOOK_OPERAND
 from agentdecompile_recovery.autonomous_policy import choose_next_action
 from agentdecompile_recovery.frontdoor import build_parser, build_reconstruct_namespace
+from agentdecompile_recovery.targeted_ai import TargetedAIState
 
 pytestmark = pytest.mark.unit
+
+
+@pytest.fixture(autouse=True)
+def _targeted_ai_enabled(monkeypatch):
+    # KTD5/R35-R38: targeted AI now defaults off (CLI > env > dashboard >
+    # compiled-default off). remaining_rewrite_requests gates on it; these
+    # tests exercise the budget arithmetic itself, so force it on.
+    monkeypatch.setattr(autonomy_budget, "resolve_targeted_ai", lambda: TargetedAIState(True, "test"))
 
 
 class _Step:

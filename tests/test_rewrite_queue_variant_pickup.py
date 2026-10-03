@@ -9,6 +9,7 @@ from typing import Any
 
 import pytest
 
+import agentdecompile_recovery.autonomy_budget as autonomy_budget
 from agentdecompile_recovery import rewrite_queue
 from agentdecompile_recovery.autonomous_policy import choose_next_action
 from agentdecompile_recovery.autonomy_budget import AutonomyBudget
@@ -20,8 +21,18 @@ from agentdecompile_recovery.source_parity_synthesize import (
     semantic_equivalent_variants,
 )
 from agentdecompile_recovery.source_plugins import SourceCandidateGeneratorPlugin
+from agentdecompile_recovery.targeted_ai import TargetedAIState
 
 pytestmark = pytest.mark.unit
+
+
+@pytest.fixture(autouse=True)
+def _targeted_ai_enabled(monkeypatch):
+    # KTD5/R35-R38: targeted AI now defaults off (CLI > env > dashboard >
+    # compiled-default off). autonomy_budget.remaining_rewrite_requests
+    # (used by choose_next_action to gate try-rewrite-request) checks it;
+    # these tests exercise the mechanism-3 policy itself, so force it on.
+    monkeypatch.setattr(autonomy_budget, "resolve_targeted_ai", lambda: TargetedAIState(True, "test"))
 
 
 class _Step:

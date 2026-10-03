@@ -1,9 +1,10 @@
-"""Fresh direct-compiler full-image receipt.
+"""Fresh direct-build diagnostics and an independent whole-file comparison.
 
-This is the terminal verification route: it owns a new work directory, invokes
-the recovery compiler/link frontdoor, runs a fresh relocation-aware function
-receipt from the same sources, then compares the compiler-produced PE with the
-shipped PE.  It never starts from or copies the shipped image.
+This route owns a new work directory, invokes the recovery compiler/link
+frontdoor, separately recompiles local function diagnostics from the sources,
+then compares the linked candidate with the shipped PE. Same-build linked
+replacement contribution is unavailable, so these diagnostics cannot establish
+terminal recovery, even when the complete files are byte-identical.
 """
 from __future__ import annotations
 
@@ -18,7 +19,7 @@ from .verify_recovered_byteexact import main as verify_byteexact_main
 
 
 def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(description="fresh direct compiler/link plus full-image receipt")
+    ap = argparse.ArgumentParser(description="fresh direct build diagnostics and whole-file comparison; terminal contribution unsupported")
     ap.add_argument("--target", type=Path, required=True)
     ap.add_argument("--src-dir", type=Path, required=True)
     ap.add_argument("--raw", type=Path, required=True)
@@ -101,7 +102,20 @@ def main(argv: list[str] | None = None) -> int:
                           candidate_info["sha256"] == target_info["sha256"])
     if not byte_identical:
         errors.append("direct compiler/link candidate whole file differs from shipped target")
-    verified = not errors
+    linked_contribution = {
+        "status": "unsupported",
+        "reason": "same_build_linked_contribution_unavailable",
+        "missingBindings": [
+            "source_inventory_capture",
+            "effective_toolchain_identity",
+            "same_build_object_image_provenance",
+            "linked_region_fixups",
+            "final_compiled_replacement_ownership",
+            "variant_binding",
+        ],
+    }
+    errors.append(linked_contribution["reason"])
+    verified = False
     receipt = {
         "schema": "agentdecompile.direct-compiler-full-image-objdiff-receipt.v1",
         "startedNs": started_ns,
@@ -109,9 +123,9 @@ def main(argv: list[str] | None = None) -> int:
         "candidate": candidate_info,
         "build": build,
         "objdiff": objdiff_info,
-        "compilerProducedWholeImage": bool(candidate_info and
-                                            isinstance(build.get("compileLink"), dict) and
-                                            build["compileLink"].get("ok")),
+        "claimScope": "direct-build/local-function diagnostics and whole-file equality; not terminal recovery",
+        "linkedContribution": linked_contribution,
+        "compilerProducedWholeImage": False,
         "wholeFileByteIdentical": byte_identical,
         "verified": verified,
         "errors": errors,

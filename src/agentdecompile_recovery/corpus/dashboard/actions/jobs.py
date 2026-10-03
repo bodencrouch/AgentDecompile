@@ -2124,21 +2124,35 @@ def _active_duplicate(action_id: str, params: dict[str, Any]) -> JobRecord | Non
     Recovery outputs are append-only ledgers; admitting two writers corrupts
     reuse accounting and doubles compiler work.
     """
-    target = str(params.get("workDir") or params.get("work_dir") or "").strip()
+    direct_image = action_id == "corpus.verify-direct-full-image"
+    target = str((params.get("work-dir") if direct_image else
+                  params.get("workDir") or params.get("work_dir")) or "").strip()
     if not target:
         return None
-    try:
-        target_key = str(Path(target).expanduser().resolve())
-    except (OSError, RuntimeError, ValueError):
-        target_key = target
+    if direct_image:
+        target_key = _canonical_resource_path(target, base=(live_root() or Path.cwd()).resolve())
+        if target_key is None:
+            return None
+    else:
+        try:
+            target_key = str(Path(target).expanduser().resolve())
+        except (OSError, RuntimeError, ValueError):
+            target_key = target
     for existing in STORE.list(compact=True):
         if existing.action_id != action_id or existing.status not in {"queued", "running", "cancelling"}:
             continue
-        other = str(existing.params.get("workDir") or existing.params.get("work_dir") or "").strip()
-        try:
-            other = str(Path(other).expanduser().resolve())
-        except (OSError, RuntimeError, ValueError):
-            pass
+        if direct_image:
+            other = _canonical_resource_path(
+                existing.params.get("work-dir"),
+                base=Path(existing.execution_root) if existing.execution_root else
+                (live_root() or Path.cwd()).resolve(),
+            )
+        else:
+            other = str(existing.params.get("workDir") or existing.params.get("work_dir") or "").strip()
+            try:
+                other = str(Path(other).expanduser().resolve())
+            except (OSError, RuntimeError, ValueError):
+                pass
         if other and other == target_key:
             return existing
     return None
@@ -2155,14 +2169,23 @@ def _external_pipeline_owner(action_id: str, params: dict[str, Any]) -> dict[str
     )):
         return None
     db = str(params.get("db") or "").strip()
-    work_dir = str(params.get("workDir") or params.get("work_dir") or params.get("out-dir") or "").strip()
+    direct_image = action_id == "corpus.verify-direct-full-image"
+    work_dir = str((params.get("work-dir") if direct_image else
+                    params.get("workDir") or params.get("work_dir") or params.get("out-dir")) or "").strip()
     if not db or not work_dir:
         return None
-    try:
-        db = str(Path(db).expanduser().resolve())
-        work_dir = str(Path(work_dir).expanduser().resolve())
-    except (OSError, RuntimeError, ValueError):
-        return None
+    if direct_image:
+        root = (live_root() or Path.cwd()).resolve()
+        db = _canonical_resource_path(db, base=root)
+        work_dir = _canonical_resource_path(work_dir, base=root)
+        if db is None or work_dir is None:
+            return None
+    else:
+        try:
+            db = str(Path(db).expanduser().resolve())
+            work_dir = str(Path(work_dir).expanduser().resolve())
+        except (OSError, RuntimeError, ValueError):
+            return None
     for proc in Path("/proc").iterdir():
         if not proc.name.isdigit() or proc.name == str(os.getpid()):
             continue

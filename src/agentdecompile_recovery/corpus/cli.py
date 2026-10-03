@@ -717,6 +717,8 @@ def build_parser(prog: str | None = None) -> argparse.ArgumentParser:
         "verify-direct-full-image",
         help="Fresh direct VC7 compile/link, function objdiff receipt, and whole-file comparison",
     )
+    vdfi.mutating = True
+    vdfi.long_running = True
     vdfi.add_argument("--target", type=Path, required=True)
     vdfi.add_argument("--src-dir", type=Path, required=True)
     vdfi.add_argument("--raw", type=Path, required=True)

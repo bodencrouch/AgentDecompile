@@ -10,7 +10,7 @@ Scope authority: `2026-09-28-comprehensive-agentdecompile-plan.md`. Queue: `agen
 
 ## Current state
 
-This consolidation performed source/document checks only. It did not establish new software, installed-consumer, runtime, gameplay, host or release acceptance. Prior source implementation is preserved in the frozen frontend status and unit records; it must not be flattened to either “nothing exists” or “complete”.
+The program remains in progress. Current continuation implements and independently reviews bounded source slices, preserving the frozen donor implementation and its historical evidence. Current checks establish source syntax and review only; software execution, installed consumers, recovery, runtime, gameplay, hosts and release acceptance remain separately recorded and open. No full integration unit is closed from a source commit or historical receipt.
 
 ## Source reconciliation continuation — 2026-10-02 (Task 13.1)
 
@@ -33,6 +33,20 @@ Commits `612e1315` and `2a16c365` bind selected corpus contribution to the compl
 [Implementation and fix report](../../.superpowers/sdd/2026-09-28-comprehensive-agentdecompile-plan/task-1-report.md), [initial review](../../.superpowers/sdd/2026-09-28-comprehensive-agentdecompile-plan/task-1-review.md) and [approved scoped re-review](../../.superpowers/sdd/2026-09-28-comprehensive-agentdecompile-plan/task-1-fix-r1-review.md) record source-only verification. Changed Python files were AST-parsed and scoped diffs checked; regression specifications remain unexecuted. Raw equality, anonymous placement, semantic identity, selected-function contribution and whole-image compiler acceptance remain separate. This closes the bounded source slice only; U1, installed/live and fresh whole-image gates remain open.
 
 The ready source queue continues with independent cave qualification/depth safety (Task25.1), actual compiler-output binding (Task11.1), residual pure-control MCP dispatch state (Task29.1), faithful explicit-input packaging (Task8.1), staged React publication (Task42.1), and a bounded thin-Mach-O STABS identity witness (Task3.1). Accepted-source dashboard integration still requires a real target-object producer and complete independent compile/parity/current-policy chain; no permissive provider is connected.
+
+## Independent cave qualification source review — 2026-10-02
+
+Task25.1 commits `f059c0bb` and `c5c191e0` add an owner-supplied independent verifier to v2 cave production and every required bundle/serialized-reopen validation. Exact image/build/architecture/basis/evidence/candidate digests and actual integer count must agree. Missing authority stays blocked; current policy/generation is rechecked by the trusted provider. Evidence is captured once for hash/scanner use, verifier input is detached, and a fixed 64-active-container bound rejects depth65 before recursive encoding/copying while retaining large flat evidence. V1 behavior stays on its existing path.
+
+[Implementation report](../../.superpowers/sdd/2026-09-28-comprehensive-agentdecompile-plan/task-25-report.md), [initial source approval](../../.superpowers/sdd/2026-09-28-comprehensive-agentdecompile-plan/task-25-review.md) and [approved snapshot-regression correction](../../.superpowers/sdd/2026-09-28-comprehensive-agentdecompile-plan/task-25-fix-r1-review.md) close the bounded source gate. Q25-1 now mutates the caller immediately before the real scanner consumes its detached argument, checking the captured evidence and result binding. Source AST/diff/API checks passed; no regression, export, filesystem test or live producer was executed. No real complete decoder provider has been established, so default CLI/listing qualification remains blocked. U25/U28 production-provider, runtime allocation/install/restore, independent consumer, and fresh recovery acceptance stay open.
+
+## Compile-object and MCP dispatch source review — 2026-10-02
+
+Task11.1 commit `d966fefc` binds the compile verifier to the actual proposed and independently recomputed object bytes. Both pairs must match their CAS address, receipt raw digest, exact integer size, derived timestamp-masked hash, selected task/TU/toolchain/configuration and basis. Timestamp-only differences remain compatible; diagnostic outcomes remain diagnostic, and unavailable evidence/toolchains remain unavailable. [Implementation report](../../.superpowers/sdd/2026-09-28-comprehensive-agentdecompile-plan/task-11-report.md) and [independent source approval](../../.superpowers/sdd/2026-09-28-comprehensive-agentdecompile-plan/task-11-review.md) record two AST checks, scoped diff checks and unrun regression sources. This closes the bounded object-binding source slice, not U11, real compiler verification or accepted-source progress.
+
+Task29.1 commit `bdbb4ef7` removes the residual compatibility-dispatch write to provider lifecycle context. Explicit request context stays local; omitted requests and intentional lifecycle activation retain their established behavior. Regression sources cover real prompt/function responses, explicit None, prerequisites, cancellation/error cleanup, and A/B interleaving across the real thread boundary. [Implementation report](../../.superpowers/sdd/2026-09-28-comprehensive-agentdecompile-plan/task-29-report.md) and [independent source approval](../../.superpowers/sdd/2026-09-28-comprehensive-agentdecompile-plan/task-29-review.md) record source-only checks and zero review findings. Full U29 execution, actual consumer and general Ghidra concurrency acceptance remain open.
+
+The user requested maximum concurrency: up to three workers now own disjoint files, and the controller alone stages/commits their paths. Faithful explicit-input packaging (Task8.1) and staged React asset publication (Task42.1) are in progress. Thin-Mach-O identity (Task3.1) waits only for the shared parser owner. The target-object producer packet identifies the missing pinned decoder/snapshot association design; it supplies no fabricated provider. Fresh read-only health and `/proc` checks retain PID2697197/start1790595674.5226107/startticks68973313/cwdNVMe/restarts0. Loaded source identity is retained from the matching process's catalog receipt; this checkout is not activated.
 
 ## Original-game baseline prerequisite — 2026-10-02
 
@@ -82,7 +96,7 @@ Each row tracks source implementation, installed consumer, software validation, 
 | U8 | Complete deterministic export bundle | U5, U7 | unassessed-current | Reconcile retained source/evidence, then close the first missing child predicate |
 | U9 | One durable task authority, resource admission and failure continuation | U1 | unassessed-current | Reconcile retained source/evidence, then close the first missing child predicate |
 | U10 | External verification and portable recovered projects | U1, U4, U9 | unassessed-current | Reconcile retained source/evidence, then close the first missing child predicate |
-| U11 | Reusable donated compute foundation and adapters | U1, U9 | unassessed-current | Reconcile retained source/evidence, then close the first missing child predicate |
+| U11 | Reusable donated compute foundation and adapters | U1, U9 | Task11.1 actual compile-object binding source reviewed; execution/full-unit gates open | Resolve target-object producer basis; qualify real independent compile/parity and grid cycle |
 | U12 | Autonomous capability product M1–M7 | U6, U9 | unassessed-current | Reconcile retained source/evidence, then close the first missing child predicate |
 | U13 | Source and package reconciliation | None | Task 13.1 source integrated and independently reviewed through d43a86fb; software/installed/live acceptance open | Execute permitted acceptance when authorized, then qualify redirects, atomic asset rollout and exact installed consumer |
 | U14 | Project lifecycle, admission and tab contexts | U13, U29, U9 | unassessed-current | Reconcile retained source/evidence, then close the first missing child predicate |
@@ -96,11 +110,11 @@ Each row tracks source implementation, installed consumer, software validation, 
 | U22 | Optional AI and bounded context | U14, U9 | unassessed-current | Reconcile retained source/evidence, then close the first missing child predicate |
 | U23 | ABI and type data preservation | U5 | inspected source seams retained; runtime acceptance open | Capture actual bound record through collector, snapshot, store and export without repeating implemented changes |
 | U24 | Hook pack v2 and compatible readers | U23, U2 | unassessed-current | Reconcile retained source/evidence, then close the first missing child predicate |
-| U25 | Cave discovery and safe injection plans | U5 | evidence-to-export source connection verified in memory and reviewed | Qualify a real complete decoder producer independently; keep runtime and graph gates separate |
+| U25 | Cave discovery and safe injection plans | U5 | Task25.1 independent qualification/depth safety source reviewed through c5c191e0; execution/full-unit gates open | Qualify a real complete decoder producer independently; keep runtime and graph gates separate |
 | U26 | Generated Lua and C/C++ build headers | U23, U24 | unassessed-current | Reconcile retained source/evidence, then close the first missing child predicate |
 | U27 | Readiness and divergence | U3, U24 | unassessed-current | Reconcile retained source/evidence, then close the first missing child predicate |
 | U28 | Atomic export bundle and delivery | U24, U25, U26, U27 | unassessed-current | Reconcile retained source/evidence, then close the first missing child predicate |
-| U29 | Explicit MCP program dispatch | U13 | unassessed-current | Reconcile retained source/evidence, then close the first missing child predicate |
+| U29 | Explicit MCP program dispatch | U13 | Task29.1 residual lifecycle-write source fix reviewed; execution/full-unit gates open | Execute scoped fixtures when authorized; qualify installed MCP and frontend lifecycle consumers |
 | U30 | Input and ownership simplification preservation | U13 | unassessed-current | Reconcile retained source/evidence, then close the first missing child predicate |
 | U31 | Browser rewrite contributor | U11 | unassessed-current | Reconcile retained source/evidence, then close the first missing child predicate |
 | U32 | Durable exchange proposal lifecycle | U9 | unassessed-current | Reconcile retained source/evidence, then close the first missing child predicate |

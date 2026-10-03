@@ -432,3 +432,34 @@ Task1.1: fix round1 implemented 612e1315..2a16c365, scoped re-review pending fin
 Task1.1: fix round1/5 (2 addressed, 0 open — C1/C2 explicit unavailable-inventory refusal; commits612e1315..2a16c365).
 Task1.1: complete (commits860731e5..2a16c365, review clean for bounded source slice). Full U1 and executable/installed/live acceptance remain open.
 Task25.1: next fresh implementation after this evidence checkpoint.
+
+Task25.1: implementation dispatched to /root/implement_cave_qualification from base6e4b313d740380ea4d7af7389ce5dc0b5312643a; brief task-25-brief.md; report task-25-report.md; source-only checks, no real producer fabrication or activation. Parent owns this pending ledger edit.
+
+Ruling: Use the local CaveEvidenceError code independent_cave_verifier_unavailable as the explicit provider-unavailability signal; wrap unexpected callback errors as cave_verifier_failed with cause — the brief requires distinct expected-unavailable/failure outcomes but leaves exception type unspecified — cost if wrong: future provider adapters must adopt or translate this narrow exception contract; acceptance still fails closed.
+
+Ruling: Supersede serialized implementation with up to three concurrent workers on disjoint owned paths, as explicitly requested by the user in the current continuation — maximize completion throughput while keeping reviews task-scoped and serializing shared-index commits — cost if wrong: cross-interface integration may require extra reconciliation; overlapping file writers remain prohibited.
+Parallel commit protocol: Task25.1 holds current commit slot; new Task11.1 and29.1 may edit/check/report owned files but request controller commit slot before staging/commit. Scope-filter review packages by task-owned paths against recorded base/head so unrelated concurrent commits do not contaminate task review.
+
+Task11.1: parallel implementation dispatched /root/implement_compile_binding, base6e4b313d740380ea4d7af7389ce5dc0b5312643a; exclusive compile.py + test_grid_compile_binding.py; commit permission pending.
+Task29.1: parallel implementation dispatched /root/implement_dispatch_scope, base6e4b313d740380ea4d7af7389ce5dc0b5312643a; exclusive tool_providers.py and two focused tests/solution note; commit permission pending.
+
+Task25.1: implemented 6e4b313d..f059c0bb; independent spec/quality review /root/review_cave_qualification active with task-25-review.diff. AST/source checks only; full U25/U28 still open. Commit slot released; Task11.1 and29.1 must request it before staging.
+
+Ruling: Controller performs all staging and local commits for the concurrent shared-workspace wave; workers stop at READY_TO_COMMIT with an owned-path report — CE work shared-workspace policy gives the shared index one authority, which also preserves the SDD owned-commit/review contract — cost if wrong: a small controller integration delay; no worker edits are lost. This supersedes worker commit-slot grants for Task11.1,29.1 and subsequent parallel work. Task25.1 already completed its previously authorized serialized commit.
+
+Task11.2: producer packet prepared (task-11-target-brief.md), not yet implementation-ready: resolve pinned bounded decoder injection and snapshot-derived selection contract before dispatch. Existing mkobj uses PATH objdump without timeout; no permissive callback or fabricated producer identity may close that prerequisite. Other ready source work proceeds.
+
+Task29.1: controller committed owned paths bdbb4ef7; /root/review_dispatch_scope performs spec/quality gate against path-filtered task-29-review.diff, base6e4b313d. No tests/live acceptance.
+Task11.1: controller committed owned paths d966fefc; /root/review_compile_binding performs spec/quality gate against path-filtered task-11-review.diff, base6e4b313d. No tests/real compiler acceptance.
+Task25.1: spec compliant and quality approved in task-25-review.md; one minor Q25-1 fixture mutates only after scanner. Original implementer resumed to strengthen that source-only fixture before closing slice, fix round1 fromf059c0bb. Production reviewed clean; real provider remains unavailable.
+
+Task29.1: complete (commits6e4b313d..bdbb4ef7 owned paths; independent spec/quality review clean in task-29-review.md). Full U29 and all execution/installed/live predicates remain open.
+Task11.1: complete (commits6e4b313d..d966fefc owned paths; independent spec/quality review clean in task-11-review.md). Full U11, real compiler and accepted-source gates remain open.
+Task8.1: implementation dispatched /root/implement_authoritative_packaging from d966fefc; exclusive package_authoritative and optional minimal ingest snapshot seam. No competing Task3 parser writer.
+Task42.1: implementation dispatched /root/implement_staged_react_assets from c5c191e0; exclusive frontend build/publisher/test paths, no served assets.
+Task25.1: Q25-1 fix committed c5c191e0; source-only scoped re-review /root/review_cave_snapshot_fix pending (task-25-fix-r1.diff).
+Runtime recheck: live-health-parallel-wave.json and /proc confirm same healthy8080 PID/start/cwd/startticks/restarts0; no activation/action submitted.
+
+Task25.1: fix round1/5 (Q25-1 addressed, 0 open, 0 introduced; source-only re-review task-25-fix-r1-review.md).
+Task25.1: complete (owned source commits6e4b313d..f059c0bb and fixf059c0bb..c5c191e0; spec and quality approved). Full U25/U28 and executable/producer/live gates remain open.
+Task11.2: bounded architectural contract investigation dispatched /root/resolve_target_producer_contract; owns next-target-object-contract.md only. No implementation yet.

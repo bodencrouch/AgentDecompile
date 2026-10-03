@@ -31,11 +31,11 @@ from typing import Any
 
 from agentdecompile_grid.core import TASK_KINDS
 
-from . import analysis, cascade, compile, parity, splitter, target, verbs  # noqa: F401  (registration on import)
+from . import analysis, cascade, compile, parity, parity_region, splitter, target, verbs  # noqa: F401  (registration on import)
 from ._common import BasisRefused, ContentHashRefused, Infra, Locked, PlannableKind, hashed_slug
 
 LANE_KINDS: tuple[type, ...] = (
-    *verbs.VERB_KINDS, compile.CompileAttempt, parity.ParityCheck, target.MkobjTarget,
+    *verbs.VERB_KINDS, compile.CompileAttempt, parity.ParityCheck, parity_region.ParityRegionCheck, target.MkobjTarget,
     cascade.MatchScoreShard, *analysis.ANALYSIS_KINDS,
 )
 

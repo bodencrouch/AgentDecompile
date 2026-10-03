@@ -83,6 +83,8 @@ def thin_image(*, bits=64, endian="<", names=None, mutation=None):
         struct.pack_into(endian + "I", blob, 12, 1)
     elif mutation == "ordinary_symbol":
         struct.pack_into("B", blob, 0x300 + 2 * (16 if bits == 64 else 12) + 4, 0x0f)
+    elif mutation == "highvm":
+        struct.pack_into(endian + "I", blob, header + (68 if bits == 64 else 52), 0x1)
     return bytes(blob), base
 
 
@@ -214,6 +216,26 @@ def test_region_crossing_file_tail_and_virtual_only_address_are_refused(tmp_path
     assert admitted(target, binary, candidate)["semantic_reason"] == "candidate_target_region_mismatch"
 
 
+@pytest.mark.parametrize("bits", [32, 64])
+@pytest.mark.parametrize("va_offset,recorded_offset", [(0x100, 0x100), (0x420, 0x220), (0x420, 0x420)],
+                         ids=["low-zero-filled", "shifted-file-backed", "unchecked-ordinary-offset"])
+def test_highvm_layout_refuses_low_and_shifted_regions(tmp_path, bits, va_offset, recorded_offset):
+    base = 0x100000000 if bits == 64 else 0x1000
+    target, blob, base, binary, candidate = prepared(tmp_path, bits=bits, mutation="highvm",
+                                                   names=[("Foo:F1", base + va_offset)])
+    header = 32 if bits == 64 else 28
+    _, vmsize, _, filesize = struct.unpack_from("<" + ("QQQQ" if bits == 64 else "IIII"), blob, header + 24)
+    assert vmsize == 0x800 and filesize == 0x600 and vmsize > filesize
+    # SG_HIGHVM zero-fills the low 0x200 bytes; VA+0x420 is backed at file+0x220.
+    # Also cover the formerly unchecked ordinary offset for that shifted VA.
+    candidate.update(addr=base + va_offset, target_offset=recorded_offset,
+                     machine_code=blob[recorded_offset:recorded_offset + 3].hex())
+    row = admitted(target, binary, candidate)
+    assert row["semantic_status"] == LOCAL_ONLY
+    assert row["semantic_reason"] == "unsupported_macho_highvm_layout"
+    assert recorded_name_witness(row) is None
+
+
 @pytest.mark.parametrize("field,value,reason", [
     ("target_sha256", "a" * 64, "candidate_target_digest_mismatch"),
     ("binary_id", 2, "candidate_target_binary_mismatch"),
@@ -283,7 +305,14 @@ def test_real_ingestion_status_and_consumers_use_recorded_stabs_scope(tmp_path):
     stored = {row["name"]: dict(row) for row in con.execute("SELECT * FROM recovered_function")}
     assert stored["Foo"]["semantic_status"] == LOCAL_ONLY and stored["Bar"]["semantic_status"] == STABS_ACCEPTED
     # Withdrawal of an unrelated seed/family edge does not own this raw root.
-    con.execute("DELETE FROM identity")
+    con.execute("INSERT INTO identity VALUES (?,?,?,?)", (99, 2, base + 0x200, "unrelated-seed-family"))
+    unrelated = (99, 2, base + 0x200, "unrelated-seed-family")
+    assert tuple(con.execute("SELECT logical_id,binary_id,addr,method FROM identity WHERE logical_id=99").fetchone()) == unrelated
+    assert recorded_stabs_name(stored["Bar"]) == "Bar"
+    con.execute("DELETE FROM identity WHERE logical_id=99 AND binary_id=2 AND addr=? AND method='unrelated-seed-family'", (base + 0x200,))
+    assert con.execute("SELECT COUNT(*) FROM identity WHERE logical_id=99").fetchone()[0] == 0
+    after_withdrawal = dict(con.execute("SELECT * FROM recovered_function WHERE name='Bar'").fetchone())
+    assert recorded_stabs_name(after_withdrawal) == "Bar"
     target.unlink()
     report = build(con)
     bar = next(row for row in report["results"] if row["functionName"] == "Bar")

@@ -14,6 +14,7 @@ from .machostabs import CPU_NAMES, LC_SEGMENT, LC_SEGMENT_64, LC_SYMTAB, MachO, 
 FAT_MAGICS = {b"\xca\xfe\xba\xbe", b"\xbe\xba\xfe\xca", b"\xca\xfe\xba\xbf", b"\xbf\xba\xfe\xca"}
 THIN_LAYOUTS = {b"\xce\xfa\xed\xfe": (32, "<"), b"\xfe\xed\xfa\xce": (32, ">"),
                 b"\xcf\xfa\xed\xfe": (64, "<"), b"\xfe\xed\xfa\xcf": (64, ">")}
+SG_HIGHVM = 0x1
 
 
 class WitnessError(ValueError):
@@ -83,9 +84,13 @@ def observe_snapshot(data: bytes, binary: dict) -> dict:
             if size < fixed:
                 raise WitnessError("malformed_macho_stabs_inventory")
             vmaddr, vmsize, fileoff, filesize = struct.unpack_from(endian + ("QQQQ" if bits == 64 else "IIII"), data, off + 24)
-            nsects = struct.unpack_from(endian + "I", data, off + (64 if bits == 64 else 48))[0]
+            nsects, segment_flags = struct.unpack_from(endian + "II", data, off + (64 if bits == 64 else 48))
             if size != fixed + nsects * section_size or filesize > vmsize or vmaddr + vmsize > 1 << bits:
                 raise WitnessError("malformed_macho_stabs_inventory")
+            # High-VM segments shift file bytes past a low zero-filled region.
+            # This bounded lane only qualifies the ordinary vmaddr mapping.
+            if segment_flags & SG_HIGHVM:
+                raise WitnessError("unsupported_macho_highvm_layout")
             _extent(data, fileoff, filesize)
             for index in range(nsects):
                 section = off + fixed + index * section_size

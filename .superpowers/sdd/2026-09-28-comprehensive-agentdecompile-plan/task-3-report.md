@@ -149,3 +149,52 @@ activation, live 8080 acceptance, fresh current-source rebuild, whole-image
 comparison, runtime reuse or terminal recovery proof was verified. The local
 changes are not a claim that the serving checkout was activated. Those remain
 separate authorized acceptance gates.
+
+## Fix round 1: I1 and M1 source responses
+
+Resumed from reviewed head `000d400a5c83ea38501b5c54f47de1033652c8a5`.
+Read the complete `task-3-review.md` and confirmed the segment-flag value and
+32/64-bit field layouts against Apple's
+[Mach-O loader header](https://raw.githubusercontent.com/apple-oss-distributions/xnu/main/EXTERNAL_HEADERS/mach-o/loader.h#L334-L369).
+No project imports or runtime operations were used for this inspection.
+
+I1: the strict helper now reads the segment flags alongside `nsects`, at the
+32/64-bit command field offsets, and refuses any segment carrying `SG_HIGHVM`
+with `unsupported_macho_highvm_layout`. This occurs during whole-snapshot
+qualification, before the permissive parser or candidate mapper can run.
+`region_offset()` is unchanged; no high-VM mapping implementation or claim was
+added. The exact lane now excludes high-VM layouts explicitly.
+
+Authored six high-VM refusal cases across 32/64-bit fixtures with
+`vmsize=0x800 > filesize=0x600`: a low zero-filled VA, a shifted file-backed VA
+with its high-VM-correct recorded file offset, and that shifted VA with the
+formerly unchecked ordinary offset. Each asserts local-only status, the
+specific unsupported-layout reason and absence of a recorded named witness.
+These cases are source only and remain unrun.
+
+M1: the existing ingestion/consumer regression now inserts an unrelated
+seed/family edge, asserts its full tuple exists, and confirms the independently
+witnessed Bar name. It then deletes that exact edge, asserts absence, reloads
+the recorded Bar row and confirms its name still resolves before the existing
+report/package checks. The former deletion of an empty table is gone. These
+database operations are authored test code; none were executed.
+
+Fix-round changed paths are limited to `macho_semantic_witness.py`,
+`tests/test_macho_semantic_identity.py` and this report. Other worker paths,
+semantic admission/consumer modules, and the Task8 coverage-index seam were not
+edited in this round. No staging, commit or subagent dispatch was performed.
+
+Fix-round checks: stdlib-only `python3 -I` source parsing with `ast.parse` passed
+the two changed Python files; source-text whitespace checks passed those files
+and this report. Scoped `git diff --check --` on those same three paths returned
+exit 0 with no diagnostics. Read-only scoped diff inspection confirmed flags are
+read at command offsets52/68, refusal precedes retained parsing/mapping, the
+authored fixtures cover both widths and all three address/offset scenarios, and
+edge existence/deletion/independent-name assertions are explicit.
+
+No tests, collection, suites, builds, proof scripts, project imports, DB
+creation/query, compiler/Ghidra, runtime/catalog/process/service/systemctl
+actions or activation were performed. Behavioral execution, installed consumer,
+current-target and real recovery acceptance remain unverified. Source checks do
+not discharge those gates. Status: READY_TO_COMMIT; controller owns review and
+Git index/commit operations.

@@ -1275,6 +1275,22 @@ body.workbench-page.wb-density-compact .wb-editor-body .wb-surface {
 
 /* --- U7: peer lanes (R15-R18) --- */
 
+.workbench-page .wb-workspace-split.has-peer-rail {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 0.85fr) minmax(200px, 240px);
+}
+
+.workbench-page .wb-peer-rail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--wb-space-2);
+  min-width: 0;
+  max-height: 32rem;
+  padding: var(--wb-space-3);
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  background: var(--bg-sunken);
+}
+
 .workbench-page .wb-peer-lanes {
   display: flex;
   flex-direction: column;
@@ -1374,6 +1390,16 @@ body.workbench-page.wb-density-compact .wb-editor-body .wb-surface {
 
 .workbench-page .wb-peer-focus {
   margin-top: var(--wb-space-2);
+}
+
+@media (max-width: 1100px) {
+  .workbench-page .wb-workspace-split.has-peer-rail {
+    grid-template-columns: 1fr;
+  }
+
+  .workbench-page .wb-peer-rail {
+    max-height: 16rem;
+  }
 }
 
 /* --- U8: cross-build map dock (R19-R23) --- */

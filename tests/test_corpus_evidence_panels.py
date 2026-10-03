@@ -7,6 +7,7 @@ import json
 import re
 import shutil
 import subprocess
+
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -20,13 +21,12 @@ pytestmark = pytest.mark.unit
 
 REPO = Path(__file__).resolve().parent.parent
 STATIC = REPO / "src" / "agentdecompile_recovery" / "corpus" / "dashboard" / "static"
-EVIDENCE_PANELS = ("binaries", "crossmatch", "directives", "knowledge",
-                   "processes", "recovery", "roundtrip", "stabs")
 # The one collector each panel's render() and as_payload() must both read.
 SHARED_COLLECTOR = {"binaries": "_collect", "crossmatch": "_collect", "directives": "collect",
                     "knowledge": "_collect", "processes": "_scan_logs", "recovery": "collect",
                     "roundtrip": "_gather", "stabs": "_collect"}
-MARKUP = re.compile(r"<(div|span|a|p|table|svg|li|ul|pre|code|details)[\s>]", re.I)
+EVIDENCE_PANELS = tuple(SHARED_COLLECTOR)
+MARKUP = re.compile(r"<(div|span|a|p|table|svg|li|ul|pre|code|details)[\s>]", re.IGNORECASE)
 CORPUS_ENV = ("AGENT_DECOMPILE_CORPUS_ROOT", "AGENT_DECOMPILE_CORPUS_WORK_DIR",
               "AGENT_DECOMPILE_CORPUS_DB", "AGENT_DECOMPILE_KNOWLEDGE_DB",
               "AGENT_DECOMPILE_GHIDRA_KNOWLEDGE_DB", "AGENT_DECOMPILE_EXTERNAL_RECOVERY_ROOT",
@@ -86,18 +86,7 @@ BINARY_ROWS = [  # repo_path, slug, arch, md5, func_count, named_count
 def populated_corpus(tmp_path, monkeypatch):
     """Binary rows plus roundtrip and coverage records, one build configured as excluded."""
     root = tmp_path / "corpus"
-    (root / "output" / "roundtrip").mkdir(parents=True)
-    (root / "output" / "exact_universal").mkdir(parents=True)
-    (root / "output" / "roundtrip" / "_roundtrip.json").write_text(json.dumps([
-        {"binary": EXCLUDED, "identical": False, "size": 10, "rebuilt_size": 9, "functions": 50},
-        {"binary": "/G/app.exe", "identical": True, "size": 20, "rebuilt_size": 20, "functions": 100},
-        {"binary": "/G/console.xbe", "identical": False, "error": "no FileBytes in this database"},
-    ]))
-    (root / "output" / "exact_universal" / "_coverage.json").write_text(json.dumps([
-        {"repo_path": EXCLUDED, "functions": 50, "byte_exact": 50, "failed": 0},
-        {"repo_path": "/G/app.exe", "functions": 100, "byte_exact": 60, "failed": 2},
-        {"repo_path": "/G/console.xbe", "functions": 70, "byte_exact": 0, "failed": 70},
-    ]))
+    root.mkdir()
     corpus_db = tmp_path / "corpus.db"
     con = db.connect(corpus_db)
     con.executemany(
@@ -107,13 +96,29 @@ def populated_corpus(tmp_path, monkeypatch):
     con.commit()
     con.close()
     _use_corpus(monkeypatch, tmp_path, root, corpus_db, excluded=(EXCLUDED,))
+    # Written through the panel's own paths, which the reload just pointed at root.
+    roundtrip = _panel("roundtrip")
+    for path, records in (
+        (roundtrip.ROUNDTRIP_JSON, [
+            {"binary": EXCLUDED, "identical": False, "size": 10, "rebuilt_size": 9, "functions": 50},
+            {"binary": "/G/app.exe", "identical": True, "size": 20, "rebuilt_size": 20, "functions": 100},
+            {"binary": "/G/console.xbe", "identical": False, "error": "no FileBytes in this database"},
+        ]),
+        (roundtrip.COVERAGE_JSON, [
+            {"repo_path": EXCLUDED, "functions": 50, "byte_exact": 50, "failed": 0},
+            {"repo_path": "/G/app.exe", "functions": 100, "byte_exact": 60, "failed": 2},
+            {"repo_path": "/G/console.xbe", "functions": 70, "byte_exact": 0, "failed": 70},
+        ]),
+    ):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(records))
     yield root
     monkeypatch.undo()
     _reload_panels()
 
 
 def _row(html: str, needle: str) -> str:
-    return next(tr for tr in re.findall(r"<tr>.*?</tr>", html, re.S) if needle in tr)
+    return next(tr for tr in re.findall(r"<tr>.*?</tr>", html, re.DOTALL) if needle in tr)
 
 
 @pytest.mark.parametrize("name", EVIDENCE_PANELS)

@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import os
 import time
+
 from datetime import datetime, timezone
 from urllib.parse import quote
 
@@ -269,8 +270,7 @@ def _collect() -> dict:
         "functions_matchable": live_funcs,
         "functions_excluded": total_funcs - live_funcs,
         "named_matchable": sum(r["named_count"] or 0 for r in live),
-        # Duplicates still count here; only the configured list is off the
-        # priority list. The x86 section heading in render() uses the same rule.
+        # Duplicates still count here; only the configured list is off the priority list.
         "x86_priority": len([r for r in out["rows"]
                              if r["is_x86"] and r["exclusion"] != "configured"]),
         "x86_rows": len([r for r in out["rows"] if r["is_x86"]]),
@@ -333,7 +333,7 @@ def _funcs_bars(rows) -> str:
     State carries only the "counts in no denominator" fact (excluded). href_fn
     opens the same /binary/<slug> route the table row's link uses.
     """
-    data = [(r.get("slug") or r["repo_path"], r["func_count"] or 0, r["state"]) for r in rows]
+    data = [(r.get("slug") or r["repo_path"], r["func_count"], r["state"]) for r in rows]
     return bars(data, href_fn=lambda slug, *_: _bin_href(slug))
 
 
@@ -448,8 +448,8 @@ def render() -> str:
         if c["errors"] and not c["rows"]:
             return panel(missing(c["errors"][0]))
         rows = c["rows"]
+        totals = c["totals"]
         x86 = [r for r in rows if r["is_x86"]]
-        x86_live = [r for r in x86 if r["exclusion"] != "configured"]
         other = [r for r in rows if not r["is_x86"]]
 
         intro = (
@@ -467,7 +467,7 @@ def render() -> str:
                   'They render for provenance and count in no denominator.'
                   '</p>' + _funcs_bars(rows)),
             panel(f'<h3 style="margin-top:0">x86 and x64 — recovery priority '
-                  f'({len(x86_live)} of {len(x86)} rows)</h3>'
+                  f'({totals["x86_priority"]} of {totals["x86_rows"]} rows)</h3>'
                   '<p class="sub">The decompiler and the byte-exact ladder target this '
                   'family first. Rows tagged below stay listed for provenance and '
                   'count in no denominator.</p>'

@@ -9,7 +9,6 @@ import shutil
 import subprocess
 import unittest
 
-
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 STATIC = ROOT / "src" / "agentdecompile_recovery" / "corpus" / "dashboard" / "static"
 CSS = STATIC / "dashboard.css"
@@ -98,21 +97,7 @@ class DashboardStaticAssetTests(unittest.TestCase):
         node = shutil.which("node")
         if not node:
             self.skipTest("node is not installed")
-        result = subprocess.run(
-            [node, "--check", str(JS)],
-            text=True,
-            capture_output=True,
-            timeout=10,
-        )
-        self.assertEqual(result.returncode, 0, result.stderr)
-        actions = subprocess.run(
-            [node, "--check", str(ACTIONS_JS)],
-            text=True,
-            capture_output=True,
-            timeout=10,
-        )
-        self.assertEqual(actions.returncode, 0, actions.stderr)
-        for script in WORKBENCH_SCRIPTS:
+        for script in (JS, ACTIONS_JS, *WORKBENCH_SCRIPTS):
             with self.subTest(script=script.name):
                 checked = subprocess.run(
                     [node, "--check", str(script)],

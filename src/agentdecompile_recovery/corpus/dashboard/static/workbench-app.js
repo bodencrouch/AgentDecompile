@@ -1139,7 +1139,7 @@
     }, []);
     useEffect(function () {
       let dead = false;
-      setState(function (prev) { return Object.assign({}, prev, { loading: true }); });
+      setState(function (prev) { return prev.loading ? prev : Object.assign({}, prev, { loading: true }); });
       fetch(API.panel + "?id=" + encodeURIComponent(id), { cache: "no-store" })
         .then(function (res) {
           return res.json().then(function (data) { return { ok: res.ok, data: data }; });
@@ -1147,9 +1147,7 @@
         .then(function (r) {
           if (dead) return;
           if (!r.ok || !r.data || r.data.ok === false) {
-            const error = (r.data && r.data.error) || "The panel request failed.";
-            setState(function (prev) { return Object.assign({}, prev, { loading: false, error: error }); });
-            return;
+            throw new Error((r.data && r.data.error) || "The panel request failed.");
           }
           setState({ loading: false, payload: r.data.payload, error: null, at: r.data.collectedAt });
         })
@@ -1351,17 +1349,21 @@
     </div>`;
   }
 
+  /* A collector crash leaves only {error, errors} with no source, so it is checked
+     before the missing-file case; an unreadable contract reports ok: false. */
+  function directivesState(p) {
+    if (p.error != null && !p.source) return "failed";
+    if (!(p.source || {}).exists) return "missing";
+    if (p.ok === false) return "failed";
+    return (p.counts || {}).missing ? "partial" : "proven";
+  }
+
   /* wb-mission — the contract's cited evidence, checked on disk now. */
   function DirectivesEvidence({ payload }) {
     const p = payload || {};
     const src = p.source || {};
     const c = p.counts || {};
-    /* A collector crash leaves only {error, errors}; an unreadable contract reports ok: false. */
-    const crashed = p.error != null && !p.source;
-    const state = crashed ? "failed"
-      : !src.exists ? "missing"
-      : p.ok === false ? "failed"
-      : (c.missing ? "partial" : "proven");
+    const state = directivesState(p);
     const reason = state === "failed" ? (p.error || (p.errors || [])[0] || null) : null;
     return html`<div className="wb-ev-panel">
       <${EvidenceBlock} title="Cited evidence on disk"
@@ -1395,8 +1397,9 @@
     const cv = p.coverage || {};
     const gp = p.gaps || {};
     /* gaps.items lists every build; a build already in the store is not a gap. */
-    const gaps = (gp.items || []).filter(function (it) { return it.key !== "cached"; });
-    const gapState = gp.error && !(gp.items || []).length ? "missing" : (gp.unexplained ? "partial" : "proven");
+    const items = gp.items || [];
+    const gaps = items.filter(function (it) { return it.key !== "cached"; });
+    const gapState = gp.error && !items.length ? "missing" : (gp.unexplained ? "partial" : "proven");
     const serverText = !sv.configured
       ? "No Ghidra server port is configured."
       : sv.host + ":" + sv.port + " is "

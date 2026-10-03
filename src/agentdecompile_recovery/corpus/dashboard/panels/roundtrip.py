@@ -20,16 +20,17 @@ All figures are read live from artifacts on disk; nothing is hardcoded.
 from __future__ import annotations
 
 import time
+
 from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import quote
 
 from agentdecompile_recovery.corpus.dashboard.panels.common import (
+    DRM_EXCLUDED,
     esc,
     fnum,
     fpct,
     kv,
-    DRM_EXCLUDED,
     load_json,
     missing,
     panel,
@@ -93,6 +94,7 @@ def _bin_cell(repo, slugs) -> str:
 TITLE = "Rebuild proof — roundtrip and export packages"
 
 from agentdecompile_recovery.corpus.dashboard.common import as_root
+
 ROUNDTRIP_JSON = as_root() / "output" / "roundtrip" / "_roundtrip.json"
 COVERAGE_JSON = as_root() / "output" / "exact_universal" / "_coverage.json"
 ASM_MANIFEST = as_root() / "output" / "export_asm" / "_manifest.json"
@@ -140,7 +142,7 @@ def _receipt_verdict(r: dict) -> str:
     if r.get("identical") is True:
         return "proven"
     if r.get("error"):
-        return "unproven"  # no image to reassemble (known upstream limitation)
+        return "unproven"
     return "failed"
 
 
@@ -166,17 +168,18 @@ def _section_roundtrip(g: dict) -> str:
     if not rows:
         return panel(missing(f"{rel(ROUNDTRIP_JSON)} holds no records"), "Whole-file roundtrip")
 
-    ok = [r for r in rows if _receipt_verdict(r) == "proven"]
-    bad = [r for r in rows if _receipt_verdict(r) != "proven"]
+    graded = [(r, _receipt_verdict(r)) for r in rows]
+    ok = [r for r, verdict in graded if verdict == "proven"]
+    bad = [r for r, verdict in graded if verdict != "proven"]
     rebuilt_bytes = _total(ok, "rebuilt_size")
 
     slugs = g["slugs"]
     body = []
-    for r in sorted(rows, key=lambda r: str(r.get("binary", ""))):
+    for r, verdict in sorted(graded, key=lambda rv: str(rv[0].get("binary", ""))):
         note = r.get("error") or ""
         body.append([
             _bin_cell(r.get("binary"), slugs),
-            tag(*_RECEIPT_TAGS[_receipt_verdict(r)]),
+            tag(*_RECEIPT_TAGS[verdict]),
             esc(r.get("container") or note or "-"),
             fnum(r.get("size")),
             fnum(r.get("rebuilt_size")),
@@ -197,8 +200,8 @@ def _section_roundtrip(g: dict) -> str:
     # "no image" (Xbox databases have no FileBytes to reassemble) is a known
     # upstream limitation, not an emitter failure, so it earns its own state
     # rather than being merged into "mismatch" — see the limitation box below.
-    no_image = [r for r in bad if _receipt_verdict(r) == "unproven"]
-    mismatch = [r for r in bad if _receipt_verdict(r) == "failed"]
+    no_image = [r for r, verdict in graded if verdict == "unproven"]
+    mismatch = [r for r, verdict in graded if verdict == "failed"]
     head += stacked_bar([
         ("byte-identical", len(ok), "proven"),
         ("no image (known limitation)", len(no_image), "partial"),
@@ -558,8 +561,8 @@ def _excluded(repo) -> bool:
 
 
 def _with_exclusion(repo, verdict: str) -> str:
-    # The payload marks a configured exclusion. The HTML tables keep showing
-    # that row's verdict on purpose, as they did before the payload existed.
+    # Only the payload marks a configured exclusion. The HTML tables show the
+    # underlying verdict for those rows.
     return "excluded" if _excluded(repo) else verdict
 
 
@@ -580,10 +583,13 @@ def _receipts(g: dict, slugs: dict, errors: list[str]) -> dict:
     src = g["roundtrip"]
     block, rows = _block(src, ROUNDTRIP_JSON, errors, "image_receipts")
     block["claim"] = "Whole-image rebuild: SHA-256 of the rebuilt file against the original."
-    out, states = [], []
+    out, states, ok = [], [], []
     for r in sorted(rows, key=lambda r: str(r.get("binary", ""))):
         repo = r.get("binary")
-        state = _with_exclusion(repo, _receipt_verdict(r))
+        verdict = _receipt_verdict(r)
+        if verdict == "proven":
+            ok.append(r)
+        state = _with_exclusion(repo, verdict)
         states.append(state)
         out.append({
             "slug": slugs.get(str(repo)),
@@ -599,7 +605,6 @@ def _receipts(g: dict, slugs: dict, errors: list[str]) -> dict:
             "pct_attributed": _num(r.get("pct_attributed")),
         })
     if rows:
-        ok = [r for r in rows if _receipt_verdict(r) == "proven"]
         mt = src["mtime"]
         block["state"] = _agg(states)
         block["figures"] = {
@@ -660,10 +665,7 @@ def _package(g: dict, key: str, path: Path, files_field: str, claim: str, slugs:
     out, states = [], []
     for r in sorted(rows, key=lambda r: str(r.get("binary", ""))):
         files = _num(r.get(files_field)) or 0
-        if _excluded(r.get("binary")):
-            state = "excluded"
-        else:
-            state = "proven" if files else "missing"
+        state = _with_exclusion(r.get("binary"), "proven" if files else "missing")
         states.append(state)
         row = {
             "slug": slugs.get(str(r.get("binary"))) or r.get("slug"),
@@ -698,10 +700,7 @@ def _reconstructed(g: dict, slugs: dict, errors: list[str]) -> dict:
     out, states = [], []
     for r in sorted(rows, key=lambda r: -(_num(r.get("functions")) or 0)):
         fn, tus = _num(r.get("functions")) or 0, _num(r.get("translation_units")) or 0
-        if _excluded(r.get("binary")):
-            state = "excluded"
-        else:
-            state = "partial" if fn and tus else "unproven"
+        state = _with_exclusion(r.get("binary"), "partial" if fn and tus else "unproven")
         states.append(state)
         out.append({
             "slug": slugs.get(str(r.get("binary"))) or r.get("target"),

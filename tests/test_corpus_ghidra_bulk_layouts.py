@@ -51,6 +51,11 @@ def test_emit_type_retargets_void_star_internal() -> None:
 
 
 def test_should_skip_llm_only_huge_or_disallowed(monkeypatch: pytest.MonkeyPatch) -> None:
+    # KTD5/R35-R38: targeted AI now defaults off (CLI > env > dashboard >
+    # compiled-default off); _llm_allowed() also checks it. This test is
+    # about the huge-body/stopped/over-bar gates, so force AI on.
+    from agentdecompile_recovery.targeted_ai import TargetedAIState
+    monkeypatch.setattr(gb, "resolve_targeted_ai", lambda: TargetedAIState(True, "test"))
     monkeypatch.setattr(gb, "LLM_CLEANUP", True)
     monkeypatch.setattr(gb, "_LLM_STOPPED", False)
     monkeypatch.setattr(gb, "_CORPUS_TOTAL", 100)

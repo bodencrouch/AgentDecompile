@@ -610,3 +610,16 @@ Task15.1: source committed ccd9b63af57d418cf26842584444e2a471d4348f; exact stati
 Resume: preserved committed Task15.1 and active Task2.3. Runtime correction round1 report read; independent /root/review_runtime_contract_r1 now checks original three Important findings and corrected concrete protocol/lifecycle/signing boundaries before adoption. No completed work repeated or execution scope expanded.
 
 Task15.1 initial review: three Important ingress/refresh ownership regressions block acceptance; no Critical. Fix round1 targets exact reviewed ccd9b63a source, preserving stale-response guards. Minor M1 listing focus clamp deferred to final review. Original worker handle absent after interruption; fresh bounded fix worker required.
+
+Task2.3: source committed325ec899ac1535c2413ea6534f6346be1a48f328; exact11 owned-path review package from81d45551 created. Nine Python AST/source checks pass, actual DB/regressions unrun. Independent review queued; agent dispatch temporarily rejected by thread limit despite completed implementer. No acceptance marked.
+
+P3.2 contract correctionr1 review: original three Important findings addressed; new ImportantR1-1 missing nonce bootstrap blocks adoption. Controller report-only round2 specifies supervisor-first CHALLENGE with exact payload/cap/state/sequence and preserved READY/START admission. Independent scoped review queued; no implementation/host qualification authorized.
+
+Concurrency clarification: available four live handles included completed STABS implementer; a fresh fifth handle was refused. Reused /root/implement_stabs_schema_ownership for independent narrow runtime CHALLENGE contract review (no runtime authorship), while STABS independent reviewer and static fix run. Original STABS fix ownership retained for subsequent rounds.
+
+Task2.3 initialreview: one Important P1 mixed-case TEMP shadow evades new guard; migration can commit main version10 with row10 in TEMP ledger. Source-only finding; round1 original implementer fixes ASCII case-insensitive refusal and authors migration/writer regressions. No acceptance marked.
+
+Ruling: Adopt reviewed captured-native P2 runtime source contract with owner-provisioned private supervisor/noexec bounded work premise — corrected exact staging, delayed seal, separate current reader and CHALLENGE startup now have independent contract approval — cost if wrong: supported deployment must supply these capabilities or refuse; source primitives alone cannot establish execution/current admission. No provisioning or runtime admitted.
+Task15.1 correction committed7eb844b374ce254fe9214bad1b589e5e530fb057; exact scoped ccd9b63a..7eb844b3 review package; /root/review_stabs_schema_v1 performs independent re-review. STABS /root/implement_stabs_schema_ownership fixes its original source finding concurrently.
+
+Task11.6a dispatched fresh /root/implement_native_profile_capture from7eb844b3: exact canonical profile/complete inventory/private copy-capture source primitives, one module+one focused regression source. No launch/lifecycle/signing/reader/host provisioning; synchronous IO limits explicit until owned-helper integration. Other reviewed runtime obligations remain open.

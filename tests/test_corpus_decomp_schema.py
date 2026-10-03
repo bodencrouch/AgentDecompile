@@ -21,6 +21,7 @@ V9_LEDGER = list(enumerate((
 V10_LEDGER = V9_LEDGER + [(10, 'stabs_schema_ownership')]
 V11_LEDGER = V10_LEDGER + [(11, 'decomp_schema_ownership')]
 V12_LEDGER = V11_LEDGER + [(12, 'convention_schema_ownership')]
+V13_LEDGER = V12_LEDGER + [(13, 'type_schema_ownership')]
 LEGACY_DDL = '''CREATE TABLE IF NOT EXISTS decomp (
     binary_id INTEGER NOT NULL,
     addr INTEGER NOT NULL,
@@ -119,7 +120,7 @@ def test_real_historical_migration_preserves_rows_nulls_selection_and_candidates
         monkeypatch.setattr(decompile, 'features', forbidden)
         monkeypatch.setattr(decompile, 'syntax_fingerprint', forbidden)
         migrations.apply_pending(con)
-        assert ledger(con) == V12_LEDGER
+        assert ledger(con) == V13_LEDGER
         assert loaded(con) == inputs
         assert [tuple(r) for r in con.execute(f'SELECT rowid,{FIELDS} FROM decomp ORDER BY rowid')] == old_fields
         if old_ast is not None:
@@ -437,8 +438,8 @@ def test_v11_direct_repeat_and_v10_repeat_bind_versions_even_with_future_registr
     assert snapshot(con) == before
     con.rollback()
     migrations.apply_pending(con, target=11)
-    monkeypatch.setattr(migrations, 'MIGRATIONS', migrations.MIGRATIONS + [migrations.Migration(13, 'future', lambda c: None)])
-    monkeypatch.setattr(migrations, 'SCHEMA_VERSION', 13)
+    monkeypatch.setattr(migrations, 'MIGRATIONS', migrations.MIGRATIONS + [migrations.Migration(14, 'future', lambda c: None)])
+    monkeypatch.setattr(migrations, 'SCHEMA_VERSION', 14)
     con.execute("INSERT INTO eval(run) VALUES ('caller')")
     before = snapshot(con)
     migrations._decomp_schema_ownership(con)
@@ -657,11 +658,11 @@ def test_invalid_singleton_metadata_is_not_reconstructed(damage, pinned):
     con.close()
 
 
-def test_actual_future_thirteen_is_not_admitted_by_frozen_readers_or_deletion(pinned):
+def test_actual_future_fourteen_is_not_admitted_by_frozen_readers_or_deletion(pinned):
     con = historical()
-    future = migrations.MIGRATIONS + [migrations.Migration(13, 'future', lambda c: c.execute('CREATE TABLE future_owned(payload TEXT)'))]
-    assert [step.version for step in migrations.apply_pending(con, migrations=future)] == [11, 12, 13]
-    assert ledger(con) == V12_LEDGER + [(13, 'future')]
+    future = migrations.MIGRATIONS + [migrations.Migration(14, 'future', lambda c: c.execute('CREATE TABLE future_owned(payload TEXT)'))]
+    assert [step.version for step in migrations.apply_pending(con, migrations=future)] == [11, 12, 13, 14]
+    assert ledger(con) == V13_LEDGER + [(14, 'future')]
     con.execute("INSERT INTO eval(run) VALUES ('caller')")
     before = snapshot(con)
     for operation in (lambda: store.decomp_read_state(con), lambda: store.require_decomp_schema(con),
@@ -815,7 +816,7 @@ def test_convention_twelve_preserves_actual_v11_consumers(tmp_path, monkeypatch,
     digests = preparation._matching_input_digests({'/a', '/b'})
     status = recovery_status.corpus_status(scope='all')
     decomp_rows = snapshot(con)[2]['decomp']
-    assert [step.version for step in migrations.apply_pending(con)] == [12]
+    assert [step.version for step in migrations.apply_pending(con, target=12)] == [12]
     assert ledger(con) == V12_LEDGER
     assert loaded(con) == inputs
     assert store.decomp_read_state(con) == state

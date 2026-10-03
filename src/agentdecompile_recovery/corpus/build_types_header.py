@@ -71,6 +71,12 @@ def build_header(con, binary_id: int, out: Path | str, *, program: str = "") -> 
     build = con.execute("SELECT slug, content_sha256 FROM binary WHERE id=?", (int(binary_id),)).fetchone()
     if build is None or not re.fullmatch(r"[0-9a-fA-F]{64}", str(build["content_sha256"] or "")):
         raise ValueError("header manifest requires the build content SHA-256")
+    from . import migrations
+    from .store import type_inventory_available
+    import sqlite3
+
+    if migrations.user_version(con) >= 13 and not type_inventory_available(con):
+        raise sqlite3.OperationalError("no such table: ghidra_type")
     rows = con.execute(
         "SELECT name, kind, size, definition FROM ghidra_type"
         " WHERE binary_id=? AND definition IS NOT NULL AND definition<>''"

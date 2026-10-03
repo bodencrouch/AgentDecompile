@@ -13,18 +13,63 @@ import sqlite3
 
 from . import ghidra_env as ge
 
-SCHEMA = """
-CREATE TABLE IF NOT EXISTS ghidra_type (
-    binary_id   INTEGER NOT NULL,
-    name        TEXT NOT NULL,
-    kind        TEXT NOT NULL,
-    size        INTEGER,
-    definition  TEXT NOT NULL,
-    n_fields    INTEGER,
-    PRIMARY KEY (binary_id, name, kind)
-);
-CREATE INDEX IF NOT EXISTS ix_ghidra_type_bin ON ghidra_type(binary_id);
-"""
+from contextlib import contextmanager
+from itertools import count
+
+from .store import TYPE_TABLE_DDL, TYPE_INDEX_SQL, require_type_schema, type_inventory_available
+
+# Import compatibility only. Migration 13 owns installation.
+SCHEMA = TYPE_TABLE_DDL.rstrip() + ";\n" + TYPE_INDEX_SQL + ";\n"
+_SAVEPOINT_IDS = count()
+
+
+@contextmanager
+def _type_write_scope(con: sqlite3.Connection):
+    """Commit success with caller work; roll back only our surviving scope."""
+    owns = not con.in_transaction
+    savepoint = f"type_write_{next(_SAVEPOINT_IDS)}"
+    con.execute("BEGIN IMMEDIATE" if owns else f"SAVEPOINT {savepoint}")
+    try:
+        require_type_schema(con)
+        yield
+        con.commit()
+    except BaseException as exc:
+        if not con.in_transaction:
+            raise RuntimeError(
+                "type transaction ended before failure acknowledgement; "
+                "durability/rollback is uncertain and caller work cannot be reconstructed"
+            ) from exc
+        if owns:
+            con.rollback()
+        else:
+            con.execute(f"ROLLBACK TO SAVEPOINT {savepoint}")
+            con.execute(f"RELEASE SAVEPOINT {savepoint}")
+        raise
+
+
+def _materialize_type_inventory(con: sqlite3.Connection) -> None:
+    """Called only inside an admitted type writer's operation scope."""
+    con.execute("UPDATE main.type_inventory_state SET mode='installed' WHERE singleton=1")
+
+
+def insert_native_types(con: sqlite3.Connection, rows) -> int:
+    """Insert missing native definitions without replacing curated keys or fields."""
+    require_type_schema(con)
+    payload = [tuple(row) for row in rows]
+    # IGNORE is for curated key collisions, not a partly accepted malformed batch.
+    if any(len(row) != 6 or any(row[i] is None for i in (0, 1, 2, 4)) for row in payload):
+        raise ValueError("native type batch requires six fields and non-NULL required values")
+    inserted = 0
+    with _type_write_scope(con):
+        for row in payload:
+            changed = con.execute(
+                "INSERT OR IGNORE INTO main.ghidra_type"
+                " (binary_id,name,kind,size,definition,n_fields) VALUES(?,?,?,?,?,?)", row,
+            )
+            inserted += changed.rowcount
+        _materialize_type_inventory(con)
+    return inserted
+
 
 _PRIM = {
     "byte": "unsigned char",
@@ -247,6 +292,10 @@ def definitions_for(con: sqlite3.Connection, binary_id: int, names: set[str]) ->
     """Return emitted C for whichever of *names* this binary has a layout for."""
     if not names:
         return "", set()
+    from . import migrations
+
+    if migrations.user_version(con) >= 13 and not type_inventory_available(con):
+        raise sqlite3.OperationalError("no such table: ghidra_type")
     qs = ",".join("?" * len(names))
     rows = con.execute(
         f"SELECT name, definition FROM ghidra_type WHERE binary_id=? AND name IN ({qs})",
@@ -263,6 +312,7 @@ def definitions_for(con: sqlite3.Connection, binary_id: int, names: set[str]) ->
 
 def export(repo_path: str, con: sqlite3.Connection, *, open_program=None, start=None) -> dict:
     """Walk a live program's datatypes into ``ghidra_type``. Skips when no program."""
+    require_type_schema(con)
     opener = open_program or ge.open_program
     starter = start or ge.start
     if starter() is False:
@@ -320,21 +370,19 @@ def export(repo_path: str, con: sqlite3.Connection, *, open_program=None, start=
             except Exception:
                 stats["skipped"] += 1
 
-    if not con.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='ghidra_field'").fetchone():
-        raise ValueError("Typed-field schema is unavailable; complete the owned store migration before exporting")
-    con.executescript(SCHEMA)
-    con.executemany(
-        "INSERT OR REPLACE INTO ghidra_type (binary_id, name, kind, size, definition, n_fields) VALUES (?,?,?,?,?,?)",
-        rows,
-    )
-    # Replace fields only for successfully exported types; preserve other
-    # historical evidence when an individual live datatype cannot be read.
-    con.executemany("DELETE FROM ghidra_field WHERE binary_id=? AND type_name=?",
-                    [(row[0], row[1]) for row in rows])
-    con.executemany(
-        "INSERT INTO ghidra_field (binary_id,type_name,ordinal,offset,size,name,dt_kind,"
-        "pointee_type,composite_type,element_type,array_count,type_json) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
-        fields,
-    )
-    con.commit()
+    with _type_write_scope(con):
+        con.executemany(
+            "INSERT OR REPLACE INTO main.ghidra_type (binary_id, name, kind, size, definition, n_fields) VALUES (?,?,?,?,?,?)",
+            rows,
+        )
+        # Replace fields only for successfully exported types; preserve other
+        # historical evidence when an individual live datatype cannot be read.
+        con.executemany("DELETE FROM main.ghidra_field WHERE binary_id=? AND type_name=?",
+                        [(row[0], row[1]) for row in rows])
+        con.executemany(
+            "INSERT INTO main.ghidra_field (binary_id,type_name,ordinal,offset,size,name,dt_kind,"
+            "pointee_type,composite_type,element_type,array_count,type_json) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+            fields,
+        )
+        _materialize_type_inventory(con)
     return stats

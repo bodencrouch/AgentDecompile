@@ -60,9 +60,9 @@ DDL and preserves stored values, including NULL. STABS writers now require the
 complete current ledger and schema; `ensure_columns` validates without repairing
 or committing caller work. Raw or outdated handles must pass through the owned
 migration path first. Current read-only admission also checks these postconditions.
-Binary deletion independently admits frozen v9/v10/v11/v12 profiles; historical
+Binary deletion independently admits frozen v9/v10/v11/v12/v13 profiles; historical
 optional fields stay optional only in their original profiles.
-Type, recovered-source and other persistent DDL owners remain separate
+Recovered-source and other persistent DDL owners remain separate
 unfinished work. These are source contracts, not a fresh migration or live receipt.
 
 Migration 11 (`decomp_schema_ownership`) owns the corpus `decomp` table/index
@@ -70,8 +70,8 @@ and singleton `decomp_schema_state`. Its observed pre-migration mode preserves
 logical absence versus installed-empty witnesses and table-wide skeleton versus
 AST selection, including historical NULL/empty AST values. It generates no
 fingerprints or source evidence. `decomp_read_state` inspects supported ledgered
-v9/v10/v11/v12 stores; `require_decomp_schema` and canonical read-only connection
-admission require complete current v12. Missing/corrupt state refuses rather
+v9/v10/v11/v12/v13 stores; `require_decomp_schema` and canonical read-only connection
+admission require complete current v13. Missing/corrupt state refuses rather
 than guessing. Skeleton-mode integrity checking may scan the AST column.
 
 Explicit `attach_store`/`persist_code` materialize AST mode. Compatibility
@@ -81,7 +81,7 @@ logical absence remains absent. It never commits an existing caller transaction.
 savepoint while SQLite retains the outer transaction. Transaction loss or an
 unacknowledged commit cannot be represented as successful rollback. Independent
 part stores remain separate. The matcher-input-v2 projection includes selector
-and selected values, invalidating older comparison inventories. Frozen v11/v12
+and selected values, invalidating older comparison inventories. Frozen v11/v12/v13
 deletion retains global state even after removing the last binary. No installed
 consumer, migration execution, fingerprint provenance upgrade or byte proof is
 established by these source changes.
@@ -95,15 +95,62 @@ it and retains the conservative refusal for surviving convention rows whose
 donor dependencies cannot be established.
 
 `derive_conventions(apply_rows=False)` retains raw-handle computation without
-schema installation or transaction changes. Applying requires complete v12 before
+schema installation or transaction changes. Applying requires complete v13 before
 computation and again inside its write scope, and writes only the selected keys.
 Success still commits caller pending work, even for zero derived rows. Failure
 rolls back only the operation while SQLite retains the caller transaction;
 transaction loss or a lost commit acknowledgement is explicitly uncertain.
 Canonical read-only opens validate convention shape and reserved input names.
-This closes one writer's DDL ownership; types, recovered/reuse rows, logical-name
+This closes the convention writer's DDL ownership; recovered/reuse rows, logical-name
 caches, registration/binding and helper DDL remain unfinished. Authored regression
 coverage is unrun; no installed/live or ABI/recovery acceptance follows.
+
+Migration 13 (`type_schema_ownership`) owns `ghidra_type`, its binary index,
+`ghidra_type_origin` and `type_inventory_state`. It admits genuine v12 absent,
+six-column and seven-column CREATE/ALTER histories while preserving existing
+rows, rowids, raw origins and migration6 typed fields. Adding nullable `origin`
+to six-column storage leaves historical values unknown. Migration never computes
+donors or rewrites definitions, fields or origin annotations. Current admission
+requires complete STABS, decomp, convention and type postconditions; unsupported
+shapes, relevant shadows and future versions refuse without repair.
+
+The global singleton records `absent` versus `installed`, preserving the original
+missing-table distinction after physical installation. It records installation,
+not capture, per-binary coverage or ABI correctness. `installed` can be empty;
+`absent` requires no type or origin rows, and field-only evidence does not change
+it. Successful explicit export, native insertion or adoption application changes
+it atomically to `installed`, including zero-row success. No-program, failed or
+rolled-back work and pure planning leave it unchanged.
+
+`plan_adoptions` is a pure current13 reader. Export and application require13
+before feature work and revalidate within their own transaction or caller
+savepoint. Success retains the existing commit-all-caller-work behavior; a
+surviving caller transaction retains its preexisting work on operation failure.
+Cleanup failure and lost transaction/commit acknowledgement cannot be reported
+as successful rollback. Export retains six-field REPLACE and selected field
+replacement, leaving omitted origin NULL and old origin annotations untouched.
+The generated native layout script opens only an existing admitted store, stages
+its payloads and uses fixed IGNORE insertion to retain curated definitions. That
+native pass still does not collect typed fields; header failure after its commit
+does not undo capture. Adoption retains its same-size donor policy and stored
+notes, which do not establish cross-build ABI equivalence.
+
+The API reads availability, counts and pages in one snapshot. Missing inventories
+remain unavailable; installed-empty inventories remain empty. After migration13,
+old six-column API rows expose NULL origins instead of the former missing-column
+error. Historical/raw readers retain their existing projections. Current13
+corruption and future14 refuse; prompt context retains its unavailable-as-empty
+fallback. Header/CLI/bundle paths retain missing versus empty behavior and existing
+artifact bytes and manifests. Calibration receipts open current storage read-only:
+planned adoptions are reported with `adopted=0` and a propagation gap, never applied
+while composing a receipt. An existing header still bypasses database work.
+
+Frozen deletion13 has 29 known tables, 23 mandatory and six optional. Types,
+origins and the new state are mandatory only in13; genuine9–12 profiles retain
+independent historical rules. Deletion keeps the global singleton even after the
+last binary and preserves surviving adopted rows and their donor text. Source
+inspection and authored regressions do not establish migration, transaction,
+installed API/native, generated-script, U23 transport or whole-image acceptance.
 
 The deprecated [`corpus.db`](../src/agentdecompile_recovery/corpus/db.py) facade
 retains public symbols and the exact historical module-relative `DB_PATH`.

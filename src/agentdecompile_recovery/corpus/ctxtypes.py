@@ -42,6 +42,11 @@ def type_names(text: str) -> list[str]:
 def load_types(con, binary_id: int) -> dict[str, str]:
     types: dict[str, str] = {}
     try:
+        from . import migrations
+        from .store import type_inventory_available
+
+        if migrations.user_version(con) >= 13 and not type_inventory_available(con):
+            return {}
         for r in con.execute(
                 "SELECT name, definition FROM ghidra_type"
                 " WHERE binary_id=? AND definition IS NOT NULL AND definition<>''",

@@ -661,17 +661,20 @@ finally:
 def layout_script(config: dict[str, Any]) -> str:
     """Export missing type evidence without replacing curated stored layouts."""
     return 'import json\nconfig = json.loads(' + repr(json.dumps(config)) + ')\n' + r'''
-from agentdecompile_recovery.corpus.store import connect
-from agentdecompile_recovery.corpus.export_types import SCHEMA, emit_struct, emit_enum, c_ident
+import sqlite3
+from pathlib import Path
+from agentdecompile_recovery.corpus.store import require_type_schema
+from agentdecompile_recovery.corpus.export_types import insert_native_types, emit_struct, emit_enum, c_ident
 from agentdecompile_recovery.corpus.build_types_header import build_header
 from ghidra.program.model.data import Enum, Structure, Union
 from ghidra.util.task import TimeoutTaskMonitor
 from java.util.concurrent import TimeUnit
 monitor = TimeoutTaskMonitor.timeoutIn(120, TimeUnit.SECONDS)
-con = connect(config['db'])
+con = sqlite3.connect(Path(config['db']).resolve().as_uri() + '?mode=rw', uri=True)
 try:
-    con.executescript(SCHEMA)
-    inserted = 0
+    con.row_factory = sqlite3.Row
+    require_type_schema(con)
+    rows = []
     for data_type in currentProgram.getDataTypeManager().getAllDataTypes():
         monitor.checkCancelled()
         if isinstance(data_type, (Structure, Union)):
@@ -685,10 +688,9 @@ try:
         if rendered is None:
             continue
         definition, fields = rendered
-        changed = con.execute('INSERT OR IGNORE INTO ghidra_type(binary_id,name,kind,size,definition,n_fields) VALUES(?,?,?,?,?,?)',
-            (config['binaryId'],c_ident(data_type.getName()),kind,int(data_type.getLength()),definition,fields))
-        inserted += changed.rowcount
-    con.commit()
+        rows.append((config['binaryId'],c_ident(data_type.getName()),kind,int(data_type.getLength()),definition,fields))
+    monitor.checkCancelled()
+    inserted = insert_native_types(con, rows)
     result = build_header(con, config['binaryId'], config['header'], program=config['program'])
     result.update(inserted=inserted, claim='context-hint', metadataPolicy='Existing stored layouts retained')
     __result__ = json.dumps(result)

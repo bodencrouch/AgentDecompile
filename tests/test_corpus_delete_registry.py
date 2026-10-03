@@ -50,9 +50,19 @@ CREATE TABLE IF NOT EXISTS func_convention_derived (
 );
 """
 
+FROZEN_TYPE_DDL = """CREATE TABLE IF NOT EXISTS ghidra_type (
+    binary_id INTEGER NOT NULL, name TEXT NOT NULL, kind TEXT NOT NULL,
+    size INTEGER, definition TEXT NOT NULL, n_fields INTEGER,
+    PRIMARY KEY (binary_id, name, kind)
+);
+CREATE INDEX IF NOT EXISTS ix_ghidra_type_bin ON ghidra_type(binary_id);
+CREATE TABLE IF NOT EXISTS ghidra_type_origin (
+    binary_id INTEGER NOT NULL, name TEXT NOT NULL, donor_slug TEXT NOT NULL,
+    donor_game TEXT, size INTEGER, PRIMARY KEY (binary_id, name)
+);
+"""
+
 OPTIONAL_DECLARATIONS = (
-    ('export_types.py', 'SCHEMA'),
-    ('propagate_types.py', 'ORIGIN_DDL'),
     ('ingest_recovered.py', 'RECOVERED_FUNCTION_DDL'),
     ('ingest_recovered.py', 'REUSE_CANDIDATE_DDL'), ('name_precedence.py', 'SCHEMA'),
 )
@@ -79,7 +89,7 @@ def _snapshot(con):
     return {name: _rows(con, name) for name in names}
 
 
-@pytest.fixture(params=[9, 10, 11, 12], ids=["frozen-v9", "frozen-v10", "frozen-v11", "canonical-v12"])
+@pytest.fixture(params=[9, 10, 11, 12, 13], ids=["frozen-v9", "frozen-v10", "frozen-v11", "frozen-v12", "canonical-v13"])
 def populated(tmp_path, request):
     path = tmp_path / 'corpus.sqlite'
     con = sqlite3.connect(path)
@@ -92,6 +102,10 @@ def populated(tmp_path, request):
         con.execute("UPDATE decomp_schema_state SET mode='ast_fingerprint'")
     if request.param < 12:
         con.execute(FROZEN_CONVENTION_DDL)
+    if request.param < 13:
+        con.executescript(FROZEN_TYPE_DDL)
+    else:
+        con.execute("UPDATE type_inventory_state SET mode='installed'")
     for filename, variable in OPTIONAL_DECLARATIONS:
         con.executescript(_writer_ddl(filename, variable))
     con.execute('CREATE TABLE binary_source_alias (source_path TEXT PRIMARY KEY, binary_slug TEXT NOT NULL, sha256 TEXT NOT NULL)')
@@ -249,12 +263,16 @@ def test_every_optional_table_can_be_absent_without_creation(populated, table):
             con.execute(f'DROP TABLE {dependent}')
     con.execute(f'DROP TABLE {table}')
     con.commit()
-    if table == 'decomp' and con.execute('PRAGMA user_version').fetchone()[0] in {11, 12}:
+    if table == 'decomp' and con.execute('PRAGMA user_version').fetchone()[0] in {11, 12, 13}:
         # The frozen v9/v10 optional set does not weaken v11 admission.
         _refuses_unchanged(con, 'binary_delete_schema_unsupported:ix_decomp_bin')
         return
-    if table == 'func_convention_derived' and con.execute('PRAGMA user_version').fetchone()[0] == 12:
+    if table == 'func_convention_derived' and con.execute('PRAGMA user_version').fetchone()[0] in {12, 13}:
         _refuses_unchanged(con, 'binary_delete_schema_unsupported:func_convention_derived')
+        return
+    if con.execute('PRAGMA user_version').fetchone()[0] == 13 and table in {'ghidra_type', 'ghidra_type_origin'}:
+        expected = 'ix_ghidra_type_bin' if table == 'ghidra_type' else table
+        _refuses_unchanged(con, 'binary_delete_schema_unsupported:' + expected)
         return
     before = list(con.execute('SELECT name FROM sqlite_master ORDER BY name'))
     result = store.remove_binary(con, slug='a')
@@ -263,7 +281,7 @@ def test_every_optional_table_can_be_absent_without_creation(populated, table):
         assert result['deleted'][table] == 0
 
 
-@pytest.mark.parametrize('version', [0, 8, 13])
+@pytest.mark.parametrize('version', [0, 8, 14])
 def test_other_versions_refuse_without_migration(populated, version):
     con, _ = populated
     con.execute(f'PRAGMA user_version={version}')
@@ -304,7 +322,7 @@ def test_legacy_keys_and_foreign_key_actions_refuse(populated, table, replacemen
     con, _ = populated
     con.execute(f'DROP TABLE {table}')
     con.execute(replacement)
-    expected = 'ix_decomp_bin' if table == 'decomp' and con.execute('PRAGMA user_version').fetchone()[0] in {11, 12} else table
+    expected = 'ix_decomp_bin' if table == 'decomp' and con.execute('PRAGMA user_version').fetchone()[0] in {11, 12, 13} else table
     _refuses_unchanged(con, 'binary_delete_schema_unsupported:' + expected)
 
 
@@ -523,7 +541,8 @@ def test_every_mandatory_table_is_required(populated, table):
 def test_optional_child_requires_its_recognized_parent(populated, parent, child):
     con, _ = populated
     con.execute(f'DROP TABLE {parent}')
-    _refuses_unchanged(con, 'binary_delete_schema_unsupported:' + parent)
+    expected = 'ix_ghidra_type_bin' if parent == 'ghidra_type' and con.execute('PRAGMA user_version').fetchone()[0] == 13 else parent
+    _refuses_unchanged(con, 'binary_delete_schema_unsupported:' + expected)
 
 
 def test_known_additions_and_old_optional_layout_are_admitted(populated):
@@ -533,7 +552,8 @@ def test_known_additions_and_old_optional_layout_are_admitted(populated):
         con.execute('ALTER TABLE func ADD COLUMN stabs_name TEXT')
         con.execute('ALTER TABLE func ADD COLUMN stabs_type TEXT')
         con.execute('CREATE INDEX ix_func_srcfile ON func(binary_id, source_file)')
-    con.execute('ALTER TABLE ghidra_type ADD COLUMN origin TEXT')
+    if con.execute('PRAGMA user_version').fetchone()[0] < 13:
+        con.execute('ALTER TABLE ghidra_type ADD COLUMN origin TEXT')
     if con.execute('PRAGMA user_version').fetchone()[0] < 11:
         con.execute('ALTER TABLE decomp DROP COLUMN ast_fingerprint')
     con.commit()
@@ -544,7 +564,7 @@ def test_view_cannot_impersonate_optional_table(populated):
     con, _ = populated
     con.execute('DROP TABLE decomp')
     con.execute('CREATE VIEW decomp AS SELECT binary_id,addr FROM func')
-    expected = 'ix_decomp_bin' if con.execute('PRAGMA user_version').fetchone()[0] in {11, 12} else 'decomp'
+    expected = 'ix_decomp_bin' if con.execute('PRAGMA user_version').fetchone()[0] in {11, 12, 13} else 'decomp'
     _refuses_unchanged(con, 'binary_delete_schema_unsupported:' + expected)
 
 
@@ -632,3 +652,46 @@ def test_v10_stabs_postconditions_required_without_initialization(populated, dam
         pytest.skip('v9 intentionally retains optional STABS fields/index')
     con.execute(damage)
     _refuses_unchanged(con, 'binary_delete_schema_unsupported:')
+
+
+@pytest.mark.parametrize('installed', [False, True])
+def test_thirteen_last_binary_deletion_retains_global_type_inventory_history(installed):
+    from tests.test_corpus_type_schema import current, rows
+    con = current(installed=installed)
+    state = rows(con, 'type_inventory_state')
+    for slug in ('recipient', 'donor', 'foreign'):
+        receipt = store.remove_binary(con, slug=slug)
+        assert receipt['deleted']['binary'] == 1
+        assert 'type_inventory_state' not in receipt['deleted']
+    assert not rows(con, 'binary')
+    assert rows(con, 'type_inventory_state') == state
+    assert store.type_inventory_state(con) == ('installed' if installed else 'absent')
+    con.close()
+
+
+@pytest.mark.parametrize('damage', ['DROP TABLE ghidra_type', 'DROP TABLE ghidra_type_origin',
+    'DROP TABLE type_inventory_state', 'DELETE FROM type_inventory_state',
+    'DROP INDEX ix_ghidra_type_bin',
+    "INSERT INTO ghidra_type VALUES (1,'Bad','struct',4,'bad',0,NULL)"])
+def test_thirteen_required_type_state_refuses_atomically_with_caller_work(damage):
+    from tests.test_corpus_type_schema import current, snapshot
+    con = current()
+    con.execute(damage)
+    con.commit()
+    con.execute("INSERT INTO eval(run) VALUES ('caller')")
+    before = snapshot(con)
+    with pytest.raises(deletion.BinaryDeleteUnsupported):
+        store.remove_binary(con, slug='recipient')
+    assert snapshot(con) == before and con.in_transaction
+    con.close()
+
+
+def test_actual_fourteen_deletion_refuses_without_repair():
+    from tests.test_corpus_type_schema import current, future, snapshot
+    con = future(current())
+    con.execute("INSERT INTO eval(run) VALUES ('caller')")
+    before = snapshot(con)
+    with pytest.raises(deletion.BinaryDeleteUnsupported, match='version'):
+        store.remove_binary(con, slug='recipient')
+    assert snapshot(con) == before and con.in_transaction
+    con.close()

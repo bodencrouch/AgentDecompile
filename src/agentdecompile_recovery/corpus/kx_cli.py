@@ -488,17 +488,14 @@ def dispatch(args: argparse.Namespace) -> int | None:
 
     if cmd == "build-types-header":
         from . import build_types_header as bth
-        from .store import connect
+        from .store import connect, type_inventory_available
 
         con = connect(args.db)
         row = con.execute("SELECT id FROM binary WHERE repo_path=?", (args.repo_path,)).fetchone()
         if row is None:
             print(f"error: not in database: {args.repo_path}", file=sys.stderr)
             return 2
-        has_table = con.execute(
-            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='ghidra_type'"
-        ).fetchone()
-        if has_table is None:
+        if not type_inventory_available(con):
             print("error: no ghidra_type table (run export-types first)", file=sys.stderr)
             return 2
         result = bth.build_header(con, int(row["id"]), args.out, program=args.repo_path)

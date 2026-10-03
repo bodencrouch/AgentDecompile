@@ -634,3 +634,28 @@ def test_export_operation_refuses_stored_hash_without_matching_raw_image(tmp_pat
     }}), encoding="utf-8")
     with pytest.raises(ValueError, match="raw-image SHA-256"):
         export_hookpack(con, tmp_path / "pack.json", adapter_map=adapter_map, operation_contract=_model_operation_contract(tmp_path / "operation.json", digest))
+
+
+def test_v2_export_wrapper_preserves_type_field_projection_across_actual_twelve_to_thirteen(monkeypatch, tmp_path):
+    import json
+    from agentdecompile_recovery.corpus import hookpack_v2, migrations
+    from tests.test_corpus_type_schema import historical
+    con = historical(shape='six')
+    con.execute("INSERT INTO ghidra_type VALUES (1,'Layout','struct',12,'struct Layout { int field; };',1)")
+    con.commit()
+    monkeypatch.setattr(hookpack_v2, 'basis', lambda _con: {'corpus_manifest_hash': 'b' * 64})
+    packs = []
+    for version in (12, 13):
+        if version == 13: migrations.apply_pending(con)
+        out = tmp_path / str(version) / 'pack.json'
+        receipt = export_hookpack(con, out, format='v2')
+        pack = json.loads(out.read_text())
+        assert receipt['entities'] == len(pack['entities'])
+        types = [entity for entity in pack['entities'] if entity['name'] == 'Layout']
+        assert len(types) == 1
+        field = types[0]['shape']['fields']['recipient'][0]
+        assert field['ordinal'] == 0 and field['element_type'] == 'Nested *' and field['array_count'] == 2
+        assert field['type'] == {'kind': 'array', 'count': 2, 'element': {'kind': 'pointer', 'target': 'Nested'}}
+        packs.append(out.read_bytes())
+    assert packs[0] == packs[1]
+    con.close()

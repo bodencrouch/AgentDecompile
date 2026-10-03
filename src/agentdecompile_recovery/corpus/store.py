@@ -89,6 +89,69 @@ CREATE TABLE IF NOT EXISTS func_convention_derived (
 );
 """
 
+TYPE_TABLE_DDL = """
+CREATE TABLE IF NOT EXISTS ghidra_type (
+    binary_id   INTEGER NOT NULL,
+    name        TEXT NOT NULL,
+    kind        TEXT NOT NULL,
+    size        INTEGER,
+    definition  TEXT NOT NULL,
+    n_fields    INTEGER,
+    origin      TEXT,
+    PRIMARY KEY (binary_id, name, kind)
+)
+"""
+TYPE_INDEX_SQL = "CREATE INDEX IF NOT EXISTS ix_ghidra_type_bin ON ghidra_type(binary_id)"
+TYPE_ORIGIN_DDL = """
+CREATE TABLE IF NOT EXISTS ghidra_type_origin (
+    binary_id INTEGER NOT NULL,
+    name TEXT NOT NULL,
+    donor_slug TEXT NOT NULL,
+    donor_game TEXT,
+    size INTEGER,
+    PRIMARY KEY (binary_id, name)
+)
+"""
+TYPE_INVENTORY_STATE_DDL = """
+CREATE TABLE type_inventory_state (
+    singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
+    mode TEXT NOT NULL CHECK (mode IN ('absent', 'installed'))
+)
+"""
+_TYPE_LEGACY_DDL = TYPE_TABLE_DDL.replace("    origin      TEXT,\n", "")
+_TYPE_ALTER_DDL = _TYPE_LEGACY_DDL.rstrip().removesuffix(")") + ", origin TEXT)"
+# Migration 6 remains the installer. This declaration is inspection data only.
+TYPE_FIELD_DDL = """CREATE TABLE IF NOT EXISTS ghidra_field (
+        binary_id INTEGER NOT NULL REFERENCES binary(id),
+        type_name TEXT NOT NULL,
+        ordinal INTEGER NOT NULL,
+        offset INTEGER NOT NULL,
+        size INTEGER NOT NULL,
+        name TEXT NOT NULL,
+        dt_kind TEXT NOT NULL,
+        pointee_type TEXT,
+        composite_type TEXT,
+        element_type TEXT,
+        array_count INTEGER,
+        type_json TEXT NOT NULL,
+        PRIMARY KEY(binary_id, type_name, ordinal)
+    )"""
+_TYPE_COLUMN_SHAPES = {
+    "ghidra_type": [(i, name, "INTEGER" if i in {0, 3, 5} else "TEXT",
+                     int(i in {0, 1, 2, 4}), None, i + 1 if i < 3 else 0, 0)
+                    for i, name in enumerate(("binary_id", "name", "kind", "size", "definition", "n_fields", "origin"))],
+    "ghidra_type_origin": [(i, name, "INTEGER" if i in {0, 4} else "TEXT",
+                            int(i < 3), None, i + 1 if i < 2 else 0, 0)
+                           for i, name in enumerate(("binary_id", "name", "donor_slug", "donor_game", "size"))],
+    "ghidra_field": [(i, name, "INTEGER" if i in {0, 2, 3, 4, 10} else "TEXT",
+                      int(i < 7 or i == 11), None, i + 1 if i < 3 else 0, 0)
+                     for i, name in enumerate(("binary_id", "type_name", "ordinal", "offset", "size", "name",
+                                               "dt_kind", "pointee_type", "composite_type", "element_type",
+                                               "array_count", "type_json"))],
+    "type_inventory_state": [(0, "singleton", "INTEGER", 0, None, 1, 0),
+                             (1, "mode", "TEXT", 1, None, 0, 0)],
+}
+
 SCHEMA = f"""
 PRAGMA journal_mode=WAL;
 
@@ -403,18 +466,18 @@ def _require_decomp_shape(con: sqlite3.Connection, *, complete: bool) -> str | N
 
 
 def decomp_read_state(con: sqlite3.Connection) -> str | None:
-    """Pure bounded v9/v10/v11/v12 selector; NULL/empty ASTs never fall back."""
+    """Pure bounded v9/v10/v11/v12/v13 selector; NULL/empty ASTs never fall back."""
     from . import migrations
 
     version = migrations.user_version(con)
     try:
         _decomp_objects(con)
-        if version not in {9, 10, 11, 12}:
+        if version not in {9, 10, 11, 12, 13}:
             raise ValueError("unsupported reader version")
         migrations.require_ledger(con, version=version)
-        return _require_decomp_shape(con, complete=version in {11, 12})
+        return _require_decomp_shape(con, complete=version in {11, 12, 13})
     except ValueError as exc:
-        raise ValueError(f"decomp schema required: observed version {version}, supported versions 9/10/11/12: {exc}") from exc
+        raise ValueError(f"decomp schema required: observed version {version}, supported versions 9/10/11/12/13: {exc}") from exc
 
 
 def require_decomp_schema(con: sqlite3.Connection) -> None:
@@ -487,19 +550,122 @@ def _require_convention_shape(con: sqlite3.Connection, *, complete: bool) -> Non
 
 
 def require_convention_schema(con: sqlite3.Connection) -> None:
-    """Pure v12 applying admission; never migrate or commit caller work."""
+    """Pure v13 applying admission; never migrate or commit caller work."""
     from . import migrations
 
     version = migrations.user_version(con)
     try:
         _require_convention_shape(con, complete=True)
-        migrations.require_ledger(con, version=12)
+        migrations.require_ledger(con, version=13)
         _require_stabs_shape(con, complete=True)
         _require_decomp_shape(con, complete=True)
     except ValueError as exc:
         raise ValueError(
-            f"convention schema required: observed version {version}, supported version 12: {exc}"
+            f"convention schema required: observed version {version}, supported version 13: {exc}"
         ) from exc
+
+
+def _require_type_shape(con: sqlite3.Connection, *, complete: bool) -> str:
+    """Inspect only owned type objects and declared inputs; never install them."""
+    owned = {"ghidra_type", "ghidra_type_origin", "ghidra_field", "type_inventory_state"}
+    reserved = owned | {"binary", "schema_migration", "ix_ghidra_type_bin"}
+    marks = ",".join("?" for _ in reserved)
+    owners = ",".join("?" for _ in owned)
+    if con.execute(
+        f"SELECT 1 FROM temp.sqlite_schema WHERE name COLLATE NOCASE IN ({marks})"
+        f" OR tbl_name COLLATE NOCASE IN ({owners})", (*reserved, *owned),
+    ).fetchone():
+        raise ValueError("shadowing type temp object")
+    rows = [tuple(row) for row in con.execute("SELECT type,name,tbl_name,sql FROM main.sqlite_schema")]
+    ascii_lower = str.maketrans("ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz")
+    for _, name, _, _ in rows:
+        if name.translate(ascii_lower) in reserved and name not in reserved:
+            raise ValueError(f"unsupported type object spelling {name}")
+    for name in reserved:
+        if sum(row[1] == name for row in rows) > 1:
+            raise ValueError(f"occupied type object name {name}")
+    objects = {row[1]: row for row in rows}
+    for name in ("binary", "schema_migration"):
+        obj = objects.get(name)
+        if obj is None or obj[0] != "table" or not obj[3] or not obj[3].startswith("CREATE TABLE"):
+            raise ValueError(f"missing or unsupported type input table {name}")
+    if not complete and "type_inventory_state" in objects:
+        raise ValueError("unexpected pre-v13 type_inventory_state")
+    if "ghidra_type_origin" in objects and "ghidra_type" not in objects:
+        raise ValueError("type origin without parent ghidra_type")
+    declarations = {"ghidra_type": TYPE_TABLE_DDL, "ghidra_type_origin": TYPE_ORIGIN_DDL,
+                    "ghidra_field": TYPE_FIELD_DDL, "type_inventory_state": TYPE_INVENTORY_STATE_DDL}
+    for name, ddl in declarations.items():
+        obj = objects.get(name)
+        if obj is None and not complete and name != "ghidra_field":
+            continue
+        allowed = {_decomp_sql(ddl)}
+        if name == "ghidra_type":
+            allowed.add(_decomp_sql(_TYPE_ALTER_DDL))
+            if not complete:
+                allowed.add(_decomp_sql(_TYPE_LEGACY_DDL))
+        if obj is None or obj[0] != "table" or not obj[3] or _decomp_sql(obj[3]) not in allowed:
+            raise ValueError(f"missing or unsupported type table {name}")
+        columns = [tuple(row) for row in con.execute(f"PRAGMA main.table_xinfo({name})")]
+        expected = _TYPE_COLUMN_SHAPES[name]
+        if columns != expected and not (not complete and name == "ghidra_type" and columns == expected[:-1]):
+            raise ValueError(f"unsupported type columns {name}")
+    index = objects.get("ix_ghidra_type_bin")
+    if index is None:
+        if complete:
+            raise ValueError("missing type index ix_ghidra_type_bin")
+    elif ("ghidra_type" not in objects or index[0] != "index" or index[2] != "ghidra_type"
+          or not index[3] or _decomp_sql(index[3]) != _decomp_sql(TYPE_INDEX_SQL)):
+        raise ValueError("unsupported type index ix_ghidra_type_bin")
+    for kind, name, owner, sql in rows:
+        if owner not in owned or kind == "table":
+            continue
+        if kind == "index" and owner == "ghidra_type" and name == "ix_ghidra_type_bin":
+            continue
+        if (kind == "index" and owner != "type_inventory_state"
+                and name == f"sqlite_autoindex_{owner}_1" and sql is None):
+            continue
+        raise ValueError(f"undeclared type object {name}")
+    if not complete:
+        return "installed" if "ghidra_type" in objects else "absent"
+    state = [tuple(row) for row in con.execute("SELECT singleton,mode FROM main.type_inventory_state")]
+    if len(state) != 1 or state[0][0] != 1 or state[0][1] not in {"absent", "installed"}:
+        raise ValueError("type_inventory_state requires exactly one valid singleton")
+    if state[0][1] == "absent":
+        for name in ("ghidra_type", "ghidra_type_origin"):
+            if con.execute(f"SELECT 1 FROM main.{name} LIMIT 1").fetchone():
+                raise ValueError(f"type absent state contains rows in {name}")
+    return state[0][1]
+
+
+def require_type_schema(con: sqlite3.Connection) -> None:
+    """Pure current13 admission, including prior owners and type dependencies."""
+    from . import migrations
+
+    version = migrations.user_version(con)
+    try:
+        _require_type_shape(con, complete=True)
+        migrations.require_ledger(con, version=13)
+        _require_stabs_shape(con, complete=True)
+        _require_decomp_shape(con, complete=True)
+        _require_convention_shape(con, complete=True)
+    except ValueError as exc:
+        raise ValueError(f"type schema required: observed version {version}, supported version 13: {exc}") from exc
+
+
+def type_inventory_state(con: sqlite3.Connection) -> str:
+    """Return the admitted global installation state; this is not capture proof."""
+    require_type_schema(con)
+    return con.execute("SELECT mode FROM main.type_inventory_state WHERE singleton=1").fetchone()[0]
+
+
+def type_inventory_available(con: sqlite3.Connection) -> bool:
+    """Gate current/future readers; preserve physical presence on raw history."""
+    from . import migrations
+
+    if migrations.user_version(con) >= 13:
+        return type_inventory_state(con) == "installed"
+    return con.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='ghidra_type'").fetchone() is not None
 
 
 def connect(
@@ -537,6 +703,7 @@ def connect(
                 require_stabs_schema(con)
                 require_decomp_schema(con)
                 require_convention_schema(con)
+                require_type_schema(con)
             except ValueError as exc:
                 raise SchemaCompatibilityError(dest, version, supported, str(exc)) from exc
         else:
@@ -563,7 +730,7 @@ def remove_binary(
     repo_path: str | None = None,
     slug: str | None = None,
 ) -> dict:
-    """Remove one binary using the bounded v9/v10/v11/v12 registry; preserve logical rows.
+    """Remove one binary using the bounded v9/v10/v11/v12/v13 registry; preserve logical rows.
 
     With a caller-owned transaction, the returned receipt is provisional until
     the caller commits. This operation releases only its own savepoint.

@@ -475,32 +475,46 @@ def create_react_router() -> APIRouter:
 
     @router.get("/dashboard/api/workbench/types")
     def types(slug: str = "", q: str = "", source: str = "ghidra", offset: int = 0, limit: str = "all"):
-        from agentdecompile_recovery.corpus.dashboard.common import page_window, query_db, table_exists
+        from agentdecompile_recovery.corpus.dashboard.common import (
+            CorpusReadError, corpus_read_snapshot, page_window, query_db, table_exists,
+        )
+        from agentdecompile_recovery.corpus.store import type_inventory_available
 
         table = "stabs_type" if source == "stabs" else "ghidra_type"
-        if not table_exists(table):
-            return {"ok": True, "rows": [], "total": 0, "state": "unavailable", "reason": f"No {source} type inventory has been recorded."}
-        where = "WHERE 1=1"
-        params = []
-        if slug:
-            where += " AND b.slug=?"
-            params.append(slug)
-        if q:
-            where += " AND t.name LIKE ?"
-            params.append("%" + q + "%")
-        definition = "t.stab" if source == "stabs" else "t.definition"
-        origin = "t.source_file" if source == "stabs" else "t.origin"
-        counts, error = query_db(f"SELECT COUNT(*) FROM {table} t JOIN binary b ON b.id=t.binary_id {where}", tuple(params))
-        start, cap = page_window(offset, limit)
-        sql = f"SELECT b.slug,t.name,t.kind,{definition},{origin} FROM {table} t JOIN binary b ON b.id=t.binary_id {where} ORDER BY b.slug,t.name"
-        if cap is None:
-            rows, row_error = query_db(sql, tuple(params))
-        else:
-            rows, row_error = query_db(sql + " LIMIT ? OFFSET ?", (*params, cap, start))
-        if error or row_error:
-            return JSONResponse({"ok": False, "error": error or row_error}, status_code=503)
-        total = counts[0][0]
-        return {"ok": True, "rows": [dict(zip(("slug", "name", "kind", "definition", "origin"), row)) for row in rows], "total": total, "offset": start, "limit": "all" if cap is None else cap, "hasMore": cap is not None and start + len(rows) < total, "state": "populated" if total else "empty", "claim": "context hint"}
+        unavailable = {"ok": True, "rows": [], "total": 0, "state": "unavailable", "reason": f"No {source} type inventory has been recorded."}
+        try:
+            with corpus_read_snapshot() as (con, _corpus):
+                available = (table_exists(table, connection=con) if source == "stabs"
+                             else type_inventory_available(con))
+                if not available:
+                    return unavailable
+                where = "WHERE 1=1"
+                params = []
+                if slug:
+                    where += " AND b.slug=?"
+                    params.append(slug)
+                if q:
+                    where += " AND t.name LIKE ?"
+                    params.append("%" + q + "%")
+                definition = "t.stab" if source == "stabs" else "t.definition"
+                origin = "t.source_file" if source == "stabs" else "t.origin"
+                counts, error = query_db(f"SELECT COUNT(*) FROM {table} t JOIN binary b ON b.id=t.binary_id {where}", tuple(params), connection=con)
+                start, cap = page_window(offset, limit)
+                sql = f"SELECT b.slug,t.name,t.kind,{definition},{origin} FROM {table} t JOIN binary b ON b.id=t.binary_id {where} ORDER BY b.slug,t.name"
+                if cap is None:
+                    rows, row_error = query_db(sql, tuple(params), connection=con)
+                else:
+                    rows, row_error = query_db(sql + " LIMIT ? OFFSET ?", (*params, cap, start), connection=con)
+                if error or row_error:
+                    return JSONResponse({"ok": False, "error": error or row_error}, status_code=503)
+                total = counts[0][0]
+                return {"ok": True, "rows": [dict(zip(("slug", "name", "kind", "definition", "origin"), row)) for row in rows], "total": total, "offset": start, "limit": "all" if cap is None else cap, "hasMore": cap is not None and start + len(rows) < total, "state": "populated" if total else "empty", "claim": "context hint"}
+        except CorpusReadError as exc:
+            if str(exc) == "Selected corpus database is unavailable":
+                return unavailable
+            return JSONResponse({"ok": False, "error": str(exc)}, status_code=503)
+        except ValueError as exc:
+            return JSONResponse({"ok": False, "error": str(exc)}, status_code=503)
 
     @router.get("/dashboard/api/workbench/logical/{logical_id}")
     def logical(logical_id: str, corpus_identity: str = ""):

@@ -22,6 +22,7 @@ V9_LEDGER = list(enumerate((
 V10_LEDGER = V9_LEDGER + [(10, 'stabs_schema_ownership')]
 V11_LEDGER = V10_LEDGER + [(11, 'decomp_schema_ownership')]
 V12_LEDGER = V11_LEDGER + [(12, 'convention_schema_ownership')]
+V13_LEDGER = V12_LEDGER + [(13, 'type_schema_ownership')]
 
 
 def _v9(path=':memory:'):
@@ -259,7 +260,7 @@ def test_lock_tolerated_v9_and_readonly_v9_still_refuse_every_stabs_writer(tmp_p
             assert _mutations(seen) == []
             assert con.execute('SELECT COUNT(*) FROM temp.sqlite_schema').fetchone()[0] == 0
         holder.rollback()
-        assert [s.version for s in migrations.apply_pending(waiter)] == [10, 11, 12]
+        assert [s.version for s in migrations.apply_pending(waiter)] == [10, 11, 12, 13]
         stabs_link.ensure_columns(waiter)
     finally:
         holder.close()
@@ -267,17 +268,17 @@ def test_lock_tolerated_v9_and_readonly_v9_still_refuse_every_stabs_writer(tmp_p
         readonly.close()
 
 
-@pytest.mark.parametrize('version', [0, 8, 11, 12, 13])
+@pytest.mark.parametrize('version', [0, 8, 11, 12, 13, 14])
 def test_direct_migration_body_refuses_other_versions_without_writes(version):
     con = _v9()
     try:
-        if version in {11, 12}:
+        if version in {11, 12, 13}:
             migrations.apply_pending(con, target=version)
-            assert _ledger(con) == (V11_LEDGER if version == 11 else V12_LEDGER)
-        elif version == 13:
-            future = migrations.MIGRATIONS + [migrations.Migration(13, 'future', lambda c: None)]
+            assert _ledger(con) == {11: V11_LEDGER, 12: V12_LEDGER, 13: V13_LEDGER}[version]
+        elif version == 14:
+            future = migrations.MIGRATIONS + [migrations.Migration(14, 'future', lambda c: None)]
             migrations.apply_pending(con, migrations=future)
-            assert _ledger(con) == V12_LEDGER + [(13, 'future')]
+            assert _ledger(con) == V13_LEDGER + [(14, 'future')]
         else:
             # Explicit corrupt stamps remain negative fixtures, not history.
             con.execute(f'PRAGMA user_version={version}')
@@ -398,7 +399,7 @@ def test_mixed_case_temp_shadow_refuses_current_direct_writers_and_keeps_caller_
             operations[operation]()
         assert con.in_transaction
         assert (_snapshot(con), _temp_snapshot(con)) == before
-        assert _ledger(con) == V12_LEDGER
+        assert _ledger(con) == V13_LEDGER
         assert con.execute('SELECT run,metric FROM main.eval').fetchall() == [('caller', 'pending')]
         assert _mutations(seen) == []
         assert not any(sql.lstrip().upper().startswith(('ROLLBACK', 'RELEASE ', 'PRAGMA TEMP_STORE')) for sql in seen)

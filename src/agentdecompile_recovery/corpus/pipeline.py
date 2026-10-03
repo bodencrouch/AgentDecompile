@@ -235,50 +235,39 @@ def write_calibrate_global_receipt(
         fragments["export-types"] = {"state": "present", "source": "header-file"}
         fragments["propagate"] = {"state": "skipped", "reason": "header-file"}
     elif db is not None and Path(db).is_file():
+        con = None
         try:
             from .build_types_header import build_header
-            from .export_types import SCHEMA, export as export_types
-            from .propagate_types import apply_adoptions, plan_adoptions
-            from .store import connect
+            from .propagate_types import plan_adoptions
+            from .store import connect, type_inventory_state
 
-            con = connect(Path(db))
-            con.executescript(SCHEMA)
+            con = connect(Path(db), read_only=True)
+            installed = type_inventory_state(con) == "installed"
             existing = int(con.execute("SELECT COUNT(*) FROM ghidra_type").fetchone()[0])
-            if existing:
-                fragments["export-types"] = {"state": "present", "rows": existing}
-            else:
-                repos = [
-                    str(row[0])
-                    for row in con.execute("SELECT repo_path FROM binary")
-                    if row[0]
-                ]
-                if not repos:
-                    fragments["export-types"] = {"state": "missing", "reason": "no-binary"}
-                else:
-                    # Never boot Ghidra from this receipt. Live export is a
-                    # separate catalog job; here we only reuse store rows.
-                    stats = export_types(repos[0], con, start=lambda: False)
-                    fragments["export-types"] = {
-                        "state": "missing" if stats.get("reason") else "present",
-                        **stats,
-                    }
+            fragments["export-types"] = ({"state": "present", "rows": existing} if installed
+                                         else {"state": "missing", "reason": "no-type-inventory"})
             try:
                 plan = plan_adoptions(con)
-                adopted = apply_adoptions(con, plan.get("adopted") or [])
+                planned = len(plan.get("adopted") or [])
                 fragments["propagate"] = {
-                    "state": "present",
-                    "adopted": adopted,
+                    "state": "planned" if planned else "present",
+                    "planned": planned,
+                    "adopted": 0,
                     "stats": plan.get("stats") or {},
                 }
+                if planned:
+                    gaps.append("propagation")
             except Exception as exc:  # noqa: BLE001 — receipt must name the fragment
                 errors.append(f"propagate:{exc}")
                 fragments["propagate"] = {"state": "error", "error": str(exc)}
 
             row = con.execute("SELECT id FROM binary ORDER BY id LIMIT 1").fetchone()
-            if row is None:
+            if not installed or row is None:
                 types = "missing"
                 gaps.append("types")
-                fragments["build-types-header"] = {"state": "missing", "reason": "no-binary"}
+                fragments["build-types-header"] = {
+                    "state": "missing", "reason": "no-type-inventory" if not installed else "no-binary",
+                }
             else:
                 built = build_header(con, int(row["id"]), header)
                 if built.get("types"):
@@ -291,7 +280,11 @@ def write_calibrate_global_receipt(
         except Exception as exc:  # noqa: BLE001 — receipt must name the fragment
             errors.append(f"types:{exc}")
             types = {"state": "error", "error": str(exc)}
-            fragments.setdefault("build-types-header", {"state": "error", "error": str(exc)})
+            for fragment in ("export-types", "propagate", "build-types-header"):
+                fragments.setdefault(fragment, {"state": "error", "error": str(exc)})
+        finally:
+            if con is not None:
+                con.close()
     else:
         types = "missing"
         gaps.append("types")

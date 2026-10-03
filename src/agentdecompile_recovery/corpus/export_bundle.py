@@ -120,8 +120,12 @@ def export_bundle(con, out: Path | str, *, site_policy=None, adapter_map=None,
         hashes = [row["content_sha256"] for row in rows]
         if len(set(hashes)) != len(hashes):
             raise BundleExportError("headers: duplicate build content hashes require canonicalization")
+        from .store import type_inventory_available
+
         for row in rows:
             try:
+                if not type_inventory_available(con):
+                    raise BundleExportError("headers: captured type definitions unavailable")
                 count = con.execute("SELECT COUNT(*) FROM ghidra_type WHERE binary_id=? AND definition IS NOT NULL AND definition<>''", (row["id"],)).fetchone()[0]
             except Exception as exc:
                 raise BundleExportError("headers: captured type definitions unavailable") from exc

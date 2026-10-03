@@ -592,3 +592,28 @@ def test_workbench_workflow_matrix(
         return
 
     pytest.fail(f"unhandled workflow case: {case}")
+
+
+def test_layout_installer_source_stages_capture_then_uses_admitted_native_helper():
+    """Inspect generated-body literal only: do not invoke or execute the script."""
+    import ast
+    from agentdecompile_recovery.corpus.dashboard import workflow
+    tree = ast.parse(Path(workflow.__file__).read_text())
+    function = next(node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == 'layout_script')
+    body = next(node.value for node in ast.walk(function)
+                if isinstance(node, ast.Constant) and isinstance(node.value, str) and 'import sqlite3' in node.value)
+    generated = ast.parse(body)
+    calls = [(node.lineno, ast.unparse(node.func)) for node in ast.walk(generated) if isinstance(node, ast.Call)]
+    line = lambda name: min(lineno for lineno, candidate in calls if candidate == name)
+    assert line('require_type_schema') < line('currentProgram.getDataTypeManager')
+    assert line('rows.append') < line('insert_native_types') < line('build_header')
+    assert sum(name == 'monitor.checkCancelled' for _, name in calls) == 2
+    assert 'mode=rw' in body and 'con.row_factory = sqlite3.Row' in body
+    assert 'Existing stored layouts retained' in body
+    assert "kind = 'union' if isinstance(data_type, Union) else 'struct'" in body
+    assert "kind = 'enum'" in body
+    assert any(isinstance(node, ast.Try) and any(
+        isinstance(child, ast.Call) and ast.unparse(child.func) == 'con.close'
+        for statement in node.finalbody for child in ast.walk(statement)) for node in ast.walk(generated))
+    assert not any(name in {'con.execute', 'con.executemany', 'con.executescript', 'con.commit', 'connect', 'store.connect'} for _, name in calls)
+    assert not any(token in body.upper() for token in ('CREATE TABLE', 'ALTER TABLE', 'INSERT OR IGNORE', 'INSERT OR REPLACE'))

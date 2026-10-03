@@ -83,11 +83,13 @@ def test_stabs_manifest_unknown_repo_path_reports_clean_error(
 
 
 def test_build_types_header_missing_table_reports_clean_error(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch
 ) -> None:
+    from agentdecompile_recovery.corpus import build_types_header as header
+    monkeypatch.setattr(header, "basis", lambda _con: {"toolchain_identity_hash": "pinned:none"})
     db = tmp_path / "store.sqlite"
     con = store.connect(db)
-    con.execute("INSERT INTO binary (repo_path, slug, arch) VALUES (?,?,?)", ("repoA", "slugA", "x86"))
+    con.execute("INSERT INTO binary (repo_path, slug, arch, content_sha256) VALUES (?,?,?,?)", ("repoA", "slugA", "x86", "a" * 64))
     con.commit()
     con.close()
 
@@ -165,3 +167,18 @@ def test_name_census_filename_less_not_found_propagates(
 
     with pytest.raises(FileNotFoundError, match="some other file went missing"):
         recover_main(["name-census", "--db", str(db)])
+
+
+def test_build_types_header_installed_empty_is_success_with_zero_types(tmp_path, capsys, monkeypatch):
+    from agentdecompile_recovery.corpus import build_types_header as header, export_types
+    from tests.test_corpus_type_schema import current
+    db = tmp_path / 'empty-types.sqlite'
+    con = current(db)
+    export_types.insert_native_types(con, [])
+    con.close()
+    monkeypatch.setattr(header, 'basis', lambda _con: {'toolchain_identity_hash': 'pinned:none'})
+    out = tmp_path / 'types.h'
+    assert corpus_main(['build-types-header', '--db', str(db), '--repo-path', '/recipient', '--out', str(out)]) == 0
+    captured = capsys.readouterr()
+    assert 'Traceback' not in captured.err and 'error:' not in captured.err
+    assert out.is_file() and out.with_name('types.h.manifest.json').is_file()

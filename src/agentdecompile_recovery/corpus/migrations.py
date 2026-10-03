@@ -331,6 +331,34 @@ def _convention_schema_ownership(con: sqlite3.Connection) -> None:
     _store._require_convention_shape(con, complete=True)
 
 
+def _type_schema_ownership(con: sqlite3.Connection) -> None:
+    """Version 13: own type storage, retaining original inventory availability."""
+    if not con.in_transaction:
+        raise ValueError("type migration requires an owned transaction")
+    version = user_version(con)
+    if version == 13:
+        require_ledger(con, version=13)
+        _store._require_stabs_shape(con, complete=True)
+        _store._require_decomp_shape(con, complete=True)
+        _store._require_convention_shape(con, complete=True)
+        _store._require_type_shape(con, complete=True)
+        return
+    require_ledger(con, version=12)
+    _store._require_stabs_shape(con, complete=True)
+    _store._require_decomp_shape(con, complete=True)
+    _store._require_convention_shape(con, complete=True)
+    mode = _store._require_type_shape(con, complete=False)
+    if mode == "absent":
+        con.execute(_store.TYPE_TABLE_DDL)
+    elif not any(row[1] == "origin" for row in con.execute("PRAGMA main.table_xinfo(ghidra_type)")):
+        con.execute("ALTER TABLE main.ghidra_type ADD COLUMN origin TEXT")
+    con.execute(_store.TYPE_ORIGIN_DDL)
+    con.execute(_store.TYPE_INDEX_SQL)
+    con.execute(_store.TYPE_INVENTORY_STATE_DDL)
+    con.execute("INSERT INTO main.type_inventory_state(singleton,mode) VALUES (1,?)", (mode,))
+    _store._require_type_shape(con, complete=True)
+
+
 MIGRATIONS: list[Migration] = [
     Migration(1, "baseline", _baseline),
     Migration(2, "analyzer_identity", _analyzer_identity),
@@ -344,6 +372,7 @@ MIGRATIONS: list[Migration] = [
     Migration(10, "stabs_schema_ownership", _stabs_schema_ownership),
     Migration(11, "decomp_schema_ownership", _decomp_schema_ownership),
     Migration(12, "convention_schema_ownership", _convention_schema_ownership),
+    Migration(13, "type_schema_ownership", _type_schema_ownership),
 ]
 
 SCHEMA_VERSION = MIGRATIONS[-1].version

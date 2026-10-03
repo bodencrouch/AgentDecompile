@@ -1,4 +1,4 @@
-"""Atomic binary removal for the reviewed, deliberately bounded v9/v10/v11/v12 profiles.
+"""Atomic binary removal for the reviewed, deliberately bounded v9/v10/v11/v12/v13 profiles.
 
 This module never initializes a store. A future schema or surviving identity
 lineage requires a separately reviewed profile, not heuristic provenance cleanup.
@@ -385,6 +385,43 @@ LEDGER_V12 = LEDGER_V11 + ((12, 'convention_schema_ownership'),)
 MANDATORY_TABLES_V12 = MANDATORY_TABLES_V11 | {'func_convention_derived'}
 OPTIONAL_ADDITIONS_V11 = {key: value for key, value in OPTIONAL_ADDITIONS.items() if key != 'decomp'}
 
+# Independently frozen version 13; never consult the live store/migration registry.
+LEDGER_V13 = LEDGER_V12 + ((13, 'type_schema_ownership'),)
+TABLE_SQL_V13 = {**TABLE_SQL_V11,
+    'ghidra_type': """CREATE TABLE IF NOT EXISTS ghidra_type (
+        binary_id INTEGER NOT NULL,
+        name TEXT NOT NULL,
+        kind TEXT NOT NULL,
+        size INTEGER,
+        definition TEXT NOT NULL,
+        n_fields INTEGER,
+        origin TEXT,
+        PRIMARY KEY (binary_id, name, kind)
+    )""",
+    'type_inventory_state': """CREATE TABLE type_inventory_state (
+        singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
+        mode TEXT NOT NULL CHECK (mode IN ('absent', 'installed'))
+    )""",
+}
+_TYPE_ALTER_SQL_V13 = TABLE_SQL['ghidra_type'].rstrip().removesuffix(')') + ', origin TEXT)'
+MANDATORY_TABLES_V13 = MANDATORY_TABLES_V12 | {'ghidra_type', 'ghidra_type_origin', 'type_inventory_state'}
+OPTIONAL_ADDITIONS_V13 = {key: value for key, value in OPTIONAL_ADDITIONS_V11.items() if key != 'ghidra_type'}
+_TYPE_COLUMNS_V13 = {
+    'ghidra_type': [(i, name, 'INTEGER' if i in {0, 3, 5} else 'TEXT',
+                     int(i in {0, 1, 2, 4}), None, i + 1 if i < 3 else 0, 0)
+                    for i, name in enumerate(('binary_id', 'name', 'kind', 'size', 'definition', 'n_fields', 'origin'))],
+    'ghidra_type_origin': [(i, name, 'INTEGER' if i in {0, 4} else 'TEXT',
+                            int(i < 3), None, i + 1 if i < 2 else 0, 0)
+                           for i, name in enumerate(('binary_id', 'name', 'donor_slug', 'donor_game', 'size'))],
+    'ghidra_field': [(i, name, 'INTEGER' if i in {0, 2, 3, 4, 10} else 'TEXT',
+                      int(i < 7 or i == 11), None, i + 1 if i < 3 else 0, 0)
+                     for i, name in enumerate(('binary_id', 'type_name', 'ordinal', 'offset', 'size', 'name',
+                                               'dt_kind', 'pointee_type', 'composite_type', 'element_type',
+                                               'array_count', 'type_json'))],
+    'type_inventory_state': [(0, 'singleton', 'INTEGER', 0, None, 1, 0),
+                             (1, 'mode', 'TEXT', 1, None, 0, 0)],
+}
+
 VERSION_PROFILES = {
     9: (LEDGER, (), frozenset()),
     10: (LEDGER_V10, ('stabs_name TEXT', 'stabs_type TEXT'),
@@ -393,6 +430,8 @@ VERSION_PROFILES = {
          frozenset({'ix_func_srcfile', 'ix_stabs_type_bin', 'ix_stabs_type_src', 'ix_decomp_bin'})),
     12: (LEDGER_V12, ('stabs_name TEXT', 'stabs_type TEXT'),
          frozenset({'ix_func_srcfile', 'ix_stabs_type_bin', 'ix_stabs_type_src', 'ix_decomp_bin'})),
+    13: (LEDGER_V13, ('stabs_name TEXT', 'stabs_type TEXT'),
+         frozenset({'ix_func_srcfile', 'ix_stabs_type_bin', 'ix_stabs_type_src', 'ix_decomp_bin', 'ix_ghidra_type_bin'})),
 }
 
 
@@ -468,10 +507,12 @@ def _schema_preflight(con: sqlite3.Connection) -> frozenset[str]:
     if version not in VERSION_PROFILES:
         raise BinaryDeleteUnsupported('schema_unsupported', 'user_version')
     expected_ledger, func_additions, required_indexes = VERSION_PROFILES[version]
-    table_sql = TABLE_SQL_V11 if version in {11, 12} else TABLE_SQL
-    mandatory = (MANDATORY_TABLES_V12 if version == 12 else
+    table_sql = TABLE_SQL_V13 if version == 13 else TABLE_SQL_V11 if version in {11, 12} else TABLE_SQL
+    mandatory = (MANDATORY_TABLES_V13 if version == 13 else
+                 MANDATORY_TABLES_V12 if version == 12 else
                  MANDATORY_TABLES_V11 if version == 11 else MANDATORY_TABLES)
-    optional_additions = OPTIONAL_ADDITIONS_V11 if version in {11, 12} else OPTIONAL_ADDITIONS
+    optional_additions = (OPTIONAL_ADDITIONS_V13 if version == 13 else
+                          OPTIONAL_ADDITIONS_V11 if version in {11, 12} else OPTIONAL_ADDITIONS)
     objects = list(con.execute('SELECT type,name,tbl_name,sql FROM main.sqlite_schema'))
     missing_indexes = required_indexes - {row[1] for row in objects if row[0] == 'index'}
     if missing_indexes:
@@ -515,7 +556,7 @@ def _schema_preflight(con: sqlite3.Connection) -> frozenset[str]:
         match_review_schema.require(con)
     except ValueError as exc:
         raise BinaryDeleteUnsupported('schema_unsupported', 'match_review') from exc
-    if version in {11, 12}:
+    if version in {11, 12, 13}:
         # Column order/type/default/PK metadata is part of canonical v11 shape.
         decomp_columns = ('binary_id', 'addr', 'ok', 'n_tokens', 'n_lines', 'max_nest',
                           'n_calls', 'n_locals', 'n_deref', 'n_index', 'n_field',
@@ -536,13 +577,42 @@ def _schema_preflight(con: sqlite3.Connection) -> frozenset[str]:
             raise BinaryDeleteUnsupported('schema_unsupported', 'decomp_schema_state')
         if rows[0][1] == 'skeleton_hash' and con.execute('SELECT 1 FROM main.decomp WHERE ast_fingerprint IS NOT NULL LIMIT 1').fetchone():
             raise BinaryDeleteUnsupported('schema_unsupported', 'decomp_schema_state')
-    if version == 12:
+    if version in {12, 13}:
         columns = ('binary_id', 'addr', 'deco_class', 'stack_bytes', 'fastcall_n', 'class_source', 'n_source')
         expected = [(i, name, 'TEXT' if i in {2, 5, 6} else 'INTEGER',
                      int(i not in {3, 4}), None, i + 1 if i < 2 else 0, 0)
                     for i, name in enumerate(columns)]
         if [tuple(row) for row in con.execute('PRAGMA main.table_xinfo(func_convention_derived)')] != expected:
             raise BinaryDeleteUnsupported('schema_unsupported', 'func_convention_derived')
+    if version == 13:
+        for name, expected in _TYPE_COLUMNS_V13.items():
+            if [tuple(row) for row in con.execute(f'PRAGMA main.table_xinfo({name})')] != expected:
+                raise BinaryDeleteUnsupported('schema_unsupported', name)
+        for kind, name, owner, sql in objects:
+            if owner not in _TYPE_COLUMNS_V13:
+                continue
+            if kind == 'table':
+                allowed = {_tokens(TABLE_SQL_V13[name], name)}
+                if name == 'ghidra_type':
+                    allowed.add(_tokens(_TYPE_ALTER_SQL_V13, name))
+                if _tokens(sql, name) not in allowed:
+                    raise BinaryDeleteUnsupported('schema_unsupported', name)
+            elif kind == 'index':
+                if name == 'ix_ghidra_type_bin' and owner == 'ghidra_type':
+                    continue  # The exact declared SQL was checked above.
+                if (owner != 'type_inventory_state' and sql is None
+                        and name == f'sqlite_autoindex_{owner}_1'):
+                    continue
+                raise BinaryDeleteUnsupported('schema_unsupported', name)
+            else:
+                raise BinaryDeleteUnsupported('schema_unsupported', name)
+        state = [tuple(row) for row in con.execute('SELECT singleton,mode FROM main.type_inventory_state')]
+        if len(state) != 1 or state[0][0] != 1 or state[0][1] not in {'absent', 'installed'}:
+            raise BinaryDeleteUnsupported('schema_unsupported', 'type_inventory_state')
+        if state[0][1] == 'absent':
+            for name in ('ghidra_type', 'ghidra_type_origin'):
+                if con.execute(f'SELECT 1 FROM main.{name} LIMIT 1').fetchone():
+                    raise BinaryDeleteUnsupported('schema_unsupported', 'type_inventory_state')
     return present
 
 

@@ -99,7 +99,7 @@ def test_eleven_to_twelve_preserves_every_old_value_rowid_and_mode(shape, mode):
                     ('old-skeleton', '' if mode == 'ast_fingerprint' else None))
     con.commit()
     before = snapshot(con)
-    assert [step.version for step in migrations.apply_pending(con)] == [12]
+    assert [step.version for step in migrations.apply_pending(con, target=12)] == [12]
     after = snapshot(con)
     for name, old in before[2].items():
         assert (after[2][name][:11] if name == 'schema_migration' else after[2][name]) == old
@@ -107,7 +107,7 @@ def test_eleven_to_twelve_preserves_every_old_value_rowid_and_mode(shape, mode):
     assert store.decomp_read_state(con) == (None if mode == 'absent' else mode)
     assert tuple(con.execute('SELECT version,name FROM schema_migration ORDER BY version DESC').fetchone()) == (
         12, 'convention_schema_ownership')
-    store.require_convention_schema(con)
+    store._require_convention_shape(con, complete=True)
     con.close()
 
 
@@ -190,10 +190,10 @@ BAD_DDL = [
 
 
 @pytest.mark.parametrize('ddl', BAD_DDL)
-@pytest.mark.parametrize('version', [11, 12])
+@pytest.mark.parametrize('version', [11, 13])
 def test_unknown_shapes_refuse_without_repair(ddl, version):
     con = historical()
-    if version == 12:
+    if version == 13:
         migrations.apply_pending(con)
         con.execute('DROP TABLE func_convention_derived')
     con.execute(ddl)
@@ -235,7 +235,7 @@ def test_local_objects_and_reserved_spelling_refuse(ddl):
 
 @pytest.mark.parametrize('name', ['binary', 'func', 'identity', 'schema_migration', 'func_convention_derived'])
 @pytest.mark.parametrize('kind', ['TABLE', 'VIEW'])
-@pytest.mark.parametrize('version', [11, 12])
+@pytest.mark.parametrize('version', [11, 13])
 def test_mixed_case_temp_input_shadows_refuse_before_reads(name, kind, version):
     con = historical(shape='empty') if version == 11 else current()
     spelling = name.upper()
@@ -273,7 +273,7 @@ def test_current_guard_refuses_without_touching_pending_work(damage):
     before = snapshot(con)
     trace = []
     con.set_trace_callback(trace.append)
-    with pytest.raises(ValueError, match='convention schema required.*observed version 12.*supported version 12'):
+    with pytest.raises(ValueError, match='convention schema required.*observed version 13.*supported version 13'):
         derive(con, mapper=lambda _a: pytest.fail('mapper before guard'))
     assert_read_only(trace)
     assert snapshot(con) == before and con.in_transaction
@@ -473,7 +473,7 @@ def test_actual_older_lock_and_readonly_handles_refuse_before_computation(tmp_pa
                 derive(con, mapper=lambda _a: pytest.fail('old handle mapper'))
             assert_read_only(trace)
         holder.rollback()
-        assert [step.version for step in migrations.apply_pending(waiter)] == [12]
+        assert [step.version for step in migrations.apply_pending(waiter)] == [12, 13]
         store.require_convention_schema(waiter)
     finally:
         holder.close()
@@ -485,9 +485,9 @@ def test_actual_older_lock_and_readonly_handles_refuse_before_computation(tmp_pa
 def test_direct_repeats_bind_own_version_under_future_registry(monkeypatch, version):
     con = sqlite3.connect(':memory:')
     migrations.apply_pending(con, target=version)
-    future = migrations.MIGRATIONS + [migrations.Migration(13, 'future', lambda _c: None)]
+    future = migrations.MIGRATIONS + [migrations.Migration(14, 'future', lambda _c: None)]
     monkeypatch.setattr(migrations, 'MIGRATIONS', future)
-    monkeypatch.setattr(migrations, 'SCHEMA_VERSION', 13)
+    monkeypatch.setattr(migrations, 'SCHEMA_VERSION', 14)
     con.execute("INSERT INTO eval(run) VALUES ('caller')")
     before = snapshot(con)
     {10: migrations._stabs_schema_ownership, 11: migrations._decomp_schema_ownership,
@@ -502,10 +502,10 @@ def test_direct_repeats_bind_own_version_under_future_registry(monkeypatch, vers
     con.close()
 
 
-def test_actual_future_thirteen_refuses_guard_and_frozen_delete_without_writes():
+def test_actual_future_fourteen_refuses_guard_and_frozen_delete_without_writes():
     con = current()
-    future = migrations.MIGRATIONS + [migrations.Migration(13, 'future', lambda _c: None)]
-    assert [step.version for step in migrations.apply_pending(con, migrations=future)] == [13]
+    future = migrations.MIGRATIONS + [migrations.Migration(14, 'future', lambda _c: None)]
+    assert [step.version for step in migrations.apply_pending(con, migrations=future)] == [14]
     con.execute("INSERT INTO eval(run) VALUES ('caller')")
     before = snapshot(con)
     for operation in (lambda: derive(con), lambda: delete_registry.remove_binary(con, slug='1')):
@@ -527,10 +527,10 @@ def test_writer_source_has_no_schema_installation_and_keeps_public_signature():
     assert pc.SCHEMA == store.CONVENTION_TABLE_DDL
 
 
-@pytest.mark.parametrize('version', [11, 12])
+@pytest.mark.parametrize('version', [11, 13])
 def test_arbitrary_temp_trigger_on_conventions_refuses_before_side_effects(version):
     con = historical(shape='populated') if version == 11 else current()
-    if version == 12:
+    if version == 13:
         con.executemany('INSERT INTO func_convention_derived VALUES (?,?,?,?,?,?,?)', OLD_ROWS)
     con.execute("CREATE TEMP TRIGGER side_effect AFTER INSERT ON main.func_convention_derived "
                 "BEGIN DELETE FROM func_convention_derived WHERE binary_id <> NEW.binary_id; END")
@@ -567,7 +567,7 @@ def test_unrelated_temp_scratch_remains_allowed():
 @pytest.mark.parametrize('version', [9, 10, 11, 12])
 @pytest.mark.parametrize('shape', ['absent', 'empty', 'populated'])
 def test_actual_deletion_profiles_keep_historical_optional_storage(version, shape):
-    con = historical(version=version, shape=shape) if version < 12 else current()
+    con = historical(version=version, shape=shape) if version < 12 else historical(version=12)
     if version == 12:
         con.execute('DELETE FROM identity')
         con.execute('DELETE FROM func')
@@ -605,7 +605,7 @@ def test_migration_cleanup_and_lost_commit_acknowledgement_are_not_rollback_clai
         migrations.apply_pending(proxy)
     if prefix == 'COMMIT':
         assert not con.in_transaction and migrations.user_version(con) == 12
-        store.require_convention_schema(con)
+        store._require_convention_shape(con, complete=True)
     else:
         assert con.in_transaction
         con.rollback()

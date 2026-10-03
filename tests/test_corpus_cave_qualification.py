@@ -8,10 +8,11 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+import sqlite3
 
 import pytest
 
-from agentdecompile_recovery.corpus import hookpack_v2
+from agentdecompile_recovery.corpus import hookpack_v2, migrations
 from agentdecompile_recovery.corpus.cave_discovery import discover_caves
 from agentdecompile_recovery.corpus.export_bundle import BundleExportError, export_bundle
 from agentdecompile_recovery.corpus.export_hookpack import export_hookpack
@@ -45,7 +46,10 @@ def synthetic_observation(tmp_path, monkeypatch):
         "qualification": {"producer_reference_sha256": "c" * 64,
                           "policy_revision": "synthetic-container-limit-64/v1", "generation": "fixture-1"},
     }
-    con = connect(tmp_path / "synthetic.sqlite")
+    # Freeze the existing raw type-projection specimen before ownership13.
+    con = sqlite3.connect(tmp_path / "synthetic.sqlite")
+    con.row_factory = sqlite3.Row
+    migrations.apply_pending(con, target=12)
     con.execute("INSERT INTO binary(id,repo_path,slug,content_sha256,arch,bits,image_base) "
                 "VALUES (1,'/synthetic','fixture',?,'i386',32,4096)", (digest,))
     monkeypatch.setattr(hookpack_v2, "basis", lambda _: copy.deepcopy(declared))

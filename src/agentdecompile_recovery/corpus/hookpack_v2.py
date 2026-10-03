@@ -296,7 +296,10 @@ def build_hookpack_v2(con, *, site_policy=None, adapter_map=None, operation_cont
             entity["adapter_key"] = adapter
         entities.append(entity)
     # Type definitions are build-local witnesses. Same spelling is not cross-build identity.
-    if "ghidra_type" in tables:
+    from .store import type_inventory_available
+
+    types_available = type_inventory_available(con)
+    if "ghidra_type" in tables and types_available:
         for t in _rows(con, "SELECT * FROM ghidra_type ORDER BY binary_id,name"):
             b = by_id.get(t["binary_id"])
             if b is None:

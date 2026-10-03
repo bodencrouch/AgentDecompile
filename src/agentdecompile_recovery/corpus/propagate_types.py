@@ -9,22 +9,11 @@ from __future__ import annotations
 import collections
 
 from . import corpus_config
-from .export_types import SCHEMA
+from .export_types import SCHEMA, _type_write_scope, _materialize_type_inventory
+from .store import TYPE_ORIGIN_DDL, require_type_schema
 
-ORIGIN_DDL = """
-CREATE TABLE IF NOT EXISTS ghidra_type_origin (
-    binary_id INTEGER NOT NULL,
-    name TEXT NOT NULL,
-    donor_slug TEXT NOT NULL,
-    donor_game TEXT,
-    size INTEGER,
-    PRIMARY KEY (binary_id, name)
-)
-"""
-
-
-def _has_origin(con) -> bool:
-    return any(r[1] == "origin" for r in con.execute("PRAGMA table_info(ghidra_type)"))
+# Import compatibility only; migration 13 owns installation.
+ORIGIN_DDL = TYPE_ORIGIN_DDL
 
 
 def _targets(con, config_dir_path=None) -> list[str]:
@@ -36,14 +25,8 @@ def _targets(con, config_dir_path=None) -> list[str]:
 
 
 def plan_adoptions(con, *, cross_game: bool = False, targets: list[str] | None = None, config_dir_path=None) -> dict:
-    """Report (and optionally apply) type adoptions. No product-path defaults."""
-    con.executescript(SCHEMA)
-    con.executescript(ORIGIN_DDL)
-    if _has_origin(con) is False:
-        try:
-            con.execute("ALTER TABLE ghidra_type ADD COLUMN origin TEXT")
-        except Exception:
-            pass
+    """Report possible type adoptions without changing the admitted inventory."""
+    require_type_schema(con)
 
     bins = {}
     for rp in targets if targets is not None else _targets(con, config_dir_path):
@@ -53,7 +36,7 @@ def plan_adoptions(con, *, cross_game: bool = False, targets: list[str] | None =
 
     donors: dict[str, list] = collections.defaultdict(list)
     native: dict[int, set] = collections.defaultdict(set)
-    origin_filter = " AND (origin IS NULL OR origin='native')" if _has_origin(con) else ""
+    origin_filter = " AND (origin IS NULL OR origin='native')"
     for bid, slug, game in bins.values():
         for row in con.execute(
             f"SELECT name, size, definition FROM ghidra_type WHERE binary_id=?{origin_filter}",
@@ -100,21 +83,26 @@ def plan_adoptions(con, *, cross_game: bool = False, targets: list[str] | None =
 
 
 def apply_adoptions(con, adopted: list[tuple]) -> int:
+    require_type_schema(con)
+    payload = []
+    origins = []
     for bid, name, definition, size, dslug, dgame, kind in adopted:
         note = (
             f"/* layout adopted from {dslug} ({kind}); this binary had no\n"
             f"   definition of its own, and every donor agreed on size 0x{size:x}. */\n"
         )
-        con.execute(
-            "INSERT OR REPLACE INTO ghidra_type"
-            " (binary_id, name, kind, size, definition, n_fields, origin)"
-            " VALUES (?,?,?,?,?,?,?)",
-            (bid, name, "struct", size, note + definition, 0, f"adopted:{dslug}"),
-        )
-        con.execute(
-            "INSERT OR REPLACE INTO ghidra_type_origin"
-            " (binary_id, name, donor_slug, donor_game, size) VALUES (?,?,?,?,?)",
-            (bid, name, dslug, dgame, size),
-        )
-    con.commit()
+        payload.append((bid, name, "struct", size, note + definition, 0, f"adopted:{dslug}"))
+        origins.append((bid, name, dslug, dgame, size))
+    with _type_write_scope(con):
+        for row, origin in zip(payload, origins):
+            con.execute(
+                "INSERT OR REPLACE INTO main.ghidra_type"
+                " (binary_id, name, kind, size, definition, n_fields, origin)"
+                " VALUES (?,?,?,?,?,?,?)", row,
+            )
+            con.execute(
+                "INSERT OR REPLACE INTO main.ghidra_type_origin"
+                " (binary_id, name, donor_slug, donor_game, size) VALUES (?,?,?,?,?)", origin,
+            )
+        _materialize_type_inventory(con)
     return len(adopted)

@@ -25009,22 +25009,22 @@ Every source below was captured as available at consolidation. Worktree sources 
 | S041 | canonical | `docs/plans/wb-control-briefs/chrome.md` | 1171 | `9451358bd6da4bf1bc26947f60b6ec5d986600400b127a6c0d98efd2d56ed4bb` |
 | S042 | canonical | `docs/plans/wb-control-briefs/dialogs-report.md` | 2244 | `afd65318167e6b960b995fbd2ca91b39f168015cbbdf45b713e65240f95222b4` |
 | S043 | canonical | `docs/plans/wb-control-briefs/dialogs.md` | 1072 | `b7220b82da615a7872e5d4c7040ff01a85b13d3a6f0cef4e170c8449c95f94fc` |
-| S044 | canonical | `docs/research/swkotor-multiplayer/README.md` | 11035 | `3eb4a82a2e7d0115138bb6fa0dab7d33b03ce9f5354d899970306593f869b9b7` |
-| S045 | canonical | `docs/research/swkotor-multiplayer/engine-evidence.md` | 14432 | `0cfc50f23b9b4483b51bf009a13b16e423bd08fbfd7c5b720c689bb1d66bbdc1` |
-| S046 | canonical | `docs/research/swkotor-multiplayer/evidence-review.md` | 1374 | `80ac050dd7c397dc69fe6cfa033ab39f491fac025e1fee0c532d8e075700536c` |
-| S047 | canonical | `docs/research/swkotor-multiplayer/evidence/005d4cb0_SendMessageToPlayer.cpp.txt` | 4710 | `60b8f0754f61307330b45bb7c03dfe37d696e3b1137ab2be1751d80b6befcdc4` |
-| S048 | canonical | `docs/research/swkotor-multiplayer/evidence/binary-binding.json` | 504 | `595ada775e19b518ecb558db78d1c414b461c0a7964d85c468e86c7d6b9caf4d` |
-| S049 | canonical | `docs/research/swkotor-multiplayer/evidence/client-handle-message-disassembly.txt` | 536 | `821719c992cf1e35b94b46ada86595abedc61bca0977692116d33c4c3e484a66` |
-| S050 | canonical | `docs/research/swkotor-multiplayer/evidence/netlayer-inventory.json` | 7851 | `efa54f27a5734db5fee87e37ed24d033d8afac29edfaa9fb111b07efbe9351c8` |
-| S051 | canonical | `docs/research/swkotor-multiplayer/evidence/player-info-disassembly.txt` | 536 | `dec6a5ca2bf5ed168debd23f4446f0b1331687e343f5fdffe09b6596ebcf00ee` |
-| S052 | canonical | `docs/research/swkotor-multiplayer/evidence/receive-disassembly.txt` | 2972 | `f16c425d0333e9101bddb181d4e2bfbe647060aa9bf0e42be5d92b6168c5e601` |
-| S053 | canonical | `docs/research/swkotor-multiplayer/evidence/send-callers.txt` | 24139 | `d936c6bb42f375648e8ce01cae5af70464061a2ddf3694dc1b5eb2cbd3d93284` |
-| S054 | canonical | `docs/research/swkotor-multiplayer/evidence/send-disassembly.txt` | 12831 | `be96cc65c85b7f9d8b6372d672837bc1be1a7840e35e00275845557b66d6fcec` |
-| S055 | canonical | `docs/research/swkotor-multiplayer/evidence/send-message-to-player.json` | 92949 | `0cf68060cda937f480cce49e01ac551eff3288442afa9e3bf1371a90ee0a1151` |
-| S056 | canonical | `docs/research/swkotor-multiplayer/evidence/server-handle-message-disassembly.txt` | 535 | `48ba2b3da443245ebde771160572ec1a6fa47923efbc22949c7a8cce41261b4a` |
-| S057 | canonical | `docs/research/swkotor-multiplayer/evidence/server-internal-handle-message-disassembly.txt` | 2565 | `7b8cd90c145cbe46635999862af468a8f4179994dbc71b4d343a29c8a9465bde` |
-| S058 | canonical | `docs/research/swkotor-multiplayer/lobby-research.md` | 6177 | `d5de1e06b451ef29153d3f08321a0ebc6a6aa5e5b6c9a402252b22b109bd6f76` |
-| S059 | canonical | `docs/research/swkotor-multiplayer/nwn-evidence.md` | 3438 | `3e5ecc41e3400094f09519aa945ad9168ebfb1fcb659979dfce3150b53bf267f` |
+| S044 | canonical | `docs/research/multiplayer-corpus/README.md` | 11035 | `3eb4a82a2e7d0115138bb6fa0dab7d33b03ce9f5354d899970306593f869b9b7` |
+| S045 | canonical | `docs/research/multiplayer-corpus/engine-evidence.md` | 14432 | `0cfc50f23b9b4483b51bf009a13b16e423bd08fbfd7c5b720c689bb1d66bbdc1` |
+| S046 | canonical | `docs/research/multiplayer-corpus/evidence-review.md` | 1374 | `80ac050dd7c397dc69fe6cfa033ab39f491fac025e1fee0c532d8e075700536c` |
+| S047 | canonical | `docs/research/multiplayer-corpus/evidence/005d4cb0_SendMessageToPlayer.cpp.txt` | 4710 | `60b8f0754f61307330b45bb7c03dfe37d696e3b1137ab2be1751d80b6befcdc4` |
+| S048 | canonical | `docs/research/multiplayer-corpus/evidence/binary-binding.json` | 504 | `595ada775e19b518ecb558db78d1c414b461c0a7964d85c468e86c7d6b9caf4d` |
+| S049 | canonical | `docs/research/multiplayer-corpus/evidence/client-handle-message-disassembly.txt` | 536 | `821719c992cf1e35b94b46ada86595abedc61bca0977692116d33c4c3e484a66` |
+| S050 | canonical | `docs/research/multiplayer-corpus/evidence/netlayer-inventory.json` | 7851 | `efa54f27a5734db5fee87e37ed24d033d8afac29edfaa9fb111b07efbe9351c8` |
+| S051 | canonical | `docs/research/multiplayer-corpus/evidence/player-info-disassembly.txt` | 536 | `dec6a5ca2bf5ed168debd23f4446f0b1331687e343f5fdffe09b6596ebcf00ee` |
+| S052 | canonical | `docs/research/multiplayer-corpus/evidence/receive-disassembly.txt` | 2972 | `f16c425d0333e9101bddb181d4e2bfbe647060aa9bf0e42be5d92b6168c5e601` |
+| S053 | canonical | `docs/research/multiplayer-corpus/evidence/send-callers.txt` | 24139 | `d936c6bb42f375648e8ce01cae5af70464061a2ddf3694dc1b5eb2cbd3d93284` |
+| S054 | canonical | `docs/research/multiplayer-corpus/evidence/send-disassembly.txt` | 12831 | `be96cc65c85b7f9d8b6372d672837bc1be1a7840e35e00275845557b66d6fcec` |
+| S055 | canonical | `docs/research/multiplayer-corpus/evidence/send-message-to-player.json` | 92949 | `0cf68060cda937f480cce49e01ac551eff3288442afa9e3bf1371a90ee0a1151` |
+| S056 | canonical | `docs/research/multiplayer-corpus/evidence/server-handle-message-disassembly.txt` | 535 | `48ba2b3da443245ebde771160572ec1a6fa47923efbc22949c7a8cce41261b4a` |
+| S057 | canonical | `docs/research/multiplayer-corpus/evidence/server-internal-handle-message-disassembly.txt` | 2565 | `7b8cd90c145cbe46635999862af468a8f4179994dbc71b4d343a29c8a9465bde` |
+| S058 | canonical | `docs/research/multiplayer-corpus/lobby-research.md` | 6177 | `d5de1e06b451ef29153d3f08321a0ebc6a6aa5e5b6c9a402252b22b109bd6f76` |
+| S059 | canonical | `docs/research/multiplayer-corpus/comparison-engine-evidence.md` | 3438 | `3e5ecc41e3400094f09519aa945ad9168ebfb1fcb659979dfce3150b53bf267f` |
 | S060 | canonical | `docs/dashboard-design/pipeline-diagram/README.md` | 11343 | `93547de59cbe3cd306e98ae162bb0bdd9552431a939ecbff7cfc49019e81270c` |
 | S061 | canonical | `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio` | 365047 | `96a5d7b87575e48ab792a81ef27c37bc361b2f939313772d67f96d12eb28780b` |
 | S062 | canonical | `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.png` | 2278799 | `c6c71566d47a7c28b349a7eae1d39eab43016673b8c69ab9b9f8f5c034fd1358` |
@@ -56940,7 +56940,7 @@ Report: `docs/plans/wb-control-briefs/dialogs-report.md`.
 
 #### S044-C0001: KotOR multiplayer recovery investigation
 
-Source `docs/research/swkotor-multiplayer/README.md` lines 1–13; accountable coverage owner U39.
+Source `docs/research/multiplayer-corpus/README.md` lines 1–13; accountable coverage owner U39.
 
 ```md
 # KotOR multiplayer recovery investigation
@@ -56959,7 +56959,7 @@ or full-image C/C++ recovery acceptance criterion has passed.
 
 #### S044-C0002: Request and binding requirements
 
-Source `docs/research/swkotor-multiplayer/README.md` lines 14–26; accountable coverage owner U39.
+Source `docs/research/multiplayer-corpus/README.md` lines 14–26; accountable coverage owner U39.
 
 ```md
 ## Request and binding requirements
@@ -56978,7 +56978,7 @@ meet those requirements.
 
 #### S044-C0003: Evidence collected in this investigation
 
-Source `docs/research/swkotor-multiplayer/README.md` lines 27–63; accountable coverage owner U39.
+Source `docs/research/multiplayer-corpus/README.md` lines 27–63; accountable coverage owner U39.
 
 ```md
 ## Evidence collected in this investigation
@@ -56987,7 +56987,7 @@ Source `docs/research/swkotor-multiplayer/README.md` lines 27–63; accountable 
   limitations, historical receipt discrepancies, and local transport evidence.
 - [Lobby research](lobby-research.md): current public master-server options,
   registration constraints, and password metadata handling.
-- [NWN/NWN2 investigation](nwn-evidence.md): analyzed-program availability and
+- [Comparison-engine investigation](comparison-engine-evidence.md): analyzed-program availability and
   bounded MCP failures; no donor protocol compatibility is claimed.
 - [Fresh function inventory](evidence/netlayer-inventory.json): MCP enumeration
   of the transport region in the analyzed Ghidra program.
@@ -57021,7 +57021,7 @@ They must not share proof receipts without an explicit transformation record.
 
 #### S044-C0004: Findings that determine implementation
 
-Source `docs/research/swkotor-multiplayer/README.md` lines 64–89; accountable coverage owner U39.
+Source `docs/research/multiplayer-corpus/README.md` lines 64–89; accountable coverage owner U39.
 
 ```md
 ## Findings that determine implementation
@@ -57053,7 +57053,7 @@ without recovering their C/C++ implementation.
 
 #### S044-C0005: Gameplay scope confirmed by the user
 
-Source `docs/research/swkotor-multiplayer/README.md` lines 90–99; accountable coverage owner U35.
+Source `docs/research/multiplayer-corpus/README.md` lines 90–99; accountable coverage owner U35.
 
 ```md
 ## Gameplay scope confirmed by the user
@@ -57069,7 +57069,7 @@ claim that the original executable already implements either multiplayer mode.
 
 #### S044-C0006: Required implementation sequence
 
-Source `docs/research/swkotor-multiplayer/README.md` lines 100–140; accountable coverage owner U39.
+Source `docs/research/multiplayer-corpus/README.md` lines 100–140; accountable coverage owner U39.
 
 ```md
 ## Required implementation sequence
@@ -57116,7 +57116,7 @@ Source `docs/research/swkotor-multiplayer/README.md` lines 100–140; accountabl
 
 #### S044-C0007: Directory metadata contract
 
-Source `docs/research/swkotor-multiplayer/README.md` lines 141–153; accountable coverage owner U37.
+Source `docs/research/multiplayer-corpus/README.md` lines 141–153; accountable coverage owner U37.
 
 ```md
 ## Directory metadata contract
@@ -57135,7 +57135,7 @@ verification belongs to the authenticated/encrypted game join exchange.
 
 #### S044-C0008: Acceptance ledger
 
-Source `docs/research/swkotor-multiplayer/README.md` lines 154–178; accountable coverage owner U39.
+Source `docs/research/multiplayer-corpus/README.md` lines 154–178; accountable coverage owner U39.
 
 ```md
 ## Acceptance ledger
@@ -57167,7 +57167,7 @@ shared MCP service was restarted and no existing recovery was interrupted.
 
 #### S045-C0001: swkotor engine evidence (read-only inspection, 2026-09-15)
 
-Source `docs/research/swkotor-multiplayer/engine-evidence.md` lines 1–2; accountable coverage owner U33.
+Source `docs/research/multiplayer-corpus/engine-evidence.md` lines 1–2; accountable coverage owner U33.
 
 ```md
 # swkotor engine evidence (read-only inspection, 2026-09-15)
@@ -57175,7 +57175,7 @@ Source `docs/research/swkotor-multiplayer/engine-evidence.md` lines 1–2; accou
 
 #### S045-C0002: Outcome
 
-Source `docs/research/swkotor-multiplayer/engine-evidence.md` lines 3–8; accountable coverage owner U33.
+Source `docs/research/multiplayer-corpus/engine-evidence.md` lines 3–8; accountable coverage owner U33.
 
 ```md
 ## Outcome
@@ -57187,7 +57187,7 @@ No recovery jobs, builds, game processes, or source changes were made in this in
 
 #### S045-C0003: Binary identity: two different inputs
 
-Source `docs/research/swkotor-multiplayer/engine-evidence.md` lines 9–21; accountable coverage owner U33.
+Source `docs/research/multiplayer-corpus/engine-evidence.md` lines 9–21; accountable coverage owner U33.
 
 ```md
 ## Binary identity: two different inputs
@@ -57206,7 +57206,7 @@ The first binary imports OPENGL32, KERNEL32, USER32, GDI32, ole32, binkw32, mss3
 
 #### S045-C0004: Recovered source truth
 
-Source `docs/research/swkotor-multiplayer/engine-evidence.md` lines 22–39; accountable coverage owner U33.
+Source `docs/research/multiplayer-corpus/engine-evidence.md` lines 22–39; accountable coverage owner U33.
 
 ```md
 ## Recovered source truth
@@ -57230,7 +57230,7 @@ Repository `scripts/pe-code-roundtrip.py` explicitly copies the original PE and 
 
 #### S045-C0005: Actual internal transport evidence
 
-Source `docs/research/swkotor-multiplayer/engine-evidence.md` lines 40–73; accountable coverage owner U33.
+Source `docs/research/multiplayer-corpus/engine-evidence.md` lines 40–73; accountable coverage owner U33.
 
 ````md
 ## Actual internal transport evidence
@@ -57270,7 +57270,7 @@ Fresh disassembly of the corpus executable directly corroborates `SendMessageToP
 
 #### S045-C0006: Smallest justified next slice
 
-Source `docs/research/swkotor-multiplayer/engine-evidence.md` lines 74–83; accountable coverage owner U33.
+Source `docs/research/multiplayer-corpus/engine-evidence.md` lines 74–83; accountable coverage owner U33.
 
 ```md
 ## Smallest justified next slice
@@ -57286,7 +57286,7 @@ No live multi-client gameplay, headless server, in-game browser, original source
 
 #### S045-C0007: Memory provenance used only to locate the artifacts
 
-Source `docs/research/swkotor-multiplayer/engine-evidence.md` lines 84–87; accountable coverage owner U33.
+Source `docs/research/multiplayer-corpus/engine-evidence.md` lines 84–87; accountable coverage owner U33.
 
 ```md
 ## Memory provenance used only to locate the artifacts
@@ -57296,7 +57296,7 @@ Source `docs/research/swkotor-multiplayer/engine-evidence.md` lines 84–87; acc
 
 #### S045-C0008: Follow-up: exact native ABI and remote-boundary blockers
 
-Source `docs/research/swkotor-multiplayer/engine-evidence.md` lines 88–91; accountable coverage owner U33.
+Source `docs/research/multiplayer-corpus/engine-evidence.md` lines 88–91; accountable coverage owner U33.
 
 ```md
 ## Follow-up: exact native ABI and remote-boundary blockers
@@ -57306,7 +57306,7 @@ Fresh `objdump -d` inspection was run against the 4042752-byte raw corpus execut
 
 #### S045-C0009: SendMessageToPlayer has FOUR explicit stack arguments
 
-Source `docs/research/swkotor-multiplayer/engine-evidence.md` lines 92–119; accountable coverage owner U33.
+Source `docs/research/multiplayer-corpus/engine-evidence.md` lines 92–119; accountable coverage owner U33.
 
 ````md
 ### SendMessageToPlayer has FOUR explicit stack arguments
@@ -57340,7 +57340,7 @@ The existing declaration `extern int __fastcall CNetLayer__SendMessageToPlayer(C
 
 #### S045-C0010: ProcessReceivedFrames callback is recoverable, not an unknown magic function
 
-Source `docs/research/swkotor-multiplayer/engine-evidence.md` lines 120–137; accountable coverage owner U33.
+Source `docs/research/multiplayer-corpus/engine-evidence.md` lines 120–137; accountable coverage owner U33.
 
 ````md
 ### ProcessReceivedFrames callback is recoverable, not an unknown magic function
@@ -57364,7 +57364,7 @@ For BN control messages the receiver calls 0x005d5690 (`NonWindowMessages`) usin
 
 #### S045-C0011: Concrete assumptions that break when crossing a remote boundary
 
-Source `docs/research/swkotor-multiplayer/engine-evidence.md` lines 138–148; accountable coverage owner U33.
+Source `docs/research/multiplayer-corpus/engine-evidence.md` lines 138–148; accountable coverage owner U33.
 
 ```md
 ### Concrete assumptions that break when crossing a remote boundary
@@ -57382,7 +57382,7 @@ These observations give specific next implementation work: preserve the verified
 
 #### S046-C0001: Scoped evidence re-review
 
-Source `docs/research/swkotor-multiplayer/evidence-review.md` lines 1–10; accountable coverage owner U39.
+Source `docs/research/multiplayer-corpus/evidence-review.md` lines 1–10; accountable coverage owner U39.
 
 ```md
 # Scoped evidence re-review
@@ -57399,7 +57399,7 @@ New breakage caused by these fixes: none found. This review does not certify any
 
 #### S047-C0001: /* Fresh Ghidra pseudocode, not buildable or byte-verified source.
 
-Source `docs/research/swkotor-multiplayer/evidence/005d4cb0_SendMessageToPlayer.cpp.txt` lines 1–166; accountable coverage owner U34.
+Source `docs/research/multiplayer-corpus/evidence/005d4cb0_SendMessageToPlayer.cpp.txt` lines 1–166; accountable coverage owner U34.
 
 ```txt
 /* Fresh Ghidra pseudocode, not buildable or byte-verified source.
@@ -57572,7 +57572,7 @@ LAB_005d4f5e:
 
 #### S048-C0001: {
 
-Source `docs/research/swkotor-multiplayer/evidence/binary-binding.json` lines 1–10; accountable coverage owner U33.
+Source `docs/research/multiplayer-corpus/evidence/binary-binding.json` lines 1–10; accountable coverage owner U33.
 
 ```json
 {
@@ -57589,7 +57589,7 @@ Source `docs/research/swkotor-multiplayer/evidence/binary-binding.json` lines 1�
 
 #### S049-C0001: Input SHA256: 9c10e0450a6eeca417e036e3cde7474fed1f0a92aab018446d156944dea91435
 
-Source `docs/research/swkotor-multiplayer/evidence/client-handle-message-disassembly.txt` lines 1–12; accountable coverage owner U34.
+Source `docs/research/multiplayer-corpus/evidence/client-handle-message-disassembly.txt` lines 1–12; accountable coverage owner U34.
 
 ```txt
 Input SHA256: 9c10e0450a6eeca417e036e3cde7474fed1f0a92aab018446d156944dea91435
@@ -57608,7 +57608,7 @@ Disassembly of section .text:
 
 #### S050-C0001: {
 
-Source `docs/research/swkotor-multiplayer/evidence/netlayer-inventory.json` lines 1–9; accountable coverage owner U34.
+Source `docs/research/multiplayer-corpus/evidence/netlayer-inventory.json` lines 1–9; accountable coverage owner U34.
 
 ```json
 {
@@ -57624,7 +57624,7 @@ Source `docs/research/swkotor-multiplayer/evidence/netlayer-inventory.json` line
 
 #### S051-C0001: Input SHA256: 9c10e0450a6eeca417e036e3cde7474fed1f0a92aab018446d156944dea91435
 
-Source `docs/research/swkotor-multiplayer/evidence/player-info-disassembly.txt` lines 1–12; accountable coverage owner U34.
+Source `docs/research/multiplayer-corpus/evidence/player-info-disassembly.txt` lines 1–12; accountable coverage owner U34.
 
 ```txt
 Input SHA256: 9c10e0450a6eeca417e036e3cde7474fed1f0a92aab018446d156944dea91435
@@ -57643,7 +57643,7 @@ Disassembly of section .text:
 
 #### S052-C0001: Input SHA256: 9c10e0450a6eeca417e036e3cde7474fed1f0a92aab018446d156944dea91435
 
-Source `docs/research/swkotor-multiplayer/evidence/receive-disassembly.txt` lines 1–62; accountable coverage owner U34.
+Source `docs/research/multiplayer-corpus/evidence/receive-disassembly.txt` lines 1–62; accountable coverage owner U34.
 
 ```txt
 Input SHA256: 9c10e0450a6eeca417e036e3cde7474fed1f0a92aab018446d156944dea91435
@@ -57712,7 +57712,7 @@ Disassembly of section .text:
 
 #### S053-C0001: 567e97:	c2 14 00             	ret    $0x14
 
-Source `docs/research/swkotor-multiplayer/evidence/send-callers.txt` lines 1–519; accountable coverage owner U34.
+Source `docs/research/multiplayer-corpus/evidence/send-callers.txt` lines 1–519; accountable coverage owner U34.
 
 ```txt
   567e97:	c2 14 00             	ret    $0x14
@@ -58238,7 +58238,7 @@ Source `docs/research/swkotor-multiplayer/evidence/send-callers.txt` lines 1–5
 
 #### S054-C0001: /home/brunner56/agentdecompile-nvme/agentdecompile_projects/extract/raw/K1__k1_win_gog_swkotor.exe:     file format pei-i386
 
-Source `docs/research/swkotor-multiplayer/evidence/send-disassembly.txt` lines 1–260; accountable coverage owner U34.
+Source `docs/research/multiplayer-corpus/evidence/send-disassembly.txt` lines 1–260; accountable coverage owner U34.
 
 ```txt
 
@@ -58505,7 +58505,7 @@ Disassembly of section .text:
 
 #### S055-C0001: {
 
-Source `docs/research/swkotor-multiplayer/evidence/send-message-to-player.json` lines 1–9; accountable coverage owner U34.
+Source `docs/research/multiplayer-corpus/evidence/send-message-to-player.json` lines 1–9; accountable coverage owner U34.
 
 ```json
 {
@@ -58521,7 +58521,7 @@ Source `docs/research/swkotor-multiplayer/evidence/send-message-to-player.json` 
 
 #### S056-C0001: Input SHA256: 9c10e0450a6eeca417e036e3cde7474fed1f0a92aab018446d156944dea91435
 
-Source `docs/research/swkotor-multiplayer/evidence/server-handle-message-disassembly.txt` lines 1–12; accountable coverage owner U34.
+Source `docs/research/multiplayer-corpus/evidence/server-handle-message-disassembly.txt` lines 1–12; accountable coverage owner U34.
 
 ```txt
 Input SHA256: 9c10e0450a6eeca417e036e3cde7474fed1f0a92aab018446d156944dea91435
@@ -58540,7 +58540,7 @@ Disassembly of section .text:
 
 #### S057-C0001: Input SHA256: 9c10e0450a6eeca417e036e3cde7474fed1f0a92aab018446d156944dea91435
 
-Source `docs/research/swkotor-multiplayer/evidence/server-internal-handle-message-disassembly.txt` lines 1–54; accountable coverage owner U34.
+Source `docs/research/multiplayer-corpus/evidence/server-internal-handle-message-disassembly.txt` lines 1–54; accountable coverage owner U34.
 
 ```txt
 Input SHA256: 9c10e0450a6eeca417e036e3cde7474fed1f0a92aab018446d156944dea91435
@@ -58601,7 +58601,7 @@ Disassembly of section .text:
 
 #### S058-C0001: Public lobby/master-server research for a new KotOR multiplayer implementation
 
-Source `docs/research/swkotor-multiplayer/lobby-research.md` lines 1–4; accountable coverage owner U37.
+Source `docs/research/multiplayer-corpus/lobby-research.md` lines 1–4; accountable coverage owner U37.
 
 ```md
 # Public lobby/master-server research for a new KotOR multiplayer implementation
@@ -58611,7 +58611,7 @@ Checked 2026-09-15. This is research only; no game was registered and no externa
 
 #### S058-C0002: Recommendation
 
-Source `docs/research/swkotor-multiplayer/lobby-research.md` lines 5–16; accountable coverage owner U37.
+Source `docs/research/multiplayer-corpus/lobby-research.md` lines 5–16; accountable coverage owner U37.
 
 ```md
 ## Recommendation
@@ -58629,7 +58629,7 @@ I found no current OpenSpy documentation promising generic, automatic, free self
 
 #### S058-C0003: What the browser should advertise
 
-Source `docs/research/swkotor-multiplayer/lobby-research.md` lines 17–28; accountable coverage owner U37.
+Source `docs/research/multiplayer-corpus/lobby-research.md` lines 17–28; accountable coverage owner U37.
 
 ```md
 ## What the browser should advertise
@@ -58647,7 +58647,7 @@ The GameSpy QR2 documentation explicitly defines `password` as a boolean and lea
 
 #### S058-C0004: NWN/NWN2 relevance
 
-Source `docs/research/swkotor-multiplayer/lobby-research.md` lines 29–36; accountable coverage owner U37.
+Source `docs/research/multiplayer-corpus/lobby-research.md` lines 29–36; accountable coverage owner U37.
 
 ```md
 ## NWN/NWN2 relevance
@@ -58661,7 +58661,7 @@ The reusable architecture is: authoritative listen/dedicated server -> periodic 
 
 #### S058-C0005: Realistic decision
 
-Source `docs/research/swkotor-multiplayer/lobby-research.md` lines 37–41; accountable coverage owner U37.
+Source `docs/research/multiplayer-corpus/lobby-research.md` lines 37–41; accountable coverage owner U37.
 
 ```md
 ## Realistic decision
@@ -58673,7 +58673,7 @@ Source `docs/research/swkotor-multiplayer/lobby-research.md` lines 37–41; acco
 
 #### S059-C0001: NWN/NWN2 dedicated-server evidence (bounded MCP inspection)
 
-Source `docs/research/swkotor-multiplayer/nwn-evidence.md` lines 1–4; accountable coverage owner U34.
+Source `docs/research/multiplayer-corpus/comparison-engine-evidence.md` lines 1–4; accountable coverage owner U34.
 
 ```md
 # NWN/NWN2 dedicated-server evidence (bounded MCP inspection)
@@ -58683,7 +58683,7 @@ Checked 2026-09-15 against the already-open local Ghidra project `/home/brunner5
 
 #### S059-C0002: What is currently established
 
-Source `docs/research/swkotor-multiplayer/nwn-evidence.md` lines 5–13; accountable coverage owner U34.
+Source `docs/research/multiplayer-corpus/comparison-engine-evidence.md` lines 5–13; accountable coverage owner U34.
 
 ```md
 ## What is currently established
@@ -58698,7 +58698,7 @@ The MCP session reported both programs open in local-GPR mode. The targeted `get
 
 #### S059-C0003: Import/function inspection boundary
 
-Source `docs/research/swkotor-multiplayer/nwn-evidence.md` lines 14–19; accountable coverage owner U34.
+Source `docs/research/multiplayer-corpus/comparison-engine-evidence.md` lines 14–19; accountable coverage owner U34.
 
 ```md
 ## Import/function inspection boundary
@@ -58710,7 +58710,7 @@ Consequently, this run does **not** establish Winsock, DirectPlay, GameSpy, mast
 
 #### S059-C0004: Architectural contrast that the binaries could test once analysis is ready
 
-Source `docs/research/swkotor-multiplayer/nwn-evidence.md` lines 20–25; accountable coverage owner U34.
+Source `docs/research/multiplayer-corpus/comparison-engine-evidence.md` lines 20–25; accountable coverage owner U34.
 
 ```md
 ## Architectural contrast that the binaries could test once analysis is ready
@@ -58722,7 +58722,7 @@ KotOR already has an in-process client/server message queue; remote multiplayer 
 
 #### S059-C0005: Smallest follow-up
 
-Source `docs/research/swkotor-multiplayer/nwn-evidence.md` lines 26–34; accountable coverage owner U34.
+Source `docs/research/multiplayer-corpus/comparison-engine-evidence.md` lines 26–34; accountable coverage owner U34.
 
 ```md
 ## Smallest follow-up

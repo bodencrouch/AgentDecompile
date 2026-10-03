@@ -30,7 +30,7 @@ meet those requirements.
   limitations, historical receipt discrepancies, and local transport evidence.
 - [Lobby research](lobby-research.md): current public master-server options,
   registration constraints, and password metadata handling.
-- [NWN/NWN2 investigation](nwn-evidence.md): analyzed-program availability and
+- [NWN/NWN2 investigation](comparison-engine-evidence.md): analyzed-program availability and
   bounded MCP failures; no donor protocol compatibility is claimed.
 - [Fresh function inventory](evidence/netlayer-inventory.json): MCP enumeration
   of the transport region in the analyzed Ghidra program.

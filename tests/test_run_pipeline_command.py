@@ -14,6 +14,11 @@ from agentdecompile_recovery.run_pipeline_command import RunPipelineConfig, run_
 pytestmark = pytest.mark.unit
 
 _HAS_TOOLCHAIN = shutil.which("cpp") is not None and (shutil.which("gcc") is not None or shutil.which("cc") is not None)
+# run_prompts_pipeline() loads prompts through prompt_loader.load_prompts(),
+# which also shells out to nm to read the compiled object's symbols back
+# (see tests/test_prompt_loader.py) -- a toolchain without nm can build the
+# fixture object file but can't load it as a prompt afterward.
+_HAS_NM = shutil.which("nm") is not None
 
 
 def _fake_runner(stdout: str = "", stderr: str = "", exit_code: int = 0):
@@ -80,6 +85,13 @@ def test_m2c_phase_fails_gracefully_when_m2c_binary_is_missing(tmp_path: Path, m
 
 @pytest.mark.skipif(not _HAS_TOOLCHAIN, reason="requires cpp and gcc/cc on PATH")
 def test_full_pipeline_matches_when_objdiff_reports_exit_zero(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    # _compiler_script() resolves the real gcc/cc via shutil.which, which is
+    # the stdlib module object shared with agentdecompile_cli.mcp_utils.
+    # decomp_match -- the monkeypatch below replaces shutil.which globally,
+    # not just for decomp_match's own lookups, so the compiler script must
+    # be built first or it ends up pointed at the fake "/usr/bin/gcc" below
+    # and the real compile subprocess fails with FileNotFoundError.
+    compiler_script = _compiler_script()
     monkeypatch.setattr("agentdecompile_cli.mcp_utils.decomp_match.shutil.which", lambda name: f"/usr/bin/{name}")
 
     def runner(command: list[str], *, timeout_ms: int | None = None) -> dict:
@@ -90,7 +102,7 @@ def test_full_pipeline_matches_when_objdiff_reports_exit_zero(tmp_path: Path, mo
     prompt = PromptInfo(path="p1", content="", function_name="target", target_object_path=str(tmp_path / "base.o"), asm="bx lr")
     (tmp_path / "base.o").write_bytes(b"")
     config = RunPipelineConfig(
-        prompts_dir=tmp_path, out_dir=tmp_path / "out", compiler_script=_compiler_script(), project_root=tmp_path
+        prompts_dir=tmp_path, out_dir=tmp_path / "out", compiler_script=compiler_script, project_root=tmp_path
     )
 
     result = run_prompt(prompt, config, command_runner=runner)
@@ -120,10 +132,13 @@ def test_pipeline_fails_when_objdiff_reports_a_mismatch(tmp_path: Path, monkeypa
 
 
 @pytest.mark.skipif(not _HAS_TOOLCHAIN, reason="requires cpp and gcc/cc on PATH")
+@pytest.mark.skipif(not _HAS_NM, reason="requires nm on PATH (load_prompts reads the compiled object's symbols)")
 def test_run_prompts_pipeline_writes_a_json_report(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
-    monkeypatch.setattr("agentdecompile_cli.mcp_utils.decomp_match.shutil.which", lambda name: f"/usr/bin/{name}")
-
+    # Resolve the real compiler before patching shutil.which -- see the
+    # comment in test_full_pipeline_matches_when_objdiff_reports_exit_zero.
     cc = shutil.which("gcc") or shutil.which("cc")
+    compiler_script = _compiler_script()
+    monkeypatch.setattr("agentdecompile_cli.mcp_utils.decomp_match.shutil.which", lambda name: f"/usr/bin/{name}")
     prompts_dir = tmp_path / "prompts"
     prompt_dir = prompts_dir / "case1"
     prompt_dir.mkdir(parents=True)
@@ -147,7 +162,7 @@ def test_run_prompts_pipeline_writes_a_json_report(tmp_path: Path, monkeypatch: 
     config = RunPipelineConfig(
         prompts_dir=prompts_dir,
         out_dir=tmp_path / "out",
-        compiler_script=_compiler_script(),
+        compiler_script=compiler_script,
         project_root=tmp_path,
         max_retries=1,
     )

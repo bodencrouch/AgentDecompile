@@ -32,6 +32,29 @@ Prefer `--mcp-server-url http://127.0.0.1:8080/mcp` in examples. The CLI also ac
 
 Implementation behavior outside the current recovery mission: when you do not pass an explicit backend, the CLI treats unreachable default or env URLs as recoverable: reuse a cached local server, auto-start one, or fall back to in-process local execution.
 
+## Status scope
+
+`agentdecompile-cli status` and `tool status '{}'` report the current connection's
+read-only project listing. The result identifies its scope as `connection-session`;
+it does not inspect a recovery workspace or certify a recovery result. This CLI
+shorthand also works in `tool-seq` and uses that sequence's existing connection.
+A failed project listing fails direct status commands and the status sequence step.
+
+For a recovery run, supply its directory explicitly:
+
+```bash
+agentdecompile-cli status --work_dir /path/to/run
+agentdecompile-cli tool status '{"workDir":"/path/to/run"}'
+```
+
+The MCP `status` tool retains its required `workDir` contract. Explicit empty or
+unknown arguments are not treated as the no-argument shorthand.
+
+`execute-script` labels the selected program as **Context Program**. This is the
+program available to the script, not evidence that the script executed or read
+that binary; a script can work only with files or URLs. The JSON field
+`executedProgram` remains unchanged for existing consumers.
+
 ## Sessions
 
 Each standalone CLI command is a fresh session unless you use `tool-seq`.

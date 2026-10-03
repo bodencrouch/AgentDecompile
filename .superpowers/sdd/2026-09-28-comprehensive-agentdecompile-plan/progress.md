@@ -506,3 +506,7 @@ Task11.2: fix round1/5 (1 addressed, 0 open, 0 introduced — consumed ObjectRef
 Task11.2: complete (owned source commits2590e25a..24d3547f plus fix24d3547f..2472d02b; spec/quality approved). Full U11 remains open, including runtime/manifest sizing/reproducibility, independent current admission/key lineage, catalog and complete accepted-source chain.
 Task11.3 contract investigation: dispatched /root/resolve_parity_binding_contract; bounded parity-contract-investigation-brief.md, source-only next-parity-binding-contract.md ownership.
 Task3.1: fix round1 source committed81f819c3; SG_HIGHVM refusal and actual unrelated-edge withdrawal fixture, task-3-fix-r1.diff prepared for scoped review.
+
+Task3.1: fix round1/5 (I1 and adjacent Minor M1 addressed, 0 open, 0 introduced — SG_HIGHVM refusal and actual unrelated-edge withdrawal; commits000d400a..81f819c3). Prior M1 deferred marker resolved by this reviewed fixture.
+Task3.1: complete (owned source commits2a6f49a2..000d400a plus fix000d400a..81f819c3; spec/quality approved). Full U1/U3, executable/real-image/installed/live and recovery gates remain open.
+U4/U33 prerequisite discovery: /root/inspect_reconstruction_prerequisite owns next-reconstruction-prerequisite.md; read-only actual source-chain check, no historical receipt rescan or compilerProducedWholeImage flag promotion.

@@ -695,6 +695,7 @@ def create_dashboard_router() -> APIRouter:
             request.query_params.get("kind") or "",
             offset=offset,
             limit=limit,
+            near=request.query_params.get("near") or "",
         )
         return JSONResponse(payload, status_code=200 if payload.get("ok") else 400)
 

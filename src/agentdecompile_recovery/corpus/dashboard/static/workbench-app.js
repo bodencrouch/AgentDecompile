@@ -1661,20 +1661,23 @@
     "defined-strings": [["addr", "Address"], ["datatype", "Type"]],
   };
 
-  function ProviderTable({ program, locator, kind }) {
+  function ProviderTable({ program, locator, kind, selectedAddr }) {
     const [data, setData] = useState(null);
     const [error, setError] = useState("");
     useEffect(function () {
       const controller = new AbortController();
       let alive = true;
       setData(null); setError("");
-      const params = new URLSearchParams({ program: program || "", locator: locator || "", kind: kind, limit: "200" });
+      // R12 hook: pass the Listing's selected address through as `near` so the
+      // address-ordered providers (defined-strings, bookmarks) page to the row
+      // nearest the current selection instead of always starting at the top.
+      const params = new URLSearchParams({ program: program || "", locator: locator || "", kind: kind, limit: "200", near: selectedAddr || "" });
       fetch(API.providers + "?" + params, { cache: "no-store", signal: controller.signal })
         .then(function (response) { return response.json().then(function (body) { return { ok: response.ok, body: body }; }); })
         .then(function (result) { if (alive) { if (!result.body.ok) setError(result.body.error || "Provider unavailable"); else setData(result.body); } })
         .catch(function (err) { if (alive && err.name !== "AbortError") setError(String(err.message || err)); });
       return function () { alive = false; controller.abort(); };
-    }, [program, locator, kind]);
+    }, [program, locator, kind, selectedAddr]);
     const columns = PROVIDER_COLUMNS[kind] || [];
     if (error) return html`<p className="wb-dialog-error">${error}</p>`;
     if (!data) return html`<p role="status">Reading ${kind}…</p>`;
@@ -1693,7 +1696,7 @@
     </div>`;
   }
 
-  function CodeBrowserProviders({ program, locator }) {
+  function CodeBrowserProviders({ program, locator, selectedAddr }) {
     const [active, setActive] = useState("equates");
     return html`<section className="wb-cb-providers" aria-label="CodeBrowser providers">
       <div role="tablist" aria-label="CodeBrowser providers" className="wb-cb-provider-tabs">
@@ -1702,7 +1705,7 @@
           className=${"wb-tab-btn" + (active === item.id ? " active" : "")}
           onClick=${function () { setActive(item.id); }}>${item.title}</button>`; })}
       </div>
-      <${ProviderTable} program=${program} locator=${locator} kind=${active} />
+      <${ProviderTable} program=${program} locator=${locator} kind=${active} selectedAddr=${selectedAddr} />
     </section>`;
   }
 
@@ -2751,7 +2754,7 @@
     return rows.length && found ? rows : null;
   }
 
-  function ListingRows({ addr, name, program, runReadAction, fallbackText, onJumpAddr, budgetMs, assemblyText }) {
+  function ListingRows({ addr, name, program, runReadAction, fallbackText, onJumpAddr, budgetMs, assemblyText, comments }) {
     const [state, setState] = useState({ status: "idle" });
     const [focusIdx, setFocusIdx] = useState(0);
     const seqRef = useRef(0);
@@ -2842,13 +2845,23 @@
     }
 
     if (state.status === "ok" && state.rows && state.rows.length) {
+      // Comments are supplied by the caller (function_detail's `comments` list,
+      // already read from the existing ghidra_db comments reader) and joined
+      // here by address; a row with no recorded comment renders an empty cell.
+      const commentByAddr = {};
+      (comments || []).forEach(function (item) {
+        if (!item || !item.addr) return;
+        const key = String(item.addr).toLowerCase();
+        commentByAddr[key] = (commentByAddr[key] ? commentByAddr[key] + " · " : "") + (item.text || "");
+      });
       return html`<div className="wb-listing-rows-wrap">
         <table id="wb-listing-rows" className="wb-listing-rows" role="table" aria-label=${"Listing for " + (name || addr)}>
           <thead>
-            <tr><th scope="col">Address</th><th scope="col">Bytes</th><th scope="col">Mnemonic</th><th scope="col">Operands</th><th scope="col">Xref</th></tr>
+            <tr><th scope="col">Address</th><th scope="col">Bytes</th><th scope="col">Mnemonic</th><th scope="col">Operands</th><th scope="col">Xref</th><th scope="col">Comment</th></tr>
           </thead>
           <tbody>
             ${state.rows.map(function (row, idx) {
+              const comment = commentByAddr[String(row.addr).toLowerCase()] || "";
               return html`<tr key=${row.addr} ref=${function (el) { rowRefs.current[idx] = el; }}
                 tabIndex=${idx === focusIdx ? 0 : -1}
                 className="wb-listing-row"
@@ -2863,6 +2876,7 @@
                     title=${"Jump to " + target}
                     onClick=${function (ev) { ev.stopPropagation(); onJumpAddr(target); }}>→${target}</button>`;
                 })}</td>
+                <td className="wb-listing-comment">${comment}</td>
               </tr>`;
             })}
           </tbody>
@@ -6317,11 +6331,18 @@
          decompileDock() below), so Listing here is always single-column there. */
       const showInlineDecompile = classicLayout && Boolean(decompileText);
       const listingTitle = (selected && selected.name) || program || "Listing";
+      // R10's function header: name, signature (when known from a recovered-source
+      // or on-disk function record) and entry address. wb-listing-marks is an empty
+      // slot today -- U8 fills it with cross-build match marks for this function.
+      const listingSignature = (detail && detail.function && detail.function.signature)
+        || (detail && detail.decompile && detail.decompile.signature) || "";
       return html`<${Surface} id="wb-inspect" title=${"Listing: " + (program || "—")}>
         <div id="wb-inspect-body" className=${"wb-workspace-split" + (showInlineDecompile ? "" : " wb-listing-only")}>
           <div className="wb-listing-pane">
           ${overview || selected || program ? html`<div>
-            <h3>Listing ${listingTitle} ${(selected && selected.addr) ? html`<code>${selected.addr}</code>` : null}</h3>
+            <h3 className="wb-listing-header">Listing ${listingTitle} ${(selected && selected.addr) ? html`<code>${selected.addr}</code>` : null}
+              <span id="wb-listing-marks" className="wb-listing-marks"></span></h3>
+            ${listingSignature ? html`<p className="wb-hint wb-listing-signature"><code>${listingSignature}</code></p>` : null}
             <p className="wb-hint">${(detail && detail.path) || (overview && overview.path) || ""}</p>
             <div className="wb-fn-tools" role="toolbar" aria-label="Listing tools">
               <button type="button" id="wb-listing-decompile" className="wb-btn wb-btn-mini"
@@ -6350,6 +6371,7 @@
               ? html`<${ListingRows} addr=${selected.addr} name=${selected.name} program=${program}
                   runReadAction=${runReadAction}
                   assemblyText=${detail && detail.assembly && detail.assembly.text}
+                  comments=${(detail && detail.comments) || []}
                   fallbackText=${(detail && detail.preview) || ("Reading " + program + " from the Ghidra project on disk…")}
                   onJumpAddr=${function (target) { selectRow({ addr: target, name: target }); }} />`
               : html`<pre className="wb-preview" id="wb-listing-preview">${(detail && detail.preview) || (program
@@ -6368,7 +6390,7 @@
               : "Decompiler pane."}</p>
             <pre className="wb-preview" id="wb-decompile-preview">${decompileText}</pre>
           </div>` : null}
-          ${program ? html`<${CodeBrowserProviders} program=${program} locator=${currentLocator()}/>` : null}
+          ${program ? html`<${CodeBrowserProviders} program=${program} locator=${currentLocator()} selectedAddr=${selected && selected.addr}/>` : null}
           <div id="wb-reaction" className="wb-reaction">
             ${reaction && /analyze|decompile|match-function|export-c|one-shot|recover/.test(String(reaction.id || ""))
               && String(reaction.id || "").indexOf("add-binary") < 0

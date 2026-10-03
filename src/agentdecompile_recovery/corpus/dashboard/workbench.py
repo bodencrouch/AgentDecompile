@@ -2244,6 +2244,7 @@ def program_providers(
     *,
     offset: int = 0,
     limit: int = 200,
+    near: str = "",
 ) -> dict[str, Any]:
     """Read-only CodeBrowser provider data straight from the on-disk store.
 
@@ -2251,6 +2252,13 @@ def program_providers(
     Equates, Relocations, Bookmarks and Defined Strings. Every provider here
     only reads; there is no corresponding write endpoint (R11) -- edits go
     through the existing rename/comment/bookmark/retype actions instead.
+
+    ``near`` is the R12 hook: when the Listing's selected address is passed
+    through and the caller did not request an explicit offset, the
+    address-ordered providers (bookmarks, defined-strings) page so the row
+    nearest that address is visible instead of always starting at offset 0.
+    This performs no new read -- it only changes which page of the same
+    on-disk rows is returned.
     """
 
     loc = (locator or "").strip()
@@ -2341,6 +2349,15 @@ def program_providers(
         return {**empty, "error": str(exc)[:800], "opened": True}
 
     total = len(rows)
+    near_addr = parse_address(near) if (near or "").strip() else None
+    if near_addr is not None and not safe_offset and wanted in ("defined-strings", "bookmarks"):
+        addressed = [index for index, row in enumerate(rows) if row.get("addr")]
+        if addressed:
+            nearest_index = min(
+                addressed,
+                key=lambda index: abs((parse_address(rows[index]["addr"]) or 0) - near_addr),
+            )
+            safe_offset = max(0, nearest_index - capped_limit // 2)
     page = rows[safe_offset : safe_offset + capped_limit]
     return {
         "ok": True,

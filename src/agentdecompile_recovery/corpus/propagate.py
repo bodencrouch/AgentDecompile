@@ -408,7 +408,7 @@ def dedupe_identity_addrs(con, *, commit: bool = True) -> int:
 def downgrade_named_conflicts(con, run: str | None = None, *, commit: bool = True) -> int:
     """Demote stored auto matches when independent canonical names disagree."""
     rows = con.execute(
-        """SELECT match.rowid, match.evidence FROM match
+        """SELECT match.rowid AS rowid, match.evidence FROM match
             WHERE status='auto'
               AND (? IS NULL OR run=?)
               AND EXISTS (

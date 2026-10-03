@@ -34,14 +34,18 @@ def test_compunit_disagreement_vetoes_auto() -> None:
 
 
 def test_existing_auto_rows_with_conflicting_names_are_downgraded() -> None:
+    # Match store.connect()'s real contract: Row access (downgrade_named_
+    # conflicts reads row["evidence"]) and the "evidence" column that's
+    # part of store.py's actual match table schema.
     con = sqlite3.connect(":memory:")
+    con.row_factory = sqlite3.Row
     con.executescript(
         """
         CREATE TABLE func (binary_id INTEGER, addr INTEGER, canon_key TEXT);
         CREATE TABLE match (
             id INTEGER PRIMARY KEY, run TEXT,
             src_binary INTEGER, src_addr INTEGER,
-            dst_binary INTEGER, dst_addr INTEGER, status TEXT
+            dst_binary INTEGER, dst_addr INTEGER, status TEXT, evidence TEXT
         );
         INSERT INTO func VALUES
             (1, 10, 'CSWCCreature::ForceAppearanceUpdate'),
@@ -51,14 +55,17 @@ def test_existing_auto_rows_with_conflicting_names_are_downgraded() -> None:
             (1, 12, 'Named::Source'),
             (2, 22, NULL);
         INSERT INTO match VALUES
-            (1, 'v1', 1, 10, 2, 20, 'auto'),
-            (2, 'v1', 1, 11, 2, 21, 'auto'),
-            (3, 'v1', 1, 12, 2, 22, 'auto');
+            (1, 'v1', 1, 10, 2, 20, 'auto', '{}'),
+            (2, 'v1', 1, 11, 2, 21, 'auto', '{}'),
+            (3, 'v1', 1, 12, 2, 22, 'auto', '{}');
         """
     )
     changed = downgrade_named_conflicts(con, "v1")
     assert changed == 1
-    assert con.execute("SELECT id, status FROM match ORDER BY id").fetchall() == [
+    # Row objects (con.row_factory is now sqlite3.Row, matching the real
+    # store.connect() contract) don't compare equal to plain tuples.
+    rows = con.execute("SELECT id, status FROM match ORDER BY id").fetchall()
+    assert [tuple(row) for row in rows] == [
         (1, "verify"),
         (2, "auto"),
         (3, "auto"),
@@ -67,6 +74,7 @@ def test_existing_auto_rows_with_conflicting_names_are_downgraded() -> None:
 
 def test_reclassification_rolls_back_status_when_identity_rebuild_fails() -> None:
     con = sqlite3.connect(":memory:")
+    con.row_factory = sqlite3.Row
     con.executescript(
         """
         CREATE TABLE func (binary_id INTEGER, addr INTEGER, canon_key TEXT);

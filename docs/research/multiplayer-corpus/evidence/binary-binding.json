@@ -1,5 +1,5 @@
 {
-  "binary": "/home/brunner56/agentdecompile-nvme/agentdecompile_projects/extract/raw/K1__k1_win_gog_swkotor.exe",
+  "binary": "/home/brunner56/agentdecompile-nvme/agentdecompile_projects/extract/raw/build_a__build_a_win_gog.exe",
   "sha256": "9c10e0450a6eeca417e036e3cde7474fed1f0a92aab018446d156944dea91435",
   "function": "005d4cb0",
   "evidence": "send-message-to-player.json",

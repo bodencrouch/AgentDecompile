@@ -1,4 +1,4 @@
-# NWN/NWN2 dedicated-server evidence (bounded MCP inspection)
+# Comparison-engine dedicated-server evidence (bounded MCP inspection)
 
 Checked 2026-09-15 against the already-open local Ghidra project `/home/brunner56/agentdecompile-nvme/workspace/Workspace.gpr`. Every successful query supplied an explicit program path. No project was opened or switched, no analysis was started, and no program was modified.
 
@@ -7,7 +7,7 @@ Checked 2026-09-15 against the already-open local Ghidra project `/home/brunner5
 | Program | Ghidra language | Compiler family | Current function count | Analysis state |
 |---|---|---|---:|---|
 | `/nwserver.exe` | `x86:LE:32:default` | `windows` | 0 | incomplete |
-| `/nwn2server.exe` | `x86:LE:32:default` | `windows` | 1 | incomplete |
+| `/comparison-engine-sequel-server.exe` | `x86:LE:32:default` | `windows` | 1 | incomplete |
 
 The MCP session reported both programs open in local-GPR mode. The targeted `get-current-program` replies also showed the requested program becoming the active program during that call, so explicit `program_path` routing worked; this inspection did not issue `open`, `open-project`, or any project mutation.
 
@@ -19,9 +19,9 @@ Consequently, this run does **not** establish Winsock, DirectPlay, GameSpy, mast
 
 ## Architectural contrast that the binaries could test once analysis is ready
 
-The useful NWN/NWN2 question is whether each dedicated executable owns a headless authoritative-server lifecycle—network startup, bind/listen, module/game-state initialization, client admission, periodic master-server advertisement, and shutdown—separately from the player client. Imports and a few entry/init decompilations can confirm that shape once Ghidra has produced functions.
+The useful comparison-engine question is whether each dedicated executable owns a headless authoritative-server lifecycle—network startup, bind/listen, module/game-state initialization, client admission, periodic master-server advertisement, and shutdown—separately from the player client. Imports and a few entry/init decompilations can confirm that shape once Ghidra has produced functions.
 
-KotOR already has an in-process client/server message queue; remote multiplayer would require a new transport integrated with that existing boundary. Its discovery layer should therefore remain a separate, minimal concern: advertise endpoint, server name, current/max players, build/protocol version, and only a password-required boolean; then authenticate and join through the KotOR transport. NWN/NWN2 may offer a lifecycle and product-design precedent, but no protocol compatibility should be inferred without completed import and function evidence.
+The target game already has an in-process client/server message queue; remote multiplayer would require a new transport integrated with that existing boundary. Its discovery layer should therefore remain a separate, minimal concern: advertise endpoint, server name, current/max players, build/protocol version, and only a password-required boolean; then authenticate and join through the target game's transport. The comparison engine may offer a lifecycle and product-design precedent, but no protocol compatibility should be inferred without completed import and function evidence.
 
 ## Smallest follow-up
 

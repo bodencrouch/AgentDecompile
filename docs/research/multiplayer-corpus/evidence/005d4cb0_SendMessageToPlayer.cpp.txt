@@ -1,5 +1,5 @@
 /* Fresh Ghidra pseudocode, not buildable or byte-verified source.
- * Program: /K1/k1_win_gog_swkotor.exe
+ * Program: /K1/build_a_win_gog.exe
  * Raw recovered signature below remains incomplete: it disagrees with RET 0x10.
  * Corrected four-stack-argument ABI is documented in ../engine-evidence.md.
  * Pseudocode body and declaration are retained unchanged as recovery evidence.

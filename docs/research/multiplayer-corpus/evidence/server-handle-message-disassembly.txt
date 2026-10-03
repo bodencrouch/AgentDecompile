@@ -1,8 +1,8 @@
 Input SHA256: 9c10e0450a6eeca417e036e3cde7474fed1f0a92aab018446d156944dea91435
-Command: objdump -d --start-address=0x4ae840 --stop-address=0x4ae848 /home/brunner56/agentdecompile-nvme/agentdecompile_projects/extract/raw/K1__k1_win_gog_swkotor.exe
+Command: objdump -d --start-address=0x4ae840 --stop-address=0x4ae848 /home/brunner56/agentdecompile-nvme/agentdecompile_projects/extract/raw/build_a__build_a_win_gog.exe
 
 
-/home/brunner56/agentdecompile-nvme/agentdecompile_projects/extract/raw/K1__k1_win_gog_swkotor.exe:     file format pei-i386
+/home/brunner56/agentdecompile-nvme/agentdecompile_projects/extract/raw/build_a__build_a_win_gog.exe:     file format pei-i386
 
 
 Disassembly of section .text:

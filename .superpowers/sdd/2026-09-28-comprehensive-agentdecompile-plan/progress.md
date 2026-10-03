@@ -537,3 +537,9 @@ P2 source-contract investigation found an additional scope limit in Task11.2: it
 
 Task4.1: complete bounded source slice (basebb414041..1c74b9c5); task-4-review.md spec and quality approved, no findings. Refusal-only terminal honesty and exact action metadata/work-dir lookup close; positive contribution producer, safe live admission, U4/U33 and all execution/installed/whole-image predicates remain open.
 U2 contract investigation dispatched /root/resolve_schema_unification_contract; owns next-schema-unification-contract.md only. Source-only current caller/migration contract, no database operations.
+
+Task11.3 P1: source committeddd7f2af0; scoped task-11-parity-review.diff from1f29d91d. Two ASTs, unchanged identity/checker/parser/view source-AST comparisons and diff checks pass; 36 regression definitions unrun. Independent spec/quality review pending; P2/P3/full units and runtime activation open.
+
+Ruling: Stage U82 with a delegating legacy db.py facade retaining the sole historical default and current symbols; refuse omitted-path missing-file creation — five current importers contradict the historical one-importer deletion premise — cost if wrong: explicit deprecation and later removal work remain, while previous implicit creation intentionally becomes a visible refusal.
+Ruling: Canonical read-only connections require the current migration version and exact version/name ledger, without migration/backfill calls; reject future writable versions before mutation — mode=ro alone did not prevent attempted writes or tolerate stale schema safely — cost if wrong: legacy report callers must first use the admitted migration path, with no automatic upgrade from reads.
+Task2.1: adopted next-schema-unification-contract.md; implementation-ready task-2-brief.md prepared fromdd7f2af0. No new columns/delete registry and no live migration.

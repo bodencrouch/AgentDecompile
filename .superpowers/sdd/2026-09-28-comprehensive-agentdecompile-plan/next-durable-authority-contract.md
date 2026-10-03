@@ -280,3 +280,7 @@ Only this Markdown contract was amended. **READY_FOR_CONTRACT_REVIEW** for scope
 ## Evidence boundary
 
 Only text source/document/test-definition inspection and this owned Markdown write were performed. No source changes, Git operations, tests/collection/build/typecheck, project imports, DB, keys/crypto, runtime/process inspection, live service action, provisioning or subagents. No serving revision or deployed safeguard was verified. The contract is ready for review; U9, all acceptance claims and M0 remain open.
+
+## Controller adoption — correction round2
+
+Adopted for bounded Task9.1 source implementation after independent durable-authority-contract-fix-r2-review.md: spec/quality ready, zero Critical/Important/Minor. No runtime or U9/M0 acceptance follows. Dispatch remains queued until Task2.4 production review/fixes release preparation.py; retain all documented same-session/historical continuity limits and complete r2 semantics.

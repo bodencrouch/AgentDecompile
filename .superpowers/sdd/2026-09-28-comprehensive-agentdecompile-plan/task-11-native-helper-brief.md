@@ -1,6 +1,6 @@
 # Task11.6b — owned capture helper source packet
 
-DRAFT QUEUED: dispatch only after independent native-helper-contract-review.md clears; base set at dispatch. Read AGENTS.md, complete next-native-helper-contract.md and its review, adopted next-runtime-closure-contract.md, Task11.6a source/report/review and actual sandbox/worker loop interfaces. Implement exactly bounded fixed capture-helper prerequisite; no lifecycle registration or actual helper execution.
+ADOPTED FOR SOURCE IMPLEMENTATION after native-helper-contract-review.md cleared. Base b989ad20 (profile source through244396d8); unrelated pending decomp changes outside ownership. Read AGENTS.md, complete next-native-helper-contract.md and its review, adopted next-runtime-closure-contract.md, Task11.6a source/report/review and actual sandbox/worker loop interfaces. Implement exactly bounded fixed capture-helper prerequisite; no lifecycle registration or actual helper execution.
 
 Own src/agentdecompile_grid/worker/native_closure_profile.py allocation/copy split preserving capture_private behavior, NEW native_capture.py and native_capture_entry.py, NEW tests/test_grid_native_capture.py, existing tests/test_grid_native_closure_profile.py only split compatibility assertions; W/task-11-native-helper-report.md. Preserve others' edits. No recovery/config/loop/outbox/transport/signing/current-reader changes. Controller alone Git; no subagents.
 

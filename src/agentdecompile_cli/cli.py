@@ -4472,6 +4472,15 @@ def bookmarks_grp() -> None:
 @click.option("--bookmarks", help="JSON array of bookmark objects")
 @click.option("--search-text")
 @click.option("--remove-all", is_flag=True)
+@click.option(
+    "--confirm-remove-all",
+    is_flag=True,
+    help="Required alongside --remove-all-token to execute action=removeAll (safety guard).",
+)
+@click.option(
+    "--remove-all-token",
+    help="Must be the exact string 'REMOVE_ALL_BOOKMARKS' to execute action=removeAll (safety guard).",
+)
 @click.pass_context
 def bookmarks_run(
     ctx: click.Context,
@@ -4484,6 +4493,8 @@ def bookmarks_run(
     bookmarks: str | None,
     search_text: str | None,
     remove_all: bool,
+    confirm_remove_all: bool,
+    remove_all_token: str | None,
 ) -> None:
     logger.debug("diag.enter %s", "cli.py:bookmarks_run")
     payload: dict[str, Any] = {}
@@ -4508,6 +4519,10 @@ def bookmarks_run(
         payload["searchText"] = search_text
     if remove_all is not None:
         payload["removeAll"] = remove_all
+    if confirm_remove_all:
+        payload["confirmRemoveAll"] = True
+    if remove_all_token is not None:
+        payload["removeAllToken"] = remove_all_token
     _run_async(_call(ctx, Tool.MANAGE_BOOKMARKS.value, **payload))
 
 
@@ -4515,7 +4530,7 @@ _derive_convenience_commands(
     bookmarks_grp,
     bookmarks_run,
     "action",
-    omitted_options=frozenset({"bookmarks", "remove_all"}),
+    omitted_options=frozenset({"bookmarks", "remove_all", "confirm_remove_all", "remove_all_token"}),
     omitted_choices=frozenset({"removeAll"}),
 )
 

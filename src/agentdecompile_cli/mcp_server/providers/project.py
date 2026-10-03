@@ -5003,7 +5003,16 @@ class ProjectToolProvider(ToolProvider):
                     from ghidra.util.task import TaskMonitor  # pyright: ignore[reportMissingModuleSource, reportMissingImports]
                     # Resolve through the requested DomainFile: session names and paths
                     # cannot establish identity across folders or projects.
-                    opened_program = source_file.getDomainObject(self, True, False, TaskMonitor.DUMMY)
+                    # getDomainObject(self, True, False, monitor) fails jpype overload
+                    # resolution on some builds when consumer=self (a Python object, not
+                    # a real java.lang.Object), and release() must be called with the
+                    # exact same consumer object that opened it or Ghidra raises
+                    # "unknown consumer". Use one dedicated java.lang.Object() consumer
+                    # for both the open and the matching release.
+                    from java.lang import Object as JavaObject  # pyright: ignore[reportMissingImports]
+
+                    push_consumer = JavaObject()
+                    opened_program = source_file.getDomainObject(push_consumer, True, False, TaskMonitor.DUMMY)
                     if opened_program is None:
                         raise RuntimeError(f"Could not resolve opened domain object for {source_path}")
                     try:
@@ -5020,7 +5029,7 @@ class ProjectToolProvider(ToolProvider):
                         else:
                             raise RuntimeError(f"Opened domain object cannot be saved for {source_path}")
                     finally:
-                        opened_program.release(self)
+                        opened_program.release(push_consumer)
                 else:
                     logger.info("shared-sync push skip save-not-supported source=%s", source_path)
                     skipped.append({"sourcePath": source_path, "reason": "save-not-supported"})

@@ -1,6 +1,6 @@
 // Regression SOURCE ONLY in Task42.1. Execution requires separate authorization.
 import assert from "node:assert/strict";
-import { test } from "node:test";
+import { test } from "vitest";
 import * as fs from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -22,7 +22,7 @@ const generation = tag => ({
 
 async function fixture(t) {
   const root = await fs.mkdtemp(path.join(tmpdir(), "react-publisher-"));
-  t.after(() => fs.rm(root, { recursive: true, force: true }));
+  t.onTestFinished(() => fs.rm(root, { recursive: true, force: true }));
   const destination = path.join(root, "published");
   await fs.mkdir(destination);
   await fs.writeFile(path.join(destination, "index.html"), entry("old00000"));
@@ -177,7 +177,7 @@ test("index preparation fsync failure leaves old entry selected", async t => {
   await oldEntry(destination);
 });
 
-test("Vite metadata covers actual lazy, worker, CSS, font and Wasm emission", async t => {
+test("Vite metadata covers emitted assets and URL postfixes without changing URLs", { timeout: 30_000 }, async t => {
   // This is a real bundler regression when authorized, not a synthetic manifest
   // standing in for bundler coverage. It never writes the packaged destination.
   const { root, destination } = await fixture(t);
@@ -185,11 +185,12 @@ test("Vite metadata covers actual lazy, worker, CSS, font and Wasm emission", as
   await fs.mkdir(source);
   const inputs = {
     "index.html": '<!doctype html><html><script type="module" src="/main.js"></script></html>',
-    "main.js": "import './style.css'; document.body.onclick=()=>import('./lazy.js');",
+    "main.js": "import './style.css'; import fragmentIcon from './icon.svg?url#symbol'; import queriedIcon from './icon.svg?url&variant=dark#symbol'; globalThis.fixtureUrls=[fragmentIcon,queriedIcon]; document.body.onclick=()=>import('./lazy.js');",
     "lazy.js": "export const worker=new Worker(new URL('./worker.js',import.meta.url),{type:'module'});",
     "worker.js": "import wasm from './code.wasm?url'; self.postMessage(wasm);",
     "style.css": "@font-face { font-family:fixture; src:url('./font.woff2') } body { font-family:fixture }",
     "font.woff2": "fixture-font-bytes",
+    "icon.svg": '<svg xmlns="http://www.w3.org/2000/svg"><symbol id="symbol"><path d="M0 0h1v1z"/></symbol></svg>',
     "code.wasm": Buffer.from([0, 97, 115, 109, 1, 0, 0, 0]),
   };
   for (const [name, bytes] of Object.entries(inputs)) await fs.writeFile(path.join(source, name), bytes);
@@ -197,9 +198,21 @@ test("Vite metadata covers actual lazy, worker, CSS, font and Wasm emission", as
   await build({ configFile: fileURLToPath(new URL("../vite.config.ts", import.meta.url)), root: source,
     build: { outDir: stage, assetsInlineLimit: 0 } });
   const manifest = JSON.parse(await fs.readFile(path.join(stage, "react-publication.json")));
-  for (const pattern of [/lazy-.+\.js$/, /worker-.+\.js$/, /\.css$/, /\.woff2$/, /\.wasm$/]) {
+  for (const pattern of [/lazy-.+\.js$/, /worker-.+\.js$/, /\.css$/, /\.woff2$/, /\.wasm$/, /\.svg$/]) {
     assert.ok(manifest.files.some(file => pattern.test(file.path)), `missing output ${pattern}`);
   }
+  const icon = manifest.files.find(file => file.path.endsWith(".svg"));
+  assert.ok(manifest.references.includes(icon.path), "URL dependencies retain their disk identity");
+  assert.ok(manifest.references.every(reference => !/[?#]/.test(reference)), "metadata contains disk paths only");
+  const scripts = (await Promise.all(manifest.files.filter(file => file.path.endsWith(".js"))
+    .map(file => fs.readFile(path.join(stage, file.path), "utf8")))).join("\n");
+  assert.ok(scripts.includes(`/react/${icon.path}#symbol`), "fragment remains in emitted URL");
+  assert.ok(scripts.includes(`/react/${icon.path}?variant=dark#symbol`), "query and fragment remain in emitted URL");
+  const iconBytes = await fs.readFile(path.join(stage, icon.path));
+  await fs.unlink(path.join(stage, icon.path));
+  await assert.rejects(publishReact(stage, destination), { code: "STAGE_VALIDATION_FAILED" });
+  await oldEntry(destination);
+  await fs.writeFile(path.join(stage, icon.path), iconBytes);
   await publishReact(stage, destination);
   assert.equal(await fs.readFile(path.join(destination, "assets/lazy-old00000.js"), "utf8"), "old lazy bytes");
   await fs.writeFile(path.join(source, "style.css"), "body { background: url('./missing.png') }");

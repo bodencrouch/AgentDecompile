@@ -71,3 +71,30 @@ The warning policy is conservative and may refuse future otherwise acceptable bu
 Still unrun: all regressions; TypeScript checks; builds; package/install manifest comparison; browser scenarios; retrieval through both real asset aliases; an old page triggering a previously unloaded lazy feature across a real rollout; installed/source identity checks; 8080 consumer observations; complete static/React scenario matrices; standalone reloader admission/rejection and unchanged process/state identity observations. No service, catalog, process, systemctl, application import/script, live publication, installation, restart, alternate listener, push or PR operation was performed.
 
 These remaining gates require their own current authorization and ownership corroboration. Source checks do not close installed, live, browser, reloader, recovery or whole-program acceptance.
+
+## Fix round 1 — T42-R1 and T42-R2
+
+Reviewed head: `1cdfe46360bb5d9352d2d9087595bd4aaae34cee`. Both important findings in `task-42-review.md` are addressed in source. Status: **READY_TO_COMMIT**, with controller-owned staging/commit and all behavioral gates still unrun.
+
+**T42-R1:** `publicationMetadata.recordUrl` now removes the first `?` or `#` and its suffix from the disk dependency identity supplied by Vite's URL hook. It does not decode or normalize filesystem paths, modify Rollup's disk-path dependency records, alter emitted URL strings, or bypass emitted-file membership/digest/inventory checks. This matches the locked [Vite 6.4.3 asset implementation](https://raw.githubusercontent.com/vitejs/vite/v6.4.3/packages/vite/src/node/plugins/asset.ts), which supplies a disk filename plus URL postfix to that hook.
+
+The real-bundler regression source now imports one SVG with a fragment and with a query plus fragment. It checks that both emitted URLs retain their suffixes while metadata references use the emitted disk name. It then removes that emitted SVG, expects `STAGE_VALIDATION_FAILED` with the old entry and old lazy chunk intact, restores the exact saved emitted bytes, and requests successful publication. The existing missing CSS URL build refusal remains. These are authored positive/refusal cases; none was executed.
+
+**T42-R2:** the regression imports `test` from the project's existing `vitest` dependency and registers temporary-directory cleanup through its test context's `onTestFinished` hook. It remains discoverable by the standard `vitest run` command, with registration, async completion and cleanup owned by that runner. The [Vitest lifecycle documentation](https://vitest.dev/api/hooks#ontestfinished) was read to confirm the context cleanup API. There is no separate Node runner, exclusion, extra dependency or package-script change. The real-bundler case has an explicit 30-second timeout rather than inheriting the runner's shorter unit-test default. Earlier report references to a Node test runner are superseded by this fix.
+
+Only these paths changed in this round:
+
+- `src/agentdecompile_recovery/corpus/dashboard/frontend/vite.config.ts`
+- `src/agentdecompile_recovery/corpus/dashboard/frontend/scripts/publish-react.test.mjs`
+- `.superpowers/sdd/2026-09-28-comprehensive-agentdecompile-plan/task-42-report.md`
+
+Performed checks, both exit 0 with no diagnostics:
+
+```text
+node --check src/agentdecompile_recovery/corpus/dashboard/frontend/scripts/publish-react.test.mjs
+git diff --check -- src/agentdecompile_recovery/corpus/dashboard/frontend/vite.config.ts src/agentdecompile_recovery/corpus/dashboard/frontend/scripts/publish-react.test.mjs
+```
+
+Self-review compared the complete owned diff against both findings, confirmed that the existing missing-reference and publication refusal checks remain intact, and changed the regression's SVG restoration to use actual emitted bytes instead of assuming the bundler copied source bytes unchanged. Other owners' source and controller progress edits were preserved. The publisher and package script did not change in this round.
+
+Remaining limits: no tests, build, type check, repository/application import, application execution, service/process/catalog operation, systemctl, installation, publication, staging or commit occurred. Syntax checking parsed the regression module without importing Vitest or running its bodies. Actual locked-version bundling, runner lifecycle behavior, installed/browser/8080/reloader acceptance and the complete U13/U42 gates remain unverified; no additional known implementation finding is outstanding from this review.

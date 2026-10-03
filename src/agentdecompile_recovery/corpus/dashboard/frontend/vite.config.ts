@@ -20,7 +20,12 @@ function publicationMetadata() {
     },
   };
   return {
-    recordUrl(file: string) { references.add(file); },
+    recordUrl(file: string) {
+      // Vite's URL hook receives the emitted filename plus query/fragment.
+      // Strip only that URL postfix for disk membership; emitted URLs and
+      // Rollup's disk-path references keep their original identities.
+      references.add(file.split(/[?#]/, 1)[0]);
+    },
     worker: (): Plugin => ({ name: "react-worker-dependencies", generateBundle: collect }),
     plugin: {
       name: "react-publication-metadata",

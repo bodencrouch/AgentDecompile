@@ -72,23 +72,24 @@ def test_workbench_js_exposes_tool_field_helpers() -> None:
     # not hard-coded in the static bundle.
     from agentdecompile_recovery.corpus.contract import PIPELINE_STAGE_ACTIONS
 
-    assert "function pipelineQuickActions" in js
+    # R1: pipeline-owned work is never a control; the quick-action trigger helper stays removed.
+    assert "function pipelineQuickActions" not in js
     assert "pipelineStages" in js
     assert "QUICK_ACTION_SETS.pipeline" in js or "pipeline:" in js
     assert PIPELINE_STAGE_ACTIONS["calibrate-global"] == "corpus.calibrate-global"
     assert PIPELINE_STAGE_ACTIONS["verify-byte-accuracy"] == "corpus.objdiff-check"
     assert "corpus.calibrate" not in {value.replace("-global", "") for value in PIPELINE_STAGE_ACTIONS.values() if value != "corpus.calibrate-global"}
     recover = js[js.find("function RecoverWorkbench") : js.find("function HtmlIsland")]
-    assert "Ghidra bulk" in recover
+    # R1 (U1, af761fe): Recover offers no pipeline triggers; Ghidra bulk and leftover runs are pipeline-owned.
+    assert "Ghidra bulk" not in recover
     assert "reconstruct.one-shot" not in recover
-    assert 'selected.decomp === "c"' in js
-    assert "One-shot leftover" in recover
+    assert "One-shot leftover" not in recover
     assert 'runActionButton("reconstruct.one-shot"' not in js
     # Browser-side analysis chaining was removed; follow-on stages are server-owned.
     assert "chainAfterAnalyze" not in js
-    assert "function programAlreadyAnalyzed" in js
-    assert 'executeAction("mcp.analyze-program"' in js
-    assert "if (!force && programAlreadyAnalyzed(data))" in js
+    # R1: analysis is admitted by the pipeline, never started from the workbench.
+    assert "function programAlreadyAnalyzed" not in js
+    assert 'executeAction("mcp.analyze-program"' not in js
     assert "unmeasured" in js
     assert "function fmtByteExact" in js
     assert "function LogDock" in js

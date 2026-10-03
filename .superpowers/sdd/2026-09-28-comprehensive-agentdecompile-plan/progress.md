@@ -469,3 +469,8 @@ Ruling: Adopt explicit v1 admission caps (snapshot256MiB, raw128MiB, function64K
 Task8.1: source commit2590e25a; /root/review_authoritative_packaging reviews scoped diff against based966fefc. Parser ownership remains reserved until review/fix loop closes.
 
 Task11.2: implementation dispatched /root/implement_target_object_producer from base2590e25a; requirements task-11-target-brief.md; report task-11-target-report.md. Exclusive new target lane/registry/planner and narrow mkobj predicate/keyword paths; no compile or parser overlap. Source-only, controller owns Git.
+
+Task8.1: complete (owned source commitsd966fefc..2590e25a; task-8-review.md spec/quality approved, 0 findings). Full U8/U21 and executable/installed/portable/atomic acceptance remain open. Parser ownership released to Task3.1.
+Ruling: Task11.2 initially supports bounded LocalDirStore reads and refuses adapters without an enforceable bounded read route — size()+get() cannot prevent allocation if an adapter lies; path-based chunked copies can stop at the cap — cost if wrong: other transports require later adapter qualification; no current grid-wide transport coverage is claimed.
+
+Task3.1: implementation dispatched /root/implement_macho_stabs_witness from2a6f49a2; exclusive semantic witness/consumer/accounting paths; preserve reviewed Task8 coverage_index parser seam. Source-only; task-3-report.md.

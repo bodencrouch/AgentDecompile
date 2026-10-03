@@ -1147,8 +1147,8 @@
         .then(function (r) {
           if (dead) return;
           if (!r.ok || !r.data || r.data.ok === false) {
-            setState({ loading: false, payload: null, at: null,
-                       error: (r.data && r.data.error) || "The panel request failed." });
+            const error = (r.data && r.data.error) || "The panel request failed.";
+            setState(function (prev) { return Object.assign({}, prev, { loading: false, error: error }); });
             return;
           }
           setState({ loading: false, payload: r.data.payload, error: null, at: r.data.collectedAt });
@@ -1167,7 +1167,11 @@
     if (!state.payload) {
       return html`<p className="wb-ev-missing" role="alert">${state.error || "This panel has no data yet."}</p>`;
     }
+    /* A failed re-read keeps the last payload on screen and says so. */
     return html`<div className="wb-ev" aria-busy=${state.loading ? "true" : "false"}>
+      ${state.error
+        ? html`<p className="wb-ev-missing" role="alert">Refresh failed: ${String(state.error).replace(/\.$/, "")}. Showing the last read.</p>`
+        : null}
       ${typeof children === "function" ? children(state.payload) : null}
       ${state.at
         ? html`<p className="wb-ev-source">Collected ${evidenceAge(state.at)}${state.loading ? " · refreshing" : ""}</p>`
@@ -1352,12 +1356,19 @@
     const p = payload || {};
     const src = p.source || {};
     const c = p.counts || {};
-    const state = !src.exists ? "missing" : (c.missing ? "partial" : "proven");
+    /* A collector crash leaves only {error, errors}; an unreadable contract reports ok: false. */
+    const crashed = p.error != null && !p.source;
+    const state = crashed ? "failed"
+      : !src.exists ? "missing"
+      : p.ok === false ? "failed"
+      : (c.missing ? "partial" : "proven");
+    const reason = state === "failed" ? (p.error || (p.errors || [])[0] || null) : null;
     return html`<div className="wb-ev-panel">
-      <${EvidenceBlock} title="Cited evidence on disk" block=${{ state: state, source: src.path, at: src.mtime }}
+      <${EvidenceBlock} title="Cited evidence on disk"
+        block=${{ state: state, source: src.path, at: src.mtime, error: reason }}
         claim="Each path the mission contract cites, checked against the filesystem now.">
-        ${!src.exists ? html`<p className="wb-ev-missing">There is no mission contract file yet.</p>` : null}
-        <${FigureGrid} items=${src.exists ? [
+        ${src.exists === false ? html`<p className="wb-ev-missing">There is no mission contract file yet.</p>` : null}
+        <${FigureGrid} items=${src.exists && p.ok !== false ? [
           { label: "Cited paths", value: c.evidence },
           { label: "Present", value: c.ok, of: c.evidence },
           { label: "Missing", value: c.missing }
@@ -1383,7 +1394,9 @@
     const dp = p.deep || {};
     const cv = p.coverage || {};
     const gp = p.gaps || {};
-    const gaps = gp.items || [];
+    /* gaps.items lists every build; a build already in the store is not a gap. */
+    const gaps = (gp.items || []).filter(function (it) { return it.key !== "cached"; });
+    const gapState = gp.error && !(gp.items || []).length ? "missing" : (gp.unexplained ? "partial" : "proven");
     const serverText = !sv.configured
       ? "No Ghidra server port is configured."
       : sv.host + ":" + sv.port + " is "
@@ -1427,13 +1440,14 @@
         ]} />
       </${EvidenceBlock}>
       <${EvidenceBlock} title="Gaps"
-        block=${{ state: gaps.length ? "partial" : (gp.error ? "missing" : "proven"), error: gp.error, source: gp.source, at: gp.at }}>
+        block=${{ state: gapState, error: gp.error, source: gp.source, at: gp.at }}>
         <${FigureGrid} items=${[
-          { label: "Gaps", value: gp.total },
+          { label: "Builds checked", value: gp.total },
+          { label: "Gaps", value: gp.total == null ? null : gaps.length },
           { label: "Unexplained", value: gp.unexplained }
         ]} />
         <${EvidenceTable} caption="Programs missing from the store" rows=${gaps}
-          columns=${[buildColumn(onOpen), { key: "label", label: "Why" }, { key: "cached", label: "Cached", num: true }, STATE_COLUMN]} />
+          columns=${[buildColumn(onOpen), { key: "label", label: "Why" }, STATE_COLUMN]} />
       </${EvidenceBlock}>
       <${EvidenceErrors} errors=${p.errors} />
     </div>`;
@@ -1480,6 +1494,14 @@
     function num(key) {
       return { key: key, label: humanKey(key), num: true, render: function (r) { return (r[key] || {}).value; } };
     }
+    /* Per build, byte_exact counts sampled functions that were real C and byte-exact,
+       not a whole-build total, so the column says so and shows the sample size. */
+    const sampledByteExact = { key: "byte_exact", label: "Real C and byte-exact (sampled)", right: true,
+      render: function (r) {
+        const f = r.byte_exact || {};
+        if (f.value == null) return null;
+        return fmtNum(f.value) + (typeof f.sampled === "number" ? " of " + fmtNum(f.sampled) : "");
+      } };
     return html`<div className="wb-ev-panel">
       <${EvidenceBlock} title="Corpus-wide recovery"
         claim="Real C, byte-exact C and the assembly floor are separate facts. They are never added together.">
@@ -1513,7 +1535,7 @@
         <${EvidenceTable} caption="Recovery per build" rows=${builds} limit=${40}
           empty="No build has a recovery figure yet."
           columns=${[buildColumn(onOpen), { key: "func_count", label: "Functions", num: true },
-                     num("real_c"), num("byte_exact"), num("asm_floor")]} />
+                     num("real_c"), sampledByteExact, num("asm_floor")]} />
       </${EvidenceBlock}>
       <${EvidenceBlock} title="Recently recovered functions">
         <${EvidenceTable} caption="Recently recovered functions" rows=${p.recent}
@@ -5829,8 +5851,10 @@
       setCenterTab("wb-pipeline");
     }
 
+    /* Keyed per panel: windows mount this at the same tree position, and an
+       unkeyed instance would draw the previous window's payload through View. */
     function evidence(id, View) {
-      return html`<${PanelEvidence} id=${id}>${function (payload) {
+      return html`<${PanelEvidence} key=${id} id=${id}>${function (payload) {
         return html`<${View} payload=${payload} onOpen=${openBuild} />`;
       }}</${PanelEvidence}>`;
     }

@@ -3452,6 +3452,7 @@
     const intentRef = useRef(null);
     const primaryRowRef = useRef(null);
     const intentGeneration = useRef(0);
+    const navigationGeneration = useRef(0);
     const evidenceTimer = useRef(null);
     const selectionMounted = useRef(true);
     const targetRef = useRef(null);
@@ -3486,8 +3487,11 @@
         // Only use identity supplied by the inventory. UI counters are not revisions.
         content: binary.content_sha256 || binary.contentSha256 || binary.sha256 || binary.binary_hash || binary.hash || "", repo: binary.repo || "" };
     }
+    // An explicit pending/empty dossier owns the locator even before inspection.
+    // Falling back to the previous session here would resurrect its target on render.
     const renderedTarget = targetFields(slug, program, activeSession,
-      (dossier && dossier.locator) || (currentSession && currentSession.locator));
+      dossier && Object.prototype.hasOwnProperty.call(dossier, "locator")
+        ? dossier.locator : (currentSession && currentSession.locator));
     const targetKey = targetIdentity(renderedTarget);
 
     function writePageContext(row, target) {
@@ -3501,17 +3505,19 @@
       node.setAttribute("data-name", row && row.name || "");
       node.setAttribute("data-logical-id", row && row.logicalId ? String(row.logicalId) : "");
     }
-    function retireSelection() {
+    function retireSelection(identityRefresh) {
       intentRef.current = null;
       primaryRowRef.current = null;
       intentGeneration.current += 1;
+      // Identity discovery still retires evidence, but is not a new navigation.
+      if (!identityRefresh) navigationGeneration.current += 1;
       clearTimeout(evidenceTimer.current);
       writePageContext(null, targetRef.current || renderedTarget);
     }
     // Setters retire synchronously, before React commits or a promise can settle.
     // The render comparison also masks identity changes supplied by inventory/session refresh.
     if (!targetRef.current || targetIdentity(targetRef.current) !== targetKey) {
-      retireSelection();
+      retireSelection(true);
       targetRef.current = renderedTarget;
       writePageContext(null, renderedTarget);
     }
@@ -3999,16 +4005,15 @@
       setMenu("");
     }
 
-    function resetTabState() {
+    function resetTabState(nextLocator) {
       retireSelection();
-      changeTarget({ locator: "" });
+      setDossier({ locator: canonicalLocator(nextLocator) });
       ensureSeqRef.current += 1;
       funcSeqRef.current += 1;
       setSlug("");
       setProgram("");
       beginSelection(null);
       setEvidencePacket(null);
-      setDossier(null);
       setPreview(null);
       setQuery("");
       setIngestNote("");
@@ -4020,7 +4025,7 @@
     }
 
     function restoreTabSession(item) {
-      resetTabState();
+      resetTabState(item && item.locator);
       if (!item || !item.locator) return;
       setSlug(item.projectSlug || "");
       setProgram(item.program || "");
@@ -4139,9 +4144,9 @@
       return url;
     }, [sessionOverviewSlugs, dossier, currentSession]);
 
-    useEffect(function () {
+    useEffect(function bootstrapWorkbench() {
       selectionMounted.current = true;
-      const bootGeneration = intentGeneration.current;
+      const bootNavigation = navigationGeneration.current;
       window.AgentDecompileUI = {
         announce: function (msg) {
           const pulse = document.getElementById("job-pulse");
@@ -4154,7 +4159,7 @@
       loadActions();
       loadBrowse("");
       fetch(API.sessions, { cache: "no-store" }).then(function (res) { return res.json(); }).then(function (data) {
-        if (!selectionMounted.current || bootGeneration !== intentGeneration.current) return;
+        if (!selectionMounted.current || bootNavigation !== navigationGeneration.current) return;
         const list = data.sessions || [];
         setSessions(list);
         const activeId = data.active || (list[0] && list[0].id) || "";
@@ -4168,7 +4173,7 @@
         if (cur && cur.locator) {
           if (!pinned) setSlug(cur.projectSlug || "");
           if (!pinnedProgram) setProgram(cur.program || "");
-          changeTarget({ locator: canonicalLocator(cur.locator) });
+          setDossier({ locator: canonicalLocator(cur.locator) });
           loadPreview(cur.locator, beginSelection(null));
         } else if (!pinned && cur && (cur.imports || []).length) {
           const first = importSlug(cur.imports[0]);
@@ -4584,7 +4589,7 @@
       const prevProgram = program;
       const prevImports = sessionImportSlugs(currentSession);
       if (!sameProject && !opts.refresh) {
-        resetTabState();
+        resetTabState(value);
       }
       retireSelection();
       const openGeneration = intentGeneration.current;
@@ -4763,7 +4768,7 @@
     }
 
     function currentLocator() {
-      return (dossier && dossier.locator) || (currentSession && currentSession.locator) || "";
+      return targetRef.current.locator;
     }
 
     /* Reload answers "did my change on disk land?" without losing the tab layout: it
@@ -5448,11 +5453,9 @@
       if (String(actionId).indexOf("decompile") >= 0 || String(actionId).indexOf("rename") >= 0) {
         loadBinaries();
         if (isCurrentIntent(actionIntent)) {
-          loadFuncs(actionIntent.target.slug, undefined, actionIntent);
-          if (primaryRowRef.current) {
-            const refreshed = beginSelection(primaryRowRef.current);
-            readSelection(refreshed);
-          }
+          const refreshed = beginSelection(primaryRowRef.current);
+          loadFuncs(refreshed.target.slug, undefined, refreshed);
+          if (refreshed.row) readSelection(refreshed);
         }
       }
       return data;
@@ -6015,7 +6018,7 @@
       uploadFiles(ev.dataTransfer && ev.dataTransfer.files);
     }
 
-    const projectLocator = (dossier && dossier.locator) || (currentSession && currentSession.locator) || "";
+    const projectLocator = renderedTarget.locator;
     const projectNames = (dossier && dossier.ok ? (dossier.programs || []) : []).map(programName).filter(Boolean);
     const tabImports = sessionImportSlugs(currentSession);
     const activeProjectSlug = (currentSession && currentSession.projectSlug) || slug;

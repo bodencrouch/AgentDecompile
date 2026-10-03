@@ -55,6 +55,39 @@ program available to the script, not evidence that the script executed or read
 that binary; a script can work only with files or URLs. The JSON field
 `executedProgram` remains unchanged for existing consumers.
 
+## Script execution and time budgets
+
+`execute-script` and `eval` run inside the server process. Their `timeout`
+parameter is accepted for compatibility, but **is not enforced**. It cannot stop
+an infinite Python loop or terminate Ghidra/native work. Set deadlines on the
+operations the script performs and use small batches.
+
+Script stdout and stderr are captured and returned when execution completes;
+`print(..., flush=True)` does not stream progress to the CLI. An outer process
+timeout can end the client's wait before it receives any output. It does not
+guarantee that the server script has stopped: the provider retains its program
+and conflict context until the worker finishes. Check the operation's outcome
+before retrying a script that changes state.
+
+Budget for the whole batch. Four sequential operations with 15-second limits
+need at least 60 seconds of operation allowance, plus connection and response
+overhead; a 45-second wrapper can cut them off. For example, with the batch
+source already in the shell variable `SCRIPT`, this allows a 100-second client
+wait:
+
+```bash
+timeout 100s agentdecompile-cli --server-url http://127.0.0.1:8080 \
+  execute-script --code "$SCRIPT"
+```
+
+If a Python `subprocess.run` wraps that command, give its own timeout a larger
+budget, such as 105 seconds. These are client wait limits, not server execution
+deadlines or a guarantee the batch will finish. In particular,
+[`urllib.request.urlopen(timeout=15)`](https://docs.python.org/3/library/urllib.request.html#urllib.request.urlopen)
+limits blocking operations such as connecting, not the entire request or batch;
+do not treat four such calls as a strict 60-second wall-clock bound. Use separate
+script calls when you need each completed result before starting the next.
+
 ## Sessions
 
 Each standalone CLI command is a fresh session unless you use `tool-seq`.
@@ -63,7 +96,12 @@ When no `mcp-session-id` (or session cookie) is sent, the server uses a single d
 
 **Session IDs are not authentication.** Do not treat `mcp-session-id` or the default session as access control. Protocol rules: [docs/session-handling.md](docs/session-handling.md).
 
-`tool-seq` counts a step as failed (and exits non-zero) if any text part contains markdown `## Error` with a blockquote, or `## Modification conflict`, even when the MCP envelope has `isError: false`.
+Direct tool commands, `tool`, and `tool-seq` exit non-zero for MCP `isError: true`,
+structured `success: false`, or a text part headed `## Error` or
+`## Modification conflict`, even when the envelope has `isError: false`.
+Results are displayed before direct commands exit, including script stdout,
+stderr, and traceback when the server supplies them. Error-shaped text inside
+a successful script's captured output does not make its response a failure.
 
 Add `--verbose` on the CLI, server, or proxy when you need transport diagnostics.
 

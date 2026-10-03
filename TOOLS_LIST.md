@@ -1458,18 +1458,22 @@ Use the returned preparation `id` for controls. Names also accept snake_case; `p
 
 ### `execute-script`
 
-**Description**: Auto-generated placeholder section from `agentdecompile_cli/registry.py`.
+**Description**: Execute Python code inside the Ghidra server process. Ghidra globals include `currentProgram`, `flatApi`, and `monitor`. Assign `__result__` to return a value; stdout and stderr are captured until execution completes.
 
 **Parameters**:
-- None.
+- `code` (string, required): Python expression or statements to execute.
+- `programPath` (string, optional): Program to provide as `currentProgram`.
+- `timeout` (integer, optional): Compatibility parameter; **not enforced** for in-process scripts. It cannot terminate Python or Ghidra work. Bound individual operations inside the script.
+
+Client wait limits do not guarantee server cancellation. See [script execution and time budgets](USAGE.md#script-execution-and-time-budgets) before running a batch.
 
 **Overloads**:
-- `execute-script()` canonical signature.
+- `execute-script(code, programPath?, timeout?)` canonical signature.
 
 **Synonyms**: `execute-script`
 
 **Examples**:
-- `execute-script`
+- `execute-script --code 'print(currentProgram.getName())' --program_path /myapp`
 
 ### `open-all-programs-in-code-browser`
 

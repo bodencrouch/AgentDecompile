@@ -26,15 +26,21 @@ def test_hub_and_healthz_are_on_the_same_app() -> None:
     hub = client.get("/app")
     assert hub.status_code == 200
     assert "/atlas" in hub.text
-    assert "Run work" in hub.text
+    # Since fd1d660d ("ship 8080 workbench AIO and corpus library"), /app
+    # redirects into the single-page workbench rather than a server-rendered
+    # hub with a literal "Run work" action list; the workbench's equivalent
+    # is the Commands window (id="wb-tools").
+    assert 'id="wb-tools"' in hub.text
     assert "/dashboard/actions" not in hub.text
     health = client.get("/dashboard/healthz")
     assert health.status_code == 200
     assert health.json()["ok"] is True
     assert health.json()["pages"]["atlas"] == "/atlas"
-    assert health.json()["pages"]["graph"] == "/dashboard/functions#graph"
-    assert health.json()["pages"]["review"] == "/dashboard/functions#review"
-    assert health.json()["pages"]["builds"] == "/dashboard/functions#builds"
+    # Since fd1d660d, graph/review/builds are workbench windows on /dashboard
+    # rather than #fragments on a server-rendered /dashboard/functions page.
+    assert health.json()["pages"]["graph"] == "/dashboard?window=wb-graph"
+    assert health.json()["pages"]["review"] == "/dashboard?window=wb-review"
+    assert health.json()["pages"]["builds"] == "/dashboard?window=wb-corpus"
 
 
 def test_dashboard_reads_store(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -50,9 +56,21 @@ def test_dashboard_reads_store(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) 
     client = _app()
     page = client.get("/dashboard")
     assert page.status_code == 200
-    assert "donor" in page.text
     assert "complete executable" in page.text.lower()
-    assert "/dashboard/binary/donor" in page.text
+    # Since fd1d660d, /dashboard serves the static workbench shell: binary
+    # data loads client-side from the JSON API rather than being baked into
+    # the server-rendered page, so "donor" and a direct binary link no
+    # longer appear in the HTML itself -- assert the store is actually wired
+    # up through the API the workbench calls instead.
+    # list_binaries() caches by locator (see workbench.py's module-level
+    # _CACHE), so pass the repo_path explicitly rather than the default ""
+    # locator other tests in this module/process may have already cached.
+    binaries = client.get("/dashboard/api/workbench/binaries?locator=/a")
+    assert binaries.status_code == 200
+    assert "donor" in binaries.text
+    old_binary_link = client.get("/dashboard/binary/donor")
+    assert old_binary_link.status_code == 200
+    assert old_binary_link.history and old_binary_link.history[0].status_code == 302
 
 
 def test_functions_page_works_without_source_file_column(
@@ -72,37 +90,50 @@ def test_functions_page_works_without_source_file_column(
     con.close()
     monkeypatch.setenv("AGENT_DECOMPILE_CORPUS_DB", str(db))
     client = _app()
+    # Since fd1d660d, /dashboard/functions redirects into the static
+    # workbench shell (data loads client-side from the JSON API below)
+    # rather than server-rendering the function list and its #fragments;
+    # the old id="page-size"/id="function-results" markers and the
+    # review/graph/builds section ids moved to the wb-* window ids.
     page = client.get("/dashboard/functions")
     assert page.status_code == 200
-    assert "main" in page.text
-    assert "0x401000" in page.text or "00401000" in page.text or "0x00401000" in page.text
-    assert 'id="page-size"' in page.text
-    assert 'id="review"' in page.text
-    assert 'id="graph"' in page.text
-    assert 'id="builds"' in page.text
-    partial = client.get("/dashboard/functions?binary=donor&partial=1")
-    assert partial.status_code == 200
-    assert "<!doctype html>" not in partial.text.lower()
-    assert 'id="function-results"' in partial.text
+    assert 'id="wb-review"' in page.text
+    assert 'id="wb-graph"' in page.text
+    assert 'id="wb-corpus"' in page.text
+    browse = client.get("/dashboard/browse-block?block=functions&binary=donor")
+    assert browse.status_code == 200
+    browse_json = browse.json()
+    assert browse_json["ok"] is True
+    assert any(row["name"] == "main" and row["addr"] == "0x00401000" for row in browse_json["results"])
     aliased = client.get("/functions?binary=donor")
     assert aliased.status_code == 200
-    assert "main" in aliased.text
+    assert aliased.history and aliased.history[0].status_code == 302
     one = client.get("/dashboard/function/donor/0x401000")
     assert one.status_code == 200
-    assert "main.c" in one.text
+    assert one.history and one.history[0].status_code == 302
+    function_detail = client.get("/dashboard/api/workbench/function?binary=donor&addr=0x401000")
+    assert function_detail.status_code == 200
+    assert "main.c" in function_detail.text
     binary = client.get("/binary/donor")
     assert binary.status_code == 200
-    assert "main" in binary.text
+    assert binary.history and binary.history[0].status_code == 302
 
 
 def test_report_serves_html_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    # Since fd1d660d, /report no longer reads AGENT_DECOMPILE_REPORT_HTML and
+    # inlines it -- that env var has no remaining reference anywhere under
+    # src/. /report (and its /recovery alias) now redirect into the
+    # workbench's Report window, which is a placeholder (id="wb-report")
+    # pending its own data wiring; assert the current, intentional contract
+    # instead of content serving that was dropped in the redesign.
     path = tmp_path / "report.html"
     path.write_text("<html><body>run report body</body></html>", encoding="utf-8")
     monkeypatch.setenv("AGENT_DECOMPILE_REPORT_HTML", str(path))
     client = _app()
     page = client.get("/report")
     assert page.status_code == 200
-    assert "run report body" in page.text
+    assert page.history and page.history[0].status_code == 302
+    assert 'id="wb-report"' in page.text
     assert client.get("/recovery").status_code == 200
 
 

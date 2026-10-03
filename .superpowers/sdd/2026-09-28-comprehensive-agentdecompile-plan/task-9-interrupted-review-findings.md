@@ -9,3 +9,10 @@
 - DA-S5 (75, concreteinterleaving): issuerB passes prelockfaultcheck; A appendsvalidrecord thenfsyncfails/latches; B takes releasedlock andissues because latchnotrechecked. Recheck irreversiblefault/limit underactualacquiredlock before scan/append; healthyexistingrow operations independent.
 
 No tests/DB/crash/process/route/fixture behavior was executed for these findings. Reviewerjudgment was source reasoning. Neither U9 nor packet9.1 is accepted. Source5ceefab6 checkpoint plus preserveddirtyfivefiles/newtest remains protected; controller alone Git.
+
+## Fresh resumed review additions
+
+- DA-S6 (reviewerconfidence100): captured execution facts/candidate queries and route helper default liveDB/root after workspaceA→B, committingB evidence intoA. Producer census additionally found child catalogdefaults/slugquery andSTORE root livefallback. Authorized private capturedcontext/root plus narrow catalog optionaldefault-context seam; unchanged ordinary callers.
+- DA-S7 (reviewer/producer sourceconfirmed): nested MCP persistencefault503 returned with preparationCause, parent nextguard replaces it with new authoritylost409. Preserve first bounded cause/phase on exactcurrent poisoned authority; stale successor callback stays409/no successor mutation.
+
+Fresh reviewer report remains pending; no actual lock/query/dispatch/fixture execution supports these source scenarios.

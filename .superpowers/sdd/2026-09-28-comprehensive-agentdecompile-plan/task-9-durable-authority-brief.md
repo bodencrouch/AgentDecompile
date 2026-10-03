@@ -15,3 +15,9 @@ SOURCE ONLY: no tests/collection/build/typechecks/proof scripts/project imports/
 ## Controller regression split
 
 All tests exclusively /root/author_preparation_authority_regressions: new test_preparation_authority.py and existing test_preparation_objective_budget.py/test_preparation_mcp_budget.py/test_preparation_retry_policy.py, plus ONLY test_matcher_input_v2_tracks_selector_and_selected_values_and_receipt_equality in test_corpus_decomp_schema.py for required captured receipt authority. Producer paused tests and retains production/report. Frozen-db keyword on matching-input helper allowed for captured-root execution; default callers and exact v2 payload/ordering/selector preserved and signature change reported. No execution scope change.
+
+## Controller corrective scope extension — DA-S6/DA-S7, 2026-10-03
+
+Exact sixth production file dashboard/actions/catalog.py authorized ONLY env_defaults/apply_defaults optional explicit frozen workspace/defaults/DB and slug resolution; preserve ordinary defaults/action schemas/registry. Captured queries/routes AND child DB/work/kb/report/slug/defaults/STORE root must bind original authority context, never liveB fallback. No request-derived authority or new operation. Producer owns six production paths/report; testsworker existing five paths unchanged.
+
+DA-S7 retain first bounded typed poison decision/cause/phase on exact current registry/session authority so nested MCP persistence503 remains original503 at parent guard; old/successor/stale callbacks still409, no successor invalidation or secondwrite. Fresh independent review covers these corrections as well as all earlier contract/finding seams. All source-only/noactualacceptance limits retained.

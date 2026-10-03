@@ -104,7 +104,7 @@ evidence and limitations. Resolution alone is never a universal C-call promise.
   source parity or overwrite stronger evidence wholesale.
 
 Use the generic corpus/export core with target adapters and build profiles.
-All BioWare corpus builds remain in recovery scope; future other games remain
+All original-studio corpus builds remain in recovery scope; future other games remain
 in scope for the generic design, but require real adapter and ABI work.
 
 ## Capability refinement — 2026-09-22 (required, not delivered)
@@ -140,12 +140,12 @@ and `/home/brunner56/agentdecompile-deliverables/2026-09-27-m6m7-assessment/repo
 
 - **M3, shared operation IDs: not met.** The in-game console keeps its own
   request-ID counter; the harness only echoes the client's JSON ID back;
-  `runtime.cpp` hard-codes `kotor.k1.model-scale.v1`; and `kp.model` results
+  `runtime.cpp` hard-codes `target.a.model-scale.v1`; and `kp.model` results
   carry no operation ID at all. Nothing today ties a console request, a
   harness reply and a model operation to one shared ID.
 - **M6, host matrix.** Independent sha256 checks against KotorPhasor's
   `reference_sha256` confirm three builds: K1 Windows GOG, K2 Windows GOG
-  Aspyr, and K2 Windows Steam Aspyr (the last has three contradicting status
+  (publisher build), and K2 Windows Steam (publisher build) (the last has three contradicting status
   sources across the address JSON, `builds.inc` and `builds.toml`). K1 and K2
   Mac are Mach-O and blocked: KotorPhasor has no Mach-O loader, and no macOS
   host exists to run one. K2 Linux is not registered in `builds.inc` and is

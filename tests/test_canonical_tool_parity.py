@@ -1,18 +1,22 @@
 from __future__ import annotations
 
+import asyncio
 import json
 
 from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any, ClassVar, cast
+from unittest.mock import MagicMock
 
 import agentdecompile_cli.mcp_server.program_metadata as program_metadata_module
 import agentdecompile_cli.mcp_server.providers.dissect as dissect_module
+import agentdecompile_cli.mcp_server.providers.prompts as prompts_module
 import pytest
 
 from agentdecompile_cli.bridge import AgentDecompileMcpClient, ClientError
 from agentdecompile_cli.mcp_server.providers.dataflow import DataFlowToolProvider
 from agentdecompile_cli.mcp_server.providers.decompiler import DecompilerToolProvider
 from agentdecompile_cli.mcp_server.providers.dissect import GetFunctionAioToolProvider
+from agentdecompile_cli.mcp_server.providers.prompts import PromptToolProvider
 from agentdecompile_cli.mcp_server.providers.script import ScriptToolProvider
 from agentdecompile_cli.mcp_server.providers.search_everything import SearchEverythingToolProvider
 from agentdecompile_cli.mcp_server.response_formatter import _render_execute_script, _render_get_function
@@ -140,6 +144,136 @@ async def test_direct_provider_call_uses_lifecycle_fallback_and_preserves_explic
     assert lifecycle_context["scope"] == "target-program"
     assert lifecycle_context["activeProgram"] == "/prog/lifecycle.exe"
     assert "projectContext" not in json.loads(none_result[0].text)
+    assert provider.program_info is lifecycle_info
+
+
+@pytest.mark.asyncio
+async def test_prompt_dispatch_keeps_lifecycle_context_and_wrapper(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def info(path):
+        domain_file = SimpleNamespace(
+            getPathname=lambda: path,
+            getSharedProjectURL=lambda _ref: None,
+            getProjectLocator=lambda: None,
+        )
+        return SimpleNamespace(
+            program=SimpleNamespace(getDomainFile=lambda: domain_file),
+            file_path=path,
+        )
+
+    lifecycle_info = info("/prog/a.exe")
+    override_info = info("/prog/b.exe")
+    provider = PromptToolProvider()
+    provider.program_info = lifecycle_info
+    lifecycle_wrapper = object()
+    provider.ghidra_tools = lifecycle_wrapper
+    setter = MagicMock(wraps=provider.set_program_info)
+    monkeypatch.setattr(provider, "set_program_info", setter)
+    monkeypatch.setattr(
+        program_metadata_module,
+        "collect_project_context",
+        lambda _session_id: {"activeProgram": "/prog/session.exe"},
+    )
+    monkeypatch.setattr(
+        prompts_module.prompt_providers,
+        "list_prompts",
+        lambda: [types.Prompt(
+            name="scope-probe",
+            description="Inspect a program",
+            arguments=[types.PromptArgument(name="target", description="Program", required=True)],
+        )],
+    )
+    expected_prompts = [{
+        "name": "scope-probe",
+        "description": "Inspect a program",
+        "arguments": [{"name": "target", "description": "Program", "required": True}],
+    }]
+
+    override_result = await provider.call_tool("list-prompts", {}, program_info=override_info)
+    override_payload = json.loads(override_result[0].text)
+    assert override_payload["prompts"] == expected_prompts
+    assert override_payload["projectContext"]["activeProgram"] == "/prog/b.exe"
+    assert provider.program_info is lifecycle_info
+    assert provider.ghidra_tools is lifecycle_wrapper
+    setter.assert_not_called()
+
+    none_result = await provider.call_tool("list-prompts", {}, program_info=None)
+    none_payload = json.loads(none_result[0].text)
+    assert none_payload["prompts"] == expected_prompts
+    assert "projectContext" not in none_payload
+    assert provider.program_info is lifecycle_info
+    assert provider.ghidra_tools is lifecycle_wrapper
+    setter.assert_not_called()
+
+    # Case/punctuation aliases still pass through the same normalized boundary.
+    fallback_result = await provider.call_tool("LIST_PROMPTS", {"RESPONSE FORMAT": "json"})
+    fallback_payload = json.loads(fallback_result[0].text)
+    assert fallback_payload["prompts"] == expected_prompts
+    assert fallback_payload["projectContext"]["activeProgram"] == "/prog/a.exe"
+    assert provider.program_info is lifecycle_info
+    assert provider.ghidra_tools is lifecycle_wrapper
+    setter.assert_not_called()
+
+
+class DummyControlOutcomeProvider(ToolProvider):
+    """No-keyword control handler for failure and cancellation dispatch paths."""
+
+    HANDLERS: ClassVar[dict[str, str]] = {"dummycontroloutcome": "_handle"}
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.started = asyncio.Event()
+        self.release = asyncio.Event()
+
+    async def _handle(self, args: dict[str, object]) -> list[types.TextContent]:
+        self.started.set()
+        if args["outcome"] == "exception":
+            raise RuntimeError("Control handler failed")
+        await self.release.wait()
+        return create_success_response({"success": True})
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("outcome", ["exception", "cancellation"])
+@pytest.mark.parametrize("empty_override", [False, True])
+async def test_control_failure_preserves_lifecycle_state(
+    monkeypatch: pytest.MonkeyPatch,
+    outcome: str,
+    empty_override: bool,
+) -> None:
+    provider = DummyControlOutcomeProvider()
+    lifecycle_info = SimpleNamespace(program=None, path="/prog/a.exe")
+    provider.program_info = lifecycle_info
+    lifecycle_wrapper = object()
+    provider.ghidra_tools = lifecycle_wrapper
+    setter = MagicMock(wraps=provider.set_program_info)
+    monkeypatch.setattr(provider, "set_program_info", setter)
+    override_info = None if empty_override else SimpleNamespace(program=None, path="/prog/b.exe")
+
+    call = asyncio.create_task(provider.call_tool(
+        "DUMMY_CONTROL_OUTCOME", {"OUT-COME": outcome}, program_info=override_info,
+    ))
+    try:
+        await asyncio.wait_for(provider.started.wait(), timeout=3)
+        assert provider.program_info is lifecycle_info
+        assert provider.ghidra_tools is lifecycle_wrapper
+        if outcome == "cancellation":
+            call.cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await asyncio.wait_for(call, timeout=3)
+        else:
+            result = await asyncio.wait_for(call, timeout=3)
+            assert json.loads(result[0].text)["success"] is False
+            assert "Control handler failed" in result[0].text
+    finally:
+        provider.release.set()
+        if not call.done():
+            call.cancel()
+            await asyncio.gather(call, return_exceptions=True)
+    assert provider.program_info is lifecycle_info
+    assert provider.ghidra_tools is lifecycle_wrapper
+    setter.assert_not_called()
 
 
 @pytest.mark.asyncio

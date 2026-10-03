@@ -4,13 +4,16 @@ from __future__ import annotations
 
 import asyncio
 import json
+import threading
 
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import agentdecompile_cli.mcp_server.program_metadata as program_metadata_module
+import agentdecompile_cli.mcp_server.providers.functions as functions_module
 import pytest
 
+from agentdecompile_cli.mcp_server.providers.functions import FunctionToolProvider
 from agentdecompile_cli.mcp_server.tool_providers import (
     ActionableError,
     ToolProvider,
@@ -110,8 +113,12 @@ def program_info() -> SimpleNamespace:
 
 @pytest.mark.unit
 @pytest.mark.asyncio
+@pytest.mark.parametrize("activate_lifecycle", [False, True])
+@pytest.mark.parametrize("real_function_provider", [False, True])
 async def test_call_scoped_program_survives_two_program_interleaving(
     gate_manager: ToolProviderManager,
+    activate_lifecycle: bool,
+    real_function_provider: bool,
 ) -> None:
     program_a = MagicMock()
     program_a.getDomainFile.return_value.getPathname.return_value = "/repo/a.exe"
@@ -127,13 +134,33 @@ async def test_call_scoped_program_survives_two_program_interleaving(
         file_path="/repo/b.exe",
         ghidra_analysis_complete=False,
     )
+    if real_function_provider:
+        gate_manager._register(FunctionToolProvider())
+    provider = gate_manager.providers[-1]
+    gate_manager.set_program_info(info_a)
+    lifecycle_wrapper_a = provider.ghidra_tools
     a_waiting = asyncio.Event()
-    release_a = asyncio.Event()
+    release_a = threading.Event()
+    loop = asyncio.get_running_loop()
+    gate_calls = []
+    collected_programs = []
 
-    async def gate_wait(_func, _program, info, **_kwargs):
+    def gate_wait(program, info, *, program_path):
+        # Keep the real asyncio.to_thread boundary: the blocking event belongs
+        # to the worker thread, and the event loop notification is thread-safe.
+        gate_calls.append((program, info, program_path))
         if info is info_a:
-            a_waiting.set()
-            await release_a.wait()
+            loop.call_soon_threadsafe(a_waiting.set)
+            assert release_a.wait(timeout=5), "Timed out waiting to resume program A"
+
+    def collect(program, **_kwargs):
+        collected_programs.append(program)
+        return [{
+            "name": "program-A" if program is program_a else "program-B",
+            "address": "1000", "size": 4, "isExternal": False,
+            "isThunk": False, "parameterCount": 0,
+            "signature": "void entry()", "callingConvention": "cdecl",
+        }]
 
     def get_program_info(_session_id: str, key: str | None):
         return {"/repo/a.exe": info_a, "/repo/b.exe": info_b}.get(key)
@@ -147,11 +174,17 @@ async def test_call_scoped_program_survives_two_program_interleaving(
             "agentdecompile_cli.mcp_server.tool_providers.SESSION_CONTEXTS.get_active_program_info",
             return_value=None,
         ),
+        patch(
+            "agentdecompile_cli.mcp_server.tool_providers.SESSION_CONTEXTS.get_project_handle",
+            return_value=None,
+        ),
         patch("agentdecompile_cli.mcp_server.tool_providers.SESSION_CONTEXTS.add_tool_history"),
         patch(
-            "agentdecompile_cli.mcp_server.tool_providers.asyncio.to_thread",
+            "agentdecompile_cli.mcp_utils.program_analysis.wait_for_program_analysis_ready",
             side_effect=gate_wait,
         ),
+        patch("agentdecompile_cli.mcp_server.tool_providers.analysis_skipped_warning", return_value=None),
+        patch.object(functions_module, "collect_functions", side_effect=collect),
     ):
         call_a = asyncio.create_task(
             gate_manager.call_tool(
@@ -159,17 +192,50 @@ async def test_call_scoped_program_survives_two_program_interleaving(
                 {"programPath": "/repo/a.exe", "responseFormat": "json"},
             )
         )
-        await a_waiting.wait()
-        result_b = await gate_manager.call_tool(
-            "list-functions",
-            {"programPath": "/repo/b.exe", "responseFormat": "json"},
+        try:
+            await asyncio.wait_for(a_waiting.wait(), timeout=3)
+            result_b = await asyncio.wait_for(
+                gate_manager.call_tool(
+                    "list-functions",
+                    {"programPath": "/repo/b.exe", "responseFormat": "json"},
+                ),
+                timeout=3,
+            )
+            assert provider.program_info is info_a
+            assert provider.ghidra_tools is lifecycle_wrapper_a
+            if activate_lifecycle:
+                # Deliberate activation is permitted while A is in flight.
+                gate_manager.set_program_info(info_b)
+            expected_default = info_b if activate_lifecycle else info_a
+            lifecycle_wrapper = provider.ghidra_tools
+        finally:
+            release_a.set()
+            result_a = await asyncio.wait_for(call_a, timeout=3)
+        future_result = await asyncio.wait_for(
+            gate_manager.call_tool("list-functions", {"responseFormat": "json"}),
+            timeout=3,
         )
-        release_a.set()
-        result_a = await call_a
 
-    assert json.loads(result_a[0].text)["programPath"] == "/repo/a.exe"
-    assert json.loads(result_b[0].text)["programPath"] == "/repo/b.exe"
-    assert gate_manager.providers[-1].program_info is None
+    payload_a = json.loads(result_a[0].text)
+    payload_b = json.loads(result_b[0].text)
+    future_payload = json.loads(future_result[0].text)
+    if real_function_provider:
+        assert payload_a["results"][0]["name"] == "program-A"
+        assert payload_b["results"][0]["name"] == "program-B"
+        assert future_payload["results"][0]["name"] == ("program-B" if activate_lifecycle else "program-A")
+        assert collected_programs == [program_b, program_a, expected_default.program]
+    else:
+        assert payload_a["programPath"] == "/repo/a.exe"
+        assert payload_b["programPath"] == "/repo/b.exe"
+        assert future_payload["programPath"] == expected_default.file_path
+    assert gate_calls == [
+        (program_a, info_a, "/repo/a.exe"),
+        (program_b, info_b, "/repo/b.exe"),
+        (expected_default.program, expected_default, expected_default.file_path),
+    ]
+    assert gate_manager.program_info is expected_default
+    assert provider.program_info is expected_default
+    assert provider.ghidra_tools is lifecycle_wrapper
 
 
 @pytest.mark.unit
@@ -212,14 +278,18 @@ async def test_prerequisite_recursion_preserves_call_scoped_program(
     with (
         patch("agentdecompile_cli.mcp_server.tool_providers.SESSION_CONTEXTS.add_tool_history"),
         patch(
-            "agentdecompile_cli.mcp_server.tool_providers.asyncio.to_thread",
-            AsyncMock(return_value=None),
+            "agentdecompile_cli.mcp_utils.program_analysis.wait_for_program_analysis_ready",
+            return_value=None,
         ),
+        patch("agentdecompile_cli.mcp_server.tool_providers.analysis_skipped_warning", return_value=None),
     ):
-        result = await gate_manager.call_tool(
-            "scope-error",
-            {"responseFormat": "json"},
-            program_info=scoped_info,
+        result = await asyncio.wait_for(
+            gate_manager.call_tool(
+                "scope-error",
+                {"responseFormat": "json"},
+                program_info=scoped_info,
+            ),
+            timeout=3,
         )
 
     payload = json.loads(result[0].text)
@@ -267,7 +337,7 @@ async def test_analysis_gate_invoked_for_non_exempt_tool(
     gate_manager: ToolProviderManager,
     program_info: SimpleNamespace,
 ) -> None:
-    to_thread_mock = AsyncMock(return_value=None)
+    gate_threads = []
     with (
         patch(
             "agentdecompile_cli.mcp_server.tool_providers.SESSION_CONTEXTS.get_program_info",
@@ -279,14 +349,21 @@ async def test_analysis_gate_invoked_for_non_exempt_tool(
         ),
         patch("agentdecompile_cli.mcp_server.tool_providers.SESSION_CONTEXTS.add_tool_history"),
         patch(
-            "agentdecompile_cli.mcp_server.tool_providers.asyncio.to_thread",
-            to_thread_mock,
-        ),
+            "agentdecompile_cli.mcp_utils.program_analysis.wait_for_program_analysis_ready",
+            side_effect=lambda *_args, **_kwargs: gate_threads.append(threading.get_ident()),
+        ) as gate_wait,
+        patch("agentdecompile_cli.mcp_server.tool_providers.analysis_skipped_warning", return_value=None),
     ):
-        await gate_manager.call_tool("list-functions", {"programPath": "/repo/other.exe"})
+        await asyncio.wait_for(
+            gate_manager.call_tool("list-functions", {"programPath": "/repo/other.exe"}),
+            timeout=3,
+        )
 
-    assert to_thread_mock.await_count == 1
-    assert to_thread_mock.await_args.args[0].__name__ == "wait_for_program_analysis_ready"
+    gate_wait.assert_called_once_with(
+        program_info.program, program_info, program_path="/repo/other.exe",
+    )
+    assert len(gate_threads) == 1
+    assert gate_threads[0] != threading.get_ident()
 
 
 @pytest.mark.unit

@@ -997,10 +997,9 @@ class ToolProvider:
             if accepts_program_info:
                 result = await handler(norm_args, program_info=effective_program_info)
             else:
-                # Existing providers read self.program_info. Keep their established
-                # handoff until each handler opts into call-scoped program_info.
-                if self.program_info is not effective_program_info:
-                    self.set_program_info(effective_program_info)
+                # Pure control handlers need only normalized arguments. Request
+                # context remains local for response injection and prerequisites;
+                # only intentional lifecycle activation changes provider state.
                 result = await handler(norm_args)
             logger.debug("tool=%s completed", canonical_tool)
 

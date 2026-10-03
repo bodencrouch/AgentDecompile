@@ -110,12 +110,27 @@ The execution report records the exact command and audit findings at
 
 ## Current status
 
-**Fixed in the source tree, with focused non-server verification.
-`CONTEXT_LOCK` stays as-is.** No live server, e2e, integration, or slow tests were
-run for this verification. This resolves the identified provider-context TOCTOU;
-it does not establish concurrent safety for Ghidra mutation, program disposal,
-project switching, session inventory changes, or dashboard lock narrowing.
-Those require their own lifecycle review and live validation.
+**October 2, 2026, slice 29.1: residual compatibility dispatch writes removed
+in the local implementation worktree; acceptance remains unexecuted.** The base
+dispatch compatibility branch now calls pure control handlers without changing
+their lifecycle `program_info` or `ghidra_tools`. Omitted-context fallback and
+explicit None still use the call-local value for response context; intentional
+lifecycle activation remains available.
+
+Regression source now covers real prompt responses, failure/cancellation state
+retention, same-provider prerequisites, and bounded A-paused/B-dispatched/A-resumed
+interleaving across the real `asyncio.to_thread` boundary, including lifecycle
+activation and real function-listing responses. Verification for this slice is
+limited to source AST, diff and call-site review. No tests, builds, Ghidra work,
+serving-source activation, or live acceptance ran. The September 10 pass count
+above is historical; its linked execution report is absent in this checkout and
+does not qualify this version. Slice details are recorded in
+`.superpowers/sdd/2026-09-28-comprehensive-agentdecompile-plan/task-29-report.md`.
+
+`CONTEXT_LOCK` stays as-is. Source isolation does not establish concurrent safety
+for Ghidra mutation, program disposal, project switching, session inventory
+changes, or dashboard lock narrowing. Those require separate lifecycle review
+and authorized live validation.
 
 ## Related
 

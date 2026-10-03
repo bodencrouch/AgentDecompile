@@ -192,4 +192,8 @@ def test_installed_middleware_without_credentials_rejects_everything(require_aut
     config = AuthConfig(require_auth=require_auth)
     assert _call(config) == 401
     assert _call(config, {"Authorization": _basic("anyone", "anything")}) == 401
-    assert _call(config, {"X-Ghidra-Server-Host": "elsewhere", "Authorization": _basic("anyone", "x")}) == 401
+    # 24ae019c ("disable dynamic Ghidra-host routing") made AuthMiddleware
+    # check X-Ghidra-Server-Host before credentials: naming any host while
+    # none is configured gets 403 "dynamic Ghidra-host routing is disabled",
+    # not 401, even with credentials attached.
+    assert _call(config, {"X-Ghidra-Server-Host": "elsewhere", "Authorization": _basic("anyone", "x")}) == 403

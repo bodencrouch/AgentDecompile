@@ -19,7 +19,12 @@ from agentdecompile_recovery.prompt_loader import PromptLoadError, load_prompts
 
 pytestmark = pytest.mark.unit
 
-_HAS_GCC = shutil.which("gcc") is not None or shutil.which("cc") is not None
+# The loader itself also shells out to `nm` to read symbols back out of the
+# object file it just built, so both tools need to be present offline.
+_HAS_GCC = (
+    (shutil.which("gcc") is not None or shutil.which("cc") is not None)
+    and shutil.which("nm") is not None
+)
 
 
 def _compile(tmp_path: Path, function_name: str) -> Path:
@@ -61,7 +66,7 @@ def _write_prompt_dir(prompts_dir: Path, dir_name: str, *, function_name: str, t
     return prompt_dir
 
 
-@pytest.mark.skipif(not _HAS_GCC, reason="requires a system C compiler")
+@pytest.mark.skipif(not _HAS_GCC, reason="requires a system C compiler and nm")
 def test_loads_a_valid_prompt_folder(tmp_path: Path):
     obj_path = _compile(tmp_path, "target_func")
     prompts_dir = tmp_path / "prompts"
@@ -112,7 +117,7 @@ def test_reports_missing_target_object_file(tmp_path: Path):
     assert "Target object file not found" in str(errors[0])
 
 
-@pytest.mark.skipif(not _HAS_GCC, reason="requires a system C compiler")
+@pytest.mark.skipif(not _HAS_GCC, reason="requires a system C compiler and nm")
 def test_reports_function_not_found_in_object_file(tmp_path: Path):
     obj_path = _compile(tmp_path, "actual_func")
     prompts_dir = tmp_path / "prompts"
@@ -144,7 +149,7 @@ def test_accepts_mach_o_underscore_prefixed_symbol(tmp_path: Path, monkeypatch: 
     assert prompts[0].function_name == "target_func"
 
 
-@pytest.mark.skipif(not _HAS_GCC, reason="requires a system C compiler")
+@pytest.mark.skipif(not _HAS_GCC, reason="requires a system C compiler and nm")
 def test_loads_multiple_prompts_and_collects_errors_independently(tmp_path: Path):
     obj_path = _compile(tmp_path, "good_func")
     prompts_dir = tmp_path / "prompts"
@@ -160,7 +165,7 @@ def test_loads_multiple_prompts_and_collects_errors_independently(tmp_path: Path
     assert errors[0].prompt_path == "bad"
 
 
-@pytest.mark.skipif(not _HAS_GCC, reason="requires a system C compiler")
+@pytest.mark.skipif(not _HAS_GCC, reason="requires a system C compiler and nm")
 def test_runs_nm_once_for_prompt_folders_sharing_an_object_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     obj_path = _compile(tmp_path, "shared_func")
     prompts_dir = tmp_path / "prompts"
@@ -175,7 +180,7 @@ def test_runs_nm_once_for_prompt_folders_sharing_an_object_file(tmp_path: Path, 
     assert nm_calls == [["nm", str(obj_path)]]
 
 
-@pytest.mark.skipif(not _HAS_GCC, reason="requires a system C compiler")
+@pytest.mark.skipif(not _HAS_GCC, reason="requires a system C compiler and nm")
 def test_runs_nm_once_per_distinct_object_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     first_obj = _compile(tmp_path, "first_func")
     second_obj = _compile(tmp_path, "second_func")
@@ -192,7 +197,7 @@ def test_runs_nm_once_per_distinct_object_file(tmp_path: Path, monkeypatch: pyte
     assert sorted(call[1] for call in nm_calls) == sorted([str(first_obj), str(second_obj)])
 
 
-@pytest.mark.skipif(not _HAS_GCC, reason="requires a system C compiler")
+@pytest.mark.skipif(not _HAS_GCC, reason="requires a system C compiler and nm")
 def test_symbols_are_reread_when_the_object_file_is_rebuilt_between_calls(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     """Campaigns recompile object files between loads, so no cache may outlive one call."""
     shared_obj = tmp_path / "shared.o"

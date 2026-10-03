@@ -160,3 +160,50 @@ boundaries, then rechecked against current source. Memory references:
 `MEMORY.md:274-277` and
 `rollout_summaries/2026-09-28T14-41-47-PiD0-agentdecompile_comprehensive_plan_implementation_review_hand.md:114-130`,
 rollout id `01a0e876-fcbe-7041-af54-f4c9fc9eb102`.
+
+## Fix round 1 — Q25-1 snapshot regression coverage
+
+Status: **READY_TO_COMMIT**. Read `task-25-review.md` and its nonblocking Q25-1
+finding against reviewed source head `f059c0bb7dc3d7f4412eb8e23764f26d48425dfd`.
+The shared checkout had subsequently advanced to
+`d966fefcaeef5cc185de4ac6bdaa371a5ab28301`; the two owned paths had no intervening
+diff before this correction. Concurrent changes were preserved. The controller
+alone owns staging and committing this round; neither action was performed here.
+
+Changed `test_scanner_uses_captured_snapshot` to monkeypatch the scanner module's
+`discover_caves` with a wrapper that delegates to the separately retained real
+scanner function. The wrapper asserts that its evidence argument, nested decoder
+and data-reference list are detached from the original caller object, and that
+its input equals the captured synthetic evidence. Immediately before delegation,
+it mutates the caller's decoder revision and adds a data reference inside the
+candidate region. Consuming that changed caller state would eliminate the cave.
+
+The regression source now asserts the wrapper's captured input hash, visible
+caller mutations, complete receipt with the original evidence digest and decoder,
+and retained one-candidate count/content digest, offset, capacity and original
+bytes. The existing independently held **synthetic** receipt verifier additionally
+binds the full captured receipt/result. The fixture remains synthetic acceptance
+plumbing and establishes no actual qualified whole-image producer.
+
+Source-only checks performed:
+
+```text
+Focused regression AST parse: accepted, no project import/execution
+Scanner wrapper final statements:
+caller_evidence['decoder']['revision'] = 'later-caller-state'
+caller_evidence['data_references'].append(8)
+return discover_caves(image, build=build, arch=arch, evidence=scanner_evidence)
+git diff --check -- <two owned paths>: exit 0, no output
+```
+
+Manually reviewed the focused diff and its scanner-call order. No project imports,
+tests, builds, proofs, databases, runtime operations, subagents, production-source
+changes, staging or commits were performed. **The regression was not run**; this
+correction addresses the source-visible coverage weakness only, and no passing
+fixture or successful execution is claimed. Deferred execution and all real
+producer/provider, installed-consumer and runtime gates remain unchanged.
+
+Exact paths ready for controller review/staging:
+
+- `tests/test_corpus_cave_qualification.py`
+- `.superpowers/sdd/2026-09-28-comprehensive-agentdecompile-plan/task-25-report.md`

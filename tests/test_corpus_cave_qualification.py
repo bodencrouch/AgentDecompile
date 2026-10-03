@@ -219,15 +219,39 @@ def test_callback_mutation_and_failure_are_distinct(synthetic_observation):
     assert pack["cave_discovery"][0]["reason"] == "independent_cave_verifier_unavailable"
 
 
-def test_scanner_uses_captured_snapshot(synthetic_observation):
+def test_scanner_uses_captured_snapshot(synthetic_observation, monkeypatch):
+    """Synthetic scanner-boundary mutation checks captured evidence plumbing."""
     con, evidence, verify, _, _ = synthetic_observation
-    initial_hash = _sha(evidence)
-    def modify_original(receipt):
-        evidence["decoder"]["revision"] = "later-caller-state"
-        return verify(receipt)
-    pack = build_hookpack_v2(con, cave_evidence={"fixture": evidence}, verify_cave_receipt=modify_original)
-    assert pack["cave_discovery"][0]["evidence_sha256"] == initial_hash
-    assert pack["cave_discovery"][0]["decoder"]["revision"] == "1"
+    captured = copy.deepcopy(evidence)
+    initial_hash = _sha(captured)
+    scanner_inputs = []
+    def mutate_before_scan(image, *, build, arch, evidence: dict):
+        scanner_evidence = evidence
+        caller_evidence = submitted["fixture"]
+        assert scanner_evidence is not caller_evidence
+        assert scanner_evidence["decoder"] is not caller_evidence["decoder"]
+        assert scanner_evidence["data_references"] is not caller_evidence["data_references"]
+        assert scanner_evidence == captured
+        scanner_inputs.append(_sha(scanner_evidence))
+        # Mutate the caller immediately before the real scanner consumes its
+        # argument. Scanning this changed caller state would remove the cave.
+        caller_evidence["decoder"]["revision"] = "later-caller-state"
+        caller_evidence["data_references"].append(8)
+        return discover_caves(image, build=build, arch=arch, evidence=scanner_evidence)
+    submitted = {"fixture": evidence}
+    monkeypatch.setattr("agentdecompile_recovery.corpus.cave_discovery.discover_caves", mutate_before_scan)
+    pack = build_hookpack_v2(con, cave_evidence=submitted, verify_cave_receipt=verify)
+    receipt = pack["cave_discovery"][0]
+    assert scanner_inputs == [initial_hash]
+    assert evidence["decoder"]["revision"] == "later-caller-state"
+    assert evidence["data_references"] == [8]
+    assert receipt["status"] == "complete" and receipt["evidence_sha256"] == initial_hash
+    assert receipt["decoder"] == captured["decoder"]
+    assert receipt["candidate_count"] == len(pack["caves"]) == 1
+    assert receipt["candidates_sha256"] == _sha(pack["caves"])
+    cave = pack["caves"][0]
+    assert cave["offset"] == 4 and cave["capacity"] == 16
+    assert cave["original_bytes"] == "90" * 16
 
 
 def _nested(depth):

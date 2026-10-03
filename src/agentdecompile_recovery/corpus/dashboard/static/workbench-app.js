@@ -1892,6 +1892,72 @@
     </section>`;
   }
 
+  /* Static publish-approval panel (U29/R50). Reads the gate state from
+     GET publish-status and records an explicit operator approval through
+     POST publish-approve. No other publish behavior and no other network
+     calls live here: the Approve control stays disabled until the gate
+     reports "approvable", a confirm step is always interposed, and once
+     approved the panel shows exactly the backend's returned label instead
+     of inventing its own "published" wording. */
+  function PublishApprovalPanel() {
+    const [data, setData] = useState(null);
+    const [error, setError] = useState("");
+    const [confirmOpen, setConfirmOpen] = useState(false);
+    const [busy, setBusy] = useState(false);
+    const [approveError, setApproveError] = useState("");
+    const [revision, setRevision] = useState(0);
+    useEffect(function () {
+      const controller = new AbortController();
+      let alive = true;
+      setData(null); setError("");
+      fetch("/dashboard/api/workbench/publish-status", {cache: "no-store", signal: controller.signal})
+        .then(function (response) { return response.json().then(function (body) { return {ok: response.ok, body: body}; }); })
+        .then(function (result) { if (alive) { if (!result.body.ok) setError(result.body.error || "Publish status unavailable"); else setData(result.body); } })
+        .catch(function (err) { if (alive && err.name !== "AbortError") setError(String(err.message || err)); });
+      return function () { alive = false; controller.abort(); };
+    }, [revision]);
+    function doApprove() {
+      setBusy(true); setApproveError("");
+      fetch("/dashboard/api/workbench/publish-approve", {
+        method: "POST", cache: "no-store", headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({confirm: true}),
+      })
+        .then(function (response) { return response.json().then(function (body) { return {ok: response.ok, body: body}; }); })
+        .then(function (result) {
+          setBusy(false); setConfirmOpen(false);
+          if (!result.body.ok) setApproveError(result.body.error || "Approval refused");
+          else setRevision(function (n) { return n + 1; });
+        })
+        .catch(function (err) { setBusy(false); setApproveError(String(err.message || err)); });
+    }
+    const status = data && data.status;
+    const blocked = status === "blocked";
+    const approvable = status === "approvable";
+    const approved = status === "approved_unsent";
+    const gate = (data && data.gate) || null;
+    const blockedIds = (gate && gate.blockedBinaryIds) || [];
+    const blockedDetail = (gate && gate.blockedDetail) || {};
+    const statusText = blocked ? "Blocked" : approvable ? "Approvable" : approved ? "Approved (not sent)" : String(status || "Unknown");
+    return html`<section aria-label="Publish approval" className="wb-publish-approval">
+      <h3>Publish approval</h3>
+      <p className="wb-hint">Explicit operator step (R50). Approving here never sends anything anywhere; delivery is separate, deferred work.</p>
+      ${error ? html`<p className="wb-dialog-error">${error}</p>` : !data ? html`<p role="status">Reading publish status…</p>` : html`<div>
+        <p data-publish-status=${status}>Status: ${statusText}</p>
+        ${blocked ? html`<div className="wb-dialog-error">
+          <p>Count-reconciliation gate is blocking publish for: ${blockedIds.join(", ") || "unknown binaries"}.</p>
+          <ul>${blockedIds.map(function (id) { const detail = blockedDetail[String(id)]; return html`<li key=${id}>${id}: ${Array.isArray(detail) ? detail.join("; ") : JSON.stringify(detail)}</li>`; })}</ul>
+        </div>` : null}
+        ${approved ? html`<p className="wb-publish-approved" role="status">${data.label || "Approved. Publishing is not connected yet."}</p>` : null}
+        <p><button type="button" className="wb-btn wb-btn-primary" disabled=${!approvable || busy}
+          onClick=${function () { setConfirmOpen(true); }}>Approve</button></p>
+        ${approveError ? html`<p className="wb-dialog-error">${approveError}</p>` : null}
+      </div>`}
+      <${ConfirmDialog} open=${confirmOpen} title="Approve publishing"
+        message="This records an explicit operator approval. It does not publish anywhere; outbound delivery is not connected yet."
+        confirmLabel="Approve" onConfirm=${doApprove} onCancel=${function () { setConfirmOpen(false); }} />
+    </section>`;
+  }
+
   /* CodeBrowser providers backed by the four ghidra_db readers this unit
      added (Equates, Relocations, Bookmarks, Defined Strings). Every one of
      these is a read-only view (R11): there is no edit control here, and
@@ -6311,6 +6377,7 @@
         )}>
           ${quickBar("report")}
           <${ReportReact} report=${corpusStatus && corpusStatus.report} />
+          <${PublishApprovalPanel} />
         </${Surface}>`;
       }
       if (tab === "wb-pipeline") {

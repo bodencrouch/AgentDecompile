@@ -1127,10 +1127,13 @@ def _render_execute_script(data: dict[str, Any]) -> str:
     """Render execute-script response: status, combined stdout/stderr, and return value as code blocks."""
     logger.debug("diag.enter %s", "mcp_server/response_formatter.py:_render_execute_script")
     lines: list[str] = []
-    lines.append(_md_heading(2, "Script Execution Result"))
+    success = data.get("success", True)
+    lines.append(_md_heading(2, "Script Execution Result" if success else "Error"))
     lines.append("")
 
-    success = data.get("success", True)
+    if not success:
+        error = data.get("error") or next((line.strip() for line in reversed(str(data.get("stderr", "")).splitlines()) if line.strip()), "Script failed without an error message")
+        lines.extend([f"> **{error}**", ""])
     lines.append(_md_bold_kv("Status", "Success" if success else "Error"))
 
     error_text = data.get("error")
@@ -3507,6 +3510,8 @@ def render_tool_response(normalized_tool_name: str, data: dict[str, Any]) -> str
     # Modification conflicts get their own renderer (udiff + nextStep)
     if data.get("modificationConflict") is True or (data.get("success") is False and data.get("conflictId")):
         body = _render_conflict(data)
+    elif data.get("success") is False and normalized_tool_name == "executescript":
+        body = _render_execute_script(data)
     elif data.get("success") is False:
         body = _render_error(data)
     else:

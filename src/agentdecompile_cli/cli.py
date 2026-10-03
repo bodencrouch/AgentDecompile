@@ -803,11 +803,11 @@ def _ensure_count_in_project_file_results(data: dict[str, Any] | Any) -> Any:
 
 
 def _get_error_result_message(data: Any) -> str | None:
-    """If data is a tool error result (success: false, error present), return the error message; else None."""
+    """Return a tool failure's message, including older responses without an error field."""
     logger.debug("diag.enter %s", "cli.py:_get_error_result_message")
     for payload in _iter_tool_result_dicts(data):
-        if payload.get("success") is False and "error" in payload:
-            return str(payload.get("error", "Tool returned an error"))
+        if payload.get("success") is False:
+            return str(payload.get("error") or "Tool reported failure without an error message")
     return None
 
 
@@ -823,15 +823,10 @@ def _markdown_mcp_content_indicates_error(data: dict[str, Any]) -> bool:
         text = item.get("text")
         if not isinstance(text, str):
             continue
-        if "## Modification conflict" in text:
-            return True
-        if "## Error" not in text:
-            continue
-        # response_formatter: ## Error then blockquote line "> **...**"
-        if "\n> **" in text or "\n\n> **" in text:
-            return True
+        # Only inspect the response heading. A successful script can print
+        # error-shaped text inside its captured-output code block.
         stripped = text.lstrip()
-        if stripped.startswith("## Error\n") or stripped.startswith("## Error\r\n"):
+        if stripped.startswith(("## Error\n", "## Error\r\n", "## Modification conflict\n", "## Modification conflict\r\n")):
             return True
     return False
 
@@ -850,6 +845,15 @@ def _tool_seq_step_succeeded(data: Any) -> bool:
     if _markdown_mcp_content_indicates_error(data):
         return False
     return True
+
+
+def _exit_on_tool_failure(data: Any) -> None:
+    """Apply the sequence failure rules after a direct command has displayed its result."""
+    if not _tool_seq_step_succeeded(data):
+        message = _get_error_result_message(data)
+        if message is not None:
+            click.echo(message, err=True)
+        sys.exit(1)
 
 
 def _is_no_program_loaded_error(data: Any) -> bool:
@@ -1287,16 +1291,11 @@ async def _call(ctx: click.Context, tool: str | Tool, /, **kwargs: Any) -> None:
 
     result: Any = await _call_raw(ctx, tool, payload)
 
-    # data is already a dict from AgentDecompileMcpClient._extract_result()
-    err_msg: str | None = _get_error_result_message(result)
-    if err_msg is not None:
-        click.echo(err_msg, err=True)
-        sys.exit(1)
-
     if tool == "list_project_files":
         result = _ensure_count_in_project_file_results(result)
 
     click.echo(_render_result(ctx, result))
+    _exit_on_tool_failure(result)
 
 
 _CLI_SESSION_OBSERVATION: ContextVar[bool] = ContextVar("cli_session_observation", default=False)
@@ -2488,6 +2487,12 @@ def _create_dynamic_commands(cli_group: click.Group) -> None:
                 "Pass --work_dir PATH for recovery-run status; this inspects that explicit workspace. "
                 "The MCP status tool itself requires workDir."
             )
+        elif tool_name == Tool.EXECUTE_SCRIPT.value:
+            command_help = (
+                "Execute Python/Ghidra code on the server. Output is captured until the script completes. "
+                "The compatibility --timeout parameter is not enforced; bound individual operations inside the script. "
+                "A client wait limit does not terminate in-flight server work."
+            )
 
         # Create parameter options for this tool
         def tool_command(_tool_name: str = tool_name, **kwargs: Any) -> None:
@@ -2552,7 +2557,11 @@ def _create_dynamic_commands(cli_group: click.Group) -> None:
                 snake_param,
                 type=option_type,
                 required=required,
-                help=f"{snake_param} parameter",
+                help=(
+                    "Compatibility parameter only; not enforced for in-process scripts."
+                    if tool_name == Tool.EXECUTE_SCRIPT.value and param == "timeout"
+                    else f"{snake_param} parameter"
+                ),
             )(tool_command)
 
         command_name = tool_name
@@ -5276,7 +5285,11 @@ main.add_command(main.commands["svr-admin"], "svrAdmin")
 
 @main.command(
     "eval",
-    help=("Execute Ghidra/PyGhidra API code on the server. The full Ghidra API is available (currentProgram, flatApi, toAddr, …). Example: eval -b /myapp 'currentProgram.getName()'"),
+    help=(
+        "Execute Ghidra/PyGhidra API code on the server. The full Ghidra API is available (currentProgram, flatApi, toAddr, …). "
+        "Output is captured until the script completes. A client wait limit does not terminate in-flight server work. "
+        "Example: eval -b /myapp 'currentProgram.getName()'"
+    ),
 )
 @click.argument("code")
 @click.option(
@@ -5290,7 +5303,7 @@ main.add_command(main.commands["svr-admin"], "svrAdmin")
     type=int,
     default=30,
     show_default=True,
-    help="Max execution time in seconds",
+    help="Compatibility parameter only; not enforced for in-process scripts. Bound individual operations inside the script.",
 )
 @click.pass_context
 def eval_cmd(ctx: click.Context, code: str, program_path: str | None, timeout: int) -> None:
@@ -5409,10 +5422,6 @@ def tool_cmd(
     async def _run() -> None:
         prepared_payload, inferred_program = _prepare_tool_payload_with_program_fallback(ctx, name, payload)
         data = await _call_raw(ctx, name, prepared_payload, allow_connection_status=not any(value is None for value in payload.values()))
-        err_msg = _get_error_result_message(data)
-        if err_msg is not None:
-            click.echo(err_msg, err=True)
-            sys.exit(1)
         display_data = _inject_inferred_program(data, inferred_program)
 
         if isinstance(display_data, dict):
@@ -5427,9 +5436,11 @@ def tool_cmd(
                             break
             if nested_json is not None:
                 click.echo(format_output(nested_json, _fmt(ctx) if _wants_tool_data(ctx) else "json"))
+                _exit_on_tool_failure(data)
                 return
 
         click.echo(format_output(display_data, _fmt(ctx)))
+        _exit_on_tool_failure(data)
 
     _run_async(_run())
 

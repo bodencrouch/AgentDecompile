@@ -281,7 +281,7 @@ def _public_run(row: dict[str, Any], *, detailed: bool = True, live_jobs: list[A
         'updatedAt', 'workflowVersion', 'queuePriority', 'priorityReason',
         'queuePosition', 'budgetSeconds', 'budgetOrigin', 'deadline', 'error',
         'jobId', 'admissionPending', 'executionLocator',
-        'executionProgramPaths', 'stages',
+        'executionProgramPaths', 'stages', 'currentStage',
     }
     result = {key: row[key] for key in fields if key in row}
     result['stages'] = []

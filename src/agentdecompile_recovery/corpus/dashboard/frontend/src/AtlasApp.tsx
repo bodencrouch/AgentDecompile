@@ -213,10 +213,11 @@ export function AtlasApp() {
   const selectionRef = useRef<Selection>(emptySelection);
   // The active project is distinct from a transient URL/session update. It is
   // the authority for the one-project-at-a-time guard.
-  const activeProjectRef = useRef("");
+  // null permits initial session restoration; "" means the project was left.
+  const activeProjectRef = useRef<string | null>(null);
   loadedRef.current = loaded;
   selectionRef.current = selection;
-  if (!activeProjectRef.current && selection.locator) activeProjectRef.current = selection.locator;
+  if (activeProjectRef.current === null && selection.locator) activeProjectRef.current = selection.locator;
   const [dialog, setDialog] = useState<
       "open" | "create" | "copy" | "connection" | "import" | null
     >(null),
@@ -252,12 +253,14 @@ export function AtlasApp() {
   );
   const refresh = useCallback(() => setRevision((v) => v + 1), []);
   const [clientSessions, setClientSessions] = useState<Data>(() => loadClientSessions());
+  const sessionSaveSequence = useRef(0);
   const sessionItems: Data[] = clientSessions.sessions || [];
   const activeSessionId = String(clientSessions.active || "");
   const saveClientSessionState = useCallback((payload: Data) => {
+    const sequence = ++sessionSaveSequence.current;
     setClientSessions(payload);
     return queueSessionSave(payload).then((saved) => {
-      if (saved) setClientSessions(saved);
+      if (saved && sequence === sessionSaveSequence.current) setClientSessions(saved);
       return saved || payload;
     });
   }, []);
@@ -293,7 +296,7 @@ export function AtlasApp() {
       const next = normalizeSelection(patch);
       const savedSessions: Data[] = sessionsRef.current;
       const savedActive = savedSessions.find((item) => item.id === atlasActiveRef.current && !item.hidden && item.locator);
-      const currentLocator = activeProjectRef.current || selectionRef.current.locator || String(savedActive?.locator || "");
+      const currentLocator = activeProjectRef.current ?? (selectionRef.current.locator || String(savedActive?.locator || ""));
       if (!force && currentLocator && next.locator && !projectLocatorsMatch(next.locator, currentLocator)) {
         // A direct deep link is still an attempt to load a different project.
         // Restore the saved project first so the operator can decide whether
@@ -307,6 +310,7 @@ export function AtlasApp() {
             addr: "",
             logicalId: "",
           });
+          activeProjectRef.current = restored.locator;
           setSelection(restored);
           setLoaded(true);
           history.replaceState(null, "", atlasUrl(restored));
@@ -381,7 +385,7 @@ export function AtlasApp() {
   );
   const requestOpen = useCallback((patch: Partial<Selection>) => {
     const next = normalizeSelection(patch);
-    const currentLocator = activeProjectRef.current || selectionRef.current.locator;
+    const currentLocator = activeProjectRef.current ?? selectionRef.current.locator;
     if (currentLocator && next.locator && !projectLocatorsMatch(currentLocator, next.locator)) {
       setPendingProject(next);
       return;
@@ -630,12 +634,14 @@ export function AtlasApp() {
       history.replaceState({...history.state,atlas:{search,offset,recordFilter,scroll}},'',location.href);
       history.pushState({atlas:{search:changed?'':search,offset:changed?0:offset,recordFilter,scroll}},'',url);
     }
+    if (next.locator) activeProjectRef.current = next.locator;
     setSelection(next);
   };
   useEffect(()=>{
     const restore=(event:PopStateEvent)=>{
       const params=new URLSearchParams(location.search);
       const next=normalizeSelection({slug:params.get('slug')||'',program:params.get('program')||'',locator:params.get('locator')||'',addr:params.get('addr')||'',logicalId:params.get('logical_id')||''});
+      if (next.locator || !(next.slug || next.program)) activeProjectRef.current = next.locator;
       setSelection(next);setLoaded(Boolean(next.slug||next.program||next.locator));
       const saved=event.state?.atlas;
       if(saved){setSearch(saved.search||'');setOffset(saved.offset||0);setRecordFilter(saved.recordFilter||'all');requestAnimationFrame(()=>document.querySelector('.atlas-shell')?.scrollTo({top:saved.scroll||0}));}
@@ -653,7 +659,7 @@ export function AtlasApp() {
     const activeItem=items.find(item=>item.id===snapshot.active);
     if(hidden&&activeItem&&canonicalProjectLocator(activeItem.locator)===recordKey){let fallback=next.find(item=>!item.hidden);if(!fallback){fallback={id:crypto.randomUUID(),title:'Untitled',locator:'',imports:[],selection:emptySelection};next.push(fallback);}nextActive=fallback.id;}
     await saveClientSessionState({active:nextActive,sessions:next});
-    if(hidden&&projectLocatorsMatch(selection.locator, record.locator)){setSelection(emptySelection);setLoaded(false);history.replaceState(null,'',atlasUrl());}
+    if(hidden&&projectLocatorsMatch(activeProjectRef.current ?? selectionRef.current.locator, record.locator)){activeProjectRef.current='';setSelection(emptySelection);setLoaded(false);history.replaceState(null,'',atlasUrl());}
     refresh();notify(hidden?'Project removed from workspace. Files and background work remain available.':'Project restored to workspace.','info',{target:record.locator});
   }
   const submitted = (data: Data) => {
@@ -718,6 +724,7 @@ export function AtlasApp() {
     }
   }
   const goHome = () => {
+    activeProjectRef.current = "";
     setLoaded(false);
     setSelection(emptySelection);
     history.replaceState(null, "", atlasUrl());

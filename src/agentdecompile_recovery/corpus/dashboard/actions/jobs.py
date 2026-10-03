@@ -109,6 +109,8 @@ class JobRecord:
     params: dict[str, Any] = field(default_factory=dict)
     history_only: bool = False
     owner_unavailable: bool = False
+    ownership_unresolved: bool = False
+    worker_pid: int | None = None
     history_source: str = ''
     log_state: str = 'available'
     log_reason: str = ''
@@ -135,6 +137,8 @@ class JobRecord:
             }),
             "historyOnly": self.history_only,
             "ownerUnavailable": self.owner_unavailable,
+            "ownershipUnresolved": self.ownership_unresolved,
+            "workerPid": self.worker_pid,
             "historySource": self.history_source,
             "logState": self.log_state if self.log or self.history_only else ('pending' if self.status in {'queued', 'running', 'cancelling'} else 'empty'),
             "logReason": self.log_reason,
@@ -414,6 +418,9 @@ class JobStore:
             time.sleep(POLL_S)
         try:
             cwd = live_root() or Path.cwd()
+            def wait_for_owner(proc: subprocess.Popen[str], output: str) -> None:
+                self._wait_for_process_owner(job_id, proc, output)
+
             if action is not None and action.backend == "preparation":
                 from agentdecompile_recovery.corpus.dashboard.preparation import execute
                 code, log = execute(dict(job.params), cancel)
@@ -451,6 +458,7 @@ class JobStore:
                 resolve_code, resolve_output = _default_executor(
                     [sys.executable, '-m', 'agentdecompile_recovery.corpus.dashboard.source_archive', '--resolve', str(request_path)],
                     workspace, cancel, on_output=archive_progress, timeout_seconds=min(remaining(), 120.0),
+                    on_unresolved=wait_for_owner,
                 )
                 context: dict[str, Any] = {}
                 resolve_pid: int | None = None
@@ -492,6 +500,7 @@ class JobStore:
                         [sys.executable, '-m', 'agentdecompile_recovery.corpus.dashboard.source_archive', '--worker', str(request_path)],
                         workspace, cancel, on_output=archive_progress,
                         timeout_seconds=remaining(),
+                        on_unresolved=wait_for_owner,
                     )
                     result = {}
                     for line in reversed(output.splitlines()):
@@ -505,7 +514,10 @@ class JobStore:
                         if event.get('event') == 'error':
                             result = {'ok': False, 'error': str(event.get('error') or 'Source archive worker failed.')}
                             break
-                    unresolved = '[process did not reach a terminal state; ownership remains unresolved]' in output
+                    unresolved = (
+                        '[process did not reach a terminal state; ownership remains unresolved]' in output
+                        and '[process termination observed; target admission may be released]' not in output
+                    )
                     if unresolved:
                         result = {'ok': False, 'quarantined': True, 'ownershipResolved': False,
                                   'error': 'Source archive worker ownership is unresolved; output is quarantined and must not be published.'}
@@ -543,6 +555,7 @@ class JobStore:
                     code, log = _default_executor(
                         argv, cwd, cancel, on_output=publish_log,
                         unlimited=unlimited_match,
+                        on_unresolved=wait_for_owner,
                     )
                 if action is not None and action.backend == "bsim-cli":
                     from agentdecompile_recovery.corpus.bsim_ops import _bsim_cli_error
@@ -568,8 +581,40 @@ class JobStore:
                 job.finished_at = time.time()
         finally:
             with self._lock:
-                self._release_admission_locked(job_id, identity_key, pair_entry, ghidra_key, worker_acquired)
-                self._persist_locked(self._jobs[job_id], force=True)
+                job = self._jobs[job_id]
+                if job.ownership_unresolved:
+                    # An interrupted monitor is not proof that its child died.
+                    job.status = "cancelling"
+                    job.finished_at = None
+                else:
+                    self._release_admission_locked(job_id, identity_key, pair_entry, ghidra_key, worker_acquired)
+                self._persist_locked(job, force=True)
+
+    def _wait_for_process_owner(self, job_id: str, proc: subprocess.Popen[str], output: str) -> None:
+        """Keep this job's admission until its exact child handle reports exit."""
+        with self._lock:
+            job = self._jobs[job_id]
+            job.ownership_unresolved = True
+            job.worker_pid = proc.pid
+            job.status = "cancelling"
+            job.finished_at = None
+            job.log = output[-MAX_LOG_BYTES:]
+            job.error = "Worker ownership is unresolved; target admission remains held until process exit is observed."
+            self._persist_locked(job, force=True)
+        # Reuse the job thread as a monitor. Retain its worker slot as well as
+        # target locks; unrelated jobs can still use the remaining capacity.
+        # Popen.poll observes this child lifetime, never a newly looked-up PID.
+        while True:
+            try:
+                if proc.poll() is not None:
+                    break
+            except OSError:
+                # A failed observation cannot authorize another writer.
+                pass
+            time.sleep(POLL_S)
+        with self._lock:
+            job.ownership_unresolved = False
+            job.error = ""
 
     def _release_admission_locked(
         self,
@@ -614,6 +659,7 @@ def _copy_job(job: JobRecord) -> JobRecord:
         log=job.log,
         params=dict(job.params),
         history_only=job.history_only, owner_unavailable=job.owner_unavailable,
+        ownership_unresolved=job.ownership_unresolved, worker_pid=job.worker_pid,
         history_source=job.history_source, log_state=job.log_state,
         log_reason=job.log_reason, log_truncated=job.log_truncated,
         work_progress=dict(job.work_progress) if job.work_progress is not None else None,
@@ -638,6 +684,7 @@ def _from_history(payload: dict, *, compact: bool = False) -> JobRecord:
                      started_at=payload.get('startedAt'), finished_at=payload.get('finishedAt'), returncode=payload.get('returncode'),
                      error=error, log=payload.get('log') or '', params=dict(payload.get('params') or {}),
                      history_only=True, owner_unavailable=unavailable, history_source=payload.get('historySource') or 'durable-job-receipt',
+                     ownership_unresolved=bool(payload.get('ownershipUnresolved')), worker_pid=payload.get('workerPid'),
                      log_state=payload.get('logState') or ('available' if payload.get('log') else 'unavailable'),
                      log_reason=payload.get('logReason') or '', log_truncated=bool(payload.get('logTruncated')),
                      work_progress=payload.get('workProgress') if isinstance(payload.get('workProgress'), dict) else (None if compact else _latest_work_progress(payload.get('log') or '')))
@@ -923,6 +970,7 @@ def _default_executor(
     on_output: Callable[[str], None] | None = None,
     timeout_seconds: float | None = None,
     unlimited: bool = False,
+    on_unresolved: Callable[[subprocess.Popen[str], str], None] | None = None,
 ) -> tuple[int, str]:
     """Drain output without blocking cancellation when a child is silent."""
     if not argv:
@@ -931,13 +979,22 @@ def _default_executor(
         stderr=subprocess.STDOUT, text=True, bufsize=1, env=isolated_job_env(argv),
         start_new_session=os.name != "nt")
     lines: queue.Queue[str | None] = queue.Queue(maxsize=1000)
+    output_stopped = threading.Event()
+    def enqueue(line: str | None) -> None:
+        while not output_stopped.is_set():
+            try:
+                lines.put(line, timeout=.1)
+                return
+            except queue.Full:
+                continue
     def read() -> None:
         assert proc.stdout is not None
         try:
-            for line in proc.stdout:
-                lines.put(line)
+            with proc.stdout:
+                for line in proc.stdout:
+                    enqueue(line)
         finally:
-            lines.put(None)
+            enqueue(None)
     threading.Thread(target=read, daemon=True).start()
     log = ""
     configured_timeout = timeout_seconds
@@ -985,9 +1042,11 @@ def _default_executor(
         ):
             # A descendant can retain stdout after the leader exits, and a
             # D-state child cannot be killed until kernel I/O returns. Never
-            # hold the job worker forever waiting for a pipe EOF in either case.
-            if proc.stdout is not None:
-                proc.stdout.close()
+            # wait for pipe EOF before checking process ownership in either case.
+            # The reader owns stdout. Closing its buffered stream here can
+            # block on its read lock while the child is stuck in kernel I/O,
+            # preventing the unresolved-owner handoff below.
+            output_stopped.set()
             break
         try:
             line = lines.get(timeout=.1)
@@ -996,7 +1055,11 @@ def _default_executor(
             # buffered output. Only the pipe EOF sentinel proves it is drained.
             continue
         if line is None:
-            break
+            # EOF only describes the output pipe. A live child still needs
+            # deadline/cancellation handling before any ownership handoff.
+            if proc.poll() is not None:
+                break
+            continue
         log = (log + line)[-MAX_LOG_BYTES:]
         if on_output: on_output(log)
     returncode = proc.poll()
@@ -1006,7 +1069,11 @@ def _default_executor(
         except subprocess.TimeoutExpired:
             returncode = None
     if returncode is None:
-        return 124, log + "\n[process did not reach a terminal state; ownership remains unresolved]\n"
+        log += "\n[process did not reach a terminal state; ownership remains unresolved]\n"
+        if on_unresolved is not None:
+            on_unresolved(proc, log)
+            log += "\n[process termination observed; target admission may be released]\n"
+        return 124, log
     return (124 if timed_out else int(returncode)), log
 
 

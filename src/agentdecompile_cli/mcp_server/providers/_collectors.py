@@ -15,6 +15,8 @@ from collections import deque
 
 from typing import TYPE_CHECKING, Any
 
+from agentdecompile_cli.mcp_utils.datatype_util import data_type_label
+
 if TYPE_CHECKING:
     from collections.abc import Callable
 
@@ -867,8 +869,6 @@ def collect_strings(
             # Fallback to direct iterator access below
 
     # Fallback 1: Try direct DefinedDataIterator access
-    from agentdecompile_cli.mcp_utils.datatype_util import data_type_label
-
     results: list[dict[str, Any]] = []
     try:
         from ghidra.program.util import DefinedDataIterator as GhidraDefinedDataIterator  # pyright: ignore[reportMissingImports,reportMissingModuleSource]

@@ -476,7 +476,7 @@ class LocalAgent:
                     return event
             if self.state == "leaving":
                 self._finish_leave_if_done()
-            return StepEvent("idle", {"reason": "loops-idle"}, next_due_s=min((l.next_due(self.clock()) for l in (self.verifier_loop, self.work_loop) if l is not None), default=0.25))
+            return StepEvent("idle", {"reason": "loops-idle"}, next_due_s=min((loop.next_due(self.clock()) for loop in (self.verifier_loop, self.work_loop) if loop is not None), default=0.25))
 
     def _guarded_tick(self) -> StepEvent:
         """A step that raises is a fault, counted and named in health; after ``max_consecutive_faults``
@@ -595,15 +595,15 @@ class LocalAgent:
             return {**self.status(), "rejoined": True}
 
     def _finish_leave_if_done(self) -> None:
-        loops = [l for l in (self.work_loop, self.verifier_loop) if l is not None]
-        busy = any(l.slots for l in loops)
-        pending = any(l.outbox.depth() for l in loops)
+        loops = [loop for loop in (self.work_loop, self.verifier_loop) if loop is not None]
+        busy = any(loop.slots for loop in loops)
+        pending = any(loop.outbox.depth() for loop in loops)
         expired = self._leave_started is not None and self.clock() - self._leave_started >= self.leave_deadline_s
         if pending and not expired:
             for loop in loops:
                 if loop.outbox.depth():
                     loop.outbox.flush(loop.objects, loop.upstream.objects, loop.upstream.writer, deadline_s=min(5.0, self.leave_deadline_s), key_id=loop.identity.key_id, limiter=loop.limiter)
-            pending = any(l.outbox.depth() for l in loops)
+            pending = any(loop.outbox.depth() for loop in loops)
         if (not busy and not pending) or expired:
             self.close()
 

@@ -227,15 +227,12 @@ def test_overview_has_run_work_and_no_actions_page() -> None:
 
 def test_browse_surfaces_are_workbench_windows_not_a_second_page() -> None:
     """Functions, logical identities, review, graph and builds share one page."""
-    from agentdecompile_recovery.corpus.dashboard.react_api import ASSETS
-
     client = _client()
     landing = client.get("/dashboard/functions", follow_redirects=False)
     assert landing.status_code == 302
     assert landing.headers["location"] == "/dashboard?window=wb-fnbrowse"
     workbench = client.get("/dashboard")
     assert workbench.status_code == 200
-    react_entry = ASSETS / "index.html"
     js = Path(
         "src/agentdecompile_recovery/corpus/dashboard/static/workbench-app.js"
     ).read_text(encoding="utf-8")

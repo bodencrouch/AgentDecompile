@@ -6,7 +6,6 @@ real compiler, linker, assembler or Wine runs.
 
 from __future__ import annotations
 
-import os
 import re
 import stat
 from pathlib import Path

@@ -917,7 +917,6 @@ def match_binaries(
                         "kind": "fuzzy",
                     }
         if new:
-            propagation_dependencies = sorted(mapping)
             grown = record_pairs(
                 results,
                 propagate_call_graph(

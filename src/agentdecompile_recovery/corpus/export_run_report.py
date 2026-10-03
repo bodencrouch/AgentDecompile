@@ -10,6 +10,7 @@ import json
 import time
 from pathlib import Path
 
+from .count_reconciliation import gate_blocks_publish, run_gate_for_all_binaries
 from .ingest_recovered import RECOVERED_FUNCTION_DDL, ensure_recovered_function  # noqa: F401
 from .store import connect
 from .semantic_identity import CLAIM_SCOPE, recorded_export_name
@@ -123,6 +124,11 @@ def build(con) -> dict:
     for row in con.execute("SELECT program, COUNT(*) n, SUM(real_c) real FROM recovered_function GROUP BY program"):
         per_binary[row["program"]] = {"functions": row["n"], "real_c": row["real"] or 0}
 
+    # R49/KTD8: the count-reconciliation gate runs before any publish action (U29)
+    # is enabled. A failing gate blocks publishing entirely; it never just warns.
+    reconciliation = run_gate_for_all_binaries(con)
+    blocked_binaries = [binary_id for binary_id, gate in reconciliation.items() if gate_blocks_publish(gate)]
+
     return {
         "version": 1,
         "timestamp": _iso(now),
@@ -148,6 +154,14 @@ def build(con) -> dict:
             "totalDurationMs": 0,
             "note": (f"{n} stored source records across {len(per_binary)} binaries. {n_real} are classified as real C. This export did not compile source or compare bytes; historical evidence is retained without promoting its claims."),
             "perBinary": per_binary,
+        },
+        "countReconciliation": {
+            "perBinary": reconciliation,
+            "publishGate": "blocked" if blocked_binaries else "open",
+            "blockedBinaryIds": blocked_binaries,
+            "note": ("R49/AE15: exhaustive-accounting gate over each binary's func inventory. "
+                     "A blocked gate names the unreconciled bucket(s) and member count per binary "
+                     "under perBinary[<binary_id>].errors; it never invents a missing count."),
         },
     }
 

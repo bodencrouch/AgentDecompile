@@ -1340,6 +1340,31 @@ async def _connection_session_status(
     return {"content": [{"type": "text", "text": text}], "isError": False}
 
 
+def _incomplete_script_error(code: Any) -> str | None:
+    """Recognize incomplete delimiters without imposing local Python grammar.
+
+    execute-script consumes Python source (not a file path); the server tries
+    eval then exec. Both require closed delimiters and multiline strings.
+    Full local compilation would reject syntax supported by a newer backend.
+    """
+    if not isinstance(code, str):
+        return None
+    import io
+    import tokenize
+
+    try:
+        for _ in tokenize.generate_tokens(io.StringIO(code).readline):
+            pass
+    except tokenize.TokenError as exc:
+        message, location = exc.args
+        if message in {"EOF in multi-line statement", "unexpected EOF in multi-line statement", "EOF in multi-line string"}:
+            return f"SyntaxError: {message} (script line {location[0]})"
+    except (SyntaxError, IndentationError):
+        # Version-specific grammar/indentation remains the backend's decision.
+        pass
+    return None
+
+
 async def _call_raw(
     ctx: click.Context,
     tool: str,
@@ -1367,6 +1392,13 @@ async def _call_raw(
     call_tool_name, safe_payload = _resolve_tool_call_target(tool, payload)
     if allow_connection_status and call_tool_name == Tool.STATUS.value and all(normalize_identifier(key) == normalize_identifier(RESPONSE_FORMAT_PARAM) for key in safe_payload):
         return await _connection_session_status(ctx, safe_payload, client_override)
+
+    # Reject incomplete source before expensive connection/program resolution.
+    # Other syntax stays authoritative on the server's Python version.
+    if call_tool_name == Tool.EXECUTE_SCRIPT.value:
+        error = _incomplete_script_error(safe_payload.get("code"))
+        if error:
+            return {"success": False, "error": error, "state": "invalid-script", "validatedBy": "cli-tokenizer", "serverCalled": False}
 
     # Rendering travels as responseFormat (markdown, or json for -f json/xml/table).
     # `format` belongs to tools (get-data hex/ascii/both, export c/cpp/sarif,

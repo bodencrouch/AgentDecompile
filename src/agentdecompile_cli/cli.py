@@ -1438,8 +1438,9 @@ async def _call_tool_locally(
     backend = _get_local_backend(ctx)
     try:
         with _scoped_shared_server_env(ctx):
-            await backend.initialize()
-            return await backend.call_tool(call_tool_name, payload)
+            load_programs = not _CLI_SESSION_OBSERVATION.get()
+            await backend.initialize(load_programs=load_programs)
+            return await backend.call_tool(call_tool_name, payload, load_programs=load_programs)
     except (ImportError, EnvironmentError) as exc:
         click.echo(f"Error (local mode): {exc}", err=True)
         sys.exit(1)

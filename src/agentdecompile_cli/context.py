@@ -150,6 +150,7 @@ class PyGhidraContext:
         wait_for_analysis: bool = False,
         symbols_path: str | Path | None = None,
         sym_file_path: str | Path | None = None,
+        load_programs: bool = True,
     ):
         """Initializes a new Ghidra project context.
 
@@ -174,7 +175,6 @@ class PyGhidraContext:
         self.project: GhidraProject = self._get_or_create_project()
 
         self.programs: dict[str, ProgramInfo] = {}
-        self._init_project_programs()
 
         self.agentdecompile_dir: Path = self.project_path / "agentdecompile" if agentdecompile_dir is None else Path(agentdecompile_dir)
 
@@ -212,6 +212,9 @@ class PyGhidraContext:
         self.executor: concurrent.futures.ThreadPoolExecutor | None = concurrent.futures.ThreadPoolExecutor(max_workers=self.max_workers) if self.threaded else None
         self.import_executor: concurrent.futures.ThreadPoolExecutor | None = concurrent.futures.ThreadPoolExecutor(max_workers=1) if self.threaded else None
         self.wait_for_analysis: bool = bool(wait_for_analysis)
+
+        if load_programs:
+            self._init_project_programs()
 
     def close(self, save: bool = True):
         """Saves changes to all open programs and closes the project."""

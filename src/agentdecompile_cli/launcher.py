@@ -1020,7 +1020,7 @@ class PyGhidraContext:
             name=program.name,
             program=program,
             flat_api=GhidraFlatProgramAPI(program),
-            decompiler=self.setup_decompiler(program),
+            decompiler=None,
             metadata=metadata,
             ghidra_analysis_complete=False,
             file_path=metadata["Executable Location"],

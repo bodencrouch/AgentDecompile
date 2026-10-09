@@ -733,7 +733,12 @@ def _next_steps_strings(data: dict[str, Any]) -> list[str]:
         first: dict[str, Any] = results[0]
         addr = first.get("address", "")
         if addr:
-            steps.append(f"Decompile/disassemble/inspect containing function: `get-function function={addr}`.")
+            steps.append(f"Find code or data that uses this string: `get-references address={addr}`. A string address is data, not a function entry point.")
+        functions = first.get("referencingFunctions") or []
+        if isinstance(functions, list) and functions:
+            steps.append(f"Inspect a known referencing function: `get-function function={functions[0]}`.")
+        else:
+            steps.append("Inspect a function identified by the references, or resolve a symbol-name string with `list-functions query=<symbol_name>` before using `get-function`. String-table names alone do not prove a function exists.")
         steps.append("Try other keywords with `search-strings query=<word>`, or use `list-strings` to browse all strings.")
     else:
         # No results: context-aware suggestions when the user ran a search with a query

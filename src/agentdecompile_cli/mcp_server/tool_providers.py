@@ -758,6 +758,20 @@ def resolve_domain_program_path(program: Any, fallback_path: str | None) -> str 
     return fallback_path
 
 
+def uses_existing_string_listing(norm_tool_name: str, norm_args: dict[str, Any]) -> bool:
+    """Keep string inspection from implicitly starting analysis before dispatch."""
+    if norm_tool_name == "liststrings":
+        return True  # This handler always forces list mode.
+    if norm_tool_name != "managestrings":
+        return False
+    selectors = set(MODE_PARAM_PRECEDENCE)
+    selectors.update(key for key, targets in TOOL_PARAM_ALIASES.get(norm_tool_name, {}).items() if "mode" in targets)
+    read_modes = {"", "list", "search", "regex", "count", "similarity"}
+    # Do not exempt mutations or conflicting/unknown selectors before provider
+    # aliases are applied. Explicit analyze-program keeps its existing lifecycle.
+    return all(n(str(value)) in read_modes for key, value in norm_args.items() if key in selectors and value is not None)
+
+
 def analysis_skipped_warning(program: Any, program_info: Any, program_path: str | None) -> str | None:
     """One-line warning when the gate let a tool run past a recorded analysis failure.
 
@@ -2880,6 +2894,7 @@ class ToolProviderManager:
             effective_program_info is not None
             and effective_program_info.program is not None
             and not analysis_gate_exempt_tool(norm_name)
+            and not uses_existing_string_listing(norm_name, norm_args)
             and not norm_args.get("autoprereqinvocation")
         ):
             from agentdecompile_cli.mcp_utils.program_analysis import wait_for_program_analysis_ready

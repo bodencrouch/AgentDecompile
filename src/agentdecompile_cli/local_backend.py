@@ -132,7 +132,15 @@ class LocalToolBackend:
             return
 
         # Run the blocking initialisation in a thread so it doesn't block the event loop.
-        await asyncio.get_event_loop().run_in_executor(None, self._do_initialize, load_programs)
+        try:
+            await asyncio.get_event_loop().run_in_executor(None, self._do_initialize, load_programs)
+        except Exception as exc:
+            from agentdecompile_cli.storage_diagnostics import storage_failure_message
+
+            message = storage_failure_message(exc, self._project_path)
+            if message is not None:
+                raise RuntimeError(message) from exc
+            raise
 
     def _do_initialize(self, load_programs: bool = True) -> None:
         """Blocking initialisation: PyGhidra start + project open + provider registration."""
@@ -276,11 +284,28 @@ class LocalToolBackend:
             result: list[types.TextContent] = await self._tool_manager.call_tool(name, dict(arguments or {}))
         except Exception as exc:
             logger.warning("local_backend call_tool_exc tool=%s exc=%s", name, exc)
-            return _error_response(f"Tool '{name}' raised an exception: {exc}")
+            from agentdecompile_cli.storage_diagnostics import storage_failure_message
+
+            message = storage_failure_message(exc, self._project_path) or str(exc)
+            return _error_response(f"Tool '{name}' raised an exception: {message}")
         finally:
             CURRENT_MCP_SESSION_ID.reset(token)
 
-        return _text_content_to_response(result)
+        response = _text_content_to_response(result)
+        if response["isError"]:
+            from agentdecompile_cli.storage_diagnostics import storage_failure_message
+
+            for item in response["content"]:
+                try:
+                    payload = json.loads(item["text"])
+                except (json.JSONDecodeError, TypeError):
+                    continue
+                if isinstance(payload, dict) and payload.get("success") is False:
+                    message = storage_failure_message(str(payload.get("error", "")), self._project_path)
+                    if message is not None:
+                        payload["error"] = message
+                        item["text"] = json.dumps(payload)
+        return response
 
     async def list_tools(self) -> list[dict[str, Any]]:
         """Return a list of available tools (same keys as MCP tools/list response)."""

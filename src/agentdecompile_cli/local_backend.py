@@ -34,7 +34,7 @@ import time
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from agentdecompile_cli.startup_progress import report_slow_pyghidra_startup
+from agentdecompile_cli.startup_progress import report_slow_local_operation, report_slow_pyghidra_startup
 
 if TYPE_CHECKING:
     from mcp import types
@@ -176,14 +176,15 @@ class LocalToolBackend:
         from agentdecompile_cli.context import PyGhidraContext  # pyright: ignore[reportMissingImports]
 
         self._project_path.mkdir(parents=True, exist_ok=True)
-        self._context = PyGhidraContext(
-            project_name=self._project_name,
-            project_path=str(self._project_path),
-            force_analysis=self._force_analysis,
-            verbose_analysis=self._verbose,
-            threaded=self._threaded,
-            load_programs=load_programs,
-        )
+        with report_slow_local_operation("opening the local project context"):
+            self._context = PyGhidraContext(
+                project_name=self._project_name,
+                project_path=str(self._project_path),
+                force_analysis=self._force_analysis,
+                verbose_analysis=self._verbose,
+                threaded=self._threaded,
+                load_programs=load_programs,
+            )
 
         # --- Import requested input binaries ---
         for binary_path in self._input_paths:
@@ -200,13 +201,14 @@ class LocalToolBackend:
                 sys.stderr.write(f"Warning: import failed for {binary_path}: {exc}\n")
 
         # --- Tool provider manager ---
-        from agentdecompile_cli.mcp_server.resource_providers import ResourceProviderManager  # pyright: ignore[reportMissingImports]
-        from agentdecompile_cli.mcp_server.tool_providers import ToolProviderManager  # pyright: ignore[reportMissingImports]
+        with report_slow_local_operation("loading and registering local tool providers"):
+            from agentdecompile_cli.mcp_server.resource_providers import ResourceProviderManager  # pyright: ignore[reportMissingImports]
+            from agentdecompile_cli.mcp_server.tool_providers import ToolProviderManager  # pyright: ignore[reportMissingImports]
 
-        self._tool_manager = ToolProviderManager()
-        self._tool_manager.register_all_providers()
-        self._resource_manager = ResourceProviderManager()
-        self._resource_manager.set_tool_provider_manager(self._tool_manager)
+            self._tool_manager = ToolProviderManager()
+            self._tool_manager.register_all_providers()
+            self._resource_manager = ResourceProviderManager()
+            self._resource_manager.set_tool_provider_manager(self._tool_manager)
 
         self._seed_open_programs()
         self._programs_loaded = load_programs or bool(self._input_paths)

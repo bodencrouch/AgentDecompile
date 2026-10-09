@@ -71,3 +71,31 @@ def report_slow_pyghidra_startup(interval: float = 10.0) -> Iterator[None]:
     finally:
         stopped.set()
         monitor.join()
+
+
+@contextmanager
+def report_slow_local_operation(operation: str, interval: float = 10.0) -> Iterator[None]:
+    """Report a fixed lifecycle phase without exposing project paths or data."""
+    started = time.monotonic()
+    stopped = threading.Event()
+
+    def report() -> None:
+        while not stopped.wait(interval):
+            try:
+                elapsed = time.monotonic() - started
+                sys.stderr.write(f"Local startup: {elapsed:.0f}s elapsed; {operation}.\n")
+                sys.stderr.flush()
+            except Exception:
+                return
+
+    monitor = threading.Thread(target=report, name="agentdecompile-local-operation-progress", daemon=True)
+    try:
+        monitor.start()
+    except RuntimeError:
+        yield
+        return
+    try:
+        yield
+    finally:
+        stopped.set()
+        monitor.join()

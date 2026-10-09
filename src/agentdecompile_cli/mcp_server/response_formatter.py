@@ -731,9 +731,13 @@ def _next_steps_strings(data: dict[str, Any]) -> list[str]:
         steps.append("Use `list-strings` to see actual string values.")
     elif results:
         first: dict[str, Any] = results[0]
-        addr = first.get("address", "")
-        if addr:
-            steps.append(f"Decompile/disassemble/inspect containing function: `get-function function={addr}`.")
+        # String storage addresses, including table spaces, do not identify functions.
+        functions = first.get("referencingFunctions") or [ref.get("function") for ref in first.get("referencesTo") or []]
+        function_name = next((name for name in functions if name), None)
+        if function_name:
+            steps.append(f"Inspect a referencing function: `get-function function={function_name}`.")
+        else:
+            steps.append("Resolve the string's references or symbol name to a function before requesting function details.")
         steps.append("Try other keywords with `search-strings query=<word>`, or use `list-strings` to browse all strings.")
     else:
         # No results: context-aware suggestions when the user ran a search with a query

@@ -65,7 +65,7 @@ class MemoryToolProvider(ToolProvider):
         return [
             types.Tool(
                 name=Tool.INSPECT_MEMORY.value,
-                description="Look at how the binary's memory is divided up and what data it contains. Use this to find segments like '.text' (code) or '.data' (global variables), or to read chunks of raw bytes to inspect what's inside.",
+                description="Inspect existing memory and listing entries without starting auto-analysis. Use mode=read for raw bytes, blocks for memory sections, or data_at for existing typed data. Call analyze-program explicitly when fresh analysis is needed.",
                 inputSchema={
                     "type": "object",
                     "properties": {
@@ -88,7 +88,7 @@ class MemoryToolProvider(ToolProvider):
             ),
             types.Tool(
                 name=Tool.READ_BYTES.value,
-                description="Easier shortcut for 'inspect-memory mode=read'. Directly reads raw binary bytes starting from a memory address.",
+                description="Shortcut for 'inspect-memory mode=read'. Reads existing raw bytes at an address without starting auto-analysis.",
                 inputSchema={
                     "type": "object",
                     "properties": {

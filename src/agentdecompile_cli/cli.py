@@ -2526,6 +2526,12 @@ def _create_dynamic_commands(cli_group: click.Group) -> None:
                 "The compatibility --timeout parameter is not enforced; bound individual operations inside the script. "
                 "A client wait limit does not terminate in-flight server work."
             )
+        elif tool_name in {Tool.INSPECT_MEMORY.value, Tool.READ_BYTES.value}:
+            command_help += (
+                " Reads existing memory/listing entries without starting auto-analysis. "
+                "Use inspect-memory --mode read --address ADDRESS --length N for raw bytes; "
+                "run analyze explicitly when fresh analysis is needed."
+            )
 
         # Create parameter options for this tool
         def tool_command(_tool_name: str = tool_name, **kwargs: Any) -> None:
@@ -4043,13 +4049,13 @@ def migrate_metadata(
 # ---------------------------------------------------------------------------
 
 
-@main.group("memory", help="Inspect memory (inspect-memory): blocks, read, data_at, data_items, segments")
+@main.group("memory", help="Inspect existing memory without auto-analysis: blocks, read, data_at, data_items, segments")
 def memory_grp() -> None:
     logger.debug("diag.enter %s", "cli.py:memory_grp")
     pass
 
 
-@memory_grp.command("run", help="Run inspect-memory with --mode")
+@memory_grp.command("run", help="Inspect existing memory with --mode; run analyze explicitly for fresh analysis")
 @click.option("-b", "--binary", "program_path")
 @click.option(
     "--mode",
@@ -5274,7 +5280,7 @@ def import_cmd(ctx: click.Context, path: str, no_analyze: bool) -> None:
 main.add_command(main.commands["import"], "import-binary")
 
 
-@main.command("read", help="Read bytes at address (inspect-memory mode=read)")
+@main.command("read", help="Read existing bytes without auto-analysis (inspect-memory mode=read)")
 @click.option("-b", "--binary", "program_path")
 @click.argument("address")
 @click.option("-s", "--size", "length", type=int, default=32)

@@ -34,6 +34,8 @@ import time
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from agentdecompile_cli.startup_progress import report_slow_pyghidra_startup
+
 if TYPE_CHECKING:
     from mcp import types
 
@@ -166,7 +168,8 @@ class LocalToolBackend:
 
         logger.info("local_backend init pyghidra start project_path=%s project_name=%s", self._project_path, self._project_name)
         sys.stderr.write("Initializing PyGhidra (local mode)...\n")
-        pyghidra.start(verbose=self._verbose)
+        with report_slow_pyghidra_startup():
+            pyghidra.start(verbose=self._verbose)
         sys.stderr.write("PyGhidra initialized.\n")
 
         # --- Ghidra project ---

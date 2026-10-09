@@ -115,7 +115,17 @@ class GhidraTools:
         logger.debug("diag.enter %s", "tools/wrappers.py:GhidraTools.__init__")
         self.program_info: ProgramInfo = program_info
         self.program: GhidraProgram = program_info.program
-        self.decompiler: GhidraDecompInterface = program_info.get_decompiler()
+        self._decompiler: GhidraDecompInterface | None = None
+
+    @property
+    def decompiler(self) -> GhidraDecompInterface | None:
+        if self._decompiler is None:
+            self._decompiler = self.program_info.get_decompiler()
+        return self._decompiler
+
+    @decompiler.setter
+    def decompiler(self, value: GhidraDecompInterface | None) -> None:
+        self._decompiler = value
 
     def _get_filename(self, func: GhidraFunction) -> str:
         logger.debug("diag.enter %s", "tools/wrappers.py:GhidraTools._get_filename")

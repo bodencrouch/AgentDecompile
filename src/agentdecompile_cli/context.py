@@ -23,8 +23,9 @@ import logging
 import multiprocessing
 import time
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
+from threading import RLock
 from typing import TYPE_CHECKING, Any
 
 from agentdecompile_cli.app_logger import basename_hint
@@ -72,7 +73,7 @@ class ProgramInfo:
     name: str
     program: GhidraProgram
     flat_api: GhidraFlatProgramAPI | None
-    decompiler: GhidraDecompInterface
+    decompiler: GhidraDecompInterface | None
     metadata: dict[str, Any]  # Ghidra program metadata
     ghidra_analysis_complete: bool
     file_path: Path | None = None
@@ -83,6 +84,7 @@ class ProgramInfo:
     domain_object_consumer: Any | None = None
     # Resolved DomainFile for shared checkout / version-control flows (see ProjectToolProvider).
     domain_file: GhidraDomainFile | None = None
+    _decompiler_lock: Any = field(default_factory=RLock, init=False, repr=False, compare=False)
 
     def get_decompiler(self) -> GhidraDecompInterface | None:
         """Return the decompiler, lazily initializing it on first access if needed.
@@ -91,26 +93,27 @@ class ProgramInfo:
         stored as None to save ~15-30 MB of JVM memory per unused program.  The
         first call to ``get_decompiler()`` creates and caches the interface.
         """
-        if self.decompiler is not None:
-            return self.decompiler
-        if self.program is None:
-            return None
-        try:
-            from agentdecompile_cli.mcp_utils.decompiler_util import open_decompiler_for_program
+        with self._decompiler_lock:
+            if self.decompiler is not None:
+                return self.decompiler
+            if self.program is None:
+                return None
+            try:
+                from agentdecompile_cli.mcp_utils.decompiler_util import open_decompiler_for_program
 
-            self.decompiler = open_decompiler_for_program(self.program)
-            logger.info(
-                "lazy_decompiler_init program=%s",
-                self.name or "unknown",
-            )
-        except Exception as exc:
-            logger.warning(
-                "lazy_decompiler_init_failed program=%s exc_type=%s",
-                self.name or "unknown",
-                type(exc).__name__,
-            )
-            return None
-        return self.decompiler
+                self.decompiler = open_decompiler_for_program(self.program)
+                logger.info(
+                    "lazy_decompiler_init program=%s",
+                    self.name or "unknown",
+                )
+            except Exception as exc:
+                logger.warning(
+                    "lazy_decompiler_init_failed program=%s exc_type=%s",
+                    self.name or "unknown",
+                    type(exc).__name__,
+                )
+                return None
+            return self.decompiler
 
     @property
     def analysis_complete(self) -> bool:
@@ -685,7 +688,7 @@ class PyGhidraContext:
             name=program.name,
             program=program,
             flat_api=GhidraFlatProgramAPI(program),
-            decompiler=self.setup_decompiler(program),
+            decompiler=None,
             metadata=metadata,
             ghidra_analysis_complete=False,
             file_path=metadata["Executable Location"],

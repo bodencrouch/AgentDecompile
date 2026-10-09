@@ -3686,6 +3686,7 @@ class ProjectToolProvider(ToolProvider):
         if not source.exists():
             raise ValueError(f"Import path not found: {source}")
 
+        analyze_after_import: bool = self._get_bool(args, "analyzeafterimport", default=True)
         recursive: bool = self._get_bool(args, "recursive", default=source.is_dir())
         res: int | None = self._get_int(args, "maxdepth", default=16)
         max_depth: int = 16 if res is None else res
@@ -3793,7 +3794,8 @@ class ProjectToolProvider(ToolProvider):
                 else:
                     self.set_program_info(program_info)
                 try:
-                    self._blocking_ensure_program_analyzed(program, program_path, program_info)
+                    if analyze_after_import:
+                        self._blocking_ensure_program_analyzed(program, program_path, program_info)
                 finally:
                     # Save the analysis (or whatever part of it ran) into the project file
                     # created above, so a restart does not reopen an unanalyzed copy.
@@ -3916,7 +3918,9 @@ class ProjectToolProvider(ToolProvider):
                 "groupsCreated": 0,
                 "maxDepthUsed": max_depth,
                 "wasRecursive": recursive,
-                "analysisRequested": True,
+                "analysisRequested": analyze_after_import,
+                "success": not errors,
+                **({"error": "; ".join(item["error"] for item in errors)} if errors else {}),
                 "errors": errors,
                 "programDetails": program_details,
                 "projectFiles": project_files_snapshot,

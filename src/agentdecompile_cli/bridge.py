@@ -34,7 +34,7 @@ from typing import TYPE_CHECKING, Any, Callable
 
 from mcp.server.models import InitializationOptions
 
-from httpx import AsyncClient, HTTPStatusError, Timeout
+from httpx import AsyncClient, ConnectError, ConnectTimeout, HTTPStatusError, Timeout
 from mcp.server import Server
 from mcp.server.stdio import stdio_server
 from mcp.shared.message import SessionMessage
@@ -407,8 +407,10 @@ class RawMcpHttpBackend:
         had_session_id = bool(self._session_id)
         try:
             resp = await self._client.post(self._url, json=body, headers=self._headers())
-        except Exception as e:
-            # Retry once with a trailing slash for backends that strictly require it.
+        except (ConnectError, ConnectTimeout) as e:
+            # A connection failure occurs before dispatch. Read/write timeouts and
+            # protocol failures can happen after the server has accepted a tool;
+            # replaying those requests could execute a mutation or script twice.
             logger.debug(
                 "mcp_http_post_retry exc_type=%s retry_trailing_slash=True mcp_method=%s",
                 type(e).__name__,

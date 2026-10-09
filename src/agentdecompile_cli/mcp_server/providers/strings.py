@@ -78,7 +78,7 @@ class StringToolProvider(ToolProvider):
         return [
             types.Tool(
                 name=Tool.MANAGE_STRINGS.value,
-                description="Search, filter, list, create, update, delete, and measure literal text strings embedded in the compiled program's data segments.",
+                description="Search, filter, list, create, update, delete, and measure literal text strings embedded in the compiled program's data segments. Inspection uses the existing listing; call analyze-program explicitly to run analysis first.",
                 inputSchema={
                     "type": "object",
                     "properties": {
@@ -108,7 +108,7 @@ class StringToolProvider(ToolProvider):
             ),
             types.Tool(
                 name=Tool.LIST_STRINGS.value,
-                description="Dump all recognized text strings found in the current program's memory.",
+                description="Dump recognized text strings from the current listing without starting analysis. Call analyze-program explicitly to run analysis first.",
                 inputSchema={
                     "type": "object",
                     "properties": {
@@ -420,8 +420,15 @@ class StringToolProvider(ToolProvider):
 
         return strings
 
-    def _attach_references_to_string_results(self, strings: list[dict[str, Any]], ref_limit: int = 25, *, program_info: ProgramInfo | SimpleNamespace | None) -> None:
-        """Attach referencesTo (get-references style) to each string result."""
+    def _attach_references_to_string_results(
+        self,
+        strings: list[dict[str, Any]],
+        ref_limit: int = 25,
+        *,
+        include_referencing_functions: bool = False,
+        program_info: ProgramInfo | SimpleNamespace | None,
+    ) -> None:
+        """Collect references and optional function names in one bounded pass."""
         logger.debug("diag.enter %s", "mcp_server/providers/strings.py:StringToolProvider._attach_references_to_string_results")
         if not strings or not program_info:
             return
@@ -435,20 +442,44 @@ class StringToolProvider(ToolProvider):
                     if addr is None:
                         continue
                     refs_to: list[dict[str, Any]] = []
-                    for ref in ref_mgr.getReferencesTo(addr):
-                        if len(refs_to) >= ref_limit:
+                    funcs: set[str] = set()
+                    references_failed = False
+                    functions_failed = False
+                    for ref_index, ref in enumerate(ref_mgr.getReferencesTo(addr)):
+                        if ref_index >= ref_limit:
                             break
-                        from_addr = ref.getFromAddress()
-                        func = fm.getFunctionContaining(from_addr)
-                        refs_to.append(
-                            {
-                                "fromAddress": str(from_addr),
-                                "toAddress": str(ref.getToAddress()),
-                                "type": str(ref.getReferenceType()),
-                                "function": func.getName() if func else None,
-                            }
-                        )
-                    s["referencesTo"] = refs_to
+                        if references_failed and (not include_referencing_functions or ref_index >= 20):
+                            break
+                        try:
+                            from_addr = ref.getFromAddress()
+                            func = fm.getFunctionContaining(from_addr)
+                            function_name = func.getName() if func else None
+                        except Exception:
+                            references_failed = True
+                            if ref_index < 20:
+                                functions_failed = True
+                            continue
+                        # Preserve the existing first-20 reference scope for this field.
+                        if include_referencing_functions and ref_index < 20 and function_name is not None:
+                            funcs.add(function_name)
+                        if include_referencing_functions and ref_index == 19 and not functions_failed:
+                            s["referencingFunctions"] = sorted(funcs)
+                        if not references_failed:
+                            try:
+                                refs_to.append(
+                                    {
+                                        "fromAddress": str(from_addr),
+                                        "toAddress": str(ref.getToAddress()),
+                                        "type": str(ref.getReferenceType()),
+                                        "function": function_name,
+                                    }
+                                )
+                            except Exception:
+                                references_failed = True
+                    if not references_failed:
+                        s["referencesTo"] = refs_to
+                    if include_referencing_functions and not functions_failed:
+                        s["referencingFunctions"] = sorted(funcs)
                 except Exception:
                     pass
         except Exception:
@@ -580,7 +611,7 @@ class StringToolProvider(ToolProvider):
                     strings = [s for s in strings if pat.search(s.get("value", ""))]
                     total = len(strings)
                     strings, has_more = self._paginate_results(strings, offset, max_results)
-                    self._attach_references_to_string_results(strings, program_info=program_info)
+                    self._attach_references_to_string_results(strings, include_referencing_functions=include_refs, program_info=program_info)
                     return self._create_paginated_response(strings, offset, max_results, total=total, mode=mode, query=pattern)
                 except re.error:
                     pass
@@ -601,7 +632,7 @@ class StringToolProvider(ToolProvider):
             total = len(scored)
             strings = [s for _, s in scored]
             strings, has_more = self._paginate_results(strings, offset, max_results)
-            self._attach_references_to_string_results(strings, program_info=program_info)
+            self._attach_references_to_string_results(strings, include_referencing_functions=include_refs, program_info=program_info)
             return self._create_paginated_response(strings, offset, max_results, total=total, mode=mode, query=pattern)
 
         if mode_n == "regex" and pattern:
@@ -619,30 +650,7 @@ class StringToolProvider(ToolProvider):
 
         strings, has_more = self._paginate_results(strings, offset, max_results)
 
-        if include_refs and program_info:
-            try:
-                program: Any = program_info.program
-                ref_mgr: Any = program.getReferenceManager()
-                fm = self._get_function_manager(program, program_info=program_info)
-                for s in strings:
-                    try:
-                        addr: Any = self._resolve_address(s["address"], program=program, program_info=program_info)
-                        funcs = set()
-                        ref_count = 0
-                        for ref in ref_mgr.getReferencesTo(addr):
-                            if ref_count >= 20:
-                                break
-                            ref_count += 1
-                            f = fm.getFunctionContaining(ref.getFromAddress())
-                            if f:
-                                funcs.add(f.getName())
-                        s["referencingFunctions"] = sorted(funcs)
-                    except Exception:
-                        pass
-            except Exception:
-                pass
-
-        self._attach_references_to_string_results(strings, program_info=program_info)
+        self._attach_references_to_string_results(strings, include_referencing_functions=include_refs, program_info=program_info)
         extra: dict[str, Any] = {}
         if pattern:
             extra["query"] = pattern

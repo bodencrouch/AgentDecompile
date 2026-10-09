@@ -70,6 +70,8 @@ _ANALYSIS_GATE_EXEMPT_TOOLS: frozenset[str] = frozenset(
         # Memory inspection reads existing bytes/listing entries; analysis is explicit.
         "inspectmemory",
         "readbytes",
+        # Function inventory reads only the currently defined listing.
+        "listfunctions",
         # Version-control lifecycle tools do not require an analyzed listing yet.
         "checkoutprogram",
         "checkinprogram",

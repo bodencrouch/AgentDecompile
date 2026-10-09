@@ -65,7 +65,7 @@ class FunctionToolProvider(ToolProvider):
         return [
             types.Tool(
                 name="list-functions",
-                description="List functions in the current program with optional filtering and pagination.",
+                description="List existing functions and undefined candidates without starting auto-analysis. Results may be incomplete before analyze-program runs; zero matches do not prove absence.",
                 inputSchema={
                     "type": "object",
                     "properties": {
@@ -120,6 +120,16 @@ class FunctionToolProvider(ToolProvider):
         ]
 
     async def _handle_list(self, args: dict[str, Any], *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
+        response = await self._list_existing_functions(args, program_info=program_info)
+        payload = self._response_to_payload(response)
+        payload.update(
+            inventoryScope="existing-listing",
+            analysisTriggered=False,
+            note="This request reads the existing listing without running analysis. Function discovery may be incomplete; zero matches do not prove absence. Run analyze-program explicitly when discovery is required.",
+        )
+        return create_success_response(payload)
+
+    async def _list_existing_functions(self, args: dict[str, Any], *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
         """List functions in the current program, with optional filtering and pagination.
 
         Modes (``mode``, default ``all``):

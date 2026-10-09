@@ -1239,6 +1239,10 @@ def _render_list_functions(data: dict[str, Any]) -> str:
     lines.append(_pagination_footer(data))
     lines.append("")
 
+    if data.get("note"):
+        lines.append(str(data["note"]))
+        lines.append("")
+
     results: list[dict[str, Any]] = data.get("results", [])
     if results:
         headers = ["Name", "Address", "Size", "Params", "External", "Thunk"]
@@ -1255,7 +1259,7 @@ def _render_list_functions(data: dict[str, Any]) -> str:
         ]
         lines.append(_md_table(headers, rows))
     else:
-        lines.append("*No functions found matching the criteria.*")
+        lines.append("*No entries in the existing listing match the criteria.*")
 
     return "\n".join(lines)
 

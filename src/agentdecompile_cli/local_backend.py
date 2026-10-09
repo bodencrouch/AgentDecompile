@@ -292,19 +292,25 @@ class LocalToolBackend:
             CURRENT_MCP_SESSION_ID.reset(token)
 
         response = _text_content_to_response(result)
-        if response["isError"]:
-            from agentdecompile_cli.storage_diagnostics import storage_failure_message
+        from agentdecompile_cli.storage_diagnostics import storage_failure_message
 
-            for item in response["content"]:
-                try:
-                    payload = json.loads(item["text"])
-                except (json.JSONDecodeError, TypeError):
-                    continue
-                if isinstance(payload, dict) and payload.get("success") is False:
-                    message = storage_failure_message(str(payload.get("error", "")), self._project_path)
-                    if message is not None:
-                        payload["error"] = message
-                        item["text"] = json.dumps(payload)
+        for item in response["content"]:
+            raw = item["text"]
+            if raw.lstrip().startswith(("## Error\n", "## Error\r\n")):
+                message = storage_failure_message(raw, self._project_path)
+                if message is not None:
+                    item["text"] = message
+                    response["isError"] = True
+                continue
+            try:
+                payload = json.loads(raw)
+            except (json.JSONDecodeError, TypeError):
+                continue
+            if isinstance(payload, dict) and payload.get("success") is False:
+                message = storage_failure_message(str(payload.get("error", "")), self._project_path)
+                if message is not None:
+                    payload["error"] = message
+                    item["text"] = json.dumps(payload)
         return response
 
     async def list_tools(self) -> list[dict[str, Any]]:

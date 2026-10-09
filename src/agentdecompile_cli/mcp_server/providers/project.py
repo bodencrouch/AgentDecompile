@@ -4279,11 +4279,11 @@ class ProjectToolProvider(ToolProvider):
 
     @staticmethod
     def _save_imported_program(ghidra_project: GhidraProject | None, program: GhidraProgram) -> None:
-        """Best-effort save after post-import analysis; never masks the analysis result."""
+        """Require a durable save before reporting an import as successful."""
         try:
             df = program.getDomainFile()
             if df is None or not bool(df.isInWritableProject()):
-                return
+                raise RuntimeError("Imported program has no writable project DomainFile; import is not durable")
             if ghidra_project is not None and hasattr(ghidra_project, "save"):
                 ghidra_project.save(program)
             else:
@@ -4292,6 +4292,7 @@ class ProjectToolProvider(ToolProvider):
                 program.save("AgentDecompile import", GhidraTaskMonitor.DUMMY)
         except Exception as exc:
             logger.warning("import_persist post_analysis_save_failed exc_type=%s exc=%s", type(exc).__name__, exc)
+            raise RuntimeError(f"Imported program could not be saved durably: {exc}") from exc
 
     def _blocking_ensure_program_analyzed(
         self,

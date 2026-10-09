@@ -3661,7 +3661,7 @@ _derive_convenience_commands(
 
 @main.group(
     "list-functions",
-    help="List/search functions (list-functions): all, search, similarity, undefined, count, by_identifiers",
+    help="List/search existing functions without auto-analysis. Results may be incomplete; run analyze-program explicitly for discovery. Modes: all, search, similarity, undefined, count, by_identifiers",
 )
 def list_functions_grp() -> None:
     logger.debug("diag.enter %s", "cli.py:list_functions_grp")

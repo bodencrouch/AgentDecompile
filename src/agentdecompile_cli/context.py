@@ -29,6 +29,7 @@ from threading import RLock
 from typing import TYPE_CHECKING, Any
 
 from agentdecompile_cli.app_logger import basename_hint
+from agentdecompile_cli.startup_progress import report_slow_local_operation
 
 try:
     import chromadb  # pyright: ignore[reportMissingImports, reportMissingModuleSource]
@@ -278,7 +279,8 @@ class PyGhidraContext:
     def _init_project_programs(self):
         """Initializes the programs dictionary with existing programs in the project."""
         logger.debug("diag.enter %s", "context.py:PyGhidraContext._init_project_programs")
-        all_binary_paths: list[str] = self.list_binaries()
+        with report_slow_local_operation("enumerating existing project programs"):
+            all_binary_paths: list[str] = self.list_binaries()
         for binary_path_s in all_binary_paths:
             binary_path_str: str = str(binary_path_s)
             if not binary_path_str.startswith("/"):
@@ -289,11 +291,12 @@ class PyGhidraContext:
                 continue
             binary_path: Path = Path(binary_path_str)
             try:
-                program: GhidraProgram | None = self.project.openProgram(
-                    str(binary_path.parent),
-                    binary_path.name,
-                    False,
-                )
+                with report_slow_local_operation("opening an existing project program"):
+                    program: GhidraProgram | None = self.project.openProgram(
+                        str(binary_path.parent),
+                        binary_path.name,
+                        False,
+                    )
             except Exception as exc:
                 logger.warning(
                     "pyghidra_startup_open_program_exc basename=%s exc_type=%s",
@@ -307,7 +310,8 @@ class PyGhidraContext:
                     basename_hint(binary_path.name),
                 )
                 continue
-            program_info: ProgramInfo | None = self._init_program_info(program)
+            with report_slow_local_operation("initializing an existing project program"):
+                program_info: ProgramInfo | None = self._init_program_info(program)
             if program_info is None:
                 logger.warning(
                     "pyghidra_program_info_init_failed basename=%s",

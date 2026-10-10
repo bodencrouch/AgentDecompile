@@ -25,6 +25,7 @@ to import even when PyGhidra is not installed; it raises ``ImportError`` only wh
 from __future__ import annotations
 
 import asyncio
+import importlib
 import json
 import logging
 import os
@@ -165,6 +166,12 @@ class LocalToolBackend:
                 "GHIDRA_INSTALL_DIR is not set.  Point it to your Ghidra installation directory, e.g.:\n"
                 "  export GHIDRA_INSTALL_DIR=/opt/ghidra-install/ghidra_12.0.4_PUBLIC"
             )
+
+        # Load Python-only transport dependencies before PyGhidra installs its
+        # Java import finder; probing every mcp/uvicorn submodule through that
+        # finder can otherwise dominate startup after the JVM is running.
+        with report_slow_local_operation("loading Python backend dependencies"):
+            importlib.import_module("mcp")
 
         logger.info("local_backend init pyghidra start project_path=%s project_name=%s", self._project_path, self._project_name)
         sys.stderr.write("Initializing PyGhidra (local mode)...\n")

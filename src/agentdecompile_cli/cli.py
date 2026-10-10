@@ -1314,7 +1314,33 @@ async def _connection_session_status(
     """
     token = _CLI_SESSION_OBSERVATION.set(True)
     try:
-        observed = await _call_raw(ctx, Tool.LIST_PROJECT_FILES.value, dict(payload), client_override)
+        # A bare `status` normally uses the in-process backend. If a local MCP
+        # server is already healthy, prefer its existing project/session for
+        # this read-only observation instead of starting a second PyGhidra JVM.
+        # Explicit --local remains authoritative, and an unavailable server
+        # preserves the existing local fallback.
+        opts = _get_opts(ctx)
+        resolution = _resolve_backend_target(ctx)
+        can_reuse_local_server = (
+            client_override is None
+            and _is_local_mode(ctx)
+            and not opts.get("local_mode_requested")
+            and resolution.source in {"implicit_default", "cached_local_server"}
+        )
+        if can_reuse_local_server and await _probe_backend_health(resolution.url):
+            from agentdecompile_cli.bridge import ServerNotRunningError  # noqa: PLC0415
+
+            client = _client(ctx, url_override=resolution.url)
+            try:
+                async with client:
+                    observed = await _call_raw(ctx, Tool.LIST_PROJECT_FILES.value, dict(payload), client)
+            except ServerNotRunningError:
+                # /health is only an HTTP liveness check. If the service is
+                # healthy but does not speak MCP, keep bare status usable via
+                # its normal in-process fallback.
+                observed = await _call_raw(ctx, Tool.LIST_PROJECT_FILES.value, dict(payload), client_override)
+        else:
+            observed = await _call_raw(ctx, Tool.LIST_PROJECT_FILES.value, dict(payload), client_override)
     finally:
         _CLI_SESSION_OBSERVATION.reset(token)
     if not _tool_seq_step_succeeded(observed):

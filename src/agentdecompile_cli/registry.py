@@ -1339,6 +1339,18 @@ def apply_alias_implied_arguments(tool_name: str, arguments: dict[str, Any]) -> 
     ``format`` never counts as a mode selector: it may select a tool-specific
     representation or a legacy rendering format. Rendering uses responseFormat.
     """
+    # Legacy searches retain their domain when forwarded to search-everything.
+    # A match mode (regex/fuzzy) is independent of the domain selector.
+    search_scope = {
+        "searchsymbols": "symbols",
+        "searchstrings": "strings",
+        "searchconstants": "constants",
+        "searchcode": "decompilation",
+    }.get(normalize_identifier(tool_name))
+    if search_scope is not None:
+        scope_keys = {"scopes", "scope", "domains", "sources", "types"}
+        if not any(normalize_identifier(key) in scope_keys and value for key, value in arguments.items()):
+            arguments = {**arguments, "scopes": [search_scope]}
     implied = TOOL_ALIAS_IMPLIED_ARGUMENTS.get(normalize_identifier(tool_name))
     if not implied:
         return dict(arguments)

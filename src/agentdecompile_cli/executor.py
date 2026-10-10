@@ -22,8 +22,6 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 from urllib.parse import urlparse, urlunparse
 
-from mcp import types
-
 from agentdecompile_cli.app_logger import norm_arg_keys
 from agentdecompile_cli.registry import (
     Tool,
@@ -33,6 +31,20 @@ from agentdecompile_cli.registry import (
     resolve_tool_name,
     tool_registry,
 )
+
+if TYPE_CHECKING:
+    from mcp import types
+else:
+
+    class _McpTypesProxy:
+        """Resolve MCP response types only when runtime code needs them."""
+
+        def __getattr__(self, name: str) -> Any:
+            from mcp import types as mcp_types
+
+            return getattr(mcp_types, name)
+
+    types: Any = _McpTypesProxy()
 
 if TYPE_CHECKING:
     from agentdecompile_cli.registry import (

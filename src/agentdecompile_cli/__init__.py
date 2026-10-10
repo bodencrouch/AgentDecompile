@@ -26,36 +26,38 @@ from agentdecompile_cli.env_compat import sync_agentdecompile_env_aliases
 # Keep compact and canonical env prefixes in lockstep for all submodules.
 sync_agentdecompile_env_aliases()
 
-from agentdecompile_cli.bridge import (
-    AgentDecompileMcpClient,
-    ClientError,
-    NotFoundError,
-    ServerNotRunningError,
-)
-from agentdecompile_cli.registry import (
-    RESOURCE_URI_CAPABILITIES,
-    RESOURCE_URI_DEBUG_INFO,
-    RESOURCE_URI_PROGRAMS,
-    RESOURCE_URI_STATIC_ANALYSIS,
-    RESOURCE_URIS,
-    ResourceUri,
-    Tool,
-    ToolName,
-    TOOLS,
-    TOOL_PARAMS,
-    build_tool_payload,
-    get_tool_params,
-    resolve_tool_name_enum,
-    to_camel_case_key,
-)
-from agentdecompile_cli.executor import (
-    get_client,
-    get_server_start_message,
-    handle_command_error,
-    handle_noisy_mcp_errors,
-    run_async,
-    show_connection_error,
-)
+from importlib import import_module
+from typing import Any
+
+# Keep the package facade stable without importing MCP's bridge/server stack for
+# every submodule import. In particular, CLI help and metadata queries should
+# not pay the startup cost of FastMCP, Pydantic, and the bridge transport.
+_EXPORT_MODULES = {
+    "AgentDecompileMcpClient": "bridge",
+    "ClientError": "bridge",
+    "NotFoundError": "bridge",
+    "ServerNotRunningError": "bridge",
+    "RESOURCE_URI_CAPABILITIES": "registry",
+    "RESOURCE_URI_DEBUG_INFO": "registry",
+    "RESOURCE_URI_PROGRAMS": "registry",
+    "RESOURCE_URI_STATIC_ANALYSIS": "registry",
+    "RESOURCE_URIS": "registry",
+    "ResourceUri": "registry",
+    "Tool": "registry",
+    "ToolName": "registry",
+    "TOOLS": "registry",
+    "TOOL_PARAMS": "registry",
+    "build_tool_payload": "registry",
+    "get_tool_params": "registry",
+    "resolve_tool_name_enum": "registry",
+    "to_camel_case_key": "registry",
+    "get_client": "executor",
+    "get_server_start_message": "executor",
+    "handle_command_error": "executor",
+    "handle_noisy_mcp_errors": "executor",
+    "run_async": "executor",
+    "show_connection_error": "executor",
+}
 
 __all__ = [
     "RESOURCE_URIS",
@@ -84,3 +86,17 @@ __all__ = [
     "show_connection_error",
     "to_camel_case_key",
 ]
+
+
+def __getattr__(name: str) -> Any:
+    """Load a public facade export only when the caller requests it."""
+    module_name = _EXPORT_MODULES.get(name)
+    if module_name is None:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    value = getattr(import_module(f"{__name__}.{module_name}"), name)
+    globals()[name] = value
+    return value
+
+
+def __dir__() -> list[str]:
+    return sorted({*globals(), *_EXPORT_MODULES})

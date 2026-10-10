@@ -2894,11 +2894,41 @@ def main(
     backend_cli_explicit: bool = backend_cli_url_explicit or backend_host_explicit or backend_port_explicit
     backend_env_url_set: bool = _env_value(_BACKEND_ENV_URL_KEYS) is not None
     backend_env_host_set: bool = _env_value(_BACKEND_ENV_HOST_KEYS) is not None or _env_value(_BACKEND_ENV_PORT_KEYS) is not None
+    inherited_local_mode: bool = bool(
+        existing_obj.get("local_mode_requested")
+        or (existing_obj.get("local_mode") and not existing_obj.get("auto_local_mode"))
+    )
     # Auto-local mode: if the user did NOT explicitly point us at an MCP backend
     # (via --server-url / --host / --port / env URL/host), the CLI runs entirely
     # in-process via PyGhidra. No HTTP listener is started. --server-url, when
     # provided, is still honoured and forwarded to the remote backend.
     auto_local_mode: bool = not (backend_cli_explicit or backend_env_url_set or backend_env_host_set)
+
+    # `status` can be expensive when it falls through to a cold PyGhidra JVM.
+    # Make the selected source tree and backend policy visible before that
+    # startup begins; this also makes PYTHONPATH-based source overrides
+    # diagnosable without waiting for the backend to initialize.
+    if ctx.invoked_subcommand == "status":
+        source_path = Path(__file__).resolve()
+        if local_mode:
+            local_source = ctx.get_parameter_source("local_mode")
+            if getattr(local_source, "name", None) == "ENVIRONMENT":
+                backend_mode = "in-process PyGhidra selected by AGENTDECOMPILE_LOCAL_MODE"
+            else:
+                backend_mode = "explicit in-process PyGhidra selection (--local)"
+        elif inherited_local_mode:
+            backend_mode = "in-process PyGhidra selected by inherited CLI configuration"
+        elif backend_cli_explicit or backend_env_url_set or backend_env_host_set:
+            backend_mode = "explicit MCP server selection"
+        else:
+            backend_mode = (
+                "automatic local selection (status checks the default MCP server first, "
+                "then falls back to in-process PyGhidra)"
+            )
+        click.echo(
+            f"AgentDecompile CLI source: {source_path}\nBackend selection: {backend_mode}",
+            err=True,
+        )
 
     # --ghidra-server-* flags live in ctx.obj only.  HTTP backends get them as
     # X-Ghidra-Server-* headers (_shared_request_headers); in-process providers

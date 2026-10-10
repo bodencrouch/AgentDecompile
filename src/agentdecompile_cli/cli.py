@@ -1328,9 +1328,17 @@ async def _connection_session_status(
             and resolution.source in {"implicit_default", "cached_local_server"}
         )
         if can_reuse_local_server and await _probe_backend_health(resolution.url):
-            client = _client(ctx)
-            async with client:
-                observed = await _call_raw(ctx, Tool.LIST_PROJECT_FILES.value, dict(payload), client)
+            from agentdecompile_cli.bridge import ServerNotRunningError  # noqa: PLC0415
+
+            client = _client(ctx, url_override=resolution.url)
+            try:
+                async with client:
+                    observed = await _call_raw(ctx, Tool.LIST_PROJECT_FILES.value, dict(payload), client)
+            except ServerNotRunningError:
+                # /health is only an HTTP liveness check. If the service is
+                # healthy but does not speak MCP, keep bare status usable via
+                # its normal in-process fallback.
+                observed = await _call_raw(ctx, Tool.LIST_PROJECT_FILES.value, dict(payload), client_override)
         else:
             observed = await _call_raw(ctx, Tool.LIST_PROJECT_FILES.value, dict(payload), client_override)
     finally:

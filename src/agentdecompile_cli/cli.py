@@ -1438,7 +1438,15 @@ async def _call_tool_locally(
     backend = _get_local_backend(ctx)
     try:
         with _scoped_shared_server_env(ctx):
-            load_programs = not _CLI_SESSION_OBSERVATION.get()
+            # Explicit targets are opened lazily by the manager. Eager loading
+            # every program first makes one-function requests pay the whole
+            # project startup cost, including unrelated program databases.
+            has_program_target = any(
+                normalize_identifier(key) in {"programpath", "binaryname"}
+                and isinstance(value, str) and bool(value.strip())
+                for key, value in payload.items()
+            )
+            load_programs = not _CLI_SESSION_OBSERVATION.get() and not has_program_target
             await backend.initialize(load_programs=load_programs)
             return await backend.call_tool(call_tool_name, payload, load_programs=load_programs)
     except (ImportError, EnvironmentError) as exc:

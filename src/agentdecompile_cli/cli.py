@@ -2695,6 +2695,12 @@ class ForgivingCliGroup(click.Group):
         if unique_matches:
             return next(iter(unique_matches.values()))
 
+        # Common shorthand retains the canonical command options and behavior.
+        if normalized_name == normalize_identifier("decompile"):
+            shorthand = super().get_command(ctx, "decompile-function")
+            if shorthand is not None:
+                return shorthand
+
         canonical_name = tool_registry.resolve_tool_name(cmd_name)
         if canonical_name is None:
             return None

@@ -72,6 +72,8 @@ _ANALYSIS_GATE_EXEMPT_TOOLS: frozenset[str] = frozenset(
         "readbytes",
         # Function inventory reads only the currently defined listing.
         "listfunctions",
+        # Symbol name discovery reads the existing symbol table; analysis is explicit.
+        "searchsymbols",
         # A bounded function decompile must not start unbounded full-image analysis.
         # Resolve existing functions and let Ghidra report missing listing data.
         "decompilefunction",

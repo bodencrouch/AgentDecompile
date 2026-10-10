@@ -48,7 +48,6 @@ from urllib.parse import urlparse
 
 import click
 
-from ghidrecomp.decompile import decompile
 from httpx import AsyncClient, Timeout
 
 from agentdecompile_cli import __version__
@@ -69,7 +68,6 @@ from agentdecompile_cli.cli_agent_help import (
     tool_seq_json_error_message,
 )
 from agentdecompile_cli.cli_param_types import ADVERTISED_PARAM_TYPES
-from agentdecompile_cli.mcp_utils.resource_text import resource_texts
 from agentdecompile_cli.registry import (
     ADVERTISED_TOOLS,
     NON_ADVERTISED_TOOL_ALIASES,
@@ -730,6 +728,8 @@ def _render_result(ctx: click.Context, result: Any) -> str:
 def _extract_text(result: Any) -> str | None:
     """Return the first text value from a resources/read result."""
     logger.debug("diag.enter %s", "cli.py:_extract_text")
+    from agentdecompile_cli.mcp_utils.resource_text import resource_texts
+
     texts = resource_texts(result)
     return texts[0] if texts else None
 
@@ -3143,6 +3143,8 @@ def ghidrecomp_command(
     if sast and not semgrep_rules:
         raise click.UsageError(batch_sast.MISSING_SEMGREP_RULES_MESSAGE.replace("semgrepRules", "--semgrep-rules"))
     started_at = time.time() - 1.0
+    from ghidrecomp.decompile import decompile
+
     run_ghidrecomp(args, decompile)
     if sast and shutil.which("semgrep") is not None:
         sast_dir = batch_sast._resolve_sast_directory(Path(output_path).expanduser().resolve(), Path(bin).expanduser().resolve())

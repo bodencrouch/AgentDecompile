@@ -88,7 +88,7 @@ class DecompilerToolProvider(ToolProvider):
                             ],
                             "description": "Compatibility batch input for one or more function identifiers.",
                         },
-                        "timeout": {"type": "integer", "default": 60, "description": "Maximum time in seconds to wait for the decompiler to finish before aborting."},
+                        "timeout": {"type": "integer", "default": DEFAULT_TIMEOUT_SECONDS, "description": "Maximum time in seconds to wait for the decompiler to finish before aborting."},
                         "showUnreachable": {"type": "boolean", "description": "Include unreachable code in this decompilation without changing shared decompiler settings."},
                         "includeCallees": {"type": "boolean", "default": False, "description": "Include callee function summaries."},
                         "includeStrings": {"type": "boolean", "default": False, "description": "Include referenced string literals when available."},

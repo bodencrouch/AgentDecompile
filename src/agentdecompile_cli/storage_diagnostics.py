@@ -12,6 +12,8 @@ from dataclasses import dataclass
 from pathlib import Path
 
 _QUOTA_VALUE = re.compile(r"^(?P<amount>\d+(?:\.\d+)?)(?P<unit>[KMGTPE]?)(?P<exceeded>\*)?$", re.IGNORECASE)
+_QUOTA_GRACE = re.compile(r"^\d+$")
+_QUOTA_UNLIMITED = {"-", "none", "unlimited"}
 _QUOTA_WARNING_HEADROOM = 0.10
 _QUOTA_STOP_BYTES = 1024**3
 
@@ -62,11 +64,24 @@ def _quota_rows(output: str) -> list[_QuotaRow]:
         mountpoint = device_and_mount[1]
         space_values = [_quota_value(cell, dimension="bytes") for cell in quota_cells[0:3]]
         used, quota, limit = (value for value, _marked in space_values)
-        if used is None:
+        inode_values = [_quota_value(cell, dimension="inodes") for cell in quota_cells[4:7]]
+        if used is None or not _QUOTA_GRACE.fullmatch(quota_cells[3]) or not _QUOTA_GRACE.fullmatch(quota_cells[7]):
+            continue
+        # Accept only known quota-cell forms. Otherwise a missing trailing
+        # column could borrow a quota-looking token from a spaced mountpoint.
+        quota_cells_valid = all(
+            _quota_value(cell, dimension=dimension)[0] is not None or cell.lower() in _QUOTA_UNLIMITED
+            for cell, dimension in zip((*quota_cells[0:3], *quota_cells[4:7]), ("bytes",) * 3 + ("inodes",) * 3)
+        )
+        if not quota_cells_valid:
+            continue
+        inode_used, inode_quota, inode_limit = (value for value, _marked in inode_values)
+        if (quota is not None and limit is not None and limit < quota) or (
+            inode_quota is not None and inode_limit is not None and inode_limit < inode_quota
+        ):
             continue
         space_grace = quota_cells[3] if quota_cells[3] != "0" else None
-        inode_values = [_quota_value(cell, dimension="inodes") for cell in quota_cells[4:7]]
-        used_inodes, inode_quota, inode_limit = (value for value, _marked in inode_values)
+        used_inodes = inode_used
         inode_grace = quota_cells[7] if quota_cells[7] != "0" else None
         rows.append(
             _QuotaRow(

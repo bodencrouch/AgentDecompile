@@ -111,7 +111,10 @@ def _mount_for_path(
     path: Path,
     rows: list[_QuotaRow],
 ) -> _QuotaRow | None:
-    destination = path.expanduser().absolute()
+    try:
+        destination = path.expanduser().resolve(strict=False)
+    except (OSError, RuntimeError):
+        return None
     matches = [row for row in rows if destination == row.mount or row.mount in destination.parents]
     return max(matches, key=lambda row: len(row.mount.parts), default=None)
 

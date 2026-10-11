@@ -5096,7 +5096,12 @@ def analyze(ctx: click.Context, program_path: str | None, open_project_path: str
         # against the caller's working directory; shared-server paths belong
         # to the configured server and must pass through unchanged.
         opts = _get_opts(ctx)
-        server_host = opts.get("ghidra_server_host") or opts.get("server_host")
+        server_host = (
+            opts.get("ghidra_server_host")
+            or opts.get("server_host")
+            or os.environ.get("AGENT_DECOMPILE_GHIDRA_SERVER_HOST")
+            or os.environ.get("AGENTDECOMPILE_GHIDRA_SERVER_HOST")
+        )
         is_shared_server_mode = bool(server_host and str(server_host).strip())
         resolved_project_path = open_project_path
         if not is_shared_server_mode and open_project_path != "/":

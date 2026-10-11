@@ -29,6 +29,7 @@ import importlib
 import json
 import logging
 import os
+import shlex
 import sys
 import tempfile
 import time
@@ -48,6 +49,21 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 _LOCAL_SESSION_ID = "local"
+
+
+def _java_temp_directory() -> Path:
+    """Resolve an explicit JVM temp option before falling back to Python temp."""
+    for variable in ("JDK_JAVA_OPTIONS", "JAVA_TOOL_OPTIONS", "_JAVA_OPTIONS"):
+        try:
+            options = shlex.split(os.environ.get(variable, ""))
+        except ValueError:
+            continue
+        for index, option in enumerate(options):
+            if option.startswith("-Djava.io.tmpdir="):
+                return Path(option.split("=", 1)[1]).expanduser()
+            if option == "-Djava.io.tmpdir" and index + 1 < len(options):
+                return Path(options[index + 1]).expanduser()
+    return Path(tempfile.gettempdir())
 
 
 class LocalToolBackend:
@@ -152,11 +168,12 @@ class LocalToolBackend:
         _t0 = time.monotonic()
 
         # Quota exhaustion can otherwise appear only after Ghidra has spent a
-        # long time in an operation. This read-only check is advisory, bounded,
-        # and runs before the JVM opens the project or starts writing temp data.
+        # long time in an operation. This read-only check is bounded and runs
+        # before the JVM opens the project; near-limit states warn, while an
+        # exhausted quota or critically low headroom stops startup before Ghidra stalls.
         from agentdecompile_cli.storage_diagnostics import storage_preflight_warnings
 
-        for warning in storage_preflight_warnings([self._project_path, tempfile.gettempdir()]):
+        for warning in storage_preflight_warnings([self._project_path, _java_temp_directory()]):
             sys.stderr.write(f"[storage-preflight] {warning}\n")
 
         # --- PyGhidra ---

@@ -14,7 +14,10 @@ from typing import TYPE_CHECKING, Any
 
 from mcp import types
 
-from agentdecompile_cli.mcp_server.constants import DEFAULT_TIMEOUT_SECONDS  # pyright: ignore[reportMissingImports]
+from agentdecompile_cli.mcp_server.constants import (  # pyright: ignore[reportMissingImports]
+    DEFAULT_TIMEOUT_SECONDS,
+    MAX_CONFIGURED_TIMEOUT_SECONDS,
+)
 from agentdecompile_cli.mcp_server.tool_providers import (
     ToolProvider,
     create_success_response,
@@ -88,7 +91,15 @@ class DecompilerToolProvider(ToolProvider):
                             ],
                             "description": "Compatibility batch input for one or more function identifiers.",
                         },
-                        "timeout": {"type": "integer", "default": DEFAULT_TIMEOUT_SECONDS, "description": f"Maximum time in seconds to wait for the decompiler to finish before aborting; defaults to {DEFAULT_TIMEOUT_SECONDS} seconds."},
+                        "timeout": {
+                            "type": "integer",
+                            "default": DEFAULT_TIMEOUT_SECONDS,
+                            "description": (
+                                f"Maximum time in seconds to wait for the decompiler to finish before aborting; "
+                                f"defaults to {DEFAULT_TIMEOUT_SECONDS} seconds. The default is configurable with "
+                                f"AGENTDECOMPILE_DECOMPILE_TIMEOUT_SECONDS (1-{MAX_CONFIGURED_TIMEOUT_SECONDS})."
+                            ),
+                        },
                         "showUnreachable": {"type": "boolean", "description": "Include unreachable code in this decompilation without changing shared decompiler settings."},
                         "includeCallees": {"type": "boolean", "default": False, "description": "Include callee function summaries."},
                         "includeStrings": {"type": "boolean", "default": False, "description": "Include referenced string literals when available."},

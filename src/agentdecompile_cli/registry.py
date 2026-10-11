@@ -410,7 +410,7 @@ _TOOL_PARAMS_STR: dict[str, list[str]] = {
         "maxFiles",
         "maxDepth",
     ),
-    Tool.DECOMPILE_FUNCTION.value: _params("functionIdentifier", "includeCallees", "includeCallers", "includeComments", "includeDisassembly", "includeIncomingReferences", "includeReferenceContext", "limit", "offset", "programPath", "signatureOnly", "timeout"),
+    Tool.DECOMPILE_FUNCTION.value: _params("functionIdentifier", "includeCallees", "includeCallers", "includeComments", "includeDisassembly", "includeIncomingReferences", "includeReferenceContext", "limit", "maxFunctionAddresses", "offset", "programPath", "signatureOnly", "timeout"),
     Tool.DELETE_PROJECT_BINARY.value: _params("programPath", "confirm"),
     Tool.GET_FUNCTION.value: _params(
         "programPath",

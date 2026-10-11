@@ -240,38 +240,49 @@ class FunctionToolProvider(ToolProvider):
         include_externals = self._get_bool(args, "includeexternals", "externals", default=True)
         manager = program.getFunctionManager()
         functions = _get_function_list(manager)
-        if include_externals:
-            seen = {str(func.getEntryPoint()) for func in functions if hasattr(func, "getEntryPoint")}
-            functions.extend(
-                func for func in _get_external_function_list(manager)
-                if str(func.getEntryPoint()) not in seen
-            )
+        external_functions = _get_external_function_list(manager) if include_externals else []
 
         needle = query.lower()
-        try:
-            query_regex = re.compile(query, re.IGNORECASE)
-        except re.error:
-            query_regex = None
         query_stripped = needle.strip()
         looks_like_address = bool(re.fullmatch(r"(0x)?[0-9a-f]+", query_stripped)) and (
             query_stripped.startswith("0x") or any(ch.isdigit() for ch in query_stripped) or len(query_stripped) >= 6
         )
         query_addr = _strip_hex_prefix(query_stripped) if looks_like_address else ""
+        try:
+            query_regex = re.compile(query, re.IGNORECASE)
+        except re.error:
+            query_regex = None
         total = 0
         selected: list[Any] = []
-        for func in functions:
-            name = str(func.getName())
-            address = str(func.getEntryPoint())
-            if needle in name.lower() or (query_regex and query_regex.search(name)):
-                matched = True
-            elif query_addr and query_addr in _strip_hex_prefix(address.lower()):
-                matched = True
-            else:
-                matched = False
-            if matched:
+
+        def scan(funcs: Any, *, external: bool = False) -> None:
+            nonlocal total
+            for func in funcs:
+                name = str(func.getName())
+                name_matched = needle in name.lower() or (query_regex is not None and query_regex.search(name) is not None)
+                address = None
+                if query_addr and not name_matched:
+                    address = str(func.getEntryPoint())
+                    matched = query_addr in _strip_hex_prefix(address.lower())
+                else:
+                    matched = name_matched
+                if not matched:
+                    continue
+                if external:
+                    address = str(func.getEntryPoint())
+                    # The legacy search de-duplicates external functions only
+                    # against internal functions; duplicate external rows remain
+                    # visible. Query the manager for this candidate instead of
+                    # materializing every internal entry point up front.
+                    existing = manager.getFunctionAt(func.getEntryPoint())
+                    if existing is not None and not existing.isExternal() and str(existing.getEntryPoint()) == address:
+                        continue
                 if total >= offset and len(selected) < limit:
                     selected.append(func)
                 total += 1
+
+        scan(functions)
+        scan(external_functions, external=True)
 
         results = []
         for func in selected:

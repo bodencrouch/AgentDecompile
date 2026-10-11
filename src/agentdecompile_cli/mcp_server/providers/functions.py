@@ -38,7 +38,13 @@ from agentdecompile_cli.mcp_server.constants import (
     DEFAULT_TIMEOUT_SECONDS,
     MAX_CONFIGURED_TIMEOUT_SECONDS,
 )
-from agentdecompile_cli.mcp_server.providers._collectors import collect_functions, iter_items, make_task_monitor
+from agentdecompile_cli.mcp_server.providers._collectors import (
+    _get_external_function_list,
+    _get_function_list,
+    collect_functions,
+    iter_items,
+    make_task_monitor,
+)
 from agentdecompile_cli.mcp_server.tool_providers import (
     ToolProvider,
     create_success_response,
@@ -178,6 +184,9 @@ class FunctionToolProvider(ToolProvider):
         if mode in {"search", "similarity"} and not query:
             raise ValueError(f"list-functions mode={mode} requires query (or searchString)")
 
+        if mode == "search" and offset >= 0 and max_results >= 0 and self._can_use_fast_function_search(args):
+            return self._fast_search_existing_functions(args, program, query, offset, max_results)
+
         rows = self._filtered_function_rows(args, program, program_info=program_info, query=query if mode != "similarity" else "")
 
         if mode == "byidentifiers":
@@ -201,6 +210,85 @@ class FunctionToolProvider(ToolProvider):
         paginated, _ = self._paginate_results(rows, offset, max_results)
         extra: dict[str, Any] = {"query": query} if query else {}
         return self._create_paginated_response(paginated, offset, max_results, total=len(rows), mode="list" if mode == "all" else mode, **extra)
+
+    def _can_use_fast_function_search(self, args: dict[str, Any]) -> bool:
+        """Use the lightweight search path only when no metadata-dependent filter is requested."""
+        allowed = {
+            "mode", "programpath", "query", "searchstring", "offset", "startindex",
+            "limit", "maxresults", "maxcount", "max", "includeexternals", "externals", "verbose",
+        }
+        return (
+            all(str(key).lower() in allowed for key in args)
+            and not self._get_bool(args, "verbose", default=False)
+        )
+
+    def _fast_search_existing_functions(
+        self,
+        args: dict[str, Any],
+        program: Any,
+        query: str,
+        offset: int,
+        limit: int,
+    ) -> list[types.TextContent]:
+        """Search names/addresses first; build expensive Ghidra metadata only for this page.
+
+        The normal collector reads signatures, parameter types, comments, tags, body sizes,
+        and call counts for every function. A plain text search needs only names and entry
+        addresses until matches are paginated, which matters for binaries with hundreds of
+        thousands of functions.
+        """
+        include_externals = self._get_bool(args, "includeexternals", "externals", default=True)
+        manager = program.getFunctionManager()
+        functions = _get_function_list(manager)
+        if include_externals:
+            seen = {str(func.getEntryPoint()) for func in functions if hasattr(func, "getEntryPoint")}
+            functions.extend(
+                func for func in _get_external_function_list(manager)
+                if str(func.getEntryPoint()) not in seen
+            )
+
+        needle = query.lower()
+        try:
+            query_regex = re.compile(query, re.IGNORECASE)
+        except re.error:
+            query_regex = None
+        query_stripped = needle.strip()
+        looks_like_address = bool(re.fullmatch(r"(0x)?[0-9a-f]+", query_stripped)) and (
+            query_stripped.startswith("0x") or any(ch.isdigit() for ch in query_stripped) or len(query_stripped) >= 6
+        )
+        query_addr = _strip_hex_prefix(query_stripped) if looks_like_address else ""
+        total = 0
+        selected: list[Any] = []
+        for func in functions:
+            name = str(func.getName())
+            address = str(func.getEntryPoint())
+            if needle in name.lower() or (query_regex and query_regex.search(name)):
+                matched = True
+            elif query_addr and query_addr in _strip_hex_prefix(address.lower()):
+                matched = True
+            else:
+                matched = False
+            if matched:
+                if total >= offset and len(selected) < limit:
+                    selected.append(func)
+                total += 1
+
+        results = []
+        for func in selected:
+            body = func.getBody()
+            results.append({
+                "name": str(func.getName()),
+                "address": str(func.getEntryPoint()),
+                "size": int(body.getNumAddresses()) if body else 0,
+                "isExternal": bool(func.isExternal()),
+                "isThunk": bool(func.isThunk()),
+                "parameterCount": int(func.getParameterCount()),
+                "signature": str(func.getSignature()),
+                "callingConvention": str(func.getCallingConventionName() or ""),
+                "isInline": bool(func.isInline()),
+            })
+        response_args = {"query": query}
+        return self._create_paginated_response(results, offset, limit, total=total, mode="search", **response_args)
 
     def _filtered_function_rows(self, args: dict[str, Any], program: Any, *, program_info: ProgramInfo | SimpleNamespace | None, query: str) -> list[dict[str, Any]]:
         pattern = self._get_str(args, "namepattern", "pattern", "filter", "regex")

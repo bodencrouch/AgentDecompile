@@ -1225,6 +1225,27 @@ def _render_decompile(data: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def _render_decompile_batch_error(data: dict[str, Any]) -> str:
+    """Keep successful partial pseudocode and per-function failures visible in markdown."""
+    logger.debug("diag.enter %s", "mcp_server/response_formatter.py:_render_decompile_batch_error")
+    lines = [_md_heading(2, "Decompilation Error"), "", f"> **{data.get('error', 'Decompilation failed')}**", ""]
+    results = data.get("results")
+    if not isinstance(results, list):
+        return "\n".join(lines)
+
+    lines.extend((_md_heading(3, "Function Results"), ""))
+    for item in results:
+        if not isinstance(item, dict):
+            continue
+        if item.get("error"):
+            name = item.get("function") or item.get("name") or "unknown"
+            lines.extend((_md_heading(4, f"Failed: `{name}`"), "", f"> {item['error']}", ""))
+        else:
+            lines.append(_render_decompile(item))
+            lines.append("")
+    return "\n".join(lines).rstrip()
+
+
 def _render_list_functions(data: dict[str, Any]) -> str:
     """Render list-functions response as markdown table."""
     logger.debug("diag.enter %s", "mcp_server/response_formatter.py:_render_list_functions")
@@ -3521,6 +3542,8 @@ def render_tool_response(normalized_tool_name: str, data: dict[str, Any]) -> str
         body = _render_conflict(data)
     elif data.get("success") is False and normalized_tool_name == "executescript":
         body = _render_execute_script(data)
+    elif data.get("success") is False and normalized_tool_name in {"decompilefunction", "decompile"}:
+        body = _render_decompile_batch_error(data)
     elif data.get("success") is False:
         body = _render_error(data)
     else:

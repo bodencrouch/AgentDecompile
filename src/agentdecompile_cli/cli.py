@@ -5092,8 +5092,11 @@ def analyze(ctx: click.Context, program_path: str | None, open_project_path: str
     if force:
         payload["force"] = True
     if open_project_path is not None:
+        # Match `open`'s local-path behavior so a relative project path is
+        # interpreted from the caller's working directory, not the backend's.
+        resolved_project_path = str(Path(open_project_path).resolve()) if open_project_path != "/" else open_project_path
         steps = [
-            {"name": Tool.OPEN.value, "arguments": {"path": open_project_path, "analyzeAfterImport": False}},
+            {"name": Tool.OPEN.value, "arguments": {"path": resolved_project_path, "analyzeAfterImport": False}},
             {"name": Tool.ANALYZE_PROGRAM.value, "arguments": payload},
         ]
         _run_parsed_tool_sequence(ctx, steps)

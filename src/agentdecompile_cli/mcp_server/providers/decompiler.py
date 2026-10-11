@@ -49,6 +49,33 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+def _aggregate_decompile_results(results: list[dict[str, Any]]) -> dict[str, Any]:
+    """Build a truthful success envelope for single and batch decompile results."""
+    if len(results) == 1:
+        if results[0].get("error"):
+            return {**results[0], "success": False}
+        return results[0]
+
+    failures = [item for item in results if item.get("error")]
+    response: dict[str, Any] = {
+        "results": results,
+        "count": len(results),
+        "success": not failures,
+    }
+    if failures:
+        details: list[str] = []
+        for item in failures[:5]:
+            name = str(item.get("name") or item.get("function") or "unknown").replace("\n", " ").replace("\r", " ")
+            reason = str(item.get("error") or "failed").replace("\n", " ").replace("\r", " ")
+            if len(reason) > 240:
+                reason = reason[:237] + "..."
+            details.append(f"{name}: {reason}")
+        if len(failures) > len(details):
+            details.append(f"and {len(failures) - len(details)} more failures")
+        response["error"] = f"{len(failures)} of {len(results)} function decompilations failed: " + " | ".join(details)
+    return response
+
+
 class DecompilerToolProvider(ToolProvider):
     HANDLERS = {
         "decompile": "_handle",
@@ -100,6 +127,15 @@ class DecompilerToolProvider(ToolProvider):
                                 f"AGENTDECOMPILE_DECOMPILE_TIMEOUT_SECONDS (1-{MAX_CONFIGURED_TIMEOUT_SECONDS})."
                             ),
                         },
+                        "maxFunctionAddresses": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "description": (
+                                "Optional preflight budget for the number of addresses in the function body. If the "
+                                "body exceeds this count, skip decompilation before invoking Ghidra. This bounds unusually large "
+                                "functions without changing the default behavior."
+                            ),
+                        },
                         "showUnreachable": {"type": "boolean", "description": "Include unreachable code in this decompilation without changing shared decompiler settings."},
                         "includeCallees": {"type": "boolean", "default": False, "description": "Include callee function summaries."},
                         "includeStrings": {"type": "boolean", "default": False, "description": "Include referenced string literals when available."},
@@ -114,6 +150,7 @@ class DecompilerToolProvider(ToolProvider):
         logger.debug("diag.enter %s", "mcp_server/providers/decompiler.py:DecompilerToolProvider._handle")
         self._require_program(program_info=program_info)
         timeout: int = self._get_int(args, "timeout", default=DEFAULT_TIMEOUT_SECONDS)  # pyright: ignore[reportAssignmentType]
+        max_function_addresses = self._get_int(args, "maxfunctionaddresses") if "maxfunctionaddresses" in args else None
         assert program_info is not None  # for type checker
         program = program_info.program
         targets = self._get_targets(args)
@@ -135,6 +172,7 @@ class DecompilerToolProvider(ToolProvider):
                         target_func,
                         program,
                         timeout,
+                        max_function_addresses=max_function_addresses,
                         include_callees=include_callees,
                         include_strings=include_strings,
                         include_xrefs=include_xrefs,
@@ -156,13 +194,7 @@ class DecompilerToolProvider(ToolProvider):
                     )
                 )
 
-        if len(results) == 1 and len(targets) == 1:
-            if results[0].get("error"):
-                # A lone target that failed (e.g. "Function not found: x") is an
-                # error, not an empty decompilation. Batches keep per-item errors.
-                return create_success_response({**results[0], "success": False})
-            return create_success_response(results[0])
-        return create_success_response({"results": results, "count": len(results)})
+        return create_success_response(_aggregate_decompile_results(results))
 
     def _get_targets(self, args: dict[str, Any]) -> list[str]:
         logger.debug("diag.enter %s", "mcp_server/providers/decompiler.py:DecompilerToolProvider._get_targets")
@@ -184,6 +216,7 @@ class DecompilerToolProvider(ToolProvider):
         program: GhidraProgram,
         timeout: int,
         *,
+        max_function_addresses: int | None = None,
         include_callees: bool = False,
         include_strings: bool = False,
         include_xrefs: bool = False,
@@ -191,6 +224,17 @@ class DecompilerToolProvider(ToolProvider):
         program_info: ProgramInfo | SimpleNamespace | None,
     ) -> dict[str, Any]:
         logger.debug("diag.enter %s", "mcp_server/providers/decompiler.py:DecompilerToolProvider.decompile_function_payload")
+        if max_function_addresses is not None:
+            if max_function_addresses < 1:
+                raise ValueError("maxFunctionAddresses must be greater than zero")
+            body = target_func.getBody()
+            body_addresses = int(body.getNumAddresses()) if body is not None else 0
+            if body_addresses > max_function_addresses:
+                raise ValueError(
+                    f"Decompilation skipped for {target_func.getName()} @ {target_func.getEntryPoint()}: "
+                    f"function body contains {body_addresses} addresses, exceeding maxFunctionAddresses={max_function_addresses}"
+                )
+
         response = self._decompile_with_ghidra_api(target_func, program, timeout, show_unreachable=show_unreachable, program_info=program_info)
         payload: dict[str, Any] = {}
         if response:

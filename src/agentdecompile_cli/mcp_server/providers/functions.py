@@ -241,7 +241,8 @@ class FunctionToolProvider(ToolProvider):
         """
         include_externals = self._get_bool(args, "includeexternals", "externals", default=True)
         manager = program.getFunctionManager()
-        external_functions = _get_external_function_list(manager) if include_externals else []
+        all_external_functions = _get_external_function_list(manager)
+        external_functions = all_external_functions if include_externals else []
 
         needle = query.lower()
         query_stripped = needle.strip()
@@ -296,7 +297,7 @@ class FunctionToolProvider(ToolProvider):
         expected_internal_count: int | None = None
         try:
             function_count = int(manager.getFunctionCount())
-            expected_internal_count = max(0, function_count - len(external_functions))
+            expected_internal_count = max(0, function_count - len(all_external_functions))
         except Exception as exc:
             logger.debug("Unable to verify fast function iterator count; retrying compatibility collector: %s", exc)
 

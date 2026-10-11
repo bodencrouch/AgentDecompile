@@ -25,7 +25,6 @@ Usage:
 
 from __future__ import annotations
 
-import asyncio
 import copy
 import contextlib
 from contextvars import ContextVar
@@ -47,8 +46,6 @@ from typing import TYPE_CHECKING, Any
 from urllib.parse import urlparse
 
 import click
-
-from httpx import AsyncClient, Timeout
 
 from agentdecompile_cli import __version__
 from agentdecompile_cli.executor import (
@@ -405,6 +402,11 @@ def _local_server_port_candidates() -> list[int]:
 
 
 async def _probe_backend_health(url: str) -> bool:
+    # Keep HTTP transport imports off the CLI's metadata/help path. httpx pulls
+    # in asyncio, TLS, and Rich's CLI helpers even though only a small fraction
+    # of invocations need this local-server probe.
+    from httpx import AsyncClient, Timeout
+
     normalized = _normalize_url_or_none(url)
     if not normalized:
         return False
@@ -421,6 +423,8 @@ async def _probe_backend_health(url: str) -> bool:
 
 
 async def _wait_for_backend_health(url: str, timeout_s: float) -> bool:
+    import asyncio
+
     deadline = time.monotonic() + timeout_s
     while time.monotonic() < deadline:
         if await _probe_backend_health(url):
@@ -2142,6 +2146,8 @@ def _run_async(coro: Coroutine[Any, Any, None]) -> None:
     Used by most CLI commands that need to call async MCP tools.
     """
     logger.debug("diag.enter %s", "cli.py:_run_async")
+    import asyncio
+
     try:
         run_async(coro)
     except (asyncio.CancelledError, Exception) as e:

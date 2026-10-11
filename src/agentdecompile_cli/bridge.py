@@ -53,7 +53,11 @@ from agentdecompile_cli.executor import get_server_start_message, normalize_back
 from agentdecompile_cli.mcp_server.constants import MAX_CONFIGURED_TIMEOUT_SECONDS
 from agentdecompile_cli.mcp_server.session_context import get_current_mcp_session_id
 from agentdecompile_cli.mcp_utils.tool_reference import build_initialize_instructions
-from agentdecompile_cli.registry import apply_alias_implied_arguments, resolve_tool_name
+from agentdecompile_cli.registry import (
+    apply_alias_implied_arguments,
+    normalize_identifier,
+    resolve_tool_name,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -514,7 +518,16 @@ class RawMcpHttpBackend:
         if normalized_name not in {"decompile", "decompile-function", "get-function", "get-functions"}:
             return None
         arguments = params.get("arguments")
-        requested = arguments.get("timeout") if isinstance(arguments, dict) else None
+        requested = None
+        if isinstance(arguments, dict):
+            requested = next(
+                (
+                    value
+                    for name, value in arguments.items()
+                    if normalize_identifier(name) in {"timeout", "decompiletimeout"}
+                ),
+                None,
+            )
         try:
             seconds = int(requested) if requested is not None else MAX_CONFIGURED_TIMEOUT_SECONDS
         except (TypeError, ValueError):

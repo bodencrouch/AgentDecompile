@@ -1228,10 +1228,13 @@ def _render_decompile(data: dict[str, Any]) -> str:
 def _render_decompile_batch_error(data: dict[str, Any]) -> str:
     """Keep successful partial pseudocode and per-function failures visible in markdown."""
     logger.debug("diag.enter %s", "mcp_server/response_formatter.py:_render_decompile_batch_error")
-    lines = [_md_heading(2, "Decompilation Error"), "", f"> **{data.get('error', 'Decompilation failed')}**", ""]
+    lines = [_md_heading(2, "Error"), "", _md_heading(3, "Decompilation"), "", f"> **{data.get('error', 'Decompilation failed')}**", ""]
     results = data.get("results")
     if not isinstance(results, list):
-        return "\n".join(lines)
+        if data.get("name") or data.get("function"):
+            results = [data]
+        else:
+            return "\n".join(lines)
 
     lines.extend((_md_heading(3, "Function Results"), ""))
     for item in results:

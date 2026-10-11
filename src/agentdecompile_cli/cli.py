@@ -5571,7 +5571,10 @@ def tool_cmd(
 
     async def _run() -> None:
         prepared_payload, inferred_program = _prepare_tool_payload_with_program_fallback(ctx, name, payload)
-        data = await _call_raw(ctx, name, prepared_payload, allow_connection_status=not any(value is None for value in payload.values()))
+        data = await _await_with_cli_heartbeat(
+            _call_raw(ctx, name, prepared_payload, allow_connection_status=not any(value is None for value in payload.values())),
+            name,
+        )
         display_data = _inject_inferred_program(data, inferred_program)
 
         if isinstance(display_data, dict):
@@ -5785,7 +5788,10 @@ def _run_parsed_tool_sequence(
                             if not prepared_arguments.get("path"):
                                 prepared_arguments["path"] = str(v).strip()
 
-                data = await _call_raw(ctx, name, prepared_arguments, client_override=client_override, allow_connection_status=not any(value is None for value in arguments.values()))
+                data = await _await_with_cli_heartbeat(
+                    _call_raw(ctx, name, prepared_arguments, client_override=client_override, allow_connection_status=not any(value is None for value in arguments.values())),
+                    name,
+                )
                 step_ok = _tool_seq_step_succeeded(data)
                 step_result = {
                     "index": index,

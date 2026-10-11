@@ -439,7 +439,11 @@ class FunctionToolProvider(ToolProvider):
             def compare_functions(left: Any, right: Any) -> int:
                 return int(left.getEntryPoint().compareTo(right.getEntryPoint()))
 
-            return sorted(functions_by_address.values(), key=cmp_to_key(compare_functions))
+            candidates = sorted(functions_by_address.values(), key=cmp_to_key(compare_functions))
+            # An empty iterator cannot prove there are no matches: some Ghidra
+            # versions or program states have returned incomplete symbol
+            # iterators. Let the complete FunctionManager scan resolve no-hits.
+            return candidates or None
         except Exception as exc:
             logger.debug("Indexed literal function search unavailable; using full function scan: %s", exc)
             return None

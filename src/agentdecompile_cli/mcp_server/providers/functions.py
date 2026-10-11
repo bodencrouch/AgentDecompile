@@ -290,14 +290,14 @@ class FunctionToolProvider(ToolProvider):
                 total += 1
             return scanned
 
-        symbol_query_functions = self._symbol_query_literal_function_candidates(
+        indexed_functions = self._symbol_query_literal_function_candidates(
             program, manager, query, all_external_functions
         )
-        if symbol_query_functions is not None:
+        if indexed_functions is not None:
             # Ghidra's symbol-name iterator performs wildcard matching inside
             # the JVM. Verify every candidate against the provider's Python
             # substring semantics before counting or paginating it.
-            scan(symbol_query_functions)
+            scan(indexed_functions)
         else:
             # The normal collector materializes every Function proxy before
             # the search can inspect a single name. Stream the common Ghidra
@@ -352,14 +352,10 @@ class FunctionToolProvider(ToolProvider):
     ) -> list[Any] | None:
         """Use Ghidra's name-pattern iterator for simple literal substring searches.
 
-        Ghidra documents this overload as returning matching symbols, except
-        default thunks. Their names mirror their thunked function, so matching
-        targets are expanded through Function.getFunctionThunkAddresses(True).
-        Python's IGNORECASE also recognizes four non-ASCII equivalents for
-        ASCII i/s/k; one-character wildcards at those positions cover those
-        names because Ghidra's Java CASE_INSENSITIVE matcher is ASCII-only.
-        Queries that may match generated default-thunk names retain the
-        complete FunctionManager scan.
+        Python's IGNORECASE recognizes four non-ASCII equivalents for ASCII
+        i/s/k; wildcard those positions in Ghidra's case-insensitive pattern,
+        then verify candidates with Python's matcher. Queries that could match
+        generated default-thunk names retain the complete FunctionManager scan.
         """
         if not query or not query.isascii() or _REGEX_META.search(query) is not None:
             return None
@@ -386,15 +382,11 @@ class FunctionToolProvider(ToolProvider):
                 text = str(name)
                 if query_lower in text.lower():
                     return True
-                # Keep the legacy regex fallback for non-ASCII names (e.g. the
-                # Unicode case-insensitive equivalences recognized by re).
+                # Python's Unicode IGNORECASE includes dotted/dotless i,
+                # long s, and Kelvin sign; Java's case-insensitive pattern
+                # does not. Only these non-ASCII names need the regex check.
                 return not text.isascii() and query_regex.search(text) is not None
 
-            # Use one broad indexed pattern instead of multiple passes through
-            # the symbol table. Python's IGNORECASE adds Unicode equivalents
-            # for i/s/k, so wildcard only those positions and verify candidates
-            # with the existing Python matcher below. Short/common patterns
-            # would over-return too many names, so retain the full scan there.
             unicode_case_positions = [index for index, char in enumerate(query_lower) if char in "isk"]
             if len(query_lower) < 4 or len(unicode_case_positions) > 2:
                 return None
@@ -429,37 +421,29 @@ class FunctionToolProvider(ToolProvider):
                 if name_matches(function.getName()):
                     add_internal_function(function)
 
-            # External functions are omitted from the in-memory symbol search.
-            # They are scanned separately for results, but can also own
-            # default thunks whose symbols the name iterator omits.
+            # The external list is absent from the symbol iterator and can
+            # provide targets for default thunk aliases.
             for function in external_functions:
                 if name_matches(function.getName()):
                     add_target(function)
 
-            # Thunk expansion can discover additional named functions, and
-            # add_internal_function() also adds those to targets_by_address.
-            # Iterate a snapshot so expanding a thunk chain cannot mutate the
-            # dictionary view that this loop is traversing.
             for target in tuple(targets_by_address.values()):
                 if not hasattr(target, "getFunctionThunkAddresses"):
                     return None
-                thunk_addresses = target.getFunctionThunkAddresses(True)
-                for address in iter_items(thunk_addresses):
+                for address in iter_items(target.getFunctionThunkAddresses(True)):
                     thunk = manager.getFunctionAt(address)
                     if thunk is None or thunk.isExternal():
                         return None
                     add_internal_function(thunk)
 
-            # The native iterator orders memory symbols by address. Thunks
-            # added via the Function API are merged into that same order so
-            # pagination remains consistent with FunctionManager traversal.
             def compare_functions(left: Any, right: Any) -> int:
                 return int(left.getEntryPoint().compareTo(right.getEntryPoint()))
 
-            return sorted(
-                functions_by_address.values(),
-                key=cmp_to_key(compare_functions),
-            )
+            candidates = sorted(functions_by_address.values(), key=cmp_to_key(compare_functions))
+            # An empty iterator cannot prove there are no matches: some Ghidra
+            # versions or program states have returned incomplete symbol
+            # iterators. Let the complete FunctionManager scan resolve no-hits.
+            return candidates or None
         except Exception as exc:
             logger.debug("Indexed literal function search unavailable; using full function scan: %s", exc)
             return None

@@ -388,7 +388,10 @@ class FunctionToolProvider(ToolProvider):
                     continue
                 seen_addresses.add(address)
                 candidates.append(function)
-            return candidates
+            # An empty result cannot distinguish a genuine no-match from a
+            # silently incomplete symbol iterator. Re-run the complete
+            # FunctionManager path before reporting zero matches.
+            return candidates or None
         except Exception as exc:
             logger.debug("Indexed literal function search unavailable; using full function scan: %s", exc)
             return None

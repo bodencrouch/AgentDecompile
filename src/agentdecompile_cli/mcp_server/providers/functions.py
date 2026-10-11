@@ -296,16 +296,13 @@ class FunctionToolProvider(ToolProvider):
         # only functions, includes names directly, and its expected count lets
         # us restart through the compatibility collector if the stream is
         # incomplete or fails.
-        expected_internal_count: int | None = None
         try:
             function_count = int(manager.getFunctionCount())
             expected_internal_count = max(0, function_count - len(all_external_functions))
         except Exception as exc:
-            logger.debug("Unable to verify fast function iterator count; retrying compatibility collector: %s", exc)
+            raise RuntimeError("Function enumeration failed: unable to verify the internal function count") from exc
 
         try:
-            if expected_internal_count is None:
-                raise RuntimeError("Function count unavailable for validating the streamed iterator")
             scanned = scan(manager.getFunctions(True))
             if scanned != expected_internal_count:
                 raise RuntimeError(
@@ -315,7 +312,15 @@ class FunctionToolProvider(ToolProvider):
             logger.debug("Fast function iterator failed; retrying compatibility collector: %s", exc)
             selected.clear()
             total = 0
-            scan(_get_function_list(manager))
+            scanned = scan(_get_function_list(manager))
+            if scanned != expected_internal_count:
+                # The compatibility collector can accept a nonempty partial
+                # iterator too. Never turn a known incomplete enumeration into
+                # a successful page or a false zero-match result.
+                raise RuntimeError(
+                    "Function enumeration failed: compatibility collector returned "
+                    f"{scanned} internal functions; expected {expected_internal_count}"
+                ) from exc
         scan(external_functions, external=True)
 
         results = []

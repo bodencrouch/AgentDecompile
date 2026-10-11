@@ -293,11 +293,21 @@ class FunctionToolProvider(ToolProvider):
         # directly; if this PyGhidra/JVM iterator fails or unexpectedly yields
         # nothing for a non-empty manager, restart through the established
         # compatibility collector and discard any partial page/count first.
-        function_count = int(manager.getFunctionCount()) if hasattr(manager, "getFunctionCount") else 0
+        expected_internal_count: int | None = None
         try:
+            function_count = int(manager.getFunctionCount())
+            expected_internal_count = max(0, function_count - len(external_functions))
+        except Exception as exc:
+            logger.debug("Unable to verify fast function iterator count; retrying compatibility collector: %s", exc)
+
+        try:
+            if expected_internal_count is None:
+                raise RuntimeError("Function count unavailable for validating the streamed iterator")
             scanned = scan(manager.getFunctions(True))
-            if scanned == 0 and function_count > 0:
-                raise RuntimeError("Function iterator was empty despite a non-empty manager")
+            if scanned != expected_internal_count:
+                raise RuntimeError(
+                    f"Function iterator returned {scanned} internal functions; expected {expected_internal_count}"
+                )
         except Exception as exc:
             logger.debug("Fast function iterator failed; retrying compatibility collector: %s", exc)
             selected.clear()

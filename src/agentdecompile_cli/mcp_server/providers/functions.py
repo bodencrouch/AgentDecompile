@@ -58,6 +58,7 @@ _LIST_ROW_KEYS = ("name", "address", "size", "isExternal", "isThunk", "parameter
 _VERBOSE_ROW_KEYS = ("parameters", "returnType", "hasVarArgs", "tags", "comments", "callerCount", "calleeCount")
 # Ghidra's auto-generated function names (SourceType.DEFAULT): FUN_00401000, thunk_FUN_00401000.
 _DEFAULT_FUNCTION_NAME = re.compile(r"^(?:thunk_)?FUN_[0-9A-Fa-f]+$")
+_REGEX_META = re.compile(r"[.\\^$*+?{}\[\]|()]")
 
 
 def _strip_hex_prefix(text: str) -> str:
@@ -252,6 +253,7 @@ class FunctionToolProvider(ToolProvider):
             query_regex = re.compile(query, re.IGNORECASE)
         except re.error:
             query_regex = None
+        literal_ascii_query = query.isascii() and _REGEX_META.search(query) is None
         total = 0
         selected: list[Any] = []
 
@@ -259,7 +261,9 @@ class FunctionToolProvider(ToolProvider):
             nonlocal total
             for func in funcs:
                 name = str(func.getName())
-                name_matched = needle in name.lower() or (query_regex is not None and query_regex.search(name) is not None)
+                name_matched = needle in name.lower()
+                if not name_matched and query_regex is not None and not (literal_ascii_query and name.isascii()):
+                    name_matched = query_regex.search(name) is not None
                 address = None
                 if query_addr and not name_matched:
                     address = str(func.getEntryPoint())

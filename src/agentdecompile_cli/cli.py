@@ -5528,11 +5528,13 @@ def alias_cmd(name: str) -> None:
 
 @main.command(
     "tool",
-    help="Call any MCP tool by name with a JSON arguments object. Empty status arguments inspect the current connection/session; status with workDir inspects a recovery run.",
+    help="Call any MCP tool by name with a JSON arguments object. Use NAME ARGUMENTS or --tool NAME --arguments JSON. Empty status arguments inspect the current connection/session; status with workDir inspects a recovery run.",
     epilog=TOOL_AGENT_EPILOG,
 )
 @click.argument("name", required=False, default=None)
-@click.argument("arguments", required=False, default="{}")
+@click.argument("arguments", required=False, default=None)
+@click.option("--tool", "--name", "explicit_name", help="Tool name (alternative to positional NAME).")
+@click.option("--arguments", "explicit_arguments", help="JSON arguments object (alternative to positional ARGUMENTS).")
 @click.option("--list-tools", is_flag=True, help="List valid tool names and exit (use -f json for machine-readable output)")
 @click.option(
     "--program-path",
@@ -5553,7 +5555,9 @@ def alias_cmd(name: str) -> None:
 def tool_cmd(
     ctx: click.Context,
     name: str | None,
-    arguments: str,
+    arguments: str | None,
+    explicit_name: str | None,
+    explicit_arguments: str | None,
     list_tools: bool,
 ) -> None:
     """Invoke any MCP tool by name; arguments as JSON object (camelCase keys)."""
@@ -5563,10 +5567,21 @@ def tool_cmd(
         click.echo(format_tool_list_output(available_tools, _fmt(ctx)))
         return
 
+    if explicit_name is not None:
+        # With the tool selected by flag, one positional value is the JSON
+        # payload. Reject extra values rather than silently ignoring them.
+        if arguments is not None:
+            raise click.UsageError("With --tool/--name, pass only one positional JSON arguments object.")
+        arguments = name
+        name = explicit_name
     if not name:
         raise click.UsageError(TOOL_MISSING_NAME_USAGE)
+    if explicit_arguments is not None:
+        if arguments is not None:
+            raise click.UsageError("Pass JSON arguments either positionally or with --arguments, not both.")
+        arguments = explicit_arguments
 
-    payload = _parse_tool_payload(arguments)
+    payload = _parse_tool_payload(arguments if arguments is not None else "{}")
     _validate_known_tool(name)
 
     async def _run() -> None:

@@ -338,6 +338,55 @@ def _defer_expensive_default_analyzers(program: GhidraProgram, analyzers: list[s
         return []
 
 
+def _run_selected_analysis(program: GhidraProgram, analyzers: list[str]) -> None:
+    """Run only requested analyzer modules without changing persistent defaults."""
+    from ghidra.app.plugin.core.analysis import AutoAnalysisManager
+    from ghidra.program.model.listing import Program as GhidraProgramClass
+
+    manager = AutoAnalysisManager.getAnalysisManager(program)
+    options = program.getOptions(GhidraProgramClass.ANALYSIS_PROPERTIES)
+    # Sub-options can also be booleans; only names resolving to real analyzer
+    # modules are enable switches. Do not reset their configuration sub-options.
+    available = {
+        str(name): bool(options.getBoolean(str(name), False))
+        for name in options.getOptionNames()
+        if str(options.getType(str(name))) == "BOOLEAN_TYPE" and manager.getAnalyzer(str(name)) is not None
+    }
+    names_by_fold = {name.casefold(): name for name in available}
+    requested: set[str] = set()
+    unknown: list[str] = []
+    for name in analyzers:
+        canonical = names_by_fold.get(name.strip().casefold())
+        if canonical is None:
+            unknown.append(name)
+        else:
+            requested.add(canonical)
+    if unknown:
+        raise ValueError(f"Unknown Ghidra analyzers: {unknown!r}; available analyzers: {sorted(available)!r}")
+    info = program.getOptions(GhidraProgramClass.PROGRAM_INFO)
+    flags = {
+        str(name): bool(info.getBoolean(str(name), default))
+        for name, default in (
+            (GhidraProgramClass.ANALYZED_OPTION_NAME, False),
+            (GhidraProgramClass.ASK_TO_ANALYZE_OPTION_NAME, True),
+        )
+    }
+    try:
+        for name in available:
+            options.setBoolean(name, name in requested)
+        manager.initializeOptions(options)
+        run_analysis(program, force_analysis=True)
+        wait_for_program_analysis_idle(program)
+    finally:
+        for name, enabled in available.items():
+            options.setBoolean(name, enabled)
+        manager.initializeOptions(options)
+        # ghidrecomp marks every run fully analyzed. A selected pass does not
+        # establish full-program readiness, so preserve the prior flags.
+        for name, value in flags.items():
+            info.setBoolean(name, value)
+
+
 def _safe_program_name(program: GhidraProgram) -> str:
     try:
         return str(program.getName())
@@ -406,12 +455,18 @@ def _run_auto_analysis(program: GhidraProgram, *, analyzers: list[str] | None = 
     start_transaction = getattr(program, "startTransaction", None)
     if not callable(start_transaction):
         deferred = _defer_expensive_default_analyzers(program, analyzers)
-        run_analysis(program, force_analysis=True)
+        if analyzers:
+            _run_selected_analysis(program, analyzers)
+        else:
+            run_analysis(program, force_analysis=True)
     else:
         tx_id = start_transaction("AgentDecompile auto-analysis")
         try:
             deferred = _defer_expensive_default_analyzers(program, analyzers)
-            run_analysis(program, force_analysis=True)
+            if analyzers:
+                _run_selected_analysis(program, analyzers)
+            else:
+                run_analysis(program, force_analysis=True)
         except BaseException:
             # Commit what ran, as HeadlessAnalyzer does, even when an analyzer raised.
             # endTransaction can itself throw (IllegalStateException when the entry
@@ -501,21 +556,29 @@ def blocking_ensure_analyzed(
                     program,
                     lambda: _run_auto_analysis(program, analyzers=analyzers),
                 )
-                if program_needs_analysis(program, program_info=program_info):
+                if not analyzers and program_needs_analysis(program, program_info=program_info):
                     raise ProgramAnalysisIncomplete(
                         f"Ghidra auto-analysis did not complete for program (key={key})"
                     )
             except ProgramAnalysisTimeout as exc:
-                if isinstance(exc, ProgramAnalysisIncomplete):
+                if not analyzers and isinstance(exc, ProgramAnalysisIncomplete):
                     _record_analysis_failure(key, exc)
                 raise
             except Exception as exc:
-                _record_analysis_failure(key, exc)
+                if not analyzers:
+                    _record_analysis_failure(key, exc)
                 raise
-            _FAILED_ANALYSIS.pop(key, None)
-            mark_program_analysis_complete(program_info)
+            if not analyzers:
+                _FAILED_ANALYSIS.pop(key, None)
+                mark_program_analysis_complete(program_info)
             logger.info("program_analysis_done key=%s", key)
-            result = {"ran": True, "programKey": key, "force": force, "deferredAnalyzers": deferred}
+            result = {
+                "ran": True,
+                "programKey": key,
+                "force": force,
+                "deferredAnalyzers": deferred,
+                "analysisScope": "selected" if analyzers else "all",
+            }
     return result
 
 

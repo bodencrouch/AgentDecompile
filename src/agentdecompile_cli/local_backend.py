@@ -30,6 +30,7 @@ import json
 import logging
 import os
 import sys
+import tempfile
 import time
 
 from pathlib import Path
@@ -149,6 +150,14 @@ class LocalToolBackend:
         """Blocking initialisation: PyGhidra start + project open + provider registration."""
         logger.debug("diag.enter %s", "local_backend.py:LocalToolBackend._do_initialize")
         _t0 = time.monotonic()
+
+        # Quota exhaustion can otherwise appear only after Ghidra has spent a
+        # long time in an operation. This read-only check is advisory, bounded,
+        # and runs before the JVM opens the project or starts writing temp data.
+        from agentdecompile_cli.storage_diagnostics import storage_preflight_warnings
+
+        for warning in storage_preflight_warnings([self._project_path, tempfile.gettempdir()]):
+            sys.stderr.write(f"[storage-preflight] {warning}\n")
 
         # --- PyGhidra ---
         try:

@@ -241,7 +241,6 @@ class FunctionToolProvider(ToolProvider):
         """
         include_externals = self._get_bool(args, "includeexternals", "externals", default=True)
         manager = program.getFunctionManager()
-        functions = _get_function_list(manager)
         external_functions = _get_external_function_list(manager) if include_externals else []
 
         needle = query.lower()
@@ -258,9 +257,11 @@ class FunctionToolProvider(ToolProvider):
         total = 0
         selected: list[Any] = []
 
-        def scan(funcs: Any, *, external: bool = False) -> None:
+        def scan(funcs: Any, *, external: bool = False) -> int:
             nonlocal total
+            scanned = 0
             for func in funcs:
+                scanned += 1
                 name = str(func.getName())
                 name_matched = needle in name.lower()
                 if not name_matched and query_regex is not None and not (literal_ascii_query and name.isascii()):
@@ -285,8 +286,23 @@ class FunctionToolProvider(ToolProvider):
                 if total >= offset and len(selected) < limit:
                     selected.append(func)
                 total += 1
+            return scanned
 
-        scan(functions)
+        # The normal collector materializes every Function proxy before the
+        # search can inspect a single name. Stream the common Ghidra iterator
+        # directly; if this PyGhidra/JVM iterator fails or unexpectedly yields
+        # nothing for a non-empty manager, restart through the established
+        # compatibility collector and discard any partial page/count first.
+        function_count = int(manager.getFunctionCount()) if hasattr(manager, "getFunctionCount") else 0
+        try:
+            scanned = scan(manager.getFunctions(True))
+            if scanned == 0 and function_count > 0:
+                raise RuntimeError("Function iterator was empty despite a non-empty manager")
+        except Exception as exc:
+            logger.debug("Fast function iterator failed; retrying compatibility collector: %s", exc)
+            selected.clear()
+            total = 0
+            scan(_get_function_list(manager))
         scan(external_functions, external=True)
 
         results = []

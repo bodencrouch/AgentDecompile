@@ -510,7 +510,7 @@ class RawMcpHttpBackend:
         tool_name = params.get("name")
         if not isinstance(tool_name, str):
             return None
-        normalized_name = tool_name.strip().lower().replace("_", "-")
+        normalized_name = resolve_tool_name(tool_name) or tool_name.strip().lower().replace("_", "-")
         if normalized_name not in {"decompile", "decompile-function", "get-function"}:
             return None
         arguments = params.get("arguments")

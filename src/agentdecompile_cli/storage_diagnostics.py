@@ -45,30 +45,32 @@ def _quota_value(value: str, *, dimension: str) -> tuple[int | None, bool]:
 def _quota_rows(output: str) -> list[_QuotaRow]:
     """Read quota(1) rows emitted with --show-mntpoint and -s.
 
-    Rows contain device, mountpoint, used/quota/limit bytes, byte grace,
-    used/quota/limit inodes, then inode grace. Unknown or unlimited cells
-    remain None without shifting the neighboring columns.
+    The eight trailing columns are byte used/soft/hard/grace then inode
+    used/soft/hard/grace. Split from the right so whitespace inside a
+    mountpoint cannot shift those values. Unknown or unlimited cells remain
+    None; ambiguous leading fields are skipped (fail-open).
     """
     rows: list[_QuotaRow] = []
     for line in output.splitlines():
-        cells = line.split()
-        if len(cells) < 8 or not cells[1].startswith("/"):
+        cells = line.rsplit(None, 8)
+        if len(cells) != 9:
             continue
-        space_values = [_quota_value(cell, dimension="bytes") for cell in cells[2:5]]
+        leading, *quota_cells = cells
+        device_and_mount = leading.split(None, 1)
+        if len(device_and_mount) != 2 or not device_and_mount[1].startswith("/"):
+            continue
+        mountpoint = device_and_mount[1]
+        space_values = [_quota_value(cell, dimension="bytes") for cell in quota_cells[0:3]]
         used, quota, limit = (value for value, _marked in space_values)
         if used is None:
             continue
-        space_grace = cells[5] if len(cells) > 5 and cells[5] != "-" else None
-        inode_values = [_quota_value(cell, dimension="inodes") for cell in cells[6:9]]
-        if len(inode_values) == 3:
-            used_inodes, inode_quota, inode_limit = (value for value, _marked in inode_values)
-            inode_grace = cells[9] if len(cells) > 9 and cells[9] != "-" else None
-        else:
-            used_inodes = inode_quota = inode_limit = None
-            inode_grace = None
+        space_grace = quota_cells[3] if quota_cells[3] != "0" else None
+        inode_values = [_quota_value(cell, dimension="inodes") for cell in quota_cells[4:7]]
+        used_inodes, inode_quota, inode_limit = (value for value, _marked in inode_values)
+        inode_grace = quota_cells[7] if quota_cells[7] != "0" else None
         rows.append(
             _QuotaRow(
-                Path(cells[1]),
+                Path(mountpoint),
                 used,
                 quota,
                 limit,
@@ -77,8 +79,8 @@ def _quota_rows(output: str) -> list[_QuotaRow]:
                 inode_quota,
                 inode_limit,
                 inode_grace,
-                any(marked for _value, marked in space_values),
-                any(marked for _value, marked in inode_values),
+                space_values[0][1],
+                inode_values[0][1],
             )
         )
     return rows
@@ -221,7 +223,7 @@ def storage_preflight_warnings(paths: list[str | Path]) -> list[str]:
         return []
     try:
         result = subprocess.run(
-            [quota_command, "--no-wrap", "--human-readable", "--show-mntpoint"],
+            [quota_command, "--no-wrap", "--human-readable", "--show-mntpoint", "--raw-grace"],
             check=False,
             capture_output=True,
             text=True,

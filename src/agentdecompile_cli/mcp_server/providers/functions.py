@@ -217,6 +217,7 @@ class FunctionToolProvider(ToolProvider):
         allowed = {
             "mode", "programpath", "query", "searchstring", "offset", "startindex",
             "limit", "maxresults", "maxcount", "max", "includeexternals", "externals", "verbose",
+            "responseformat",
         }
         return (
             all(str(key).lower() in allowed for key in args)

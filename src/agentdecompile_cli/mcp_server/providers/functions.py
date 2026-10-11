@@ -289,31 +289,38 @@ class FunctionToolProvider(ToolProvider):
                 total += 1
             return scanned
 
-        # The normal collector materializes every Function proxy before the
-        # search can inspect a single name. Stream the common Ghidra iterator
-        # directly; if this PyGhidra/JVM iterator fails or unexpectedly yields
-        # nothing for a non-empty manager, restart through the established
-        # compatibility collector and discard any partial page/count first.
-        expected_internal_count: int | None = None
-        try:
-            function_count = int(manager.getFunctionCount())
-            expected_internal_count = max(0, function_count - len(all_external_functions))
-        except Exception as exc:
-            logger.debug("Unable to verify fast function iterator count; retrying compatibility collector: %s", exc)
+        indexed_functions = self._indexed_literal_function_candidates(program, manager, query)
+        if indexed_functions is not None:
+            # Ghidra's symbol-name iterator performs wildcard matching inside
+            # the JVM. Verify every candidate against the provider's Python
+            # substring semantics before counting or paginating it.
+            scan(indexed_functions)
+        else:
+            # The normal collector materializes every Function proxy before
+            # the search can inspect a single name. Stream the common Ghidra
+            # iterator directly; if it fails or returns an incomplete count,
+            # restart through the compatibility collector and discard partial
+            # pagination state first.
+            expected_internal_count: int | None = None
+            try:
+                function_count = int(manager.getFunctionCount())
+                expected_internal_count = max(0, function_count - len(all_external_functions))
+            except Exception as exc:
+                logger.debug("Unable to verify fast function iterator count; retrying compatibility collector: %s", exc)
 
-        try:
-            if expected_internal_count is None:
-                raise RuntimeError("Function count unavailable for validating the streamed iterator")
-            scanned = scan(manager.getFunctions(True))
-            if scanned != expected_internal_count:
-                raise RuntimeError(
-                    f"Function iterator returned {scanned} internal functions; expected {expected_internal_count}"
-                )
-        except Exception as exc:
-            logger.debug("Fast function iterator failed; retrying compatibility collector: %s", exc)
-            selected.clear()
-            total = 0
-            scan(_get_function_list(manager))
+            try:
+                if expected_internal_count is None:
+                    raise RuntimeError("Function count unavailable for validating the streamed iterator")
+                scanned = scan(manager.getFunctions(True))
+                if scanned != expected_internal_count:
+                    raise RuntimeError(
+                        f"Function iterator returned {scanned} internal functions; expected {expected_internal_count}"
+                    )
+            except Exception as exc:
+                logger.debug("Fast function iterator failed; retrying compatibility collector: %s", exc)
+                selected.clear()
+                total = 0
+                scan(_get_function_list(manager))
         scan(external_functions, external=True)
 
         results = []
@@ -332,6 +339,62 @@ class FunctionToolProvider(ToolProvider):
             })
         response_args = {"query": query}
         return self._create_paginated_response(results, offset, limit, total=total, mode="search", **response_args)
+
+    @staticmethod
+    def _indexed_literal_function_candidates(program: Any, manager: Any, query: str) -> list[Any] | None:
+        """Use Ghidra's name-pattern iterator for simple literal substring searches.
+
+        The symbol iterator is an in-JVM wildcard search, avoiding one Python/JVM
+        boundary crossing per function for simple text queries. Its contract
+        excludes default thunks, so queries that could match their generated
+        names retain the complete FunctionManager scan.
+        """
+        if not query or not query.isascii() or _REGEX_META.search(query) is not None:
+            return None
+        if any(char in query for char in "_*?:\\"):
+            return None
+        query_lower = query.lower()
+        query_stripped = query_lower.strip()
+        looks_like_address = bool(re.fullmatch(r"(0x)?[0-9a-f]+", query_stripped)) and (
+            query_stripped.startswith("0x")
+            or any(ch.isdigit() for ch in query_stripped)
+            or len(query_stripped) >= 6
+        )
+        if looks_like_address:
+            return None
+        # Ghidra omits default thunks from the name-pattern iterator. These
+        # fragments can occur in generated thunk names; a pure hex query can
+        # match the generated address suffix.
+        if query_lower in "thunk_fun_" or all(char in "0123456789abcdef" for char in query_lower):
+            return None
+        try:
+            symbols = program.getSymbolTable().getSymbolIterator("*" + query + "*", False)
+            candidates: list[Any] = []
+            seen_addresses: set[str] = set()
+            for symbol in iter_items(symbols):
+                if str(symbol.getSymbolType()).strip().casefold() != "function" or symbol.isExternal():
+                    continue
+                symbol_name = str(symbol.getName())
+                if query_lower not in symbol_name.lower():
+                    continue
+                function = manager.getFunctionAt(symbol.getAddress())
+                if function is None or function.isExternal():
+                    return None
+                name = str(function.getName())
+                if query_lower not in name.lower():
+                    continue
+                address = str(function.getEntryPoint())
+                if address in seen_addresses:
+                    continue
+                seen_addresses.add(address)
+                candidates.append(function)
+            # An empty result cannot distinguish a genuine no-match from a
+            # silently incomplete symbol iterator. Re-run the complete
+            # FunctionManager path before reporting zero matches.
+            return candidates or None
+        except Exception as exc:
+            logger.debug("Indexed literal function search unavailable; using full function scan: %s", exc)
+            return None
 
     def _filtered_function_rows(self, args: dict[str, Any], program: Any, *, program_info: ProgramInfo | SimpleNamespace | None, query: str) -> list[dict[str, Any]]:
         pattern = self._get_str(args, "namepattern", "pattern", "filter", "regex")

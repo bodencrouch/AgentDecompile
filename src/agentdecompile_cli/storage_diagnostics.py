@@ -44,7 +44,7 @@ def _quota_value(value: str, *, dimension: str) -> tuple[int | None, bool]:
     return int(float(match.group("amount")) * (base**power)), bool(match.group("exceeded"))
 
 
-def _quota_rows(output: str) -> list[_QuotaRow]:
+def _quota_rows(output: str, expected_mounts: set[Path]) -> list[_QuotaRow]:
     """Read quota(1) rows emitted with --show-mntpoint and -s.
 
     The eight trailing columns are byte used/soft/hard/grace then inode
@@ -61,7 +61,9 @@ def _quota_rows(output: str) -> list[_QuotaRow]:
         device_and_mount = leading.split(None, 1)
         if len(device_and_mount) != 2 or not device_and_mount[1].startswith("/"):
             continue
-        mountpoint = device_and_mount[1]
+        mountpoint = Path(device_and_mount[1])
+        if mountpoint not in expected_mounts:
+            continue
         space_values = [_quota_value(cell, dimension="bytes") for cell in quota_cells[0:3]]
         used, quota, limit = (value for value, _marked in space_values)
         inode_values = [_quota_value(cell, dimension="inodes") for cell in quota_cells[4:7]]
@@ -76,8 +78,12 @@ def _quota_rows(output: str) -> list[_QuotaRow]:
         if not quota_cells_valid:
             continue
         inode_used, inode_quota, inode_limit = (value for value, _marked in inode_values)
-        if (quota is not None and limit is not None and limit < quota) or (
-            inode_quota is not None and inode_limit is not None and inode_limit < inode_quota
+        if (quota is not None and quota > 0 and limit is not None and limit > 0 and limit < quota) or (
+            inode_quota is not None
+            and inode_quota > 0
+            and inode_limit is not None
+            and inode_limit > 0
+            and inode_limit < inode_quota
         ):
             continue
         space_grace = quota_cells[3] if quota_cells[3] != "0" else None
@@ -85,7 +91,7 @@ def _quota_rows(output: str) -> list[_QuotaRow]:
         inode_grace = quota_cells[7] if quota_cells[7] != "0" else None
         rows.append(
             _QuotaRow(
-                Path(mountpoint),
+                mountpoint,
                 used,
                 quota,
                 limit,
@@ -110,12 +116,48 @@ def _mount_for_path(
     return max(matches, key=lambda row: len(row.mount.parts), default=None)
 
 
+def _expected_mounts_for_paths(paths: list[str | Path]) -> set[Path] | None:
+    """Resolve requested paths against Linux mountinfo, failing open if absent.
+
+    Quota's human-readable rows are whitespace-delimited and cannot alone
+    distinguish a spaced mountpoint from a missing trailing column. Confirm
+    candidate mountpoints against the kernel's escaped mount table before any
+    row can warn or stop startup. Other POSIX systems without mountinfo skip
+    this optional preflight rather than trust ambiguous rows.
+    """
+    try:
+        mountinfo = Path("/proc/self/mountinfo").read_text(encoding="utf-8")
+    except (OSError, UnicodeError):
+        return None
+    mounts: set[Path] = set()
+    for line in mountinfo.splitlines():
+        fields = line.split()
+        if len(fields) < 6:
+            continue
+        mount_field = re.sub(r"\\([0-7]{3})", lambda match: chr(int(match.group(1), 8)), fields[4])
+        if mount_field.startswith("/"):
+            mounts.add(Path(mount_field))
+    if not mounts:
+        return None
+    expected: set[Path] = set()
+    for value in paths:
+        try:
+            destination = Path(value).expanduser().resolve(strict=False)
+        except (OSError, RuntimeError):
+            continue
+        matches = [mount for mount in mounts if destination == mount or mount in destination.parents]
+        if matches:
+            expected.add(max(matches, key=lambda mount: len(mount.parts)))
+    return expected
+
+
 def _preflight_from_quota_output(
     paths: list[str | Path],
     output: str,
     quota_exit_code: int,
+    expected_mounts: set[Path],
 ) -> list[str]:
-    rows = _quota_rows(output)
+    rows = _quota_rows(output, expected_mounts)
     warnings: list[str] = []
     emitted: set[Path] = set()
     for path in paths:
@@ -233,6 +275,9 @@ def storage_preflight_warnings(paths: list[str | Path]) -> list[str]:
     """
     if os.name != "posix":
         return []
+    expected_mounts = _expected_mounts_for_paths(paths)
+    if not expected_mounts:
+        return []
     quota_command = shutil.which("quota")
     if quota_command is None:
         return []
@@ -250,7 +295,7 @@ def storage_preflight_warnings(paths: list[str | Path]) -> list[str]:
     # the exceeded marker can be matched to the actual project/temp mount.
     if result.returncode not in (0, 1):
         return []
-    return _preflight_from_quota_output(paths, result.stdout, result.returncode)
+    return _preflight_from_quota_output(paths, result.stdout, result.returncode, expected_mounts)
 
 
 def storage_failure_message(error: BaseException | str, project_path: str | Path) -> str | None:

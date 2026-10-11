@@ -2307,8 +2307,8 @@ class ImportExportToolProvider(ToolProvider):
                 # Best-effort hint only: auto-analysis can proceed without a path.
                 logger.debug("Unable to resolve program path hint for analysis: %s", exc)
 
-            def _run_auto_analysis() -> None:
-                blocking_ensure_analyzed(
+            def _run_auto_analysis() -> dict[str, Any]:
+                return blocking_ensure_analyzed(
                     program,
                     program_info,
                     program_path=program_path_hint or None,
@@ -2337,6 +2337,7 @@ class ImportExportToolProvider(ToolProvider):
                     "programName": program.getName() if program is not None else "(none)",
                     "analyzers": analyzers or "all",
                     "deferredAnalyzers": (analysis_result or {}).get("deferredAnalyzers", []),
+                    "analysisScope": (analysis_result or {}).get("analysisScope", "all"),
                     "force": force,
                     "success": True,
                 },

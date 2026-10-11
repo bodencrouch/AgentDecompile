@@ -5075,13 +5075,21 @@ def checkin(
 
 @main.command("analyze", help="Run auto-analysis (analyze-program)")
 @click.option("-b", "--binary", "program_path")
+@click.option(
+    "--analyzer",
+    "analyzers",
+    multiple=True,
+    help="Run only this Ghidra analyzer module; repeat for multiple modules. A selected pass does not establish full-program analysis completion.",
+)
 @click.option("--force", is_flag=True, help="Force re-analysis even if the program is already analyzed")
 @click.pass_context
-def analyze(ctx: click.Context, program_path: str | None, force: bool) -> None:
+def analyze(ctx: click.Context, program_path: str | None, analyzers: tuple[str, ...], force: bool) -> None:
     logger.debug("diag.enter %s", "cli.py:analyze")
     payload: dict[str, Any] = {}
     if program_path is not None and program_path.strip():
         payload["programPath"] = program_path
+    if analyzers:
+        payload["analyzers"] = list(analyzers)
     if force:
         payload["force"] = True
     _run_async(_call(ctx, Tool.ANALYZE_PROGRAM.value, **payload))

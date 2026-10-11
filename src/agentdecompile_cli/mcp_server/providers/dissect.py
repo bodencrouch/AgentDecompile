@@ -132,8 +132,8 @@ class GetFunctionAioToolProvider(ToolProvider):
                         },
                         "timeout": {
                             "type": "integer",
-                            "default": 60,
-                            "description": "Maximum seconds for the decompiler before aborting, default 60; omit unless needed.",
+                            "default": DEFAULT_TIMEOUT_SECONDS,
+                            "description": f"Maximum seconds for the decompiler before aborting; defaults to {DEFAULT_TIMEOUT_SECONDS} seconds. Set a smaller value to limit the decompilation budget.",
                         },
                         "maxInstructions": {
                             "type": "integer",

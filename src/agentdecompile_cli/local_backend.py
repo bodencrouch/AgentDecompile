@@ -29,6 +29,7 @@ import importlib
 import json
 import logging
 import os
+import shlex
 import sys
 import time
 
@@ -47,6 +48,32 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 _LOCAL_SESSION_ID = "local"
+
+
+def _java_temp_directory() -> Path:
+    """Resolve an explicit JVM temp option or its platform default."""
+    for variable in ("JDK_JAVA_OPTIONS", "JAVA_TOOL_OPTIONS", "_JAVA_OPTIONS"):
+        try:
+            options = shlex.split(os.environ.get(variable, ""))
+        except ValueError:
+            continue
+        for index, option in enumerate(options):
+            if option.startswith("-Djava.io.tmpdir="):
+                return Path(option.split("=", 1)[1]).expanduser()
+            if option == "-Djava.io.tmpdir" and index + 1 < len(options):
+                return Path(options[index + 1]).expanduser()
+    if os.name == "nt":
+        # The Windows JVM uses the system temporary directory (GetTempPath),
+        # which follows TEMP/TMP. Ignore TMPDIR here, as Python may honor it
+        # even though the JVM does not.
+        configured = os.environ.get("TEMP") or os.environ.get("TMP")
+        if configured:
+            return Path(configured).expanduser()
+        system_root = os.environ.get("SystemRoot") or os.environ.get("WINDIR")
+        return Path(system_root, "Temp") if system_root else Path(r"C:\Windows\Temp")
+    # OpenJDK's Unix default for java.io.tmpdir is /tmp. Do not use
+    # tempfile.gettempdir(): it can follow Python-only TMPDIR overrides.
+    return Path("/tmp")
 
 
 class LocalToolBackend:
@@ -149,6 +176,15 @@ class LocalToolBackend:
         """Blocking initialisation: PyGhidra start + project open + provider registration."""
         logger.debug("diag.enter %s", "local_backend.py:LocalToolBackend._do_initialize")
         _t0 = time.monotonic()
+
+        # Quota exhaustion can otherwise appear only after Ghidra has spent a
+        # long time in an operation. This read-only check is bounded and runs
+        # before the JVM opens the project; near-limit states warn, while an
+        # exhausted quota or critically low headroom stops startup before Ghidra stalls.
+        from agentdecompile_cli.storage_diagnostics import storage_preflight_warnings
+
+        for warning in storage_preflight_warnings([self._project_path, _java_temp_directory()]):
+            sys.stderr.write(f"[storage-preflight] {warning}\n")
 
         # --- PyGhidra ---
         try:

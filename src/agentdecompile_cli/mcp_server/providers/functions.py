@@ -15,6 +15,7 @@ import difflib
 import json
 import logging
 import re
+from functools import cmp_to_key
 
 from typing import TYPE_CHECKING, Any, ClassVar
 
@@ -289,7 +290,9 @@ class FunctionToolProvider(ToolProvider):
                 total += 1
             return scanned
 
-        indexed_functions = self._indexed_literal_function_candidates(program, manager, query)
+        indexed_functions = self._symbol_query_literal_function_candidates(
+            program, manager, query, all_external_functions
+        )
         if indexed_functions is not None:
             # Ghidra's symbol-name iterator performs wildcard matching inside
             # the JVM. Verify every candidate against the provider's Python
@@ -341,13 +344,18 @@ class FunctionToolProvider(ToolProvider):
         return self._create_paginated_response(results, offset, limit, total=total, mode="search", **response_args)
 
     @staticmethod
-    def _indexed_literal_function_candidates(program: Any, manager: Any, query: str) -> list[Any] | None:
+    def _symbol_query_literal_function_candidates(
+        program: Any,
+        manager: Any,
+        query: str,
+        external_functions: list[Any],
+    ) -> list[Any] | None:
         """Use Ghidra's name-pattern iterator for simple literal substring searches.
 
-        The symbol iterator is an in-JVM wildcard search, avoiding one Python/JVM
-        boundary crossing per function for simple text queries. Its contract
-        excludes default thunks, so queries that could match their generated
-        names retain the complete FunctionManager scan.
+        Python's IGNORECASE recognizes four non-ASCII equivalents for ASCII
+        i/s/k; wildcard those positions in Ghidra's case-insensitive pattern,
+        then verify candidates with Python's matcher. Queries that could match
+        generated default-thunk names retain the complete FunctionManager scan.
         """
         if not query or not query.isascii() or _REGEX_META.search(query) is not None:
             return None
@@ -368,30 +376,70 @@ class FunctionToolProvider(ToolProvider):
         if query_lower in "thunk_fun_" or all(char in "0123456789abcdef" for char in query_lower):
             return None
         try:
-            symbols = program.getSymbolTable().getSymbolIterator("*" + query + "*", False)
-            candidates: list[Any] = []
-            seen_addresses: set[str] = set()
+            query_regex = re.compile(query, re.IGNORECASE)
+
+            def name_matches(name: Any) -> bool:
+                text = str(name)
+                if query_lower in text.lower():
+                    return True
+                # Python's Unicode IGNORECASE includes dotted/dotless i,
+                # long s, and Kelvin sign; Java's case-insensitive pattern
+                # does not. Only these non-ASCII names need the regex check.
+                return not text.isascii() and query_regex.search(text) is not None
+
+            unicode_case_positions = [index for index, char in enumerate(query_lower) if char in "isk"]
+            if len(query_lower) < 4 or len(unicode_case_positions) > 2:
+                return None
+            search_query = list(query_lower)
+            for index in unicode_case_positions:
+                search_query[index] = "?"
+            search_pattern = "".join(search_query)
+
+            symbol_table = program.getSymbolTable()
+            functions_by_address: dict[str, Any] = {}
+            targets_by_address: dict[str, Any] = {}
+
+            def add_target(function: Any) -> None:
+                targets_by_address[str(function.getEntryPoint())] = function
+
+            def add_internal_function(function: Any) -> None:
+                if function is None or function.isExternal() or not name_matches(function.getName()):
+                    return
+                address = str(function.getEntryPoint())
+                functions_by_address[address] = function
+                add_target(function)
+
+            symbols = symbol_table.getSymbolIterator("*" + search_pattern + "*", False)
+            if symbols is None:
+                return None
             for symbol in iter_items(symbols):
                 if str(symbol.getSymbolType()).strip().casefold() != "function" or symbol.isExternal():
-                    continue
-                symbol_name = str(symbol.getName())
-                if query_lower not in symbol_name.lower():
                     continue
                 function = manager.getFunctionAt(symbol.getAddress())
                 if function is None or function.isExternal():
                     return None
-                name = str(function.getName())
-                if query_lower not in name.lower():
-                    continue
-                address = str(function.getEntryPoint())
-                if address in seen_addresses:
-                    continue
-                seen_addresses.add(address)
-                candidates.append(function)
-            # An empty result cannot distinguish a genuine no-match from a
-            # silently incomplete symbol iterator. Re-run the complete
-            # FunctionManager path before reporting zero matches.
-            return candidates or None
+                if name_matches(function.getName()):
+                    add_internal_function(function)
+
+            # The external list is absent from the symbol iterator and can
+            # provide targets for default thunk aliases.
+            for function in external_functions:
+                if name_matches(function.getName()):
+                    add_target(function)
+
+            for target in tuple(targets_by_address.values()):
+                if not hasattr(target, "getFunctionThunkAddresses"):
+                    return None
+                for address in iter_items(target.getFunctionThunkAddresses(True)):
+                    thunk = manager.getFunctionAt(address)
+                    if thunk is None or thunk.isExternal():
+                        return None
+                    add_internal_function(thunk)
+
+            def compare_functions(left: Any, right: Any) -> int:
+                return int(left.getEntryPoint().compareTo(right.getEntryPoint()))
+
+            return sorted(functions_by_address.values(), key=cmp_to_key(compare_functions))
         except Exception as exc:
             logger.debug("Indexed literal function search unavailable; using full function scan: %s", exc)
             return None

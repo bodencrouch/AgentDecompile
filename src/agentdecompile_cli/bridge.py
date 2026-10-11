@@ -50,6 +50,7 @@ from mcp.types import (
 
 from agentdecompile_cli.app_logger import basename_hint, redact_session_id
 from agentdecompile_cli.executor import get_server_start_message, normalize_backend_url
+from agentdecompile_cli.mcp_server.constants import DEFAULT_TIMEOUT_SECONDS
 from agentdecompile_cli.mcp_server.session_context import get_current_mcp_session_id
 from agentdecompile_cli.mcp_utils.tool_reference import build_initialize_instructions
 from agentdecompile_cli.registry import apply_alias_implied_arguments, resolve_tool_name
@@ -405,8 +406,15 @@ class RawMcpHttpBackend:
         """POST a JSON-RPC envelope and return the parsed response dict."""
         logger.debug("diag.enter %s", "bridge.py:RawMcpHttpBackend._post")
         had_session_id = bool(self._session_id)
+        timeout = self._tool_request_timeout(body)
+
+        async def post(url: str) -> Any:
+            if timeout is None:
+                return await self._client.post(url, json=body, headers=self._headers())
+            return await self._client.post(url, json=body, headers=self._headers(), timeout=timeout)
+
         try:
-            resp = await self._client.post(self._url, json=body, headers=self._headers())
+            resp = await post(self._url)
         except (ConnectError, ConnectTimeout) as e:
             # A connection failure occurs before dispatch. Read/write timeouts and
             # protocol failures can happen after the server has accepted a tool;
@@ -417,7 +425,7 @@ class RawMcpHttpBackend:
                 str(body.get("method", "")),
             )
             retry_url = f"{self._url}/"
-            resp = await self._client.post(retry_url, json=body, headers=self._headers())
+            resp = await post(retry_url)
 
         # Capture session id from response so subsequent requests reuse the same session
         sid = resp.headers.get("mcp-session-id") or resp.headers.get("Mcp-Session-Id")
@@ -428,7 +436,7 @@ class RawMcpHttpBackend:
         if resp.status_code == 404 and self._url.endswith("/mcp/message/"):
             logger.info("mcp http 404 on /mcp/message; retrying without /message suffix")
             retry_url = self._url.rstrip("/")
-            resp = await self._client.post(retry_url, json=body, headers=self._headers())
+            resp = await post(retry_url)
             sid = resp.headers.get("mcp-session-id") or resp.headers.get("Mcp-Session-Id")
             self._apply_mcp_session_from_response(sid)
             self._save_session_cookie_from_response(resp)
@@ -437,7 +445,7 @@ class RawMcpHttpBackend:
         if resp.status_code == 400 and had_session_id:
             logger.info("mcp http 400 with session id; retrying POST without mcp-session-id (stale session)")
             self._session_id = None
-            resp = await self._client.post(self._url, json=body, headers=self._headers())
+            resp = await post(self._url)
             sid = resp.headers.get("mcp-session-id") or resp.headers.get("Mcp-Session-Id")
             self._apply_mcp_session_from_response(sid)
             self._save_session_cookie_from_response(resp)
@@ -490,6 +498,33 @@ class RawMcpHttpBackend:
                 )
                 return {"error": {"code": -32600, "message": f"Unparseable SSE response ({len(_txt)} bytes)"}}
         return resp.json()  # type: ignore[return-value]
+
+    @staticmethod
+    def _tool_request_timeout(body: dict[str, Any]) -> Timeout | None:
+        """Extend HTTP waiting to cover long function-decompilation budgets."""
+        if body.get("method") != "tools/call":
+            return None
+        params = body.get("params")
+        if not isinstance(params, dict):
+            return None
+        tool_name = params.get("name")
+        if not isinstance(tool_name, str):
+            return None
+        normalized_name = tool_name.strip().lower().replace("_", "-")
+        if normalized_name not in {"decompile", "decompile-function", "get-function"}:
+            return None
+        arguments = params.get("arguments")
+        requested = arguments.get("timeout") if isinstance(arguments, dict) else None
+        try:
+            seconds = int(requested) if requested is not None else DEFAULT_TIMEOUT_SECONDS
+        except (TypeError, ValueError):
+            return None
+        if seconds <= 0:
+            return None
+        # The HTTP budget must outlive the server-side decompiler budget so
+        # the server can return its timeout diagnostics instead of the client
+        # abandoning the request first.
+        return Timeout(max(BACKEND_OP_TIMEOUT, seconds + 30), connect=CONNECT_TIMEOUT)
 
     async def _notify(
         self,

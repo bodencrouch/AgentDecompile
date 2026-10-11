@@ -49,6 +49,24 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+def _aggregate_decompile_results(results: list[dict[str, Any]]) -> dict[str, Any]:
+    """Build a truthful success envelope for single and batch decompile results."""
+    if len(results) == 1:
+        if results[0].get("error"):
+            return {**results[0], "success": False}
+        return results[0]
+
+    failures = [item for item in results if item.get("error")]
+    response: dict[str, Any] = {
+        "results": results,
+        "count": len(results),
+        "success": not failures,
+    }
+    if failures:
+        response["error"] = f"{len(failures)} of {len(results)} function decompilations failed; see per-result errors"
+    return response
+
+
 class DecompilerToolProvider(ToolProvider):
     HANDLERS = {
         "decompile": "_handle",
@@ -167,13 +185,7 @@ class DecompilerToolProvider(ToolProvider):
                     )
                 )
 
-        if len(results) == 1 and len(targets) == 1:
-            if results[0].get("error"):
-                # A lone target that failed (e.g. "Function not found: x") is an
-                # error, not an empty decompilation. Batches keep per-item errors.
-                return create_success_response({**results[0], "success": False})
-            return create_success_response(results[0])
-        return create_success_response({"results": results, "count": len(results)})
+        return create_success_response(_aggregate_decompile_results(results))
 
     def _get_targets(self, args: dict[str, Any]) -> list[str]:
         logger.debug("diag.enter %s", "mcp_server/providers/decompiler.py:DecompilerToolProvider._get_targets")

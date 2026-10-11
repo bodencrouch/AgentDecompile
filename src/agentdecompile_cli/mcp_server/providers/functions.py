@@ -241,8 +241,8 @@ class FunctionToolProvider(ToolProvider):
         """
         include_externals = self._get_bool(args, "includeexternals", "externals", default=True)
         manager = program.getFunctionManager()
-        functions = _get_function_list(manager)
-        external_functions = _get_external_function_list(manager) if include_externals else []
+        all_external_functions = _get_external_function_list(manager)
+        external_functions = all_external_functions if include_externals else []
 
         needle = query.lower()
         query_stripped = needle.strip()
@@ -258,9 +258,11 @@ class FunctionToolProvider(ToolProvider):
         total = 0
         selected: list[Any] = []
 
-        def scan(funcs: Any, *, external: bool = False) -> None:
+        def scan(funcs: Any, *, external: bool = False) -> int:
             nonlocal total
+            scanned = 0
             for func in funcs:
+                scanned += 1
                 name = str(func.getName())
                 name_matched = needle in name.lower()
                 if not name_matched and query_regex is not None and not (literal_ascii_query and name.isascii()):
@@ -285,8 +287,33 @@ class FunctionToolProvider(ToolProvider):
                 if total >= offset and len(selected) < limit:
                     selected.append(func)
                 total += 1
+            return scanned
 
-        scan(functions)
+        # The normal collector materializes every Function proxy before the
+        # search can inspect a single name. Stream the common Ghidra iterator
+        # directly; if this PyGhidra/JVM iterator fails or unexpectedly yields
+        # nothing for a non-empty manager, restart through the established
+        # compatibility collector and discard any partial page/count first.
+        expected_internal_count: int | None = None
+        try:
+            function_count = int(manager.getFunctionCount())
+            expected_internal_count = max(0, function_count - len(all_external_functions))
+        except Exception as exc:
+            logger.debug("Unable to verify fast function iterator count; retrying compatibility collector: %s", exc)
+
+        try:
+            if expected_internal_count is None:
+                raise RuntimeError("Function count unavailable for validating the streamed iterator")
+            scanned = scan(manager.getFunctions(True))
+            if scanned != expected_internal_count:
+                raise RuntimeError(
+                    f"Function iterator returned {scanned} internal functions; expected {expected_internal_count}"
+                )
+        except Exception as exc:
+            logger.debug("Fast function iterator failed; retrying compatibility collector: %s", exc)
+            selected.clear()
+            total = 0
+            scan(_get_function_list(manager))
         scan(external_functions, external=True)
 
         results = []

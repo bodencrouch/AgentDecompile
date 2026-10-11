@@ -38,6 +38,7 @@ import os
 import socket
 import subprocess
 import sys
+import threading
 import time
 
 from dataclasses import dataclass
@@ -1299,6 +1300,7 @@ async def _call(ctx: click.Context, tool: str | Tool, /, **kwargs: Any) -> None:
     result: Any = await _await_with_cli_heartbeat(
         _call_raw(ctx, tool, payload),
         tool,
+        threaded=_is_local_mode(ctx),
     )
 
     if tool == "list_project_files":
@@ -1308,7 +1310,12 @@ async def _call(ctx: click.Context, tool: str | Tool, /, **kwargs: Any) -> None:
     _exit_on_tool_failure(result)
 
 
-async def _await_with_cli_heartbeat(awaitable: Any, tool: str | Tool) -> Any:
+async def _await_with_cli_heartbeat(
+    awaitable: Any,
+    tool: str | Tool,
+    *,
+    threaded: bool = False,
+) -> Any:
     """Keep long CLI tool calls observable without changing stdout responses.
 
     The message is emitted to stderr only after a call has been pending for
@@ -1317,6 +1324,33 @@ async def _await_with_cli_heartbeat(awaitable: Any, tool: str | Tool) -> Any:
     """
     tool_name = str(getattr(tool, "value", tool))
     started = time.monotonic()
+
+    if threaded:
+        # In --local mode, PyGhidra providers may run a synchronous Java call
+        # inside the awaited coroutine. That blocks this asyncio loop, so the
+        # normal heartbeat below cannot run until the decompilation is done.
+        stop = threading.Event()
+
+        def report_while_waiting() -> None:
+            if stop.wait(_CLI_CALL_HEARTBEAT_INITIAL_SEC):
+                return
+            while not stop.is_set():
+                elapsed = time.monotonic() - started
+                click.echo(
+                    f"Still waiting for AgentDecompile tool '{tool_name}' ({elapsed:.0f}s elapsed).",
+                    err=True,
+                )
+                if stop.wait(_CLI_CALL_HEARTBEAT_INTERVAL_SEC):
+                    return
+
+        reporter = threading.Thread(target=report_while_waiting, name="agentdecompile-cli-heartbeat", daemon=True)
+        reporter.start()
+        try:
+            return await awaitable
+        finally:
+            stop.set()
+            reporter.join(timeout=0.2)
+
     pending = asyncio.create_task(awaitable)
     delay = _CLI_CALL_HEARTBEAT_INITIAL_SEC
     try:
@@ -5589,6 +5623,7 @@ def tool_cmd(
         data = await _await_with_cli_heartbeat(
             _call_raw(ctx, name, prepared_payload, allow_connection_status=not any(value is None for value in payload.values())),
             name,
+            threaded=_is_local_mode(ctx),
         )
         display_data = _inject_inferred_program(data, inferred_program)
 
@@ -5806,6 +5841,7 @@ def _run_parsed_tool_sequence(
                 data = await _await_with_cli_heartbeat(
                     _call_raw(ctx, name, prepared_arguments, client_override=client_override, allow_connection_status=not any(value is None for value in arguments.values())),
                     name,
+                    threaded=_is_local_mode(ctx),
                 )
                 step_ok = _tool_seq_step_succeeded(data)
                 step_result = {

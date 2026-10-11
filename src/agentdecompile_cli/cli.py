@@ -5075,15 +5075,43 @@ def checkin(
 
 @main.command("analyze", help="Run auto-analysis (analyze-program)")
 @click.option("-b", "--binary", "program_path")
+@click.option(
+    "--open-project",
+    "open_project_path",
+    type=click.Path(exists=False),
+    default=None,
+    help="Open this local Ghidra project path in the same MCP session before analysis (use a .gpr file or project directory).",
+)
 @click.option("--force", is_flag=True, help="Force re-analysis even if the program is already analyzed")
 @click.pass_context
-def analyze(ctx: click.Context, program_path: str | None, force: bool) -> None:
+def analyze(ctx: click.Context, program_path: str | None, open_project_path: str | None, force: bool) -> None:
     logger.debug("diag.enter %s", "cli.py:analyze")
     payload: dict[str, Any] = {}
     if program_path is not None and program_path.strip():
         payload["programPath"] = program_path
     if force:
         payload["force"] = True
+    if open_project_path is not None:
+        # Match `open`'s mode-aware path behavior: local paths are resolved
+        # against the caller's working directory; shared-server paths belong
+        # to the configured server and must pass through unchanged.
+        opts = _get_opts(ctx)
+        server_host = (
+            opts.get("ghidra_server_host")
+            or opts.get("server_host")
+            or os.environ.get("AGENT_DECOMPILE_GHIDRA_SERVER_HOST")
+            or os.environ.get("AGENTDECOMPILE_GHIDRA_SERVER_HOST")
+        )
+        is_shared_server_mode = bool(server_host and str(server_host).strip())
+        resolved_project_path = open_project_path
+        if not is_shared_server_mode and open_project_path != "/":
+            resolved_project_path = str(Path(open_project_path).resolve())
+        steps = [
+            {"name": Tool.OPEN.value, "arguments": {"path": resolved_project_path, "analyzeAfterImport": False}},
+            {"name": Tool.ANALYZE_PROGRAM.value, "arguments": payload},
+        ]
+        _run_parsed_tool_sequence(ctx, steps)
+        return
     _run_async(_call(ctx, Tool.ANALYZE_PROGRAM.value, **payload))
 
 

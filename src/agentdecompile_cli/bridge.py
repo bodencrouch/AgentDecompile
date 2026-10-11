@@ -50,7 +50,7 @@ from mcp.types import (
 
 from agentdecompile_cli.app_logger import basename_hint, redact_session_id
 from agentdecompile_cli.executor import get_server_start_message, normalize_backend_url
-from agentdecompile_cli.mcp_server.constants import DEFAULT_TIMEOUT_SECONDS
+from agentdecompile_cli.mcp_server.constants import MAX_CONFIGURED_TIMEOUT_SECONDS
 from agentdecompile_cli.mcp_server.session_context import get_current_mcp_session_id
 from agentdecompile_cli.mcp_utils.tool_reference import build_initialize_instructions
 from agentdecompile_cli.registry import apply_alias_implied_arguments, resolve_tool_name
@@ -501,7 +501,7 @@ class RawMcpHttpBackend:
 
     @staticmethod
     def _tool_request_timeout(body: dict[str, Any]) -> Timeout | None:
-        """Extend HTTP waiting to cover long function-decompilation budgets."""
+        """Keep decompilation HTTP waits above server-side timeout budgets."""
         if body.get("method") != "tools/call":
             return None
         params = body.get("params")
@@ -511,16 +511,16 @@ class RawMcpHttpBackend:
         if not isinstance(tool_name, str):
             return None
         normalized_name = resolve_tool_name(tool_name) or tool_name.strip().lower().replace("_", "-")
-        if normalized_name not in {"decompile", "decompile-function", "get-function"}:
+        if normalized_name not in {"decompile", "decompile-function", "get-function", "get-functions"}:
             return None
         arguments = params.get("arguments")
         requested = arguments.get("timeout") if isinstance(arguments, dict) else None
         try:
-            seconds = int(requested) if requested is not None else DEFAULT_TIMEOUT_SECONDS
+            seconds = int(requested) if requested is not None else MAX_CONFIGURED_TIMEOUT_SECONDS
         except (TypeError, ValueError):
-            return None
+            seconds = MAX_CONFIGURED_TIMEOUT_SECONDS
         if seconds <= 0:
-            return None
+            seconds = MAX_CONFIGURED_TIMEOUT_SECONDS
         # The HTTP budget must outlive the server-side decompiler budget so
         # the server can return its timeout diagnostics instead of the client
         # abandoning the request first.

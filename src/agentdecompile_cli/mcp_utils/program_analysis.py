@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import logging
 import threading
 import time
@@ -53,6 +54,7 @@ _MAX_PROGRAM_LOCKS = 512
 _POLL_INTERVAL_MIN_SEC = 0.05
 _POLL_INTERVAL_MAX_SEC = 1.0
 _POLL_BACKOFF_FACTOR = 1.5
+_ANALYSIS_HEARTBEAT_INTERVAL_SEC = 60.0
 
 # Tools that manage analysis themselves or do not need an analyzed program yet.
 _ANALYSIS_GATE_EXEMPT_TOOLS: frozenset[str] = frozenset(
@@ -343,6 +345,41 @@ def _safe_program_name(program: GhidraProgram) -> str:
         return "?"
 
 
+def _run_with_analysis_heartbeat(program: GhidraProgram, callback: Any) -> Any:
+    """Run blocking Ghidra work with a throttled, path-safe liveness heartbeat.
+
+    Ghidra's auto-analysis runs synchronously and may spend many minutes inside
+    Java without returning control to the MCP request handler.  A small daemon
+    thread reports elapsed time at WARNING level so it remains visible with the
+    server's default logging configuration.  It deliberately makes no calls
+    into Ghidra from the reporting thread and never writes to protocol stdout.
+    """
+    program_key = _program_lock_key(program)
+    program_ref = hashlib.sha256(program_key.encode("utf-8", errors="replace")).hexdigest()[:12]
+    started = time.monotonic()
+    stop = threading.Event()
+
+    def report_liveness() -> None:
+        while not stop.wait(_ANALYSIS_HEARTBEAT_INTERVAL_SEC):
+            logger.warning(
+                "program_analysis_heartbeat ref=%s stage=ghidra-auto-analysis elapsed_sec=%.0f status=still-running",
+                program_ref,
+                time.monotonic() - started,
+            )
+
+    heartbeat = threading.Thread(
+        target=report_liveness,
+        name=f"analysis-heartbeat-{program_ref}",
+        daemon=True,
+    )
+    heartbeat.start()
+    try:
+        return callback()
+    finally:
+        stop.set()
+        heartbeat.join(timeout=2.0)
+
+
 def _run_auto_analysis(program: GhidraProgram, *, analyzers: list[str] | None = None) -> list[str]:
     # Callers reach this only after ``program_needs_analysis`` said analysis is
     # needed, so the run is always forced.  ghidrecomp's own gate consults only
@@ -460,7 +497,10 @@ def blocking_ensure_analyzed(
         else:
             logger.info("program_analysis_start key=%s force=%s", key, force)
             try:
-                deferred = _run_auto_analysis(program, analyzers=analyzers)
+                deferred = _run_with_analysis_heartbeat(
+                    program,
+                    lambda: _run_auto_analysis(program, analyzers=analyzers),
+                )
                 if program_needs_analysis(program, program_info=program_info):
                     raise ProgramAnalysisIncomplete(
                         f"Ghidra auto-analysis did not complete for program (key={key})"
@@ -509,7 +549,7 @@ def wait_for_program_analysis_ready(
         try:
             if program_needs_analysis(program, program_info=program_info):
                 logger.info("program_analysis_wait_ensure key=%s", key)
-                _run_auto_analysis(program)
+                _run_with_analysis_heartbeat(program, lambda: _run_auto_analysis(program))
                 wait_for_program_analysis_idle(program, max_wait_sec=max_wait_sec)
             if program_needs_analysis(program, program_info=program_info):
                 raise ProgramAnalysisIncomplete(

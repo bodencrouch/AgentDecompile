@@ -25,6 +25,7 @@ Usage:
 
 from __future__ import annotations
 
+import asyncio
 import copy
 import contextlib
 from contextvars import ContextVar
@@ -97,6 +98,8 @@ _CLI_STATE_FILE = "cli_state.json"
 _CLI_INJECTED_PROGRAM_KEY = "cli_injected_cached_program"
 _PROGRAM_OPENING_TOOLS = frozenset({"open", "open_project", "import_binary"})
 _DEFAULT_OUTPUT_FORMAT = "text"
+_CLI_CALL_HEARTBEAT_INITIAL_SEC = 5.0
+_CLI_CALL_HEARTBEAT_INTERVAL_SEC = 30.0
 # -f/--format values. text, shell and markdown print the server's markdown
 # rendering as-is. json prints the tool's JSON data; xml and table render that
 # same data. Anything else is a usage error.
@@ -1293,13 +1296,43 @@ async def _call(ctx: click.Context, tool: str | Tool, /, **kwargs: Any) -> None:
     logger.debug("diag.enter %s", "cli.py:_call")
     payload: dict[str, Any] = {k: v for k, v in kwargs.items() if v is not None}
 
-    result: Any = await _call_raw(ctx, tool, payload)
+    result: Any = await _await_with_cli_heartbeat(
+        _call_raw(ctx, tool, payload),
+        tool,
+    )
 
     if tool == "list_project_files":
         result = _ensure_count_in_project_file_results(result)
 
     click.echo(_render_result(ctx, result))
     _exit_on_tool_failure(result)
+
+
+async def _await_with_cli_heartbeat(awaitable: Any, tool: str | Tool) -> Any:
+    """Keep long CLI tool calls observable without changing stdout responses.
+
+    The message is emitted to stderr only after a call has been pending for
+    several seconds; JSON, markdown, and other formatted tool output therefore
+    remain untouched. It reports elapsed wait only, not server-side progress.
+    """
+    tool_name = str(getattr(tool, "value", tool))
+    started = time.monotonic()
+    pending = asyncio.create_task(awaitable)
+    delay = _CLI_CALL_HEARTBEAT_INITIAL_SEC
+    try:
+        while True:
+            done, _ = await asyncio.wait({pending}, timeout=delay)
+            if done:
+                return pending.result()
+            elapsed = time.monotonic() - started
+            click.echo(
+                f"Still waiting for AgentDecompile tool '{tool_name}' ({elapsed:.0f}s elapsed).",
+                err=True,
+            )
+            delay = _CLI_CALL_HEARTBEAT_INTERVAL_SEC
+    finally:
+        if not pending.done():
+            pending.cancel()
 
 
 _CLI_SESSION_OBSERVATION: ContextVar[bool] = ContextVar("cli_session_observation", default=False)

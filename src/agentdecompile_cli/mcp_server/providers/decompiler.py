@@ -63,7 +63,16 @@ def _aggregate_decompile_results(results: list[dict[str, Any]]) -> dict[str, Any
         "success": not failures,
     }
     if failures:
-        response["error"] = f"{len(failures)} of {len(results)} function decompilations failed; see per-result errors"
+        details: list[str] = []
+        for item in failures[:5]:
+            name = str(item.get("name") or item.get("function") or "unknown").replace("\n", " ").replace("\r", " ")
+            reason = str(item.get("error") or "failed").replace("\n", " ").replace("\r", " ")
+            if len(reason) > 240:
+                reason = reason[:237] + "..."
+            details.append(f"{name}: {reason}")
+        if len(failures) > len(details):
+            details.append(f"and {len(failures) - len(details)} more failures")
+        response["error"] = f"{len(failures)} of {len(results)} function decompilations failed: " + " | ".join(details)
     return response
 
 

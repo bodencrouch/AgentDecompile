@@ -22,54 +22,63 @@ class _QuotaRow:
     space_used: int
     space_quota: int | None
     space_limit: int | None
+    space_grace: str | None
     inodes_used: int | None
     inodes_quota: int | None
     inodes_limit: int | None
-    exceeded_marker: bool
+    inodes_grace: str | None
+    space_exceeded_marker: bool
+    inodes_exceeded_marker: bool
 
 
-def _quota_value(value: str) -> tuple[int | None, bool]:
-    """Parse one `quota -s` number and retain its over-limit marker."""
+def _quota_value(value: str, *, dimension: str) -> tuple[int | None, bool]:
+    """Parse a human-readable quota cell; byte and inode units use different bases."""
     match = _QUOTA_VALUE.fullmatch(value.strip())
     if match is None:
         return None, False
     unit = match.group("unit").upper()
     power = "KMGTPE".find(unit) + 1 if unit else 0
-    return int(float(match.group("amount")) * (1024**power)), bool(match.group("exceeded"))
+    base = 1000 if dimension == "inodes" else 1024
+    return int(float(match.group("amount")) * (base**power)), bool(match.group("exceeded"))
 
 
 def _quota_rows(output: str) -> list[_QuotaRow]:
     """Read quota(1) rows emitted with --show-mntpoint and -s.
 
-    Rows contain device, mountpoint, used/quota/limit bytes, then the three
-    corresponding inode columns.  Unknown or unlimited cells remain None.
+    Rows contain device, mountpoint, used/quota/limit bytes, byte grace,
+    used/quota/limit inodes, then inode grace. Unknown or unlimited cells
+    remain None without shifting the neighboring columns.
     """
     rows: list[_QuotaRow] = []
     for line in output.splitlines():
         cells = line.split()
         if len(cells) < 8 or not cells[1].startswith("/"):
             continue
-        space_values = [_quota_value(cell) for cell in cells[2:5]]
+        space_values = [_quota_value(cell, dimension="bytes") for cell in cells[2:5]]
         used, quota, limit = (value for value, _marked in space_values)
         if used is None:
             continue
-        inode_values = [_quota_value(cell) for cell in cells[5:]]
-        inode_values = [value for value in inode_values if value[0] is not None][:3]
+        space_grace = cells[5] if len(cells) > 5 and cells[5] != "-" else None
+        inode_values = [_quota_value(cell, dimension="inodes") for cell in cells[6:9]]
         if len(inode_values) == 3:
             used_inodes, inode_quota, inode_limit = (value for value, _marked in inode_values)
+            inode_grace = cells[9] if len(cells) > 9 and cells[9] != "-" else None
         else:
             used_inodes = inode_quota = inode_limit = None
-        exceeded_marker = any(marked for _value, marked in space_values + inode_values)
+            inode_grace = None
         rows.append(
             _QuotaRow(
                 Path(cells[1]),
                 used,
                 quota,
                 limit,
+                space_grace,
                 used_inodes,
                 inode_quota,
                 inode_limit,
-                exceeded_marker,
+                inode_grace,
+                any(marked for _value, marked in space_values),
+                any(marked for _value, marked in inode_values),
             )
         )
     return rows
@@ -97,56 +106,84 @@ def _preflight_from_quota_output(
         if row is None or row.mount in emitted:
             continue
         mount = row.mount
-        space_quota = min((value for value in (row.space_quota, row.space_limit) if value and value > 0), default=0)
-        inode_quota = min((value for value in (row.inodes_quota, row.inodes_limit) if value and value > 0), default=0)
-        space_over_soft_quota = space_quota > 0 and row.space_used > space_quota
-        inodes_over_soft_quota = inode_quota > 0 and row.inodes_used is not None and row.inodes_used > inode_quota
-        space_exhausted = row.space_limit is not None and row.space_limit > 0 and row.space_used >= row.space_limit
-        inodes_exhausted = (
+        space_over_soft_quota = (
+            row.space_quota is not None and row.space_quota > 0 and row.space_used > row.space_quota
+        ) or row.space_exceeded_marker
+        inodes_over_soft_quota = (
+            row.inodes_quota is not None
+            and row.inodes_quota > 0
+            and row.inodes_used is not None
+            and row.inodes_used > row.inodes_quota
+        ) or row.inodes_exceeded_marker
+        space_hard_exhausted = row.space_limit is not None and row.space_limit > 0 and row.space_used >= row.space_limit
+        inode_hard_exhausted = (
             row.inodes_limit is not None
             and row.inodes_limit > 0
             and row.inodes_used is not None
             and row.inodes_used >= row.inodes_limit
         )
-        if space_exhausted or inodes_exhausted or row.exceeded_marker or (
-            quota_exit_code == 1 and (space_over_soft_quota or inodes_over_soft_quota)
-        ):
+        if space_hard_exhausted or inode_hard_exhausted:
             dimensions = []
-            if space_exhausted or (quota_exit_code == 1 and space_over_soft_quota):
+            if space_hard_exhausted:
                 dimensions.append("byte")
-            if inodes_exhausted or (quota_exit_code == 1 and inodes_over_soft_quota):
+            if inode_hard_exhausted:
                 dimensions.append("inode")
-            if not dimensions:
-                dimensions.append("reported")
             raise RuntimeError(
-                f"Local storage quota is exhausted at {mount} ({', '.join(dimensions)} quota). "
-                "PyGhidra startup was stopped before opening the project because Ghidra may spend "
-                "a long time attempting writes that cannot succeed. Select a destination with "
+                f"Local storage hard quota is reached at {mount} ({', '.join(dimensions)} limit). "
+                "PyGhidra startup was stopped before opening the project because writes cannot "
+                "succeed. Select a destination with "
                 "available user quota using --local-project-path, and configure JVM temp with "
                 "JAVA_TOOL_OPTIONS=-Djava.io.tmpdir=/path if needed. No files were changed."
             )
 
-        space_limit = min((limit for limit in (row.space_quota, row.space_limit) if limit and limit > 0), default=0)
+        hard_space_limit = row.space_limit if row.space_limit and row.space_limit > 0 else 0
         remaining = None
         space_headroom = None
-        if space_limit > 0:
-            remaining = max(0, space_limit - row.space_used)
-            space_headroom = remaining / space_limit
+        if hard_space_limit > 0:
+            remaining = max(0, hard_space_limit - row.space_used)
+            space_headroom = remaining / hard_space_limit
             if (remaining <= _QUOTA_STOP_BYTES and space_headroom <= _QUOTA_WARNING_HEADROOM) or space_headroom <= 0.01:
                 raise RuntimeError(
-                    f"Local storage quota headroom is too low at {mount}: {remaining:,} bytes remain "
-                    f"of {space_limit:,}. PyGhidra startup was stopped before a write could stall or "
+                    f"Local storage hard-quota headroom is too low at {mount}: {remaining:,} bytes remain "
+                    f"of {hard_space_limit:,}. PyGhidra startup was stopped before a write could stall or "
                     "fail after a long wait. Select a project/temp destination with more user quota. "
                     "No files were changed."
                 )
-        if space_limit > 0 and space_headroom is not None and space_headroom <= _QUOTA_WARNING_HEADROOM:
+        if space_over_soft_quota:
+            grace = row.space_grace or "not reported"
+            hard_remaining = f"{remaining:,} bytes remain before the hard limit" if remaining is not None else "hard-limit headroom is unknown"
+            warnings.append(
+                f"Soft byte quota is exceeded at {mount}; reported grace is {grace}, and {hard_remaining}. "
+                "The quota utility may return exit status 1 for this grace-period state; startup continues."
+            )
+            emitted.add(mount)
+        if inodes_over_soft_quota:
+            grace = row.inodes_grace or "not reported"
+            hard_remaining = (
+                f"{max(0, row.inodes_limit - row.inodes_used):,} inodes remain before the hard limit"
+                if row.inodes_limit and row.inodes_used is not None
+                else "hard-limit headroom is unknown"
+            )
+            warnings.append(
+                f"Soft inode quota is exceeded at {mount}; reported grace is {grace}, and {hard_remaining}. "
+                "The quota utility may return exit status 1 for this grace-period state; startup continues."
+            )
+            emitted.add(mount)
+        if quota_exit_code == 1 and not (space_over_soft_quota or inodes_over_soft_quota):
+            warnings.append(
+                f"The quota utility returned exit status 1 while checking {mount}; that status can indicate "
+                "a soft-quota grace state. The target row does not show its hard limit reached, so startup continues."
+            )
+            emitted.add(mount)
+        if hard_space_limit > 0 and space_headroom is not None and space_headroom <= _QUOTA_WARNING_HEADROOM:
             percent = max(0, round(100 * space_headroom))
             warnings.append(
-                f"Near user quota at {mount}: {row.space_used:,} bytes used of {space_limit:,} bytes "
+                f"Near user hard quota at {mount}: {row.space_used:,} bytes used of {hard_space_limit:,} bytes "
                 f"({percent}% remaining). Large local Ghidra operations may fail when "
                 "they write project or temporary data; execution will continue."
             )
             emitted.add(mount)
+        inode_quota = row.inodes_limit if row.inodes_limit and row.inodes_limit > 0 else 0
         if inode_quota > 0 and row.inodes_used is not None:
             remaining_inodes = max(0, inode_quota - row.inodes_used)
             inode_headroom = remaining_inodes / inode_quota

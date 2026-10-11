@@ -31,7 +31,6 @@ import logging
 import os
 import shlex
 import sys
-import tempfile
 import time
 
 from pathlib import Path
@@ -52,7 +51,7 @@ _LOCAL_SESSION_ID = "local"
 
 
 def _java_temp_directory() -> Path:
-    """Resolve an explicit JVM temp option before falling back to Python temp."""
+    """Resolve an explicit JVM temp option or its platform default."""
     for variable in ("JDK_JAVA_OPTIONS", "JAVA_TOOL_OPTIONS", "_JAVA_OPTIONS"):
         try:
             options = shlex.split(os.environ.get(variable, ""))
@@ -63,7 +62,18 @@ def _java_temp_directory() -> Path:
                 return Path(option.split("=", 1)[1]).expanduser()
             if option == "-Djava.io.tmpdir" and index + 1 < len(options):
                 return Path(options[index + 1]).expanduser()
-    return Path(tempfile.gettempdir())
+    if os.name == "nt":
+        # The Windows JVM uses the system temporary directory (GetTempPath),
+        # which follows TEMP/TMP. Ignore TMPDIR here, as Python may honor it
+        # even though the JVM does not.
+        configured = os.environ.get("TEMP") or os.environ.get("TMP")
+        if configured:
+            return Path(configured).expanduser()
+        system_root = os.environ.get("SystemRoot") or os.environ.get("WINDIR")
+        return Path(system_root, "Temp") if system_root else Path(r"C:\Windows\Temp")
+    # OpenJDK's Unix default for java.io.tmpdir is /tmp. Do not use
+    # tempfile.gettempdir(): it can follow Python-only TMPDIR overrides.
+    return Path("/tmp")
 
 
 class LocalToolBackend:

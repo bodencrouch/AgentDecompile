@@ -7,4 +7,4 @@ This module contains shared constants to avoid circular import issues.
 # Large native functions can take substantially longer than ordinary functions
 # to simplify; keep the default useful for those callers while retaining the
 # per-request ``timeout`` override for tighter or longer budgets.
-DEFAULT_TIMEOUT_SECONDS = 300
+DEFAULT_TIMEOUT_SECONDS = 900

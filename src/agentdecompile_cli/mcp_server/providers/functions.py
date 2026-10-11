@@ -58,6 +58,7 @@ _LIST_ROW_KEYS = ("name", "address", "size", "isExternal", "isThunk", "parameter
 _VERBOSE_ROW_KEYS = ("parameters", "returnType", "hasVarArgs", "tags", "comments", "callerCount", "calleeCount")
 # Ghidra's auto-generated function names (SourceType.DEFAULT): FUN_00401000, thunk_FUN_00401000.
 _DEFAULT_FUNCTION_NAME = re.compile(r"^(?:thunk_)?FUN_[0-9A-Fa-f]+$")
+_REGEX_META = re.compile(r"[.\\^$*+?{}\[\]|()]")
 
 
 def _strip_hex_prefix(text: str) -> str:
@@ -240,38 +241,55 @@ class FunctionToolProvider(ToolProvider):
         include_externals = self._get_bool(args, "includeexternals", "externals", default=True)
         manager = program.getFunctionManager()
         functions = _get_function_list(manager)
-        if include_externals:
-            seen = {str(func.getEntryPoint()) for func in functions if hasattr(func, "getEntryPoint")}
-            functions.extend(
-                func for func in _get_external_function_list(manager)
-                if str(func.getEntryPoint()) not in seen
-            )
+        external_functions = _get_external_function_list(manager) if include_externals else []
 
         needle = query.lower()
-        try:
-            query_regex = re.compile(query, re.IGNORECASE)
-        except re.error:
-            query_regex = None
         query_stripped = needle.strip()
         looks_like_address = bool(re.fullmatch(r"(0x)?[0-9a-f]+", query_stripped)) and (
             query_stripped.startswith("0x") or any(ch.isdigit() for ch in query_stripped) or len(query_stripped) >= 6
         )
         query_addr = _strip_hex_prefix(query_stripped) if looks_like_address else ""
+        # Most CLI searches are plain words.  Treating each as a regex adds a
+        # second Python match operation per function after the substring check,
+        # even though the two checks are equivalent for a literal query.
+        try:
+            query_regex = re.compile(query, re.IGNORECASE) if _REGEX_META.search(query) else None
+        except re.error:
+            query_regex = None
         total = 0
         selected: list[Any] = []
-        for func in functions:
-            name = str(func.getName())
-            address = str(func.getEntryPoint())
-            if needle in name.lower() or (query_regex and query_regex.search(name)):
-                matched = True
-            elif query_addr and query_addr in _strip_hex_prefix(address.lower()):
-                matched = True
-            else:
-                matched = False
-            if matched:
+        matched_addresses: set[str] = set()
+
+        def scan(funcs: Any, *, external: bool = False) -> None:
+            nonlocal total
+            for func in funcs:
+                name = str(func.getName())
+                name_matched = needle in name.lower() or (query_regex is not None and query_regex.search(name) is not None)
+                address = None
+                if query_addr and not name_matched:
+                    address = str(func.getEntryPoint())
+                    matched = query_addr in _strip_hex_prefix(address.lower())
+                else:
+                    matched = name_matched
+                    # Only matched rows need an address for external de-duplication.
+                    # A name-only search should not cross the Python/JVM bridge for
+                    # getEntryPoint() on every function in a large binary.
+                    if matched and include_externals:
+                        address = str(func.getEntryPoint())
+                if not matched:
+                    continue
+                if external and address is None:
+                    address = str(func.getEntryPoint())
+                if external and address in matched_addresses:
+                    continue
+                if address is not None:
+                    matched_addresses.add(address)
                 if total >= offset and len(selected) < limit:
                     selected.append(func)
                 total += 1
+
+        scan(functions)
+        scan(external_functions, external=True)
 
         results = []
         for func in selected:

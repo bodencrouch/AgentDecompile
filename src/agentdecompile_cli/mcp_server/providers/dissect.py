@@ -37,7 +37,10 @@ if TYPE_CHECKING:
 
 from mcp import types
 
-from agentdecompile_cli.mcp_server.constants import DEFAULT_TIMEOUT_SECONDS  # pyright: ignore[reportMissingImports]
+from agentdecompile_cli.mcp_server.constants import (  # pyright: ignore[reportMissingImports]
+    DEFAULT_TIMEOUT_SECONDS,
+    MAX_CONFIGURED_TIMEOUT_SECONDS,
+)
 from agentdecompile_cli.mcp_server.providers._collectors import (
     collect_function_comments,
     collect_function_data_flow,
@@ -133,7 +136,11 @@ class GetFunctionAioToolProvider(ToolProvider):
                         "timeout": {
                             "type": "integer",
                             "default": DEFAULT_TIMEOUT_SECONDS,
-                            "description": f"Maximum seconds for the decompiler before aborting; defaults to {DEFAULT_TIMEOUT_SECONDS} seconds. Set a smaller value to limit the decompilation budget.",
+                            "description": (
+                                f"Maximum seconds for the decompiler before aborting; defaults to {DEFAULT_TIMEOUT_SECONDS} "
+                                "seconds. Set a smaller value to limit the decompilation budget. The default is "
+                                f"configurable with AGENTDECOMPILE_DECOMPILE_TIMEOUT_SECONDS (1-{MAX_CONFIGURED_TIMEOUT_SECONDS})."
+                            ),
                         },
                         "maxInstructions": {
                             "type": "integer",

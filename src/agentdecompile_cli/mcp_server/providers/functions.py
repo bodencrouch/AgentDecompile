@@ -34,6 +34,10 @@ if TYPE_CHECKING:
 
 from mcp import types
 
+from agentdecompile_cli.mcp_server.constants import (
+    DEFAULT_TIMEOUT_SECONDS,
+    MAX_CONFIGURED_TIMEOUT_SECONDS,
+)
 from agentdecompile_cli.mcp_server.providers._collectors import collect_functions, iter_items, make_task_monitor
 from agentdecompile_cli.mcp_server.tool_providers import (
     ToolProvider,
@@ -110,7 +114,14 @@ class FunctionToolProvider(ToolProvider):
                             "enum": ["info", "decompile", "disassemble", "calls", "all"],
                             "description": "Which function view to return.",
                         },
-                        "timeout": {"type": "integer", "default": 60, "description": "Decompiler timeout in seconds."},
+                        "timeout": {
+                            "type": "integer",
+                            "default": DEFAULT_TIMEOUT_SECONDS,
+                            "description": (
+                                f"Decompiler timeout in seconds; default {DEFAULT_TIMEOUT_SECONDS}. The default is "
+                                f"configurable with AGENTDECOMPILE_DECOMPILE_TIMEOUT_SECONDS (1-{MAX_CONFIGURED_TIMEOUT_SECONDS})."
+                            ),
+                        },
                         "offset": {"type": "integer", "default": 0, "description": "Pagination offset for batch results."},
                         "limit": {"type": "integer", "default": 100, "description": "Maximum results to return."},
                     },
@@ -383,7 +394,7 @@ class FunctionToolProvider(ToolProvider):
         if view.lower() == "all":
             view = ""
         max_results: int = self._get_int(args, "limit", "maxresults", default=100)
-        timeout: int = self._get_int(args, "timeout", "decompiletimeout", default=60)
+        timeout: int = self._get_int(args, "timeout", "decompiletimeout", default=DEFAULT_TIMEOUT_SECONDS)
 
         program = program_info.program
         if program is None or not hasattr(program, "getFunctionManager"):

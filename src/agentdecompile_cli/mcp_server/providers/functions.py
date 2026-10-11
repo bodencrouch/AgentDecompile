@@ -58,7 +58,6 @@ _LIST_ROW_KEYS = ("name", "address", "size", "isExternal", "isThunk", "parameter
 _VERBOSE_ROW_KEYS = ("parameters", "returnType", "hasVarArgs", "tags", "comments", "callerCount", "calleeCount")
 # Ghidra's auto-generated function names (SourceType.DEFAULT): FUN_00401000, thunk_FUN_00401000.
 _DEFAULT_FUNCTION_NAME = re.compile(r"^(?:thunk_)?FUN_[0-9A-Fa-f]+$")
-_REGEX_META = re.compile(r"[.\\^$*+?{}\[\]|()]")
 
 
 def _strip_hex_prefix(text: str) -> str:
@@ -249,16 +248,12 @@ class FunctionToolProvider(ToolProvider):
             query_stripped.startswith("0x") or any(ch.isdigit() for ch in query_stripped) or len(query_stripped) >= 6
         )
         query_addr = _strip_hex_prefix(query_stripped) if looks_like_address else ""
-        # Most CLI searches are plain words.  Treating each as a regex adds a
-        # second Python match operation per function after the substring check,
-        # even though the two checks are equivalent for a literal query.
         try:
-            query_regex = re.compile(query, re.IGNORECASE) if _REGEX_META.search(query) else None
+            query_regex = re.compile(query, re.IGNORECASE)
         except re.error:
             query_regex = None
         total = 0
         selected: list[Any] = []
-        matched_addresses: set[str] = set()
 
         def scan(funcs: Any, *, external: bool = False) -> None:
             nonlocal total
@@ -271,19 +266,17 @@ class FunctionToolProvider(ToolProvider):
                     matched = query_addr in _strip_hex_prefix(address.lower())
                 else:
                     matched = name_matched
-                    # Only matched rows need an address for external de-duplication.
-                    # A name-only search should not cross the Python/JVM bridge for
-                    # getEntryPoint() on every function in a large binary.
-                    if matched and include_externals:
-                        address = str(func.getEntryPoint())
                 if not matched:
                     continue
-                if external and address is None:
+                if external:
                     address = str(func.getEntryPoint())
-                if external and address in matched_addresses:
-                    continue
-                if address is not None:
-                    matched_addresses.add(address)
+                    # The legacy search de-duplicates external functions only
+                    # against internal functions; duplicate external rows remain
+                    # visible. Query the manager for this candidate instead of
+                    # materializing every internal entry point up front.
+                    existing = manager.getFunctionAt(func.getEntryPoint())
+                    if existing is not None and not existing.isExternal() and str(existing.getEntryPoint()) == address:
+                        continue
                 if total >= offset and len(selected) < limit:
                     selected.append(func)
                 total += 1

@@ -5092,9 +5092,15 @@ def analyze(ctx: click.Context, program_path: str | None, open_project_path: str
     if force:
         payload["force"] = True
     if open_project_path is not None:
-        # Match `open`'s local-path behavior so a relative project path is
-        # interpreted from the caller's working directory, not the backend's.
-        resolved_project_path = str(Path(open_project_path).resolve()) if open_project_path != "/" else open_project_path
+        # Match `open`'s mode-aware path behavior: local paths are resolved
+        # against the caller's working directory; shared-server paths belong
+        # to the configured server and must pass through unchanged.
+        opts = _get_opts(ctx)
+        server_host = opts.get("ghidra_server_host") or opts.get("server_host")
+        is_shared_server_mode = bool(server_host and str(server_host).strip())
+        resolved_project_path = open_project_path
+        if not is_shared_server_mode and open_project_path != "/":
+            resolved_project_path = str(Path(open_project_path).resolve())
         steps = [
             {"name": Tool.OPEN.value, "arguments": {"path": resolved_project_path, "analyzeAfterImport": False}},
             {"name": Tool.ANALYZE_PROGRAM.value, "arguments": payload},

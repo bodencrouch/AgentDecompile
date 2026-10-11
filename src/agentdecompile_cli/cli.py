@@ -5075,15 +5075,29 @@ def checkin(
 
 @main.command("analyze", help="Run auto-analysis (analyze-program)")
 @click.option("-b", "--binary", "program_path")
+@click.option(
+    "--open-project",
+    "open_project_path",
+    type=click.Path(exists=False),
+    default=None,
+    help="Open this local Ghidra project path in the same MCP session before analysis (use a .gpr file or project directory).",
+)
 @click.option("--force", is_flag=True, help="Force re-analysis even if the program is already analyzed")
 @click.pass_context
-def analyze(ctx: click.Context, program_path: str | None, force: bool) -> None:
+def analyze(ctx: click.Context, program_path: str | None, open_project_path: str | None, force: bool) -> None:
     logger.debug("diag.enter %s", "cli.py:analyze")
     payload: dict[str, Any] = {}
     if program_path is not None and program_path.strip():
         payload["programPath"] = program_path
     if force:
         payload["force"] = True
+    if open_project_path is not None:
+        steps = [
+            {"name": Tool.OPEN.value, "arguments": {"path": open_project_path, "analyzeAfterImport": False}},
+            {"name": Tool.ANALYZE_PROGRAM.value, "arguments": payload},
+        ]
+        _run_parsed_tool_sequence(ctx, steps)
+        return
     _run_async(_call(ctx, Tool.ANALYZE_PROGRAM.value, **payload))
 
 

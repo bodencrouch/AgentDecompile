@@ -118,6 +118,7 @@ class JobRecord:
     history_source: str = ''
     log_state: str = 'available'
     log_reason: str = ''
+    admission_wait: str = ''
     log_truncated: bool = False
     work_progress: dict[str, Any] | None = None
     trusted_preparation_facts_inventory: bool = False
@@ -150,6 +151,7 @@ class JobRecord:
                 if key not in {"candidateSource", "code", "script", "source"}
             }),
             "resourceDisposition": self.resource_disposition,
+            "admissionWait": self.admission_wait,
             "resourceKeys": _json_safe(self.resource_keys),
             "executionAttempt": self.execution_attempt,
             "executionRoot": self.execution_root,
@@ -560,10 +562,12 @@ class JobStore:
     def _persist_loop(self) -> None:
         from . import job_history
         while True:
-            self._persist_wake.wait()
+            # A failed flush retries on a timer; the receipt is never dropped.
+            self._persist_wake.wait(timeout=2.0 if getattr(self, '_store_failure', None) else None)
             self._persist_wake.clear()
             with self._persist_lock:
                 pending, self._persist_pending = self._persist_pending, {}
+            failure = None
             for job_id, payload in pending.items():
                 try:
                     with self._persist_lock:
@@ -571,10 +575,64 @@ class JobStore:
                             continue
                         job_history.write(payload)
                 except OSError as exc:
+                    failure = f'{type(exc).__name__}: {exc}'
+                    with self._persist_lock:
+                        # Keep the newest version queued for the next attempt.
+                        self._persist_pending.setdefault(job_id, payload)
                     with self._lock:
                         job = self._jobs.get(job_id)
                         if job is not None:
-                            job.log_reason = f'Durable job output could not be saved: {exc}'
+                            job.log_reason = f'Durable job output could not be saved yet (retrying): {exc}'
+            with self._persist_lock:
+                backlog = bool(self._persist_pending)
+            self._store_failure = (time.time(), failure) if failure else (
+                getattr(self, '_store_failure', None) if backlog else None)
+
+    def event_store_health(self) -> dict[str, Any]:
+        """Whether the sole durable job-event store can accept new unsafe work (FP-18).
+
+        Healthy means the receipt directory is writable now and no earlier receipt is still
+        waiting on a failed flush, so acceptance resumes only after continuity is restored.
+        """
+        from . import job_history
+        root = job_history.directory()
+        if root is None:
+            return {'ok': False, 'reason': 'no workbench receipt directory is configured'}
+        failure = getattr(self, '_store_failure', None)
+        if failure:
+            return {'ok': False, 'reason': f'earlier receipts are not yet durable: {failure[1]}', 'since': failure[0]}
+        return self._probe_store(root)
+
+    def _probe_store(self, root: Path, budget: float = 2.0) -> dict[str, Any]:
+        """One bounded write probe (U9 A05/FP-08): a hung device never blocks the caller.
+
+        At most one probe is outstanding; while it hangs, callers get "not responding" at once
+        instead of stacking more blocked probes on the device.
+        """
+        with self._persist_lock:
+            outstanding = getattr(self, '_store_probe', None)
+            if outstanding is not None and not outstanding['done'].is_set():
+                return {'ok': False, 'reason': f'storage not responding: a probe has waited {time.time() - outstanding["at"]:.0f} s'}
+            state = {'done': threading.Event(), 'at': time.time(), 'error': None}
+            self._store_probe = state
+
+        def probe() -> None:
+            try:
+                root.mkdir(parents=True, exist_ok=True, mode=0o700)
+                target = root / f'.health.{os.getpid()}.{threading.get_ident()}'
+                target.write_bytes(b'ok')
+                target.unlink()
+            except OSError as exc:
+                state['error'] = exc
+            finally:
+                state['done'].set()
+
+        threading.Thread(target=probe, name='job-store-probe', daemon=True).start()
+        if not state['done'].wait(budget):
+            return {'ok': False, 'reason': f'storage not responding within {budget:g} s'}
+        if state['error'] is not None:
+            return {'ok': False, 'reason': f'receipt directory is not writable: {state["error"]}'}
+        return {'ok': True}
 
     def _restore_reservations_locked(self) -> None:
         """Read original receipts, never infer release from server/PID death."""
@@ -1176,6 +1234,21 @@ class JobStore:
                 external_entries = tuple(tuple(claim) for claim in frozen_keys.get("external", []))
                 if can_run and any(owner != job_id and _paths_overlap(entry[1], held[1]) for entry in external_entries for held, owner in self._external_held.items()):
                     can_run = False
+                if can_run and not coordinator:
+                    # Resource admission with aging reservations (U9 A15/A16): wait, never refuse, here.
+                    from agentdecompile_recovery.corpus.dashboard import resource_admission as _ra
+                    if _ra.gate_enabled():
+                        admitted, why, _holder = _ra.runtime_admit(
+                            job_id, job.action_id,
+                            running=[j.action_id for j in self._jobs.values() if j.status == "running"],
+                            queued=[(j.id, j.action_id, j.created_at) for j in self._jobs.values() if j.status == "queued"])
+                        if not admitted:
+                            can_run = False
+                            if job.admission_wait != why:
+                                job.admission_wait = why
+                                self._persist_locked(job, force=True)
+                        else:
+                            job.admission_wait = ""
                 if can_run:
                     # Coordinators wait on and schedule child jobs; they do
                     # not themselves consume a worker slot. Counting them
@@ -1442,7 +1515,10 @@ class JobStore:
                     else:
                         code, log = _default_executor(
                             argv, cwd, cancel, on_output=publish_log,
-                            unlimited=unlimited_match, on_started=observe_owner, on_unresolved=wait_for_owner,
+                            unlimited=unlimited_match, on_started=observe_owner,
+                            on_unresolved=wait_for_owner,
+                            on_peak=_record_peak(job.action_id),
+                            checkpointed=bool(action is not None and action.long_running),
                             on_clearance=observe_clearance if job.action_id in LOCAL_RECONCILIATION_ACTIONS | _EXTERNAL_ACTION_CONTRACTS.keys() else None,
                         )
                 if action is not None and action.backend == "bsim-cli":
@@ -1607,7 +1683,8 @@ def _copy_job(job: JobRecord) -> JobRecord:
         cross_place_generation=dict(job.cross_place_generation),
         history_only=job.history_only, owner_unavailable=job.owner_unavailable,
         history_source=job.history_source, log_state=job.log_state,
-        log_reason=job.log_reason, log_truncated=job.log_truncated,
+        log_reason=job.log_reason,
+        admission_wait=job.admission_wait, log_truncated=job.log_truncated,
         work_progress=dict(job.work_progress) if job.work_progress is not None else None,
         trusted_preparation_facts_inventory=job.trusted_preparation_facts_inventory,
         trusted_preparation_probe=job.trusted_preparation_probe,
@@ -1737,6 +1814,21 @@ def _mcp_executor(
     # makes a dashboard job wait forever for its own request to acquire the
     # lock.  Each bridge operation serializes its own session-critical call.
     from .. import mcp_budget
+    from ..provider_breaker import breaker_for, is_crash
+    breaker, caller = breaker_for("mcp"), uuid.uuid4().hex
+    admitted, why = breaker.admit(caller)
+    if not admitted:
+        # One shared recovery probe per provider (FP-10): waiting tasks do not call a crashed provider.
+        return 1, json.dumps({'ok': False, 'error': why, 'provider': 'mcp', 'providerBreaker': breaker.status()})
+    try:
+        return _mcp_dispatch(action, params, cancel, mcp_budget, mcp_reserve, breaker, caller, is_crash,
+                             trusted_preparation_facts_inventory, trusted_preparation_probe)
+    finally:
+        breaker.release(caller)  # no-op unless this call held the probe and never recorded it
+
+
+def _mcp_dispatch(action, params, cancel, mcp_budget, mcp_reserve, breaker, caller, is_crash,
+                  trusted_preparation_facts_inventory, trusted_preparation_probe):
     with mcp_budget.dispatch_scope(mcp_reserve) as dispatch:
         try:
             with MCP_EXECUTOR_LOCK:
@@ -1745,6 +1837,7 @@ def _mcp_executor(
                     trusted_preparation_facts_inventory=trusted_preparation_facts_inventory,
                     trusted_preparation_probe=trusted_preparation_probe,
                 )
+                breaker.record(caller, crashed=bool(code) and is_crash(log))
                 if dispatch['unknown']:
                     # A later clear response cannot reconcile an earlier
                     # uncertain provider effect in this execution sequence.
@@ -1955,8 +2048,20 @@ def _default_executor(
     on_clearance: Callable[[dict], None] | None = None,
     inherited_fds: tuple[int, ...] = (),
     on_not_started: Callable[[], None] | None = None,
+    on_peak: Callable[[int], None] | None = None,
+    checkpointed: bool = False,
 ) -> tuple[int, str]:
-    """Drain output without blocking cancellation when a child is silent."""
+    """Drain output without blocking cancellation when a child is silent.
+
+    ``on_peak`` receives the job's measured process-tree peak resident memory
+    (every process in its session, sampled about once a second) when it ends.
+
+    ``checkpointed`` makes the deadline follow the unit's declared lifecycle (FP-12):
+    each distinct completed checkpoint (a JSON ``*-progress`` event whose integer
+    ``completed`` exceeds every earlier one) restarts the idle window, up to
+    ``AGENT_DECOMPILE_JOB_MAX_SECONDS`` (default 24 h). A live PID or plain output never
+    extends it.
+    """
     if not argv:
         return 2, "empty command"
     from agentdecompile_recovery.native_verify_contract import _BOOTSTRAP, clean_environment
@@ -2018,16 +2123,39 @@ def _default_executor(
             except ValueError:
                 configured_timeout = 1800.0
         deadline = None if unlimited else time.monotonic() + max(1.0, float(configured_timeout))
+        checkpoints = 0
+        best_completed = None
+        pending_text = ""
+        hard_deadline = None
+        if checkpointed and deadline is not None:
+            try:
+                max_seconds = float(os.environ.get("AGENT_DECOMPILE_JOB_MAX_SECONDS", "86400"))
+            except ValueError:
+                max_seconds = 86400.0
+            hard_deadline = time.monotonic() + max(float(configured_timeout), max_seconds)
         cancellation_at = None
         cancellation_forced = False
         exited_at = None
         timed_out = False
+        peak_rss = 0
+        next_sample = 0.0
         while True:
             now = time.monotonic()
+            if on_peak is not None and os.name != "nt" and now >= next_sample and exited_at is None:
+                from agentdecompile_recovery.corpus.dashboard.resource_admission import session_rss_bytes
+                peak_rss = max(peak_rss, session_rss_bytes(proc.pid))
+                next_sample = now + 1.0
             if deadline is not None and now >= deadline and cancellation_at is None:
                 timed_out = True
                 cancellation_at = now
-                log += f"\n[timed out after {configured_timeout:g} seconds]\n"
+                if checkpointed and hard_deadline is not None and now >= hard_deadline:
+                    log += (f"\n[timed out: reached the job maximum (AGENT_DECOMPILE_JOB_MAX_SECONDS) "
+                            f"after {checkpoints} completed checkpoints]\n")
+                elif checkpointed:
+                    log += (f"\n[timed out: no new completed checkpoint within {configured_timeout:g} seconds "
+                            f"({checkpoints} completed checkpoints)]\n")
+                else:
+                    log += f"\n[timed out after {configured_timeout:g} seconds]\n"
             if cancel.is_set() and cancellation_at is None:
                 cancellation_at = now
                 log += "\n[cancelled]\n"
@@ -2070,6 +2198,22 @@ def _default_executor(
                     break
                 continue
             log = (log + line)[-MAX_LOG_BYTES:]
+            if checkpointed and deadline is not None:
+                pending_text += line
+                *complete, pending_text = pending_text.split("\n")
+                pending_text = pending_text[-65536:]
+                for text in complete:
+                    try:
+                        event = json.loads(text)
+                    except (ValueError, TypeError):
+                        continue
+                    done = event.get("completed") if isinstance(event, dict) else None
+                    if (isinstance(done, int) and not isinstance(done, bool)
+                            and str(event.get("event", "")).endswith("-progress")
+                            and (best_completed is None or done > best_completed)):
+                        best_completed = done
+                        checkpoints += 1
+                        deadline = min(hard_deadline, time.monotonic() + max(1.0, float(configured_timeout)))
             if on_output: on_output(log)
         returncode = proc.poll()
         if returncode is None:
@@ -2077,6 +2221,11 @@ def _default_executor(
                 returncode = proc.wait(timeout=2)
             except subprocess.TimeoutExpired:
                 returncode = None
+        if on_peak is not None and peak_rss:
+            try:
+                on_peak(peak_rss)
+            except Exception:  # profiling must never change a job's outcome
+                pass
         if returncode is None and on_unresolved is not None:
             on_unresolved(proc, log)
             returncode = proc.poll()
@@ -2149,6 +2298,34 @@ def match_pair_lock_key(params: dict[str, Any] | None) -> str | None:
 def ghidra_lock_key(params: dict[str, Any] | None) -> str:
     row = params or {}
     return str(row.get("locator") or row.get("programPath") or row.get("program") or "")
+
+
+def _record_peak(action_id: str) -> Callable[[int], None]:
+    def record(peak_bytes: int) -> None:
+        from agentdecompile_recovery.corpus.dashboard.resource_admission import default_profile_store
+        default_profile_store().record(action_id, peak_bytes)
+    return record
+
+
+def _admission_refusal(action_id: str) -> dict[str, Any] | None:
+    """Resource admission for one dispatch; None admits. Disabled by AGENTDECOMPILE_RESOURCE_ADMISSION=off."""
+    from agentdecompile_recovery.corpus.dashboard import resource_admission as ra
+    if not ra.gate_enabled():
+        return None
+    # Capacity that may free up is waited for in the job queue (runtime_admit); refuse here
+    # only what waiting cannot fix: a blocked class or a need larger than this worker.
+    never = ra.never_feasible(action_id)
+    if never is not None:
+        return {"ok": False, "actionId": action_id, "error": never, "nextAction": "capacity_prerequisite",
+                "wakeCondition": "capable_worker_available", "admission": {"outcome": "refuse"}}
+    running = [job.action_id for job in STORE.list(compact=True) if job.status in {"queued", "running"}]
+    decision = ra.dispatch_gate(action_id, running)
+    if decision.outcome in {"admit", "refuse", "profile_first"}:
+        return None
+    return {"ok": False, "actionId": action_id, "error": decision.reason, "nextAction": "wait",
+            "wakeCondition": "capacity_available" if decision.outcome == "refuse" else "enforcement_available",
+            "admission": {"outcome": decision.outcome, "needBytes": decision.need_bytes,
+                          "availableBytes": decision.available_bytes, "basis": decision.basis}}
 
 
 def _active_duplicate(action_id: str, params: dict[str, Any]) -> JobRecord | None:
@@ -2312,6 +2489,15 @@ def start_job(
     argv = build_command(action, filled)
     if dry_run:
         return {"ok": True, "dryRun": True, "action": action.to_dict(), "argv": argv, "params": filled}, 200
+    if action.mutating or action.identity_scope or action.long_running:
+        health = STORE.event_store_health()
+        if not health['ok']:
+            return {"ok": False, "actionId": action.id, "nextAction": "wait",
+                    "wakeCondition": "event_store_available",
+                    "error": f"Job event store unavailable; unsafe dispatch refused: {health['reason']}"}, 503
+    refusal = _admission_refusal(action.id)
+    if refusal is not None:
+        return refusal, 503
     job = STORE.start(
         action,
         filled,

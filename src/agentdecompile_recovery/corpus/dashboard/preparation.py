@@ -19,10 +19,10 @@ from typing import Any
 
 from .common import live_db, live_root, query_db
 from . import admission_budget, mcp_budget
-from .retry_policy import MAX_ACTION_ATTEMPTS, decide_retry, refusal_outcome
+from .retry_policy import MAX_ACTION_ATTEMPTS, decide_retry, refusal_outcome, remaining_backoff
 from agentdecompile_recovery.corpus.ghidra_project import ghidra_program_path
 from agentdecompile_recovery.corpus.donor_schedule import spanning_forest_pairs
-from .workflow import DEFAULT_BUDGET_SECONDS, MAX_BUDGET_SECONDS, STAGES as RECOVERY_STAGES, VERSION, transient_failure
+from .workflow import DEFAULT_BUDGET_SECONDS, MAX_BUDGET_SECONDS, STAGES as RECOVERY_STAGES, VERSION, transient_failure, external_action_required
 
 _LOCK = threading.RLock()
 _BSIM_LOCK = threading.Lock()
@@ -48,10 +48,16 @@ except Exception:
     stateDone = None
 needsAnalysis = False if pending is False else (True if stateDone is False else (False if stateDone is True else True if pending is None else pending))
 try:
-    observedProgramPath = str(globals().get('programPath') or currentProgram.getDomainFile().getPathname())
+    observedProgramPath = str(currentProgram.getDomainFile().getPathname())
 except Exception:
     observedProgramPath = ''
-__result__ = json.dumps({'programPath': observedProgramPath, 'needsAnalysis': needsAnalysis, 'executablePath': str(currentProgram.getExecutablePath()), 'architecture': str(currentProgram.getLanguageID()), 'ghidraVersion': str(Application.getApplicationVersion()), 'workSize': int(currentProgram.getFunctionManager().getFunctionCount())})"""
+def observedValue(method):
+    try:
+        value = getattr(currentProgram, method)()
+        return str(value) if value is not None else ''
+    except Exception:
+        return ''
+__result__ = json.dumps({'identityVersion': 2, 'requestedProgramPath': str(globals().get('programPath') or ''), 'programName': observedValue('getName'), 'executableMD5': observedValue('getExecutableMD5'), 'executableSHA256': observedValue('getExecutableSHA256'), 'programPath': observedProgramPath, 'needsAnalysis': needsAnalysis, 'executablePath': str(currentProgram.getExecutablePath()), 'architecture': str(currentProgram.getLanguageID()), 'ghidraVersion': str(Application.getApplicationVersion()), 'workSize': int(currentProgram.getFunctionManager().getFunctionCount())})"""
 
 
 def _same_program_path(left: Any, right: Any) -> bool:
@@ -80,20 +86,55 @@ def _effective_recovery_family(stored: Any, locator: Any, program: Any, binary_i
     return stored_family or f'unclassified:{binary_id}'
 
 
+def _job_for_dispatch(dispatch_id: str) -> str | None:
+    from .actions import jobs
+    for job in jobs.list_jobs(compact=True):
+        if (job.params or {}).get('_dispatchId') == dispatch_id:
+            return job.id
+    from .actions.job_history import records
+    for job_id, record in records().items():
+        if (record.get('params') or {}).get('_dispatchId') == dispatch_id:
+            return job_id
+    return None
+
+
+def _dispatch_absence_provable() -> bool:
+    from .actions.job_history import directory
+    return directory() is not None
+
+
 def _discard_unverified_probe(checkpoint: dict[str, Any], requested: str, observed: str = '') -> bool:
+    return _quarantine_probe(checkpoint, requested, observed, False)
+
+
+def _quarantine_probe(checkpoint, requested, observed, rejected):
     """Remove probe-derived state that cannot be tied to its selected program."""
-    if _same_program_path(checkpoint.get('observedProgramPath'), requested):
+    if not rejected and not observed and checkpoint.get('probeIdentityVersion') == 2 and _same_program_path(checkpoint.get('observedProgramPath'), requested):
         return False
+    legacy = not rejected and not observed and _same_program_path(checkpoint.get('observedProgramPath'), requested)
+    # Preserve evidence for inspection, never its applicability. Old request-
+    # label receipts can describe another binary even when their path matches.
+    archive = {key: value for key, value in checkpoint.items() if key != 'probeEvidenceHistory'}
+    if archive:
+        checkpoint.setdefault('probeEvidenceHistory', []).append(archive)
+    if legacy:
+        checkpoint.setdefault('legacyProbeEvidence', archive)
+        checkpoint['probeObservationStale'] = True
     for key in (
+        'probeIdentityVersion', 'programName', 'executableMD5', 'executableSHA256',
         'analysisConfirmed', 'analysisCheckedAt', 'needsAnalysis', 'executablePath',
         'architecture', 'ghidraVersion', 'workSize', 'protection',
         'externalSourceAvailable', 'programFingerprint', 'arch', 'toolchain',
         'targetImage', 'bsimComplete', 'bsimUrl', 'bsimReceipt', 'bsimFingerprint',
         'knowledgeComplete', 'knowledgeCursor', 'knowledgeFingerprint',
         'knowledgeAvailable', 'workflow', 'factsComplete', 'factsPath',
-        'binaryId', 'slug', 'repoPath', 'recoveryFamily',
+        'binaryId', 'slug', 'repoPath', 'recoveryFamily', 'factsReused',
     ):
         checkpoint.pop(key, None)
+    if legacy:
+        checkpoint['analysisConfirmed'] = False
+        checkpoint.pop('observedProgramPath', None)
+        return True
     checkpoint['probeMismatch'] = {
         'requestedProgramPath': requested,
         'observedProgramPath': observed or str(checkpoint.get('observedProgramPath') or ''),
@@ -105,17 +146,46 @@ def _discard_unverified_probe(checkpoint: dict[str, Any], requested: str, observ
 
 def _accept_probe(checkpoint: dict[str, Any], requested: str, payload: dict[str, Any]) -> bool:
     observed = str(payload.get('programPath') or '')
-    if not _same_program_path(requested, observed):
-        _discard_unverified_probe(checkpoint, requested, observed)
+    if payload.get('identityVersion') != 2 or not _same_program_path(requested, observed) or observed.strip('/') == 'Untitled':
+        _quarantine_probe(checkpoint, requested, observed, True)
+        checkpoint['probeMismatch']['payload'] = dict(payload)
         return False
+    previous_fingerprint = checkpoint.get('programFingerprint')
+    if previous_fingerprint and previous_fingerprint != payload.get('executableMD5'):
+        # A stable project path can be rebound to different bytes. Retain the
+        # old evidence, but do not carry its downstream acceptance forward.
+        _quarantine_probe(checkpoint, requested, observed, True)
     checkpoint.update(
-        observedProgramPath=observed,
+        observedProgramPath=observed, probeIdentityVersion=2,
+        programFingerprint=payload.get('executableMD5') or '',
+        **{key: payload.get(key) for key in ('programName', 'executableMD5', 'executableSHA256')},
         executablePath=payload.get('executablePath'), analysisCheckedAt=time.time(),
         needsAnalysis=payload.get('needsAnalysis'),
         **{key: payload.get(key) for key in ('architecture', 'ghidraVersion', 'workSize')},
     )
     checkpoint.pop('probeMismatch', None)
+    checkpoint.pop('probeObservationStale', None)
     return True
+
+
+def _inventory_identity_matches(checkpoint, existing):
+    """Reuse stored facts only with matching observed executable digests."""
+    if len(existing) < 9:
+        return False
+    pairs = ((checkpoint.get('executableSHA256'), existing[8], 64),
+             (checkpoint.get('executableMD5'), existing[7], 32))
+    matched = False
+    for observed, stored, length in pairs:
+        observed = str(observed or '').strip().lower()
+        stored = str(stored or '').strip().lower()
+        if not observed or not stored:
+            continue
+        if (len(observed) != length or len(stored) != length
+                or any(char not in '0123456789abcdef' for char in observed + stored)
+                or observed != stored):
+            return False
+        matched = True
+    return matched
 
 
 def _matching_concurrency() -> int:
@@ -836,6 +906,7 @@ def _public_run(row: dict[str, Any], *, detailed: bool = True, live_jobs: list[A
         'queuePosition', 'budgetSeconds', 'budgetOrigin', 'deadline', 'error',
         'jobId', 'admissionPending', 'executionLocator',
         'executionProgramPaths', 'stages', 'currentStage', 'retryDecisions', 'objectiveBudget',
+        'programs', 'supersededBy', 'supersededReason',
     }
     result = {key: row[key] for key in fields if key in row}
     if isinstance(result.get('objectiveBudget'), dict):
@@ -1689,6 +1760,18 @@ def execute(params: dict[str, Any], cancel: threading.Event, *, authority) -> tu
             history = row.setdefault('actions', {})
             prior = (_matching_retry_prior(history, action_id, fields) if name == 'corpus.match-pair'
                      else copy.deepcopy(history.get(action_id, {})))
+        if (prior.get('dispatchId') and not prior.get('jobId')
+                and prior.get('status') in {'submitting', 'interrupted'}):
+            # Recover the exact durable child owner after an interrupted acknowledgement.
+            owner_job = _job_for_dispatch(prior['dispatchId'])
+            if owner_job is not None:
+                prior.update(jobId=owner_job, ownerReconciledBy='dispatchId')
+            elif _dispatch_absence_provable():
+                prior.update(status='undispatched', undispatchedAt=time.time(),
+                             undispatchedReason='No job record carries this dispatch id; the launch never started.')
+            with _guard(authority):
+                history[action_id] = prior
+                _write(row, authority=authority)
         if prior.get('status') == 'ok' and not (prior.get('result') or {}).get('ownershipUnresolved') and (probe or key in {'facts', 'calibrate-global', 'verify-byte-accuracy'}):
             prior = {}
         if not probe and prior.get('status') == 'ok' and not (prior.get('result') or {}).get('ownershipUnresolved') and key not in {'facts', 'calibrate-global', 'verify-byte-accuracy'}:
@@ -1726,6 +1809,8 @@ def execute(params: dict[str, Any], cancel: threading.Event, *, authority) -> tu
             and mcp_budget.initialize(row)['allocationRevision'] > previous_provider.get('allocationRevision', 0))
         decision = decide_retry(
             prior, transient=transient_failure(prior.get('result', {})),
+            external_action=external_action_required(prior.get('result', {})),
+            external_restored=bool(prior.get('retryPrerequisiteRecovered')),
             prerequisite_recovered=bool(prior.get('retryPrerequisiteRecovered')) or provider_revised,
             owner_available=available,
         )
@@ -1742,7 +1827,18 @@ def execute(params: dict[str, Any], cancel: threading.Event, *, authority) -> tu
                    nextAction=decision['nextAction'], wakeCondition=decision['wakeCondition'],
                    retryDecision=decision, attempts=decision['attemptsSpent'])
             return refusal_outcome(prior, decision)
-        for attempt in range(int(prior.get('attempts', 0)), MAX_ACTION_ATTEMPTS):
+        # A restart inside a recorded retry wait keeps the same eligibility time (A08).
+        wait = remaining_backoff(prior, time.time())
+        if wait > 0:
+            update(key, 'waiting', f'Resuming the recorded retry wait: {int(wait)} seconds remain.',
+                   attempts=decision['attemptsSpent'], retryAt=time.time() + wait)
+            if cancel.wait(wait):
+                raise InterruptedError('Workflow stopped during service backoff.')
+        # A proven-unstarted launch resumes under its own dispatch reservation:
+        # no second charge and no extra attempt.
+        reuse_dispatch = prior.get('dispatchId') if prior.get('status') == 'undispatched' else None
+        first_attempt = int(prior.get('attempts', 0)) - (1 if reuse_dispatch else 0)
+        for attempt in range(max(0, first_attempt), MAX_ACTION_ATTEMPTS):
             # Matching submits several independent candidates into the shared
             # job store. A pause must freeze that admission queue, while a
             # child already executing gets to write its durable receipt.
@@ -1757,7 +1853,7 @@ def execute(params: dict[str, Any], cancel: threading.Event, *, authority) -> tu
                     _write(row, authority=authority)
                     update(key, 'blocked', provider_decision['reason'], nextAction=provider_decision['nextAction'], wakeCondition=provider_decision['wakeCondition'], retryDecision=provider_decision)
                     return refusal_outcome(prior, provider_decision)
-                dispatch_id = uuid.uuid4().hex
+                dispatch_id, reuse_dispatch = reuse_dispatch or uuid.uuid4().hex, None
                 objective_decision = admission_budget.reserve(row, dispatch_id, action_id, name)
                 if objective_decision['nextAction'] != 'dispatch':
                     history.setdefault(action_id, {})['retryDecision'] = objective_decision
@@ -1783,6 +1879,7 @@ def execute(params: dict[str, Any], cancel: threading.Event, *, authority) -> tu
                 _write(row, authority=authority, phase='intent')
             mcp_reserve = _mcp_reservation_capability(authority, dispatch_id=dispatch_id, action_id=action_id)
             job_fields = dict(fields)
+            job_fields['_dispatchId'] = dispatch_id  # lets a restart find this launch's owner
             if name == 'corpus.match-pair':
                 # This records the project's explicit budget decision with
                 # the child receipt. The subprocess remains cancellable; only
@@ -1924,7 +2021,8 @@ def execute(params: dict[str, Any], cancel: threading.Event, *, authority) -> tu
                 decision = {k: provider_decision[k] for k in ('nextAction', 'reason', 'wakeCondition', 'attemptsSpent', 'attemptsRemaining', 'allocationRevision') if k in provider_decision}
                 decision.setdefault('attemptsSpent', mcp_budget.initialize(row)['consumed'])
             else:
-                decision = decide_retry(history[action_id], transient=transient_failure(outcome))
+                decision = decide_retry(history[action_id], transient=transient_failure(outcome),
+                                        external_action=external_action_required(outcome))
             with _guard(authority):
                 history[action_id]['retryDecision'] = copy.deepcopy(decision)
                 _remember_retry_decision(row, action_id, name, decision)
@@ -1939,6 +2037,9 @@ def execute(params: dict[str, Any], cancel: threading.Event, *, authority) -> tu
                         'wakeCondition': decision['wakeCondition'], 'error': decision['reason'],
                         'previousError': outcome.get('error', '')}
             delay = 2 ** (attempt + 1)
+            with _LOCK:
+                history[action_id].update(nextEligibleAt=time.time() + delay, retryDelay=delay)
+                _write(row)
             update(key, 'waiting', f'Temporary service failure. Another attempt follows in {delay} seconds.', attempts=attempt + 1, nextFallback='Retry transient service failure', retryAt=time.time() + delay)
             if cancel.wait(delay):
                 raise InterruptedError('Workflow stopped during service backoff.')
@@ -2015,7 +2116,7 @@ def execute(params: dict[str, Any], cancel: threading.Event, *, authority) -> tu
             probe_ok = (
                 shared_probe.get('ok')
                 and isinstance(payload, dict)
-                and _same_program_path(payload.get('programPath'), shared_program)
+                and _accept_probe({}, shared_program, payload)
             )
             with _guard(authority):
                 row['sharedSessionProbe'] = {
@@ -2203,7 +2304,7 @@ def execute(params: dict[str, Any], cancel: threading.Event, *, authority) -> tu
         # resumed: doing so can duplicate expensive work and falsely make the
         # facts stage look empty while the corpus already contains functions.
         inventory_rows, inventory_error = query_db(
-            'SELECT b.id,b.slug,b.repo_path,b.func_count,b.recovery_family,p.locator,p.program FROM binary b '
+            'SELECT b.id,b.slug,b.repo_path,b.func_count,b.recovery_family,p.locator,p.program,b.md5,b.content_sha256 FROM binary b '
             'LEFT JOIN program_binding p ON p.source_path=b.repo_path '
             'WHERE EXISTS (SELECT 1 FROM func WHERE func.binary_id=b.id)',
             db=authority.db,
@@ -2230,7 +2331,21 @@ def execute(params: dict[str, Any], cancel: threading.Event, *, authority) -> tu
             binding_key = (locator.replace('\\', '/').rstrip('/'), program.replace('\\', '/').lstrip('/'))
             canonical_source = str((Path(locator).expanduser() / program.lstrip('/')).resolve(strict=False))
             existing = inventory_by_binding.get(binding_key) or inventory_by_source.get(canonical_source)
+            if existing and not _inventory_identity_matches(checkpoint, existing):
+                checkpoint['unverifiedInventory'] = {
+                    'binaryId': existing[0], 'slug': existing[1], 'repoPath': existing[2],
+                    'storedMD5': existing[7], 'storedSHA256': existing[8],
+                    'observedMD5': checkpoint.get('executableMD5'),
+                    'observedSHA256': checkpoint.get('executableSHA256'),
+                    'reason': 'Stored inventory identity is missing or disagrees with the observed program.',
+                }
+                checkpoint.pop('factsComplete', None)
+                checkpoint.pop('factsReused', None)
+                protection_blocked.add(program)
+                update('facts', 'blocked', f'{program}: existing inventory requires matching executable hashes; retained without reuse or replacement.')
+                continue
             if existing:
+                checkpoint.pop('unverifiedInventory', None)
                 with _guard(authority):
                     checkpoint.update(
                         factsComplete=True, binaryId=existing[0], slug=existing[1],
@@ -2282,16 +2397,18 @@ def execute(params: dict[str, Any], cancel: threading.Event, *, authority) -> tu
         # older gate considered only facts written during this particular
         # coordinator invocation, so a restart hid valid corpus evidence and
         # incorrectly reported that there was nothing to cross-match.
-        existing_by_source = {str(item[2] or ''): item for item in records}
         prepared_ids = {
             checkpoint.get('binaryId')
             for program, checkpoint in row['checkpoints'].items()
-            if program in programs and checkpoint.get('analysisConfirmed') and checkpoint.get('factsComplete')
+            if program in programs and program not in protection_blocked
+            and not checkpoint.get('unverifiedInventory')
+            and checkpoint.get('analysisConfirmed') and checkpoint.get('factsComplete')
         }
         prepared_sources = {
             program for program, checkpoint in row['checkpoints'].items()
-            if program in programs and checkpoint.get('analysisConfirmed')
-            and (checkpoint.get('factsComplete') or program in existing_by_source)
+            if program in programs and program not in protection_blocked
+            and not checkpoint.get('unverifiedInventory')
+            and checkpoint.get('analysisConfirmed') and checkpoint.get('factsComplete')
         }
         candidates = [
             item for item in records
@@ -2424,7 +2541,18 @@ def execute(params: dict[str, Any], cancel: threading.Event, *, authority) -> tu
             if src != dst:
                 key = (src, dst)
                 unique_pairs.setdefault(key, (src, dst, note))
-        pairs = list(unique_pairs.values())
+        rejected_sources = set()
+        for program, checkpoint in row['checkpoints'].items():
+            if program in protection_blocked or checkpoint.get('unverifiedInventory'):
+                rejected_sources.add(program)
+                rejected_sources.add(str((Path(locator).expanduser() / program.lstrip('/')).resolve(strict=False)))
+                rejected_sources.add(str((checkpoint.get('unverifiedInventory') or {}).get('repoPath') or ''))
+        pairs = []
+        for src, dst, note in unique_pairs.values():
+            if src in rejected_sources or dst in rejected_sources:
+                excluded_pairs.append({'source': src, 'target': dst, 'reason': 'Program identity was not verified for this preparation.'})
+            else:
+                pairs.append((src, dst, note))
         with _guard(authority):
             row['comparisonTargets'] = [{'source': src, 'target': dst, 'reason': note} for src, dst, note in pairs]
         with _guard(authority):

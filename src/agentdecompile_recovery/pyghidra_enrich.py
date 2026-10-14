@@ -21,6 +21,15 @@ from .rtti_recover import RttiClass, demangle_typeinfo_name
 SCHEMA = "agentdecompile.pyghidra-enrich-facts.v1"
 
 
+
+def _timed_out(result) -> bool:
+    """``DecompileResults.isTimedOut()``; False when the result does not say."""
+    probe = getattr(result, "isTimedOut", None)
+    try:
+        return bool(probe()) if callable(probe) else False
+    except Exception:
+        return False
+
 class EnrichProgram(Protocol):
     """Minimal program surface used by enrichment."""
 
@@ -285,13 +294,19 @@ class PyGhidraEnrichProgram:
             self.decompile_timeout,
             TaskMonitor.DUMMY,
         )
+        timed_out = _timed_out(result)
         if not result.decompileCompleted():
+            # A wall-clock cutoff is data, never a silent input to the prototype (U65):
+            # the prototype here is the listing's, and the record says why.
             return {
                 "entry": entry,
                 "name": str(function.getName()),
                 "decompiled": "",
-                "decompilationStatus": "failed",
+                "decompilationStatus": "timed-out" if timed_out else "failed",
+                "timedOut": timed_out,
+                "decompileTimeoutSeconds": self.decompile_timeout,
                 "prototype": str(function.getPrototypeString(False, False)),
+                "prototypeSource": "listing",
                 "error": str(result.getErrorMessage() or ""),
             }
         decompiled = result.getDecompiledFunction()
@@ -300,6 +315,9 @@ class PyGhidraEnrichProgram:
             "name": str(function.getName()),
             "decompiled": str(decompiled.getC()) if decompiled is not None else "",
             "decompilationStatus": "complete",
+            "timedOut": False,
+            "decompileTimeoutSeconds": self.decompile_timeout,
+            "prototypeSource": "decompiler" if decompiled is not None else "listing",
             "prototype": (
                 str(decompiled.getSignature())
                 if decompiled is not None
@@ -497,6 +515,9 @@ def iter_enriched_facts(session: EnrichSession) -> Iterator[dict[str, Any]]:
                 "prototype": result.get("prototype"),
                 "decompiled": result.get("decompiled"),
                 "decompilationStatus": result.get("decompilationStatus") or "complete",
+                "timedOut": bool(result.get("timedOut")),
+                "decompileTimeoutSeconds": result.get("decompileTimeoutSeconds"),
+                "prototypeSource": result.get("prototypeSource"),
                 "module": module,
                 "provenance": provenance,
                 "readabilityScore": score,

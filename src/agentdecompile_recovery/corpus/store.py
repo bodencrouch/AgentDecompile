@@ -724,6 +724,10 @@ def connect(
     return con
 
 
+class SchemaTooNewError(RuntimeError):
+    """A writer older than the store's schema refused to open it for writing."""
+
+
 def remove_binary(
     con: sqlite3.Connection,
     *,

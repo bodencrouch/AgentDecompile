@@ -100,6 +100,8 @@ def create_dashboard_router() -> APIRouter:
     router.include_router(create_actions_api_router())
     from agentdecompile_recovery.corpus.dashboard.react_api import create_react_router
     router.include_router(create_react_router())
+    from agentdecompile_recovery.corpus.dashboard.cockpit import create_cockpit_router
+    router.include_router(create_cockpit_router())
 
     @router.get("/dashboard", response_class=HTMLResponse)
     async def dashboard_home(request: Request) -> Response:

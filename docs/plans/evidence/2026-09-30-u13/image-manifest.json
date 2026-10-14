@@ -1,0 +1,399 @@
+{
+  "generated": "2026-09-30T04:27:08.068268+00:00",
+  "store": "/home/brunner56/biodecompwarehouse/kotorxid/db/kotorxid.sqlite",
+  "builds": [
+    {
+      "id": 1,
+      "slug": "JE__JadeEmpire.exe",
+      "md5": "007222915ab3afaab7a78397b68ed1d5",
+      "match": "/home/brunner56/biodecompwarehouse/kotorxid/output/binaries/JE__JadeEmpire.exe/artifacts/raw_image",
+      "how": "filename",
+      "size": 3625464
+    },
+    {
+      "id": 2,
+      "slug": "K1__k1_android_ARM64",
+      "md5": "f724a4ce4e3357784a3c1b7945bdefbf",
+      "match": "/home/brunner56/biodecompwarehouse/kotorxid/output/binaries/K1__k1_android_ARM64/artifacts/raw_image",
+      "how": "filename",
+      "size": 8158944
+    },
+    {
+      "id": 3,
+      "slug": "K1__k1_android_ARMEABI",
+      "md5": "7bc653d19ecdd0a7a53064d92ab783a0",
+      "match": "/home/brunner56/biodecompwarehouse/kotorxid/output/binaries/K1__k1_android_ARMEABI/artifacts/raw_image",
+      "how": "filename",
+      "size": 5847896
+    },
+    {
+      "id": 4,
+      "slug": "K1__k1_iOS_KOTOR.ipa",
+      "md5": "ded288ab1775cdf7be11965a95b82270",
+      "match": "/home/brunner56/biodecompwarehouse/kotorxid/output/binaries/K1__k1_iOS_KOTOR.ipa/artifacts/raw_image",
+      "how": "filename",
+      "size": 7600240
+    },
+    {
+      "id": 5,
+      "slug": "K1__k1_mac_swkotor.app",
+      "md5": "df5f025bf1d40dd2cdc76ef5145ad876",
+      "match": "/home/brunner56/biodecompwarehouse/kotorxid/output/binaries/K1__k1_mac_swkotor.app/artifacts/raw_image",
+      "how": "filename",
+      "size": 8448052
+    },
+    {
+      "id": 6,
+      "slug": "K1__k1_win_amazongames_swkotor.exe",
+      "md5": "a2620900440a958019a401a5ad2351cf",
+      "match": "/home/brunner56/biodecompwarehouse/kotorxid/output/binaries/K1__k1_win_amazongames_swkotor.exe/artifacts/raw_image",
+      "how": "filename",
+      "size": 5441288
+    },
+    {
+      "id": 8,
+      "slug": "K1__k1_win_gog_swkotor.exe",
+      "md5": "9a44891011437deb6536d992bccdfe4b",
+      "match": "/home/brunner56/biodecompwarehouse/kotorxid/output/binaries/K1__k1_win_gog_swkotor.exe/artifacts/raw_image",
+      "how": "filename",
+      "size": 4042752
+    },
+    {
+      "id": 9,
+      "slug": "K1__k1_xbox_default.xbe",
+      "md5": "271cd566672b3a30c5a2636d1c5d486d",
+      "match": null,
+      "how": null,
+      "size": null
+    },
+    {
+      "id": 10,
+      "slug": "Other_BioWare_Engines__Aurora__nwmain.exe",
+      "md5": "62e5c9049b61848238182c9e857b16bd",
+      "match": "/home/brunner56/biodecompwarehouse/kotorxid/output/binaries/Other_BioWare_Engines__Aurora__nwmain.exe/artifacts/raw_image",
+      "how": "filename",
+      "size": 21071872
+    },
+    {
+      "id": 11,
+      "slug": "Other_BioWare_Engines__Eclipse__DragonAge2.exe",
+      "md5": "e8bc0a352fb2386712c4ccac35a35a62",
+      "match": null,
+      "how": null,
+      "size": null
+    },
+    {
+      "id": 12,
+      "slug": "Other_BioWare_Engines__Eclipse__daorigins.exe",
+      "md5": "f2df64b4b964267835957ef5c274ec23",
+      "match": null,
+      "how": null,
+      "size": null
+    },
+    {
+      "id": 13,
+      "slug": "TSL__k2_android_libkotor2.so_arm64-v8aandroid",
+      "md5": "40a172e2eaf791570d5a38e7ff8ed17a",
+      "match": "/home/brunner56/biodecompwarehouse/kotorxid/output/binaries/TSL__k2_android_libkotor2.so_arm64-v8aandroid/artifacts/raw_image",
+      "how": "filename",
+      "size": 13104992
+    },
+    {
+      "id": 14,
+      "slug": "TSL__k2_android_libkotor2.so_armeabi-v7aandroid",
+      "md5": "877d51dc33aa70d959504ccc9e0fc8ef",
+      "match": "/home/brunner56/biodecompwarehouse/kotorxid/output/binaries/TSL__k2_android_libkotor2.so_armeabi-v7aandroid/artifacts/raw_image",
+      "how": "filename",
+      "size": 8998760
+    },
+    {
+      "id": 15,
+      "slug": "TSL__k2_android_libkotor2.so_x86_64android",
+      "md5": "a671ef8938d93b97fff66e39e23534bc",
+      "match": "/home/brunner56/biodecompwarehouse/kotorxid/output/binaries/TSL__k2_android_libkotor2.so_x86_64android/artifacts/raw_image",
+      "how": "filename",
+      "size": 14568312
+    },
+    {
+      "id": 16,
+      "slug": "TSL__k2_android_libkotor2.so_x86android",
+      "md5": "ca39b5c2e081d83efb0eaee576217611",
+      "match": "/home/brunner56/biodecompwarehouse/kotorxid/output/binaries/TSL__k2_android_libkotor2.so_x86android/artifacts/raw_image",
+      "how": "filename",
+      "size": 13950828
+    },
+    {
+      "id": 17,
+      "slug": "TSL__k2_ios_KOTOR_II.ipa",
+      "md5": "650fb94f1fb647896e80b644290e9205",
+      "match": "/home/brunner56/biodecompwarehouse/kotorxid/output/binaries/TSL__k2_ios_KOTOR_II.ipa/artifacts/raw_image",
+      "how": "filename",
+      "size": 10256208
+    },
+    {
+      "id": 18,
+      "slug": "TSL__k2_linux_swkotor2.elf",
+      "md5": "b3420a36a4385fec8189f37c5d5eaad1",
+      "match": "/home/brunner56/biodecompwarehouse/kotorxid/output/binaries/TSL__k2_linux_swkotor2.elf/artifacts/raw_image",
+      "how": "filename",
+      "size": 9082164
+    },
+    {
+      "id": 19,
+      "slug": "TSL__k2_mac_swkotor2.app",
+      "md5": "57d86b1c4a035dee6fead18a8548cfe8",
+      "match": "/home/brunner56/biodecompwarehouse/kotorxid/output/binaries/TSL__k2_mac_swkotor2.app/artifacts/raw_image",
+      "how": "filename",
+      "size": 9115340
+    },
+    {
+      "id": 20,
+      "slug": "TSL__k2_win_CD_1.0_swkotor2.exe",
+      "md5": "4a318b515e0e35ba7f289b7764ac1aad",
+      "match": "/home/brunner56/biodecompwarehouse/kotorxid/output/binaries/TSL__k2_win_CD_1.0_swkotor2.exe/artifacts/raw_image",
+      "how": "filename",
+      "size": 4578816
+    },
+    {
+      "id": 21,
+      "slug": "TSL__k2_win_CD_1.0b_swkotor2.exe",
+      "md5": "e0fdc77e3f248d621f24d538df687d92",
+      "match": "/home/brunner56/biodecompwarehouse/kotorxid/output/binaries/TSL__k2_win_CD_1.0b_swkotor2.exe/artifacts/raw_image",
+      "how": "filename",
+      "size": 4578816
+    },
+    {
+      "id": 22,
+      "slug": "TSL__k2_win_gog_aspyr_swkotor2.exe",
+      "md5": "1ffa92993d8015c9bb93ceac96c508c0",
+      "match": "/home/brunner56/biodecompwarehouse/kotorxid/output/binaries/TSL__k2_win_gog_aspyr_swkotor2.exe/artifacts/raw_image",
+      "how": "filename",
+      "size": 6590360
+    },
+    {
+      "id": 23,
+      "slug": "TSL__k2_win_steam_aspyr_swkotor2.exe",
+      "md5": "2f2d31e21acc6b3d9c5f28c79a28a202",
+      "match": "/home/brunner56/biodecompwarehouse/kotorxid/output/binaries/TSL__k2_win_steam_aspyr_swkotor2.exe/artifacts/raw_image",
+      "how": "filename",
+      "size": 6588416
+    },
+    {
+      "id": 24,
+      "slug": "TSL__k2_xbox_default.xbe",
+      "md5": "140536d838848edfd9bde7d9a45c849d",
+      "match": null,
+      "how": null,
+      "size": null
+    },
+    {
+      "id": 25,
+      "slug": "nwmain.exe",
+      "md5": "9fd271eaa38aa294c9b1657f0f5300eb",
+      "match": "/home/brunner56/biodecompwarehouse/kotorxid/output/binaries/nwmain.exe/artifacts/imported_executable",
+      "how": "filename",
+      "size": 5661928
+    },
+    {
+      "id": 26,
+      "slug": "nwserver.exe",
+      "md5": "91c553f6a7430d4dc3ecf9ab48fa43a3",
+      "match": "/home/brunner56/biodecompwarehouse/kotorxid/output/binaries/nwn2server.exe/artifacts/imported_executable",
+      "how": "md5-scan",
+      "size": 4636672,
+      "note": "bytes found under nwn2server.exe/artifacts/imported_executable, not nwserver.exe/artifacts/imported_executable (which is a different file, md5 d4bba21c58fef209d4ea313eef00ec86)"
+    },
+    {
+      "id": 27,
+      "slug": "nwtoolset.exe",
+      "md5": "9f45625a22f84305df090456dfec2fd1",
+      "match": "/home/brunner56/biodecompwarehouse/kotorxid/output/binaries/nwtoolset.exe/artifacts/imported_executable",
+      "how": "filename",
+      "size": 7372288
+    },
+    {
+      "id": 28,
+      "slug": "nwn.exe",
+      "md5": "4345a62ca6830ba6bf4340626cde5d9e",
+      "match": "/home/brunner56/biodecompwarehouse/kotorxid/output/binaries/nwn.exe/artifacts/imported_executable",
+      "how": "filename",
+      "size": 1521664
+    },
+    {
+      "id": 29,
+      "slug": "nwmain-2.exe",
+      "md5": null,
+      "match": null,
+      "how": null,
+      "size": null
+    },
+    {
+      "id": 30,
+      "slug": "nwloader.exe",
+      "md5": "e61bab126291b980fd98f107ad981f66",
+      "match": "/home/brunner56/biodecompwarehouse/kotorxid/output/binaries/nwloader.exe/artifacts/imported_executable",
+      "how": "filename",
+      "size": 607232
+    },
+    {
+      "id": 31,
+      "slug": "nwn-2.exe",
+      "md5": null,
+      "match": null,
+      "how": null,
+      "size": null
+    },
+    {
+      "id": 32,
+      "slug": "nwmain-3.exe",
+      "md5": null,
+      "match": null,
+      "how": null,
+      "size": null
+    },
+    {
+      "id": 33,
+      "slug": "nwloader-2.exe",
+      "md5": null,
+      "match": null,
+      "how": null,
+      "size": null
+    },
+    {
+      "id": 34,
+      "slug": "nwserver-2.exe",
+      "md5": null,
+      "match": null,
+      "how": null,
+      "size": null
+    },
+    {
+      "id": 35,
+      "slug": "nwtoolset-2.exe",
+      "md5": null,
+      "match": null,
+      "how": null,
+      "size": null
+    },
+    {
+      "id": 36,
+      "slug": "nwmain-4.exe",
+      "md5": null,
+      "match": null,
+      "how": null,
+      "size": null
+    },
+    {
+      "id": 37,
+      "slug": "nwserver-3.exe",
+      "md5": null,
+      "match": null,
+      "how": null,
+      "size": null
+    },
+    {
+      "id": 38,
+      "slug": "nwserver-4.exe",
+      "md5": null,
+      "match": null,
+      "how": null,
+      "size": null
+    },
+    {
+      "id": 39,
+      "slug": "nwloader-3.exe",
+      "md5": null,
+      "match": null,
+      "how": null,
+      "size": null
+    },
+    {
+      "id": 40,
+      "slug": "nwn-3.exe",
+      "md5": null,
+      "match": null,
+      "how": null,
+      "size": null
+    },
+    {
+      "id": 41,
+      "slug": "nwn-4.exe",
+      "md5": null,
+      "match": null,
+      "how": null,
+      "size": null
+    },
+    {
+      "id": 42,
+      "slug": "nwmain-5.exe",
+      "md5": null,
+      "match": null,
+      "how": null,
+      "size": null
+    },
+    {
+      "id": 43,
+      "slug": "nwloader-4.exe",
+      "md5": null,
+      "match": null,
+      "how": null,
+      "size": null
+    },
+    {
+      "id": 44,
+      "slug": "nwserver-5.exe",
+      "md5": null,
+      "match": null,
+      "how": null,
+      "size": null
+    },
+    {
+      "id": 45,
+      "slug": "nwtoolset-3.exe",
+      "md5": null,
+      "match": null,
+      "how": null,
+      "size": null
+    },
+    {
+      "id": 46,
+      "slug": "nwn2server.exe",
+      "md5": null,
+      "match": null,
+      "how": null,
+      "size": null
+    },
+    {
+      "id": 47,
+      "slug": "nwn2main.exe",
+      "md5": null,
+      "match": null,
+      "how": null,
+      "size": null
+    },
+    {
+      "id": 48,
+      "slug": "nwn2.exe",
+      "md5": null,
+      "match": null,
+      "how": null,
+      "size": null
+    },
+    {
+      "id": 49,
+      "slug": "NWN2Launcher.exe",
+      "md5": null,
+      "match": null,
+      "how": null,
+      "size": null
+    },
+    {
+      "id": 50,
+      "slug": "repos",
+      "md5": null,
+      "match": null,
+      "how": null,
+      "size": null
+    }
+  ]
+}

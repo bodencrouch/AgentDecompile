@@ -88,7 +88,7 @@ PENDING_FIELDS = (
 #: Dotted names left out of ``basis_hash``: anything derived from corpus
 #: membership, so two builds ingested into different stores under one
 #: install carry the same hash.
-BASIS_HASH_EXCLUDED = ("corpus_manifest_hash", "analyzer.processor_spec_hash")
+BASIS_HASH_EXCLUDED = ("corpus_manifest_hash", "analyzer.processor_spec_hash", "masking_inputs")
 
 #: Values that count as absent.
 _ABSENT = (None, "", "unknown")
@@ -287,7 +287,24 @@ def basis(con) -> dict:
     spec_hashes = sorted({str(r["processor_spec_hash"]) for r in rows})
     obj["analyzer"]["processor_spec_hash"] = hashlib.sha256("\n".join(spec_hashes).encode("utf-8")).hexdigest()[:16]
     obj["corpus_manifest_hash"] = corpus_manifest_hash(con)
+    obj["masking_inputs"] = masking_inputs(con)
     return {k: obj[k] for k in sorted(obj)}
+
+
+def masking_inputs(con) -> dict:
+    """Which inputs byte masking had per build (U52): relocations only where an image has them.
+
+    ``decode+reloc`` when ``binary.reloc_table_present`` is 1, ``decode-only`` when it is 0
+    (relocations stripped or absent), ``unknown`` when it was never read. Store-derived like the
+    corpus manifest, so it is reported with the basis and excluded from ``basis_hash``.
+    """
+    columns = {r[1] for r in con.execute("PRAGMA table_info(binary)")}
+    groups: dict[str, list[str]] = {"decode+reloc": [], "decode-only": [], "unknown": []}
+    column = "reloc_table_present" if "reloc_table_present" in columns else "NULL"
+    for slug, present in con.execute(f"SELECT slug, {column} FROM binary ORDER BY slug"):
+        key = "unknown" if present is None else ("decode+reloc" if int(present) else "decode-only")
+        groups[key].append(str(slug))
+    return groups
 
 
 def basis_hash(con) -> str:

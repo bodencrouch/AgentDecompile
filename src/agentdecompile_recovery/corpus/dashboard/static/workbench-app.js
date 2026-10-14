@@ -46,7 +46,6 @@
     { id: "wb-overview", title: "Overview", keys: ["overview", "corpus"] },
     { id: "wb-ingest", title: "Project", keys: ["add", "drop", "gpr", "upload", "project", "source", "binary"] },
     { id: "wb-sources", title: "Project", keys: ["source", "binary"] },
-    { id: "wb-functions", title: "Functions", keys: ["function", "func", "addr"] },
     { id: "wb-inspect", title: "Inspector", keys: ["inspect", "sibling", "preview"] },
     { id: "wb-graph", title: "Call trees", keys: ["graph", "call"] },
     { id: "wb-jobs", title: "Jobs", keys: ["job", "pulse"] },
@@ -1384,6 +1383,7 @@
   function selectPreparationRun(runs, locator, program, slug) {
     const normalizedLocator = String(locator || "").replace(/\/+$/, "");
     return (runs || []).filter(function (run) {
+      if (run.supersededBy) return false;
       const runLocator = String(run.locator || "").replace(/\/+$/, "");
       if (normalizedLocator) {
         return runLocator === normalizedLocator && (!program || !run.program || run.program === program || (run.programs || []).includes(program));
@@ -1581,9 +1581,12 @@
     </div>`;
   }
 
-  function RepoStatus({ dossier, user }) {
+  function RepoStatus({ dossier, user, session }) {
     if (!dossier || !dossier.ok) {
-      return html`<p id="wb-repo-status" className="wb-repo-row wb-repo-empty">No active project</p>`;
+      const locator = session && session.locator;
+      return html`<p id="wb-repo-status" className="wb-repo-row wb-repo-empty" title=${locator || ""}>${locator
+        ? (dossier && dossier.error ? "Project unavailable: " + dossier.error : "Loading " + (session.title || locator) + "…")
+        : "No project selected"}</p>`;
     }
     const kind = dossier.kind || "";
     if (kind === "shared-project") {
@@ -1709,6 +1712,7 @@
 
   function RecoverWorkbench({ program, selected, recover, recoveredRoot, onRefresh }) {
     const state = (recover && recover.state) || "";
+    const wholeImage = recover && recover.recovery && recover.recovery.wholeImage;
     const files = (recover && recover.files) || [];
     const summary = (recover && recover.summary)
       || (recoveredRoot ? "A recovered source directory is set." : "No recovered source yet.");
@@ -1720,6 +1724,11 @@
         <p>${summary}</p>
         ${recover && recover.path ? html`<p className="wb-hint"><code>${recover.path}</code></p>` : null}
       </div>
+      ${wholeImage ? html`<div className=${"wb-bsim-state st-" + wholeImage.state} role="status">
+        <strong>Full-image compiler and objdiff receipt · ${wholeImage.state}</strong>
+        <p>${wholeImage.reason}</p>
+        ${wholeImage.receipt ? html`<p className="wb-hint"><code>${wholeImage.receipt}</code></p>` : null}
+      </div>` : null}
       <p className="wb-hint">The pipeline recovers, places and ingests source automatically.</p>
       <div className="wb-fn-tools" role="toolbar" aria-label="Recover">
         <button type="button" className="wb-btn" onClick=${onRefresh}>Refresh</button>
@@ -1910,7 +1919,7 @@
       ${items.map(function (item, index) {
         const act = item.id ? catalog.find(function (row) { return row.id === item.id; }) : null;
         const label = item.label || (act && act.title) || item.id || "Action";
-        const off = quickActionUnavailable(item, catalog, gate);
+        const off = quickActionDisabled(item, gate);
         return html`<button key=${item.id || item.ui || String(index)} type="button"
           className=${"wb-qact" + (item.danger ? " danger" : "") + (off ? " off" : "")}
           disabled=${off}
@@ -2063,7 +2072,8 @@
 
   function editorTabFor(id) {
     if (!id) return "decompile";
-    if (id === "wb-inspect" || id === "wb-functions" || id === "inspect" || id === "wb-ingest") return "decompile";
+    if (id === "wb-functions") return "wb-fnbrowse";
+    if (id === "wb-inspect" || id === "inspect" || id === "wb-ingest") return "decompile";
     if (id === "wb-graph") return "graph";
     if (id === "match" || id === "cross-match" || id === "crossmatch") return "wb-match";
     if (id === "recover" || id === "recovery") return "wb-recovery";
@@ -3138,8 +3148,17 @@
     entries, tab, onTab, open, onToggle, selectedId, onSelect,
     jobs, selectedJobId, jobDetail, onSelectJob, onCancel, actions, height, onResize, onKeyResize
   }) {
-    const list = jobs || [];
-    const running = list.filter(function (job) { return job.status === "running" || job.status === "queued"; });
+    const [showHistory, setShowHistory] = useState(false);
+    const all = jobs || [];
+    const active = function (job) { return ["running", "queued", "cancelling"].includes(job.status); };
+    const running = all.filter(active);
+    const current = all.filter(function (job) {
+      const params = job.params || {};
+      return !active(job) && job.status === "ok" &&
+        ((program && (params.program === program || params.programPath === program)) || (slug && params.slug === slug));
+    });
+    const history = all.filter(function (job) { return !active(job) && !current.includes(job); });
+    const list = running.concat(current, showHistory ? history : []);
     const detail = jobDetail || null;
     const logText = detail && detail.log ? String(detail.log).slice(-12000) : "";
     const rows = (entries || []).slice().reverse();
@@ -3173,6 +3192,9 @@
             </li>`;
           }) : html`<li className="wb-hint">No log lines yet.</li>`}
         </ul>` : html`<div className="wb-jobs-dock-body">
+          ${jobsState !== "ready" ? html`<p role="status">${jobsState === "loading" ? "Loading recorded jobs…" : "Job updates unavailable; showing the last received state. Retrying…"}</p>` : null}
+          <p className="wb-hint">${running.length} live across the workspace · ${current.length} selected-program results</p>
+          ${history.length ? html`<button type="button" aria-pressed=${showHistory} onClick=${function () { setShowHistory(!showHistory); }}>${showHistory ? "Hide" : "Show"} history (${history.length})</button>` : null}
           <ul className="wb-job-list">
             ${list.length ? list.map(function (job) {
               const on = job.id === selectedJobId;
@@ -3186,7 +3208,7 @@
                 ${live ? html`<button type="button" className="wb-btn danger wb-job-cancel"
                   onClick=${function (ev) { ev.stopPropagation(); onCancel(job.id); }}>Cancel</button>` : null}
               </li>`;
-            }) : html`<li className="wb-hint">No jobs yet.</li>`}
+            }) : jobsState === "ready" ? html`<li className="wb-hint">No current jobs recorded. Previous runs are available in history.</li>` : null}
           </ul>
           ${selectedJobId && logText ? html`<pre className="wb-job-log">${logText}</pre>`
             : selectedJobId ? html`<p className="wb-hint">Loading log…</p>` : null}
@@ -3364,6 +3386,8 @@
     }, []);
     const [actions, setActions] = useState([]);
     const [jobs, setJobs] = useState([]);
+    const [jobsState, setJobsState] = useState("loading");
+    const [programProgress, setProgramProgress] = useState({});
     const [reaction, setReaction] = useState(null);
     const [path, setPath] = useState("");
     const [newSlug, setNewSlug] = useState("");
@@ -3416,7 +3440,6 @@
     const [dropCandidates, setDropCandidates] = useState([]);
     const [treeExpanded, setTreeExpanded] = useState(true);
     const [envDefaults, setEnvDefaults] = useState({ db: "", work_dir: "", kb: "", mcp_url: "" });
-    const [pipelineStages, setPipelineStages] = useState([]);
     const [recoveredRoot, setRecoveredRoot] = useState("");
     const [bsimStatus, setBsimStatus] = useState(null);
     const [recoverInfo, setRecoverInfo] = useState(null);
@@ -3424,7 +3447,7 @@
     const [paletteQuery, setPaletteQuery] = useState("");
     const [commandFilter, setCommandFilter] = useState("");
     const [funcOffset, setFuncOffset] = useState(0);
-    const [funcLimit, setFuncLimit] = useState("all");
+    const [funcLimit, setFuncLimit] = useState("100");
     const DEFAULT_FUNCTION_ACTION = "mcp.decompile-function";
     const [pendingActionId, setPendingActionId] = useState("");
     const [lastActionId, setLastActionId] = useState(DEFAULT_FUNCTION_ACTION);
@@ -3435,7 +3458,6 @@
     const [selectedJobId, setSelectedJobId] = useState("");
     const [jobDetail, setJobDetail] = useState(null);
     const [sideW, setSideW] = useState(function () { return Number(readUiPref("wb-side-w", "360")) || 360; });
-    const [explorerH, setExplorerH] = useState(function () { return Number(readUiPref("wb-explorer-h", "240")) || 240; });
     const [logH, setLogH] = useState(function () { return Number(readUiPref("wb-log-h", "180")) || 180; });
     const [moreOpen, setMoreOpen] = useState(false);
     const [density, setDensity] = useState(function () { return readUiPref("wb-density", "compact"); });
@@ -3449,6 +3471,7 @@
     const [jobLiveText, setJobLiveText] = useState("");
     const jobsSnapshotRef = useRef(null);
     const ensureSeqRef = useRef(0);
+    const previewSeqRef = useRef(0);
     const funcSeqRef = useRef(0);
     const intentRef = useRef(null);
     const primaryRowRef = useRef(null);
@@ -3610,21 +3633,25 @@
       setCorpusRevision(function (value) { return value + 1; });
     }, []);
 
-    const loadPreparations = useCallback(async function () {
+    const loadPreparations = useCallback(async function (signal) {
       if (preparationInFlight.current) return;
       preparationInFlight.current = true;
       const sequence = ++preparationSequence.current;
       try {
-        const res = await fetch(API.preparations, { cache: "no-store", signal: AbortSignal.timeout(10000) });
+        const res = await fetch(API.preparations, { cache: "no-store", signal: signal || AbortSignal.timeout(10000) });
         if (!res.ok) throw new Error("Preparation request failed (" + res.status + ")");
         const data = await res.json();
         const received = preparationResponse(data);
         if (sequence !== preparationSequence.current) return;
+        if (signal && signal.aborted) return;
         setPreparationRuns(received);
         setPreparationFeed({ receivedAt: Date.now(), error: "" });
+        setPreparationsState("ready");
       } catch (err) {
         if (sequence !== preparationSequence.current) return;
+        /* Keep the last durable preparation receipt visible while reconnecting. */
         setPreparationFeed(function (previous) { return { receivedAt: previous.receivedAt, error: String(err && err.message || err) }; });
+        setPreparationsState("error");
       } finally {
         preparationInFlight.current = false;
       }
@@ -3809,7 +3836,6 @@
     }
 
     function onFuncCheck(ev, row) {
-      ev.preventDefault();
       ev.stopPropagation();
       if (!row) return;
       if (ev.shiftKey) {
@@ -3826,8 +3852,7 @@
     const loadContext = useCallback(async function () {
       const generation = intentGeneration.current;
       try {
-        const query = "?slug=" + encodeURIComponent(slug || "")
-          + "&program=" + encodeURIComponent(program || "");
+        const query = "?slug=" + encodeURIComponent(slug || "") + "&program=" + encodeURIComponent(program || "");
         const res = await fetch(API.context + query, { cache: "no-store" });
         const data = await res.json();
         if (data.defaults) setEnvDefaults(data.defaults);
@@ -3845,7 +3870,6 @@
       const list = data.actions || [];
       setActions(list);
       if (data.context && data.context.defaults) setEnvDefaults(data.context.defaults);
-      if (data.context && Array.isArray(data.context.pipelineStages)) setPipelineStages(data.context.pipelineStages);
     }, []);
 
     const loadMatchStatus = useCallback(async function () {
@@ -3864,7 +3888,7 @@
       try {
         const url = API.recoverStatus
           + "?program=" + encodeURIComponent(program || "")
-          + "&slug=" + encodeURIComponent(slug || "");
+          + "&slug=" + encodeURIComponent(slug || "") + "&fast=1";
         const res = await fetch(url, { cache: "no-store" });
         const data = await res.json();
         setRecoverInfo(data);
@@ -3891,7 +3915,6 @@
       const currentRead = function () { return selectionMounted.current && generation === intentGeneration.current && (!intent || isCurrentIntent(intent)); };
       if (!locator) {
         setPreview(null);
-        setDossier(null);
         return;
       }
       const res = await fetch(API.inspect + "?locator=" + encodeURIComponent(locator), { cache: "no-store" });
@@ -4243,9 +4266,28 @@
     }, [loadContext]);
 
     useEffect(function () {
-      loadPreparations();
-      const timer = window.setInterval(loadPreparations, 2000);
-      return function () { window.clearInterval(timer); };
+      loadContext();
+    }, [loadContext]);
+
+    useEffect(function () {
+      let stopped = false;
+      let timer;
+      let controller;
+      async function poll() {
+        controller = new AbortController();
+        const deadline = window.setTimeout(function () { controller.abort(); }, 10000);
+        try { await loadPreparations(controller.signal); }
+        finally {
+          window.clearTimeout(deadline);
+          if (!stopped) timer = window.setTimeout(poll, 4000);
+        }
+      }
+      poll();
+      return function () {
+        stopped = true;
+        window.clearTimeout(timer);
+        if (controller) controller.abort();
+      };
     }, [loadPreparations]);
 
     useEffect(function () {
@@ -4373,7 +4415,7 @@
       }
       function scrollSelectedFunc() {
         window.requestAnimationFrame(function () {
-          const el = document.querySelector("#wb-func-window .wb-func-row.on");
+          const el = document.querySelector("#wb-fnbrowse-table tr.on");
           if (el) el.scrollIntoView({ block: "nearest" });
         });
       }
@@ -4462,10 +4504,18 @@
 
     useEffect(function () {
       let last = "";
+      let stopped = false;
+      let timer;
+      let controller;
       async function poll() {
+        controller = new AbortController();
+        const timeout = setTimeout(function () { controller.abort(); }, 8000);
         try {
-          const res = await fetch(API.jobs, { cache: "no-store" });
+          const res = await fetch(API.jobs, { cache: "no-store", signal: controller.signal });
+          if (!res.ok) throw new Error("Job refresh failed: " + res.status);
           const data = await res.json();
+          if (stopped) return;
+          if (!Array.isArray(data.jobs)) throw new Error("Invalid job response");
           const list = data.jobs || [];
           const note = jobsSnapshotRef.current === null ? "" : jobLiveAnnouncement(jobsSnapshotRef.current, list);
           jobsSnapshotRef.current = list;
@@ -4474,6 +4524,19 @@
             showToast(note, /failed|cancelled/.test(note) ? "error" : "info");
           }
           setJobs(list);
+          setJobsState("ready");
+          const nextProgress = {};
+          list.forEach(function (job) {
+            const params = job.params || {};
+            const key = String(params.program || params.programPath || params.binary || params.name || "").trim();
+            if (!key) return;
+            if (nextProgress[key]) return;
+            const pct = measuredJobPercent(job);
+            nextProgress[key] = { pct: pct, tool: job.actionId || "", status: job.status };
+          });
+          if (Object.keys(nextProgress).length) {
+            setProgramProgress(function (prev) { return Object.assign({}, prev, nextProgress); });
+          }
           const sig = list.map(function (job) { return job.id + job.status + job.returncode; }).join("|");
           if (sig !== last) {
             last = sig;
@@ -4482,15 +4545,18 @@
           }
           const live = list.find(function (job) { return job.status === "running"; });
           if (live) {
-            const detailRes = await fetch(API.jobs + "/" + live.id, { cache: "no-store" });
+            const detailRes = await fetch(API.jobs + "/" + live.id, { cache: "no-store", signal: controller.signal });
             const body = await detailRes.json();
-            if (body.job) setReaction({ id: body.job.actionId || live.id, data: body });
+            if (!stopped && body.job) setReaction({ id: body.job.actionId || live.id, data: body });
           }
-        } catch (_err) { /* keep last frame */ }
+        } catch (_err) { if (!stopped) setJobsState("error"); }
+        finally {
+          clearTimeout(timeout);
+          if (!stopped) timer = setTimeout(poll, 4000);
+        }
       }
       poll();
-      const timer = setInterval(poll, 1500);
-      return function () { clearInterval(timer); };
+      return function () { stopped = true; clearTimeout(timer); if (controller) controller.abort(); };
     }, [loadBinaries, loadFuncs]);
 
     async function registerLocator(locator, extraSlug, options) {
@@ -5285,7 +5351,13 @@
     async function cancelJob(jobId) {
       if (!jobId) return;
       try {
-        await fetch(API.jobs + "/" + encodeURIComponent(jobId) + "/cancel", { method: "POST" });
+        const res = await fetch(API.jobs + "/" + encodeURIComponent(jobId) + "/cancel", { method: "POST", signal: AbortSignal.timeout(8000) });
+        const data = await res.json();
+        if (!res.ok || !data.ok || !data.job) throw new Error(data.error || "Cancellation unavailable");
+        if (!["cancelling", "cancelled"].includes(data.job.status)) {
+          showToast("Cancellation was not confirmed for " + jobId + ". Current state: " + data.job.status, "error");
+          return;
+        }
         showToast("Cancel requested for " + jobId, "info");
       } catch (_err) {
         showToast("Could not cancel job.", "error");
@@ -5983,7 +6055,7 @@
     function quickBar(setName) {
       const items = QUICK_ACTION_SETS[setName] || [];
       return html`<${QuickActions}
-        items=${items}
+        items=${QUICK_ACTION_SETS[setName] || []}
         catalog=${actions}
         onPress=${runQuickAction}
         flags=${quickActionFlags()} />`;
@@ -6054,11 +6126,11 @@
         programs: projectNames,
         imports: importItems
       };
-    } else if (currentSession && currentSession.projectSlug) {
+    } else if (currentSession && (currentSession.projectSlug || currentSession.locator)) {
       const row = binaries.find(function (item) { return item.slug === currentSession.projectSlug; });
       projectCard = {
-        key: "project-" + currentSession.projectSlug,
-        name: currentSession.title || currentSession.projectSlug,
+        key: "project-" + (currentSession.locator || currentSession.projectSlug),
+        name: currentSession.title || currentSession.projectSlug || currentSession.locator,
         kind: styleKind(currentSession.kind || (row && row.kind) || "draft"),
         row: row,
         programs: projectNames,
@@ -6176,7 +6248,7 @@
       }
       if (tab === "wb-pipeline") {
         const ladder = (corpusStatus && corpusStatus.ladder) || {};
-        const active = (ladder.binaries || []).find(function (b) { return b.slug === slug; }) || (ladder.binaries || [])[0];
+        const active = (ladder.binaries || []).find(function (b) { return b.slug === slug; });
         return html`<${Surface} id="wb-pipeline" title="Pipeline" actions=${panelActions(
           runActionButton("corpus.stages", "Stages"),
           html`<button type="button" className="wb-btn wb-btn-mini" onClick=${function () { loadCorpusStatus(); }}>Refresh facts</button>`
@@ -6314,6 +6386,7 @@
           ${rows.length ? html`<table id="wb-fnbrowse-table" className="wb-fnb-table">
             <thead>
               <tr>
+                <th scope="col"><span className="sr-only">Select function</span></th>
                 <th scope="col">Name</th>
                 <th scope="col">Location</th>
                 <th scope="col">Function Signature</th>
@@ -6328,8 +6401,12 @@
                     if (!on) selectRow(row);
                     openCtx(ev, functionCtxItems(row));
                   }}
-                  onClick=${function () { selectRow(row); }}
+                  onClick=${function (ev) { onFuncRowClick(ev, row); }}
                   onDoubleClick=${function () { selectRow(row); jumpTo("decompile"); }}>
+                  <td><input type="checkbox" checked=${checkedAddrs.indexOf(row.addr) >= 0}
+                    aria-label=${"Select " + (row.name || row.addr)}
+                    onClick=${function (ev) { onFuncCheck(ev, row); }}
+                    onChange=${function () {}} /></td>
                   <td>${row.name}</td>
                   <td><code>${row.addr}</code></td>
                   <td className="wb-sig">${row.signature || "—"}</td>
@@ -6582,7 +6659,7 @@
     }
 
     return html`<div className="wb">
-      <a className="skip-link" href="#wb-functions">Skip to functions</a>
+      <a className="skip-link" href="#wb-fnbrowse" onClick=${function () { jumpTo("wb-fnbrowse"); }}>Skip to functions</a>
       <div className="wb-chrome">
       <header className="wb-toolbar">
         <div className="wb-brand">
@@ -6601,7 +6678,14 @@
           <span id="job-pulse">${running.length ? running.length + " running" : "idle"}</span>
         </p>
       </header>
-      <${RepoStatus} dossier=${dossier} user=${sharedUser} />
+      <${RepoStatus} dossier=${dossier} user=${sharedUser} session=${currentSession} />
+      <div className="wb-workflow-control" role="region" aria-label="Selected project pipeline">
+        <button type="button" className="wb-btn wb-btn-primary" disabled=${Boolean(workflowBlocked)}
+          title=${workflowReason} onClick=${controlSelectedWorkflow}>${workflowLabel}</button>
+        <span title=${currentLocator() || ""}>${(currentSession && currentSession.title) || "No project"}${program ? " · " + program : ""}</span>
+        <span role="status">${!workflowLive && standaloneWriters.length
+          ? "Waiting for existing work" : selectedWorkflow ? selectedWorkflow.status : "Not started"}</span>
+      </div>
       <nav id="wb-menubar" className="wb-menubar" aria-label="Application">
         ${[
           ["file", "File", [
@@ -6639,6 +6723,8 @@
             ["Pipeline", "view.pipeline"],
             ["Atlas", "view.atlas"],
             ["Jobs", "view.jobs"],
+            ["Live recovery status", null, function () { window.location.href = "/dashboard/live-recovery"; }],
+            ["Byte parity (whole image)", null, function () { window.location.href = "/dashboard/byte-parity"; }],
             ["—"],
             ["STABS", "view.stabs"],
             ["Knowledge", "view.knowledge"],
@@ -6966,7 +7052,7 @@
             ].map(decorateCommandItem);
             openCtx(ev, items);
           }}>
-          <div id="wb-sources" className="wb-sidebar-section" style=${{ flex: "0 0 " + explorerH + "px", height: explorerH + "px" }}>
+          <div id="wb-sources" className="wb-sidebar-section">
             <header className="wb-sidebar-head">
               <h3>Explorer</h3>
               <button type="button" className="wb-text-action" data-cmd="file.add-binaries"
@@ -6991,7 +7077,7 @@
                 </button>
                 ${((projectCard.programs || []).length) ? html`<ul className="wb-programs">
                   ${(projectCard.programs || []).map(function (name) {
-                    const meter = programProgress[name] || null;
+                    const meter = programProgress[name] || sessionProgramProgress[name] || null;
                     const live = meter && meter.active;
                     const measured = live && Number.isFinite(meter.pct);
                     return html`<li key=${"prog-" + name} className=${"wb-program" + (program === name && slug === activeProjectSlug ? " on" : "") + (live ? " live" : "")}
@@ -7020,10 +7106,13 @@
                     </li>`;
                   })}
                 </ul>` : html`<ul className="wb-programs">
-                  <li className="wb-empty">Add binaries into this project.</li>
+                  <li className="wb-empty">${dossier && dossier.ok
+                    ? "This project has no programs. Add a binary to begin."
+                    : (dossier && dossier.error ? "Saved project unavailable: " + dossier.error : "Loading saved project…")}</li>
+                  ${dossier && dossier.error ? html`<li className="wb-empty"><code>${projectLocator}</code></li>` : null}
                 </ul>`}
               </li>` : null}
-              ${!projectCard ? html`<li className="wb-empty">This tab is the project. File → Open a .gpr, a repos folder, or a ghidra:// URL.</li>` : null}
+              ${!projectCard ? html`<li className="wb-empty">No project is selected in this tab. Use File → Open to choose one.</li>` : null}
             </ul>
           </div>
           <${SplitHandle} axis="y" label="Resize explorer"
@@ -7122,6 +7211,9 @@
         selectedId=${openLogId}
         onSelect=${setOpenLogId}
         jobs=${jobs}
+        jobsState=${jobsState}
+        program=${program}
+        slug=${slug}
         selectedJobId=${selectedJobId}
         jobDetail=${jobDetail}
         onSelectJob=${selectJobInDock}

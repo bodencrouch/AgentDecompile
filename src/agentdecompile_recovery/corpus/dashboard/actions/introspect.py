@@ -15,6 +15,7 @@ from agentdecompile_recovery.corpus.dashboard.actions.catalog import (
     ActionSpec,
     FieldSpec,
 )
+from agentdecompile_recovery.corpus.verb_admission import VerbAdmission
 
 _SKIP_DESTS = frozenset({"help", "version"})
 _CLICK_DANGER_COMMANDS = frozenset({"init", "delete", "import"})
@@ -129,8 +130,21 @@ def specs_from_argparse(
         if group == "corpus" and command == "export-run-report":
             fields = tuple(replace(field, from_context="report_file", help="JSON report file; defaults to the current workspace's recovery-report.json.") if field.name == "out" else field for field in fields)
         danger = bool(getattr(sub, "danger", False))
-        native_verify = group == "recover" and command == "verify-package"
-        mutating = native_verify or bool(getattr(sub, "mutating", False))
+        # A declared verb carries its whole VerbAdmission on the parser
+        # (aliases share the object); the three legacy fields come from it.
+        # An undeclared verb keeps the legacy getattr path and resolves to
+        # the conservative default at admission time (H5).
+        admission = getattr(sub, "admission", None)
+        if not isinstance(admission, VerbAdmission):
+            admission = None
+        if admission is not None:
+            mutating = admission.mutating
+            long_running = admission.long_running
+            identity_scope = admission.identity_scope
+        else:
+            mutating = bool(getattr(sub, "mutating", False))
+            long_running = bool(getattr(sub, "long_running", False))
+            identity_scope = str(getattr(sub, "identity_scope", ""))
         rows.append(
             ActionSpec(
                 id=f"{group}.{command}",
@@ -143,9 +157,10 @@ def specs_from_argparse(
                 pages=_pages(fields, mutating),
                 danger=danger,
                 mutating=mutating,
-                long_running=native_verify or bool(getattr(sub, "long_running", False)),
-                identity_scope=str(getattr(sub, "identity_scope", "")),
+                long_running=long_running,
+                identity_scope=identity_scope,
                 ghidra_exclusive=bool(getattr(sub, "ghidra_exclusive", False)),
+                admission=admission,
             )
         )
     return rows
@@ -421,10 +436,6 @@ def click_public_names() -> list[str]:
     names: list[str] = []
     for name, cmd in sorted(_click_root().commands.items()):
         if getattr(cmd, "hidden", False):
-            continue
-        # Bridged corpus/recover/reconstruct/grid forward raw argv to argparse;
-        # corpus.*, recover.* and reconstruct.* already expose them field-by-field.
-        if getattr(cmd, "BRIDGED", False):
             continue
         if name in advertised or name in _GUI_CLICK:
             continue

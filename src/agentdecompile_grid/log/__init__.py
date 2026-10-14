@@ -1,8 +1,8 @@
 """agentdecompile_grid.log — the append-only, hash-chained, signed record layer.
 
 Importing this package registers every adapter it declares in the ``core`` registries
-(``LOG_STORES``: local, s3, http; ``HEAD_STORES``: local, s3, http; ``SIGNERS``: null, hmac,
-ed25519).  Registration is of *classes* and never needs an optional dependency; a declared
+(``LOG_STORES``: local, s3, http; ``HEAD_STORES``: local, s3, http; ``SIGNERS``: ed25519 (default),
+null, hmac, hash-token, hsm, ssh-agent; ``KEY_SOURCES``; ``RECORD_FILTERS``).  Registration is of *classes* and never needs an optional dependency; a declared
 adapter raises ``NotConfigured`` naming its requirement when constructed.
 
 Public API other slices rely on (see README.md for the rules):
@@ -23,7 +23,7 @@ from collections.abc import Mapping
 
 from agentdecompile_grid.core import HEAD_STORES, LOG_STORES, SIGNERS, HeadStore, LogStore, Signer
 
-from . import backoff, compaction, frontier, heads, http, intents, local, outbox, records, s3, signing
+from . import backoff, compaction, frontier, heads, http, intents, keys, local, outbox, records, s3, signing
 from .backoff import BackoffPolicy, BackoffStep, PartitionRotation, full_jitter
 from .compaction import (
     CheckpointSummary,

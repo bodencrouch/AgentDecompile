@@ -2,7 +2,14 @@
 
 Nothing here decides truth.  Keys attribute, rate-limit and revoke (design §2.5); a refutation
 lowers the producer key's *priority weight* only, and a revoked key's records are ignored by the
-frontier.  There is no quorum, credit or reputation anywhere in this module by design.
+frontier (``log.frontier.RevocationFilter`` over ``log.keys.RevocationList``, re-exported here).
+There is no quorum, credit or reputation anywhere in this module by design.
+
+**The two-lineage invariant is asserted in one place**: ``check_independence`` (producer key and
+verifier key are distinct and their self-rooted lineages are disjoint under the configured
+policy).  The verifier loop calls it per proposal; the work loop calls it through
+``independent_groups`` when it counts lineages for poison; ``assert_two_lineages`` (re-exported
+from ``worker.identity``) is the fleet-level form over a verifier key set.
 
 Independence policies (a registry; ``disjoint-lineage`` is the default and the core contract):
 
@@ -30,11 +37,11 @@ from dataclasses import dataclass, field
 from typing import Any, Callable, Iterable, Mapping, Protocol
 
 from ..core import NodeIdentity, ObjectStore, Refused, Registry, canonical_json
-from ..worker.identity import ROLE_MAY_VERIFY, independent, lineage_set
+from ..log.keys import REVOCATIONS_POINTER, Revocation, RevocationList
+from ..worker.identity import ROLE_MAY_VERIFY, assert_two_lineages, independent, lineage_set
 
 DEFAULT_INDEPENDENCE_POLICY = "disjoint-lineage"
 PENALTIES_POINTER = "policy/penalties"
-REVOCATIONS_POINTER = "policy/revoked"
 
 
 # --------------------------------------------------------------------------- independence
@@ -94,8 +101,12 @@ class Verdict:
 
 
 def check_independence(a_key: str, a_lineage: Iterable[str], b_key: str, b_lineage: Iterable[str], *, policy: str = DEFAULT_INDEPENDENCE_POLICY) -> Verdict:
+    """The one place the two-lineage invariant is asserted: ``a`` (producer) and ``b`` (verifier)
+    must be different keys with lineages the policy calls independent."""
     p: IndependencePolicy = INDEPENDENCE_POLICIES.get(policy)
     a_l, b_l = tuple(a_lineage), tuple(b_lineage)
+    if a_key == b_key:
+        return Verdict(False, "same-key")
     return Verdict(p.independent(a_key, a_l, b_key, b_l), p.explain(a_key, a_l, b_key, b_l))
 
 
@@ -106,12 +117,11 @@ def check_identities(a: NodeIdentity, b: NodeIdentity, *, policy: str = DEFAULT_
 def independent_groups(keys: Iterable[tuple[str, Iterable[str]]], *, policy: str = DEFAULT_INDEPENDENCE_POLICY) -> list[list[str]]:
     """Greedy partition into groups whose representatives are pairwise independent.  ``len()`` of
     the result is the number of independent lineages among the keys (used by poison detection)."""
-    p: IndependencePolicy = INDEPENDENCE_POLICIES.get(policy)
     groups: list[tuple[str, tuple[str, ...], list[str]]] = []
     for key, lineage in keys:
         lineage = tuple(lineage)
         for rep_key, rep_lineage, members in groups:
-            if not p.independent(key, lineage, rep_key, rep_lineage):
+            if not check_independence(key, lineage, rep_key, rep_lineage, policy=policy).ok:
                 members.append(key)
                 break
         else:
@@ -169,40 +179,9 @@ class PenaltyLedger:
 
 
 # --------------------------------------------------------------------------- revocation
-class RevocationList:
-    """``key_id -> {at, by, reason}``.  Any fleet or operator key may extend it (design §6.2)."""
-
-    def __init__(self, entries: Mapping[str, Mapping[str, Any]] | None = None) -> None:
-        self._entries: dict[str, dict[str, Any]] = {k: dict(v) for k, v in (entries or {}).items()}
-
-    def revoke(self, key_id: str, *, by: NodeIdentity, reason: str, now: float) -> None:
-        if by.role not in ROLE_MAY_VERIFY:
-            raise Refused(f"revocation-needs-fleet-or-operator-key:{by.role}")
-        self._entries.setdefault(key_id, {"at": float(now), "by": by.key_id, "reason": reason})
-
-    def is_revoked(self, key_id: str) -> bool:
-        return key_id in self._entries
-
-    def entry(self, key_id: str) -> Mapping[str, Any] | None:
-        return self._entries.get(key_id)
-
-    def key_ids(self) -> list[str]:
-        return sorted(self._entries)
-
-    def to_record(self) -> dict[str, Any]:
-        return {k: dict(v) for k, v in sorted(self._entries.items())}
-
-    @classmethod
-    def from_record(cls, rec: Mapping[str, Any]) -> "RevocationList":
-        return cls(rec)
-
-    def save(self, objects: ObjectStore, name: str = REVOCATIONS_POINTER) -> None:
-        objects.put_named(name, canonical_json(self.to_record()))
-
-    @classmethod
-    def load(cls, objects: ObjectStore, name: str = REVOCATIONS_POINTER) -> "RevocationList":
-        raw = objects.get_named(name)
-        return cls() if raw is None else cls.from_record(json.loads(raw.decode("utf-8")))
+# ``RevocationList`` is ``log.keys.RevocationList`` (append-only ``{key_id, reason, by, seq}``; any
+# fleet or operator key may extend it; ``revoke(key_id, by=identity, reason=..., seq=...)`` keeps
+# this module's spelling).  ``REVOCATIONS_POINTER`` names where it lives in the object store.
 
 
 # --------------------------------------------------------------------------- rate limits
@@ -320,5 +299,6 @@ def full_jitter_backoff(attempt: int, *, base_s: float = 0.1, cap_s: float = 5.0
 __all__ = [
     "Admission", "AncestryPolicy", "DEFAULT_INDEPENDENCE_POLICY", "DisjointLineagePolicy", "EnrolmentPolicy", "INDEPENDENCE_POLICIES",
     "IndependencePolicy", "KeyRateLimiter", "PENALTIES_POINTER", "PenaltyEntry", "PenaltyLedger", "REVOCATIONS_POINTER", "RateLimits",
-    "RevocationList", "TokenBucket", "Verdict", "check_identities", "check_independence", "full_jitter_backoff", "independent_groups",
+    "Revocation", "RevocationList", "TokenBucket", "Verdict", "assert_two_lineages", "check_identities", "check_independence",
+    "full_jitter_backoff", "independent_groups",
 ]

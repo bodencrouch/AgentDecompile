@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import contextlib
 import os
+import sys
 from pathlib import Path
 
 from . import corpus_env
@@ -51,7 +52,10 @@ def start(max_heap: str = "4g", *, install_dir: str | None = None, project_path:
     os.environ.setdefault("GHIDRA_INSTALL_DIR", ghidra_install)
     java_home = os.environ.get("JAVA_HOME", "").strip()
     if java_home:
-        os.environ.setdefault("JAVA_HOME", java_home)
+        # pyghidra resolves the JDK by shelling out to LaunchSupport unless
+        # JAVA_HOME_OVERRIDE is set; any JVM warning on that command's stdout
+        # (container cgroup notices, for one) corrupts the path it returns.
+        os.environ.setdefault("JAVA_HOME_OVERRIDE", java_home)
     os.environ["JDK_JAVA_OPTIONS"] = "-XX:-UseContainerSupport"
     os.environ.setdefault("_JAVA_OPTIONS", f"-Xmx{max_heap} -XX:-UseContainerSupport")
 
@@ -65,9 +69,30 @@ def start(max_heap: str = "4g", *, install_dir: str | None = None, project_path:
     user = str(cfg.get("username") or "")
     key = str(cfg.get("ssh_key") or "")
     if user and key:
+        # A relative key path is relative to the config directory that
+        # declared it, not to whatever cwd this verb happens to run from
+        # (the resolver registry runs verbs from attestation workdirs).
+        from .corpus_config import config_dir
+
+        key_path = Path(key)
+        cfg_root = config_dir()
+        if not key_path.is_absolute() and cfg_root is not None and (cfg_root / key_path).is_file():
+            key = str(cfg_root / key_path)
         HeadlessClientAuthenticator.installHeadlessClientAuthenticator(user, key, False)
     _STARTED = True
     return True
+
+
+def server_configured(config_dir_path=None) -> bool:
+    """True when a shared repository is declared: a host and a repository
+    name from ``load_ghidra_server`` (environment, then ``ghidra_server.json``
+    under the config directory). The loader defaults the host, so the
+    repository name is the signal; neither value is read past this test.
+    Cheap and JVM-free, so a caller can refuse before booting anything."""
+    cfg = load_ghidra_server(config_dir_path)
+    host = str(cfg.get("host") or "").strip()
+    repository = str(cfg.get("repository") or "").strip()
+    return bool(host) and bool(repository)
 
 
 def monitor():
@@ -185,3 +210,33 @@ def open_local_program(ref: str):
             project.close(program)
     finally:
         project.close()
+
+
+def jvm_started() -> bool:
+    """True when this process booted the analyzer's JVM (by any path)."""
+    if _STARTED:
+        return True
+    mod = sys.modules.get("pyghidra")
+    try:
+        return bool(mod is not None and mod.started())
+    except Exception:
+        return False
+
+
+def exit_after_jvm(rc: int) -> None:
+    """Flush both streams and hard-exit when the JVM is up.
+
+    Non-daemon Java threads keep a Python process alive after ``main``
+    returns, so a verb that booted the analyzer never exits on its own and
+    its buffered summary is lost when the caller's deadline kills it
+    (attestation finding, register H14). ``os._exit`` after an explicit
+    flush is the documented remedy; a process without a JVM returns
+    normally so ``atexit`` handlers still run there.
+    """
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.flush()
+        except Exception:
+            pass
+    if jvm_started():
+        os._exit(int(rc))

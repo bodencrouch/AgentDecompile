@@ -12,8 +12,12 @@ Design rules (recorded in the plan's program thesis and loop charter §6c):
 * every result from every node is a *proposal* until a machine check by an independent key passes;
 * the frontier is a pure function of the log and the object store — no scheduler state exists;
 * leases are advisory: a lost or duplicated lease can waste compute, never produce a wrong commit;
-* ``task_id = sha256(canonical(kind, kind_version, input hashes, params, basis_hash))`` so an
-  identical-basis re-run is a cache hit and a basis change invalidates every id;
+* ``task_id = sha256(canonical(kind, kind_version, input hashes, params, basis_projection))`` where
+  ``basis_projection`` is the slice of the determinism basis the *kind* declares it depends on
+  (``TaskKind.basis_fields``, vocabulary ``BASIS_FIELDS``): an identical-basis re-run is a cache
+  hit, a change to a basis field re-keys only the kinds that declare that field, and the full
+  ``basis_hash`` still travels on every spec and record for audit (design §2.8: never redo
+  completed work);
 * every layer is an extension point with a registry and at least one working implementation
   (speculative generality is a goal here, not a smell).
 """
@@ -66,6 +70,98 @@ class ObjectRef(str):
         return self.hex[:2]
 
 
+# --------------------------------------------------------------------------- determinism basis
+BASIS_FIELDS: tuple[str, ...] = (
+    "basis_version",
+    "analyzer.version",
+    "analyzer.options_hash",
+    "analyzer.timeout_policy",
+    "analyzer.loader_revision",
+    "analyzer.compiler_spec_ids",
+    "analyzer.processor_spec_hash",
+    "algorithm_version",
+    "masking_rule_version",
+    "threshold_params.*",
+    "seeds.*",
+    "toolchain_identity_hash",
+    "data_packs",
+    "data_packs_root_declared",
+    "filler_set",
+    "decoder",
+    "external_channels.*",
+    "corpus_manifest_hash",
+)
+"""The vocabulary of determinism-basis field paths a task kind may declare in ``basis_fields``.
+
+This tuple mirrors the *shape* of the corpus package's ``determinism_basis.package_basis`` object
+(dotted paths into that mapping; ``<name>.*`` names a whole sub-mapping) WITHOUT importing it: the
+grid never imports the recovery pipeline (import direction is recovery -> grid only), so the
+vocabulary is declared once here and the pipeline's lanes declare their slices in this spelling.
+A field that the pipeline lists as pending is still a legal name here; projecting it from a basis
+that lacks it is a named ``Refused``, never a silent empty slot.
+"""
+
+BASIS_WILDCARD = "*"
+
+
+def basis_field_known(path: str, vocabulary: Sequence[str] = BASIS_FIELDS) -> bool:
+    """True when ``path`` is in the vocabulary or sits under one of its ``<name>.*`` entries."""
+    if path in vocabulary:
+        return True
+    for entry in vocabulary:
+        if entry.endswith("." + BASIS_WILDCARD) and path.startswith(entry[:-1]) and len(path) > len(entry) - 1:
+            return True
+    return False
+
+
+def _basis_lookup(basis: Mapping[str, Any], path: str) -> tuple[bool, Any]:
+    parts = path.split(".")
+    if parts and parts[-1] == BASIS_WILDCARD:
+        parts = parts[:-1]
+        whole = True
+    else:
+        whole = False
+    node: Any = basis
+    for part in parts:
+        if not isinstance(node, Mapping) or part not in node:
+            return False, None
+        node = node[part]
+    if whole and not isinstance(node, Mapping):
+        return False, None
+    return True, node
+
+
+def hashed_basis_projection(basis: Mapping[str, Any], fields: Sequence[str], *, kind: str = "") -> dict[str, Any]:
+    """The second projection style: like ``project_basis`` but every ``<name>.*`` sub-mapping is
+    replaced by its digest, so a kind that depends on a large table keeps its ids short and its
+    TASK bodies small (the full basis is still reachable through ``basis_hash``)."""
+    out = project_basis(basis, fields, kind=kind)
+    for path, value in list(out.items()):
+        if path.endswith("." + BASIS_WILDCARD):
+            out[path] = digest_value(value)
+    return out
+
+
+def project_basis(basis: Mapping[str, Any], fields: Sequence[str], *, kind: str = "") -> dict[str, Any]:
+    """The default ``TaskKind.basis_projection``: pick ``fields`` (dotted paths, ``x.*`` = the whole
+    sub-mapping) out of a full basis mapping into a flat ``{path: value}`` dict, keys sorted.
+    A path absent from the basis is ``Refused("basis projection: <path> absent for kind <name>")``;
+    an empty ``fields`` is the content-only projection ``{}``."""
+    if not isinstance(basis, Mapping):
+        raise Refused(f"basis projection: basis must be a mapping for kind {kind or '?'}, got {type(basis).__name__}")
+    out: dict[str, Any] = {}
+    for path in sorted(set(fields)):
+        present, value = _basis_lookup(basis, path)
+        if not present:
+            raise Refused(f"basis projection: {path} absent for kind {kind or '?'}")
+        out[path] = value
+    return out
+
+
+BASIS_PROJECTIONS: dict[str, Callable[..., dict[str, Any]]] = {"plain": project_basis, "hashed": hashed_basis_projection}
+"""Projection styles a kind may name in ``basis_projection_style`` (both working; ``plain`` is the default)."""
+
+
 # --------------------------------------------------------------------------- tasks
 class BudgetClass(str, Enum):
     """Kill-deadline class a task kind declares.  The worker owns the deadline, not the task."""
@@ -94,19 +190,22 @@ class TaskSpec:
     kind_version: int
     inputs: Mapping[str, ObjectRef]      # name -> content address of an input object
     params: Mapping[str, Any]            # canonical-JSON-able parameters
-    basis_hash: str                      # determinism basis under which the result is valid
+    basis_hash: str                      # full determinism basis under which the result is valid (audit only)
     capabilities: Sequence[str] = ()     # canary-proven capabilities a node needs, e.g. "toolchain:<hash>"
     budget: BudgetClass = BudgetClass.SMALL
     partition: str = ""                  # lane x subject partition key (empty = kind name)
+    basis_projection: Mapping[str, Any] = field(default_factory=dict)   # {basis path: value} the kind declares (in the id)
 
     @property
     def task_id(self) -> str:
+        """Content plus the kind's basis *projection*; ``basis_hash`` is deliberately not in here
+        (design §2.8: a basis change re-keys only the kinds whose declared fields changed)."""
         return digest_value({
             "kind": self.kind,
             "kind_version": self.kind_version,
             "inputs": {k: str(v) for k, v in sorted(self.inputs.items())},
             "params": self.params,
-            "basis_hash": self.basis_hash,
+            "basis_projection": dict(sorted(self.basis_projection.items())),
         })
 
     @property
@@ -121,6 +220,7 @@ class TaskSpec:
             "inputs": {k: str(v) for k, v in sorted(self.inputs.items())},
             "params": self.params,
             "basis_hash": self.basis_hash,
+            "basis_projection": dict(sorted(self.basis_projection.items())),
             "capabilities": list(self.capabilities),
             "budget": self.budget.value,
             "partition": self.partition_key,
@@ -135,7 +235,22 @@ class TaskSpec:
             capabilities=tuple(rec.get("capabilities", ())),
             budget=BudgetClass(rec.get("budget", BudgetClass.SMALL.value)),
             partition=rec.get("partition", ""),
+            basis_projection=dict(rec.get("basis_projection", {})),
         )
+
+    @classmethod
+    def from_basis(cls, kind: "TaskKind | type", inputs: Mapping[str, ObjectRef], params: Mapping[str, Any],
+                   basis: Mapping[str, Any], *, capabilities: Sequence[str] | None = None,
+                   budget: "BudgetClass | str | None" = None, partition: str = "") -> "TaskSpec":
+        """A spec whose ``basis_hash`` is the digest of the whole ``basis`` and whose
+        ``basis_projection`` is the kind's declared slice of it (``kind_basis_projection``).
+        ``tasks.spec.spec_from_basis`` is the canonicalising builder; this is the raw one."""
+        projection = kind_basis_projection(kind, basis)
+        caps = tuple(sorted({*(getattr(kind, "capabilities", ()) or ()), *(capabilities or ())}))
+        chosen = BudgetClass(budget) if budget is not None else BudgetClass(getattr(kind, "budget", BudgetClass.SMALL))
+        return cls(kind=str(kind.name), kind_version=int(kind.version), inputs=dict(inputs), params=dict(params),
+                   basis_hash=digest_value(basis), capabilities=caps, budget=chosen, partition=partition,
+                   basis_projection=projection)
 
 
 class ResultStatus(str, Enum):
@@ -195,10 +310,63 @@ class TaskKind(Protocol):
     version: int
     budget: BudgetClass
     capabilities: Sequence[str]
+    basis_fields: tuple[str, ...]        # the BASIS_FIELDS paths this kind's output depends on; () = content-only
+    basis_projection_style: str          # optional: a BASIS_PROJECTIONS name (plain | hashed); absent = plain
 
     def run(self, spec: TaskSpec, objects: "ObjectStore", scratch: str) -> TaskResult: ...
 
     def verify(self, spec: TaskSpec, result: TaskResult, objects: "ObjectStore", scratch: str) -> Verification: ...
+
+    @classmethod
+    def basis_projection(cls, basis: Mapping[str, Any]) -> dict[str, Any]:
+        """Default: the ``basis_projection_style`` entry of ``BASIS_PROJECTIONS`` over ``basis_fields``.
+        A kind may override this *classmethod* (kinds are registered as classes) as long as the keys
+        stay exactly ``basis_fields``; ``kind_basis_projection`` checks that."""
+        style = str(getattr(cls, "basis_projection_style", "plain") or "plain")
+        return BASIS_PROJECTIONS[style](basis, tuple(cls.basis_fields), kind=str(cls.name))
+
+
+def kind_basis_fields(kind: Any) -> tuple[str, ...]:
+    """``kind.basis_fields`` as a tuple; ``Refused("basis-fields-undeclared:<kind>")`` when the kind
+    does not declare it (every kind must; the registry refuses registration without it)."""
+    declared = getattr(kind, "basis_fields", None)
+    if declared is None or isinstance(declared, str):
+        raise Refused(f"basis-fields-undeclared:{getattr(kind, 'name', type(kind).__name__)}")
+    return tuple(str(p) for p in declared)
+
+
+def kind_basis_projection(kind: Any, basis: Mapping[str, Any]) -> dict[str, Any]:
+    """``kind.basis_projection(basis)`` when the kind defines one, else the default projection;
+    the result's keys must equal ``kind.basis_fields`` or the projection is ``Refused`` by name."""
+    import inspect
+
+    fields = kind_basis_fields(kind)
+    cls = kind if inspect.isclass(kind) else type(kind)
+    static = inspect.getattr_static(cls, "basis_projection", None)
+    if isinstance(static, (classmethod, staticmethod)):
+        projection = cls.basis_projection(basis)            # a class-level override or the Protocol default
+    elif static is not None and not inspect.isclass(kind):
+        projection = kind.basis_projection(basis)           # an instance-level override on an instance
+    elif static is not None:
+        raise Refused(f"basis projection: kind {cls.__name__} overrides basis_projection as an instance method; declare it a classmethod")
+    else:
+        style = str(getattr(cls, "basis_projection_style", "plain") or "plain")
+        if style not in BASIS_PROJECTIONS:
+            raise Refused(f"basis projection: kind {kind.name} names unknown style {style!r}; known {sorted(BASIS_PROJECTIONS)}")
+        projection = BASIS_PROJECTIONS[style](basis, fields, kind=str(kind.name))
+    if set(projection) != set(fields):
+        raise Refused(f"basis projection: kind {kind.name} declares {sorted(fields)} but projected {sorted(projection)}")
+    return dict(sorted(projection.items()))
+
+
+def check_basis_projection(kind: Any, spec: TaskSpec) -> None:
+    """The shape check publish, execute, verify and consume share: the spec's projection keys must
+    be exactly the kind's ``basis_fields`` (a full basis is not available at run time, so this is a
+    shape check, not a re-projection; ``task_id`` binds the values).  Refused by name otherwise."""
+    fields = kind_basis_fields(kind)
+    carried = tuple(sorted(spec.basis_projection))
+    if carried != tuple(sorted(set(fields))):
+        raise Refused(f"basis-projection-mismatch:{kind.name}:declares {sorted(set(fields))} spec carries {list(carried)}")
 
 
 class Registry:
@@ -235,6 +403,9 @@ OBJECT_STORES = Registry("object store adapter")
 LOG_STORES = Registry("log adapter")
 HEAD_STORES = Registry("head store adapter")
 SIGNERS = Registry("signer")
+SIGNING_BACKENDS = Registry("signing backend")     # ed25519 implementations: first importable wins (log.signing)
+KEY_SOURCES = Registry("keyring key source")       # where a Keyring learns public keys (log.keys)
+RECORD_FILTERS = Registry("frontier record filter")  # what the frontier ignores: revoked keys, rate limits (log.frontier)
 CANARIES = Registry("capability canary")
 VERIFIERS = Registry("verification method")
 APPLIERS = Registry("view applier")
@@ -275,6 +446,7 @@ class RecordType(str, Enum):
     REFUTED = "refuted"
     POISON = "poison"
     CHECKPOINT = "checkpoint"  # compaction snapshot: everything before this record is summarised
+    KEY_ANNOUNCE = "key-announce"  # a node publishes its public key (and the keys it supersedes) for offline verification
     NOTE = "note"              # free-form, never load-bearing
 
 
@@ -307,7 +479,11 @@ class Record:
 
 @runtime_checkable
 class Signer(Protocol):
-    """Signs canonical bytes.  ``NullSigner`` (hash-chain only) must exist so a laptop grid needs no keys."""
+    """Signs canonical bytes.  One hierarchy for operator and node signers (``log.signing``):
+    ``Ed25519Signer`` is the default whenever a signing backend imports, ``NullSigner`` (hash-chain
+    only, no authorship) is the explicit fallback by name, ``HMACSigner`` the shared-secret one;
+    ``HsmSigner`` and ``SshAgentSigner`` are declared slots.  ``key_id`` is ``<algorithm>:<hex sha256
+    of the raw public key>`` so a ``Keyring`` can find the public key from a record alone."""
 
     key_id: str
 

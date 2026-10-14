@@ -12,20 +12,28 @@ What a snapshot is, per kind:
 
 * corpus verbs and the cascade read a **SQLite store**: the planner makes a ``VACUUM INTO`` copy
   (not ``.backup``: freelist pages and WAL residue make identical content hash differently),
-  puts it as one ``restricted`` object per publish, and derives ``basis_hash`` from *that copy*
-  with ``determinism_basis.basis_hash`` (never from the live store, never from the
-  environment).  A caller-supplied ``basis_hash`` that differs from the copy's is refused: a task
-  under a foreign basis is the hive's ``derive_unit_id`` collision (§1.5 graft a).  The exception
-  is a repair kind such as ``corpus-backfill-pass``: an incomplete store is its input, so its task
-  id combines the snapshot ref with a lane-specific current-package basis instead.
+  puts it as one ``restricted`` object per publish, and reads the basis *object* from *that copy*
+  (``_common.StoreBasisSource``: ``determinism_basis.basis`` + ``basis_hash``; never from the
+  live store, never from the environment).  A caller-supplied ``basis_hash`` that differs from
+  the copy's is refused: a task under a foreign basis is the hive's ``derive_unit_id`` collision
+  (§1.5 graft a).
 * ``compile-attempt`` takes a directory of ``.c`` translation units or a JSONL manifest; each TU
-  becomes one object and one task.  No store, so ``basis_hash`` must be given (or ``store=``
-  pointed at a store to derive it from).
+  becomes one object and one task.  No store in the snapshot, so ``store=`` must point at a
+  store to read the basis from (a bare ``basis_hash`` cannot be projected; the
+  ``ExplicitBasisSource`` slot is the named alternative).
 * ``parity-check`` takes a JSONL manifest of ``{target, candidate, symbol}`` rows (paths or
   object refs).
 * ``match-score-shard`` slices one directed pair of the store into shards of ``shard_size``
   source addresses (``cascade.plan_match_shards``).
 * the analyzer kinds are declared: their planners refuse by name (U137/U139/U141).
+
+Basis rule (U158c): ``plan_tasks`` resolves one ``BasisSource`` per publish (``resolve_basis``:
+the store snapshot, else ``store=``, else ``basis=`` -> the ``ExplicitBasisSource`` slot) and every
+planner builds its specs through ``_common.lane_spec``, so each spec's ``basis_projection`` is the
+kind's declared fields expanded against that basis object and its ``basis_hash`` is the source's
+declared hash (``determinism_basis.basis_hash(con)`` for a store).  A kind whose fields include a
+per-store path (``analyzer.processor_spec_hash``, ``corpus_manifest_hash``) refuses any source but
+the store.  ``describe_planners()`` reports each planner's basis source.
 
 Partitions are ``<kind>/<subject>/<task-id prefix>`` (§2.2): subject = the build's content hash
 or the snapshot's hash, prefix width per kind (``PREFIX_HEX``) so hot lanes fan out over many
@@ -61,11 +69,17 @@ from agentdecompile_grid.core import (
     TaskSpec,
 )
 
-from . import analysis, cascade, compile as compile_lane, parity, parity_region, target, verbs
-from ._common import Locked, hashed_slug, put_file, translate_refusal
+from . import analysis, cascade, compile as compile_lane, parity, verbs
+from ._common import (
+    BASIS_SOURCES, ExplicitBasisSource, Locked, ResolvedBasis, StoreBasisSource, hashed_slug, lane_spec, put_file,
+    translate_refusal,
+)
 
 PLANNERS = Registry("task planner")
 Planner = Callable[..., list[TaskSpec]]
+
+#: Planner name -> the ``BASIS_SOURCES`` names it accepts, first = default (``describe_planners``).
+PLANNER_BASIS_SOURCES: dict[str, tuple[str, ...]] = {}
 
 #: Kinds exempt from the never-awaited rule (one process over all objects; < 1 % of work).
 LINK_KINDS = frozenset({"link", "relink", "image-join", "corpus-link"})
@@ -95,15 +109,17 @@ PREFIX_HEX: Mapping[str, int] = {"compile-attempt": 2, "parity-check": 2, "match
 
 SQLITE_MAGIC = b"SQLite format 3\x00"
 
-#: These kinds exist to make an incomplete store valid, so deriving their basis from that store
-#: would reject exactly the input they repair.  The immutable snapshot ref is already a TaskSpec
-#: input; ``repair_basis_hash`` adds current package-policy invalidation to that content identity.
-REPAIR_KINDS = frozenset({verbs.CorpusBackfillPass.name})
 
+def planner(kind: str, *, basis_sources: Sequence[str] = ("store",), replace: bool = False) -> Callable[[Planner], Planner]:
+    """Register a planner for *kind*; ``basis_sources`` names the ``BASIS_SOURCES`` it may project
+    from (first = default).  A name the registry lacks is refused at import."""
+    unknown = [n for n in basis_sources if n not in BASIS_SOURCES]
+    if unknown:
+        raise Refused(f"planner-basis-source-unknown:{kind}:{unknown}:known {BASIS_SOURCES.names()}")
 
-def planner(kind: str, *, replace: bool = False) -> Callable[[Planner], Planner]:
     def register(fn: Planner) -> Planner:
         PLANNERS.register(kind, fn, replace=replace)
+        PLANNER_BASIS_SOURCES[kind] = tuple(basis_sources)
         return fn
 
     return register
@@ -180,34 +196,31 @@ def resolve_snapshot(objects: ObjectStore, store_snapshot: Any, scratch: str | P
 
 
 def derive_basis_hash(store_path: str | Path) -> str:
-    """The store's own declared basis (``determinism_basis.basis_hash``) over a read-only handle."""
-    from ..corpus.determinism_basis import BasisError, basis_hash
-
-    con = sqlite3.connect(f"file:{Path(store_path).resolve()}?mode=ro", uri=True, timeout=5)
-    con.row_factory = sqlite3.Row
-    try:
-        return basis_hash(con)
-    except (BasisError, sqlite3.OperationalError) as exc:
-        err = translate_refusal(exc)
-        if err is not None:
-            raise err from exc
-        raise
-    finally:
-        con.close()
+    """The store's own declared basis hash (``determinism_basis.basis_hash``) over a read-only handle."""
+    return StoreBasisSource(Path(store_path)).resolve().basis_hash
 
 
-def repair_basis_hash(kind: str) -> str:
-    """Current package basis for a lane that repairs an incomplete store.
-
-    The analyzer-version value is a namespaced sentinel, not a claim about any binary row.  It
-    lets the existing package-basis serializer cover policy/constants while the snapshot object
-    itself covers the exact pre-repair database bytes.
-    """
-    if kind not in REPAIR_KINDS:
-        raise ValueError(f"not a repair kind: {kind}")
-    from ..corpus.determinism_basis import basis_hash_for
-
-    return basis_hash_for(f"repair:{kind}")
+def resolve_basis(kind: str, snapshot: Snapshot, options: Mapping[str, Any]) -> ResolvedBasis:
+    """The one basis object a publish of *kind* projects from, in this order: the store snapshot
+    itself; ``store=`` (a store path, for manifest-flavoured lanes); ``basis=`` (a mapping: the
+    ``ExplicitBasisSource`` slot).  A source the planner does not accept, or none at all, is
+    ``Refused`` by name -- a bare ``basis_hash`` cannot be projected, so it never stands in."""
+    accepted = PLANNER_BASIS_SOURCES.get(kind, ("store",))
+    source: Any
+    if snapshot.flavour == "store" and snapshot.path is not None:
+        source = StoreBasisSource(snapshot.path)
+    elif options.get("store"):
+        source = StoreBasisSource(Path(str(options["store"])).expanduser())
+    elif isinstance(options.get("basis"), Mapping):
+        source = ExplicitBasisSource(dict(options["basis"]))
+    else:
+        raise Refused(
+            f"basis-required:{kind}:no basis source (snapshot is {snapshot.flavour}); "
+            f"pass a store snapshot, store=<path> or basis=<mapping>; accepted {list(accepted)}"
+        )
+    if source.name not in accepted:
+        raise Refused(f"basis-source-not-accepted:{kind}:{source.name}:accepted {list(accepted)}")
+    return source.resolve()
 
 
 # --------------------------------------------------------------------------- chokepoint
@@ -232,26 +245,20 @@ def plan_tasks(
 ) -> list[TaskSpec]:
     """Plan *kind* over *store_snapshot* into tasks whose budget is at most *max_budget*.
 
-    ``basis_hash=None`` derives it from the snapshot (stores only), except that repair kinds use
-    :func:`repair_basis_hash` because an incomplete store cannot yet declare its own basis.  A
-    given value must equal the derived basis.  Returns specs with partitions assigned.  Raises
-    ``Refused`` (no planner, budget above the cap, basis mismatch) or the named refusals of the
-    store.
+    The basis object comes from ``resolve_basis`` (the snapshot, ``store=`` or ``basis=``); a
+    given ``basis_hash`` must equal the source's declared hash.  Every planner receives the
+    ``ResolvedBasis`` and builds through ``lane_spec``, so each spec carries the kind's projection.
+    Returns specs with partitions assigned.  Raises ``Refused`` (no planner, budget above the cap,
+    basis mismatch, no basis source) or the named refusals of the store.
     """
     if kind not in PLANNERS:
         raise Refused(f"no-planner:{kind}", candidates=[{"kind": name} for name in PLANNERS.names()])
     snapshot = resolve_snapshot(objects, store_snapshot, scratch)
     try:
-        if snapshot.flavour == "store" and snapshot.path is not None:
-            derived = repair_basis_hash(kind) if kind in REPAIR_KINDS else derive_basis_hash(snapshot.path)
-            if basis_hash and basis_hash != derived:
-                raise Refused(f"basis-mismatch:given-{basis_hash[:12]}!=snapshot-{derived[:12]}")
-            basis_hash = derived
-        elif not basis_hash and options.get("store"):
-            basis_hash = derive_basis_hash(options["store"])
-        if not basis_hash:
-            raise Refused(f"basis-required:{kind}:pass basis_hash or a store to derive it from")
-        specs = PLANNERS.get(kind)(objects, snapshot, basis_hash, int(shard_size), **options)
+        resolved = resolve_basis(kind, snapshot, options)
+        if basis_hash and basis_hash != resolved.basis_hash:
+            raise Refused(f"basis-mismatch:given-{basis_hash[:12]}!={resolved.source}-{resolved.basis_hash[:12]}")
+        specs = PLANNERS.get(kind)(objects, snapshot, resolved, int(shard_size), **options)
     finally:
         if snapshot.owned and snapshot.path is not None:
             snapshot.path.unlink(missing_ok=True)   # the object store holds the bytes; the copy was for planning
@@ -272,11 +279,8 @@ def _store_ref(snapshot: Snapshot) -> ObjectRef:
     return snapshot.ref
 
 
-def _verb_spec(cls: type, snapshot: Snapshot, basis_hash: str, params: Mapping[str, Any]) -> TaskSpec:
-    return TaskSpec(
-        kind=cls.name, kind_version=cls.version, inputs={"store": _store_ref(snapshot)}, params=dict(params),
-        basis_hash=basis_hash, capabilities=tuple(cls.capabilities), budget=cls.budget,
-    )
+def _verb_spec(cls: type, snapshot: Snapshot, basis: ResolvedBasis, params: Mapping[str, Any]) -> TaskSpec:
+    return lane_spec(cls, {"store": _store_ref(snapshot)}, params, basis)
 
 
 def _verb_params(options: Mapping[str, Any]) -> dict[str, Any]:
@@ -287,22 +291,22 @@ def _verb_params(options: Mapping[str, Any]) -> dict[str, Any]:
 
 
 @planner(verbs.CorpusExportHookpack.name)
-def plan_export_hookpack(objects, snapshot, basis_hash, shard_size, **options):
-    return [_verb_spec(verbs.CorpusExportHookpack, snapshot, basis_hash, _verb_params(options))]
+def plan_export_hookpack(objects, snapshot, basis, shard_size, **options):
+    return [_verb_spec(verbs.CorpusExportHookpack, snapshot, basis, _verb_params(options))]
 
 
 @planner(verbs.CorpusVerifyDeterminism.name)
-def plan_verify_determinism(objects, snapshot, basis_hash, shard_size, **options):
-    return [_verb_spec(verbs.CorpusVerifyDeterminism, snapshot, basis_hash, _verb_params(options))]
+def plan_verify_determinism(objects, snapshot, basis, shard_size, **options):
+    return [_verb_spec(verbs.CorpusVerifyDeterminism, snapshot, basis, _verb_params(options))]
 
 
 @planner(verbs.CorpusLogicalBuild.name)
-def plan_logical_build(objects, snapshot, basis_hash, shard_size, **options):
-    return [_verb_spec(verbs.CorpusLogicalBuild, snapshot, basis_hash, _verb_params(options))]
+def plan_logical_build(objects, snapshot, basis, shard_size, **options):
+    return [_verb_spec(verbs.CorpusLogicalBuild, snapshot, basis, _verb_params(options))]
 
 
 @planner(verbs.CorpusBackfillPass.name)
-def plan_backfill_passes(objects, snapshot, basis_hash, shard_size, **options):
+def plan_backfill_passes(objects, snapshot, basis, shard_size, **options):
     """One task per pass: the verb's ``--pass`` loop is the split."""
     from ..corpus.backfill import PASSES
 
@@ -311,18 +315,18 @@ def plan_backfill_passes(objects, snapshot, basis_hash, shard_size, **options):
     if unknown:
         raise Refused("backfill-pass-unknown:" + ",".join(unknown), candidates=[{"pass": p} for p in sorted(PASSES)])
     return [
-        _verb_spec(verbs.CorpusBackfillPass, snapshot, basis_hash,
+        _verb_spec(verbs.CorpusBackfillPass, snapshot, basis,
                    {**_verb_params(options), "pass": name, "resume": bool(options.get("resume", True))})
         for name in names
     ]
 
 
 @planner(verbs.CorpusAttest.name)
-def plan_attest(objects, snapshot, basis_hash, shard_size, **options):
+def plan_attest(objects, snapshot, basis, shard_size, **options):
     """One declared ``corpus-attest`` task per verb; running them refuses by name until U28x."""
     names = list(options.get("verbs") or ("logical-build", "backfill", "export-hookpack", "verify-determinism"))
     return [
-        _verb_spec(verbs.CorpusAttest, snapshot, basis_hash,
+        _verb_spec(verbs.CorpusAttest, snapshot, basis,
                    {"verb": verb, "verb_params": dict(options.get("verb_params") or {}), "deadline_s": float(options.get("deadline_s") or 60.0)})
         for verb in names
     ]
@@ -365,8 +369,8 @@ def _object_of(objects: ObjectStore, row: Mapping[str, Any], key: str, base: Pat
     return objects.put(path.read_bytes())
 
 
-@planner(compile_lane.CompileAttempt.name)
-def plan_compile_attempts(objects, snapshot, basis_hash, shard_size, **options):
+@planner(compile_lane.CompileAttempt.name, basis_sources=("store", "explicit"))
+def plan_compile_attempts(objects, snapshot, basis, shard_size, **options):
     """One ``compile-attempt`` per translation unit of a directory or manifest."""
     if snapshot.flavour != "manifest" or snapshot.path is None:
         raise Refused("compile-attempt:snapshot-must-be-tu-dir-or-manifest")
@@ -380,17 +384,15 @@ def plan_compile_attempts(objects, snapshot, basis_hash, shard_size, **options):
     for row in _iter_manifest(snapshot.path):
         tu_ref = _object_of(objects, row, "tu", snapshot.path)
         params = {"toolchain_identity_hash": identity, "profile": profile, "opt": opt, "flags": flags}
-        spec = TaskSpec(
-            kind=compile_lane.CompileAttempt.name, kind_version=compile_lane.CompileAttempt.version,
-            inputs={"tu": tu_ref}, params=params, basis_hash=basis_hash,
-            capabilities=(compile_lane.CAPABILITY_PREFIX + identity,), budget=compile_lane.CompileAttempt.budget,
-        )
-        specs.append(spec)
+        specs.append(lane_spec(
+            compile_lane.CompileAttempt, {"tu": tu_ref}, params, basis,
+            capabilities=(compile_lane.CAPABILITY_PREFIX + identity,),
+        ))
     return specs
 
 
-@planner(parity.ParityCheck.name)
-def plan_parity_checks(objects, snapshot, basis_hash, shard_size, **options):
+@planner(parity.ParityCheck.name, basis_sources=("store", "explicit"))
+def plan_parity_checks(objects, snapshot, basis, shard_size, **options):
     """One ``parity-check`` per ``{target, candidate, symbol}`` manifest row."""
     if snapshot.flavour != "manifest" or snapshot.path is None or snapshot.path.is_dir():
         raise Refused("parity-check:snapshot-must-be-pairs-manifest")
@@ -400,28 +402,17 @@ def plan_parity_checks(objects, snapshot, basis_hash, shard_size, **options):
     specs: list[TaskSpec] = []
     for row in _iter_manifest(snapshot.path):
         params = {"verifier_id": verifier_id, "symbol": str(row.get("symbol") or "")}
-        specs.append(TaskSpec(
-            kind=parity.ParityCheck.name, kind_version=parity.ParityCheck.version,
-            inputs={"target": _object_of(objects, row, "target", snapshot.path), "candidate": _object_of(objects, row, "candidate", snapshot.path)},
-            params=params, basis_hash=basis_hash, capabilities=(verifier_id,), budget=parity.ParityCheck.budget,
+        specs.append(lane_spec(
+            parity.ParityCheck,
+            {"target": _object_of(objects, row, "target", snapshot.path), "candidate": _object_of(objects, row, "candidate", snapshot.path)},
+            params, basis, capabilities=(verifier_id,),
         ))
     return specs
 
 
-@planner(parity_region.ParityRegionCheck.name)
-def plan_parity_regions(objects, snapshot, basis_hash, shard_size, **options):
-    return parity_region.plan_parity_regions(objects, snapshot, basis_hash, shard_size, **options)
-
-
-# --------------------------------------------------------------------------- planners: bounded target object
-@planner(target.MkobjTarget.name)
-def plan_mkobj_target(objects, snapshot, basis_hash, shard_size, **options):
-    return target.plan_mkobj_target(objects, snapshot, basis_hash, shard_size, **options)
-
-
 # --------------------------------------------------------------------------- planners: cascade
 @planner(cascade.MatchScoreShard.name)
-def plan_match_score_shards(objects, snapshot, basis_hash, shard_size, **options):
+def plan_match_score_shards(objects, snapshot, basis, shard_size, **options):
     if snapshot.flavour != "store" or snapshot.path is None:
         raise Refused("match-score-shard:snapshot-must-be-store")
     src, dst = options.get("src"), options.get("dst")
@@ -436,7 +427,7 @@ def plan_match_score_shards(objects, snapshot, basis_hash, shard_size, **options
             mapping = json.loads(Path(text).read_text("utf-8"))
             mapping = mapping.get("mapping", mapping)
     return cascade.plan_match_shards(
-        objects, snapshot.path, basis_hash, shard_size or 512, src=str(src), dst=str(dst),
+        objects, snapshot.path, basis, shard_size or 512, src=str(src), dst=str(dst),
         mapping={int(k): int(v) for k, v in dict(mapping).items()}, round_index=int(options.get("round", 0)),
         use_name_features=bool(options.get("use_name_features", True)),
     )
@@ -444,24 +435,31 @@ def plan_match_score_shards(objects, snapshot, basis_hash, shard_size, **options
 
 # --------------------------------------------------------------------------- planners: analyzer (declared)
 def _declared_planner(cls: type):
-    def plan(objects, snapshot, basis_hash, shard_size, **options):
+    def plan(objects, snapshot, basis, shard_size, **options):
         raise NotConfigured(f"{cls.name}: analyzer lane planner not present in this checkout yet ({cls.UNIT})")
 
     return plan
 
 
 for _cls in analysis.ANALYSIS_KINDS:
-    PLANNERS.register(_cls.name, _declared_planner(_cls))
+    planner(_cls.name)(_declared_planner(_cls))   # analyzer fields include processor_spec_hash: store source only
 
 
 def describe_planners() -> dict[str, Any]:
+    """The planner catalogue plus, per planner, the basis sources it accepts (first = default)."""
     return {
         "planners": PLANNERS.names(), "max_budget_default": BudgetClass.SMALL.value, "link_kinds": sorted(LINK_KINDS),
         "prefix_hex": dict(PREFIX_HEX), "shard_alternatives": {k: list(v) for k, v in SHARD_ALTERNATIVES.items()},
+        "basis_sources": {
+            name: {"default": PLANNER_BASIS_SOURCES[name][0], "accepted": list(PLANNER_BASIS_SOURCES[name])}
+            for name in PLANNERS.names()
+        },
+        "basis_source_kinds": BASIS_SOURCES.names(),
     }
 
 
 __all__ = [
-    "BUDGET_RANK", "LINK_KINDS", "PLANNERS", "PREFIX_HEX", "SHARD_ALTERNATIVES", "Snapshot", "assign_partition",
-    "derive_basis_hash", "describe_planners", "plan_tasks", "planner", "resolve_snapshot", "snapshot_store", "vacuum_copy",
+    "BUDGET_RANK", "LINK_KINDS", "PLANNERS", "PLANNER_BASIS_SOURCES", "PREFIX_HEX", "SHARD_ALTERNATIVES", "Snapshot",
+    "assign_partition", "derive_basis_hash", "describe_planners", "plan_tasks", "planner", "resolve_basis", "resolve_snapshot",
+    "snapshot_store", "vacuum_copy",
 ]

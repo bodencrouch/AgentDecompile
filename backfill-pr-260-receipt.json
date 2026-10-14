@@ -1,0 +1,56 @@
+{
+  "pr": "https://github.com/bodencrouch/AgentDecompile/pull/260",
+  "branch": "codex/bound-backfill-wait",
+  "base": "32f7dc366abf401e0dd301dbe0a3cfe9265f97d1",
+  "head": "ecbd3e254d599e5ad078784496b5eb17e328c547",
+  "scope": [
+    ".github/workflows/test-unit.yml",
+    "src/agentdecompile_cli/cli.py",
+    "src/agentdecompile_cli/mcp_server/providers/_collectors.py",
+    "src/agentdecompile_grid/core.py",
+    "src/agentdecompile_grid/worker/agent.py",
+    "src/agentdecompile_recovery/corpus/channel_confidence.py",
+    "src/agentdecompile_recovery/corpus/cli.py",
+    "src/agentdecompile_recovery/corpus/inventory.py",
+    "src/agentdecompile_recovery/corpus/match_store.py",
+    "src/agentdecompile_recovery/corpus/runtime_dump.py",
+    "src/agentdecompile_recovery/corpus/store.py",
+    "src/agentdecompile_recovery/corpus/unpack_emulate.py",
+    "tests/test_dashboard_actions.py",
+    "tests/test_determinism_surfaces.py",
+    "tests/test_logical_determinism.py",
+    "tests/test_store_migrations.py",
+    "tests/test_toolchain_identity.py"
+  ],
+  "source_review": "PASS independent backfill, baseline lint and CI workflow reviews",
+  "local_checks": [
+    "AST parse changed Python files",
+    "git diff --check",
+    "read-only base/head privacy comparison"
+  ],
+  "local_tests_executed": false,
+  "live_activation": false,
+  "state": "MERGED",
+  "ci_configuration_repairs": [
+    "25 baseline Ruff errors",
+    "ripgrep dependency",
+    "encrypted required denylist secret configured",
+    "unit test evidence independent of failing privacy gate; gate still fails job"
+  ],
+  "ci_residuals": [
+    "CodeQL scanning disabled for private repository",
+    "24 preexisting anonymization ratchet paths, zero introduced/increased by PR"
+  ],
+  "merged_at": "2026-10-03T12:28:17Z",
+  "merge_commit": "b14ccaaee2bac288b37256963a2ae25f85e6b5bd",
+  "ci_validation": {
+    "base_failures": 29,
+    "head_failures": 29,
+    "new_failures": 0,
+    "store_migrations_passed": 26,
+    "corrected_fake_passed": true,
+    "comparison": "pr-260-ci-audit/base-head-executed-comparison.json",
+    "all_ci_green": false,
+    "other_matrix_jobs_pending_at_merge": true
+  }
+}

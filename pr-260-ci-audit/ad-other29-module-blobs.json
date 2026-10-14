@@ -1,0 +1,170 @@
+[
+  {
+    "path": "README.md",
+    "base": "7b1c6de014945e2103de6710545e800019c24c5a",
+    "head": "7b1c6de014945e2103de6710545e800019c24c5a",
+    "equal": true
+  },
+  {
+    "path": ".cursorrules",
+    "base": "4db43e66e16a1d000b3493debae87cfab15fbd8c",
+    "head": "4db43e66e16a1d000b3493debae87cfab15fbd8c",
+    "equal": true
+  },
+  {
+    "path": "GEMINI.md",
+    "base": null,
+    "head": null,
+    "equal": true
+  },
+  {
+    "path": "src/agentdecompile_cli/registry.py",
+    "base": "8c86d635b178b52b5c43feef4b23491a73c6c978",
+    "head": "8c86d635b178b52b5c43feef4b23491a73c6c978",
+    "equal": true
+  },
+  {
+    "path": "docs/plans/README.md",
+    "base": "fe71ff43bd0c59f4ee6633bd3e80fddca059a38d",
+    "head": "fe71ff43bd0c59f4ee6633bd3e80fddca059a38d",
+    "equal": true
+  },
+  {
+    "path": "docs/solutions/README.md",
+    "base": "43b189ea862ef4bf61a441c68ace7fef1bc27a88",
+    "head": "43b189ea862ef4bf61a441c68ace7fef1bc27a88",
+    "equal": true
+  },
+  {
+    "path": "skills/README.md",
+    "base": "dd4a72a54c9b7910234dfa7ed0069bc8f2f5cf2f",
+    "head": "dd4a72a54c9b7910234dfa7ed0069bc8f2f5cf2f",
+    "equal": true
+  },
+  {
+    "path": "skills/source-recovery/SKILL.md",
+    "base": "e8d36735634e33308ea22caa24554eca61064579",
+    "head": "e8d36735634e33308ea22caa24554eca61064579",
+    "equal": true
+  },
+  {
+    "path": ".agents/skills/source-recovery/SKILL.md",
+    "base": "ec31ba03bbb36313c2e8ecc876c03fd52935115e",
+    "head": "ec31ba03bbb36313c2e8ecc876c03fd52935115e",
+    "equal": true
+  },
+  {
+    "path": "src/agentdecompile_recovery/corpus/block_inline.py",
+    "base": "c6fc7d6d210f85d50a4944c2001df3652af6f9e7",
+    "head": "c6fc7d6d210f85d50a4944c2001df3652af6f9e7",
+    "equal": true
+  },
+  {
+    "path": "src/agentdecompile_recovery/corpus/callgraph_propagate.py",
+    "base": "b57f4200a66b3401cbfb94c7d498f3c0fd1cd491",
+    "head": "b57f4200a66b3401cbfb94c7d498f3c0fd1cd491",
+    "equal": true
+  },
+  {
+    "path": "src/agentdecompile_recovery/corpus/match_engine.py",
+    "base": "628dc99a17ac06552ea9b3d37a62ad169dead400",
+    "head": "628dc99a17ac06552ea9b3d37a62ad169dead400",
+    "equal": true
+  },
+  {
+    "path": "src/agentdecompile_recovery/corpus/match_islands.py",
+    "base": "f532885e403f422e08aa0c0459e89d47d6d9546d",
+    "head": "f532885e403f422e08aa0c0459e89d47d6d9546d",
+    "equal": true
+  },
+  {
+    "path": "src/agentdecompile_recovery/corpus/propagate.py",
+    "base": "1c38a622ddf593b68bd6cddc566839eb930ce7a2",
+    "head": "1c38a622ddf593b68bd6cddc566839eb930ce7a2",
+    "equal": true
+  },
+  {
+    "path": "src/agentdecompile_recovery/corpus/determinism_basis.py",
+    "base": "8fc803e9c9f480bdb3e58805fb389ad07da9ddff",
+    "head": "8fc803e9c9f480bdb3e58805fb389ad07da9ddff",
+    "equal": true
+  },
+  {
+    "path": "src/agentdecompile_recovery/corpus/dashboard/explorer.py",
+    "base": "9df5eb9d1723ef5977323e6e1a79cb113127ae73",
+    "head": "9df5eb9d1723ef5977323e6e1a79cb113127ae73",
+    "equal": true
+  },
+  {
+    "path": "src/agentdecompile_recovery/corpus/identical_image.py",
+    "base": "faa9e7ba4c7d30590b814d2bbcb60e5a7fc43aae",
+    "head": "faa9e7ba4c7d30590b814d2bbcb60e5a7fc43aae",
+    "equal": true
+  },
+  {
+    "path": "src/agentdecompile_cli/mcp_server/providers/structures.py",
+    "base": "32289a2d663417ce055fbebf1322fa581f0b6e68",
+    "head": "32289a2d663417ce055fbebf1322fa581f0b6e68",
+    "equal": true
+  },
+  {
+    "path": "src/agentdecompile_cli/mcp_server/providers/import_export.py",
+    "base": "394d5cbc624f34593206f9a7a65bfd70081fc01b",
+    "head": "394d5cbc624f34593206f9a7a65bfd70081fc01b",
+    "equal": true
+  },
+  {
+    "path": "src/agentdecompile_cli/mcp_server/session_context.py",
+    "base": "b135f7437b665cd7f1499a758e4862c2557efc7d",
+    "head": "b135f7437b665cd7f1499a758e4862c2557efc7d",
+    "equal": true
+  },
+  {
+    "path": "src/agentdecompile_cli/mcp_server/tool_providers.py",
+    "base": "9bb391d1fcd33b9e5d4f1398af7e220391505516",
+    "head": "9bb391d1fcd33b9e5d4f1398af7e220391505516",
+    "equal": true
+  },
+  {
+    "path": "src/agentdecompile_cli/mcp_utils/program_analysis.py",
+    "base": "9c47bc6f61207e1fdcdd1a49e675ca73130f5401",
+    "head": "9c47bc6f61207e1fdcdd1a49e675ca73130f5401",
+    "equal": true
+  },
+  {
+    "path": "src/agentdecompile_cli/mcp_server/auth.py",
+    "base": "950109c8e8ef54c6e026f12995dc778b43344dba",
+    "head": "950109c8e8ef54c6e026f12995dc778b43344dba",
+    "equal": true
+  },
+  {
+    "path": "src/agentdecompile_recovery/unified_pages.py",
+    "base": "6a2c5db3b9034c0ce6bbc58007f59677f6dbbc23",
+    "head": "6a2c5db3b9034c0ce6bbc58007f59677f6dbbc23",
+    "equal": true
+  },
+  {
+    "path": "src/agentdecompile_recovery/corpus/dashboard/router.py",
+    "base": "4bfd436f3f31dfa0030747c4b63626fc580182e4",
+    "head": "4bfd436f3f31dfa0030747c4b63626fc580182e4",
+    "equal": true
+  },
+  {
+    "path": "src/agentdecompile_recovery/corpus/dashboard/workbench.py",
+    "base": "0e64bd2290e8ce78a9e6376677d797f5ddc4006e",
+    "head": "0e64bd2290e8ce78a9e6376677d797f5ddc4006e",
+    "equal": true
+  },
+  {
+    "path": ".github/workflows/test-headless.yml",
+    "base": "fa9e0fdfe0614cc21ceb4300c9961cd01c3e5804",
+    "head": "fa9e0fdfe0614cc21ceb4300c9961cd01c3e5804",
+    "equal": true
+  },
+  {
+    "path": "tests/conftest.py",
+    "base": "bfbb6a6dc4e17e8c6b02685612bafbc176adc765",
+    "head": "bfbb6a6dc4e17e8c6b02685612bafbc176adc765",
+    "equal": true
+  }
+]

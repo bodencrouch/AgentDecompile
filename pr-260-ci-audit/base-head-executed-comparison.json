@@ -1,0 +1,175 @@
+{
+  "base_cases": 3585,
+  "head_cases": 3588,
+  "base_failures": [
+    "tests.test_agent_internal_docs::test_agent_rule_files_exist_and_hop",
+    "tests.test_agent_internal_docs::test_cursorrules_registry_triple",
+    "tests.test_block_inline::test_contained_in_two_survivors_is_ambiguous",
+    "tests.test_block_inline::test_hashes_split_across_two_hosts_no_hit",
+    "tests.test_block_inline::test_subset_of_hashes_inlines_to_unique_host",
+    "tests.test_block_inline::test_unique_containment_among_several_survivors",
+    "tests.test_callgraph_propagate::test_inline_review_when_blocks_are_contained",
+    "tests.test_callgraph_propagate::test_persist_status_keeps_structural_verify",
+    "tests.test_channel_confidence::test_structural_persist_stays_verify",
+    "tests.test_cli_live_regressions::test_structures_parse_and_validate_use_ghidra12_cparser",
+    "tests.test_corpus_match_status::test_existing_auto_rows_with_conflicting_names_are_downgraded",
+    "tests.test_corpus_match_status::test_reclassification_rolls_back_status_when_identity_rebuild_fails",
+    "tests.test_determinism_basis::test_full_key_set_is_pinned",
+    "tests.test_explorer::test_explorer_snapshot_selects_matching_run",
+    "tests.test_external_validation_reports::test_cli_and_catalog_read_report_without_provider_execution",
+    "tests.test_identical_image::test_same_content_sha256_is_identical",
+    "tests.test_import_binary_versioned_context::test_versioned_file_import_attaches_imported_program_context",
+    "tests.test_import_binary_versioned_context::test_versioned_folder_import_attaches_last_imported_program_context",
+    "tests.test_mcp_http_auth_contract::test_installed_middleware_without_credentials_rejects_everything[False]",
+    "tests.test_mcp_http_auth_contract::test_installed_middleware_without_credentials_rejects_everything[True]",
+    "tests.test_program_analysis_gate::test_program_analysis_module_exports_public_api",
+    "tests.test_secondary_docs_surfaces::test_plans_and_solutions_hubs",
+    "tests.test_secondary_docs_surfaces::test_skills_catalog",
+    "tests.test_tool_providers_analysis_gate::test_analysis_gate_invoked_for_non_exempt_tool",
+    "tests.test_unified_pages::test_dashboard_reads_store",
+    "tests.test_unified_pages::test_functions_page_works_without_source_file_column",
+    "tests.test_unified_pages::test_hub_and_healthz_are_on_the_same_app",
+    "tests.test_unified_pages::test_report_serves_html_file",
+    "tests.test_user_facing_docs::test_readme_registry_triple"
+  ],
+  "head_failures": [
+    "tests.test_agent_internal_docs::test_agent_rule_files_exist_and_hop",
+    "tests.test_agent_internal_docs::test_cursorrules_registry_triple",
+    "tests.test_block_inline::test_contained_in_two_survivors_is_ambiguous",
+    "tests.test_block_inline::test_hashes_split_across_two_hosts_no_hit",
+    "tests.test_block_inline::test_subset_of_hashes_inlines_to_unique_host",
+    "tests.test_block_inline::test_unique_containment_among_several_survivors",
+    "tests.test_callgraph_propagate::test_inline_review_when_blocks_are_contained",
+    "tests.test_callgraph_propagate::test_persist_status_keeps_structural_verify",
+    "tests.test_channel_confidence::test_structural_persist_stays_verify",
+    "tests.test_cli_live_regressions::test_structures_parse_and_validate_use_ghidra12_cparser",
+    "tests.test_corpus_match_status::test_existing_auto_rows_with_conflicting_names_are_downgraded",
+    "tests.test_corpus_match_status::test_reclassification_rolls_back_status_when_identity_rebuild_fails",
+    "tests.test_determinism_basis::test_full_key_set_is_pinned",
+    "tests.test_explorer::test_explorer_snapshot_selects_matching_run",
+    "tests.test_external_validation_reports::test_cli_and_catalog_read_report_without_provider_execution",
+    "tests.test_identical_image::test_same_content_sha256_is_identical",
+    "tests.test_import_binary_versioned_context::test_versioned_file_import_attaches_imported_program_context",
+    "tests.test_import_binary_versioned_context::test_versioned_folder_import_attaches_last_imported_program_context",
+    "tests.test_mcp_http_auth_contract::test_installed_middleware_without_credentials_rejects_everything[False]",
+    "tests.test_mcp_http_auth_contract::test_installed_middleware_without_credentials_rejects_everything[True]",
+    "tests.test_program_analysis_gate::test_program_analysis_module_exports_public_api",
+    "tests.test_secondary_docs_surfaces::test_plans_and_solutions_hubs",
+    "tests.test_secondary_docs_surfaces::test_skills_catalog",
+    "tests.test_tool_providers_analysis_gate::test_analysis_gate_invoked_for_non_exempt_tool",
+    "tests.test_unified_pages::test_dashboard_reads_store",
+    "tests.test_unified_pages::test_functions_page_works_without_source_file_column",
+    "tests.test_unified_pages::test_hub_and_healthz_are_on_the_same_app",
+    "tests.test_unified_pages::test_report_serves_html_file",
+    "tests.test_user_facing_docs::test_readme_registry_triple"
+  ],
+  "new_failures": [],
+  "resolved_failures": [],
+  "store_migrations": [
+    {
+      "name": "test_registry_is_ordered_and_named",
+      "time": "0.000"
+    },
+    {
+      "name": "test_registry_rejects_bad_order",
+      "time": "0.000"
+    },
+    {
+      "name": "test_statement_splitter_drops_pragmas_and_keeps_literals",
+      "time": "0.000"
+    },
+    {
+      "name": "test_fresh_store_is_at_schema_version_with_one_ledger_row_per_migration",
+      "time": "0.010"
+    },
+    {
+      "name": "test_second_connect_runs_no_ddl_and_writes_nothing",
+      "time": "0.008"
+    },
+    {
+      "name": "test_apply_pending_hot_path_never_opens_a_transaction",
+      "time": "0.047"
+    },
+    {
+      "name": "test_legacy_store_migrates_to_the_fresh_shape",
+      "time": "0.022"
+    },
+    {
+      "name": "test_legacy_store_keeps_its_rows",
+      "time": "0.018"
+    },
+    {
+      "name": "test_read_only_connect_to_migrated_store_writes_nothing",
+      "time": "0.008"
+    },
+    {
+      "name": "test_read_only_connect_to_legacy_store_raises",
+      "time": "0.014"
+    },
+    {
+      "name": "test_pending_migration_is_tolerated_on_read_only_once_ledger_exists",
+      "time": "0.008"
+    },
+    {
+      "name": "test_pending_migration_is_tolerated_when_lock_is_busy",
+      "time": "0.210"
+    },
+    {
+      "name": "test_failed_migration_rolls_back_as_one_transaction",
+      "time": "0.009"
+    },
+    {
+      "name": "test_second_writer_rechecks_version_under_the_lock",
+      "time": "1.046"
+    },
+    {
+      "name": "test_two_processes_migrate_the_same_legacy_store_once",
+      "time": "0.077"
+    },
+    {
+      "name": "test_registry_has_migration_2_analyzer_identity",
+      "time": "0.000"
+    },
+    {
+      "name": "test_migration_2_is_idempotent_on_a_fresh_store",
+      "time": "0.009"
+    },
+    {
+      "name": "test_migration_2_on_a_legacy_store_matches_the_fresh_shape_and_keeps_rows",
+      "time": "0.026"
+    },
+    {
+      "name": "test_ledger_basis_hash_is_null_without_identity_and_real_with_it",
+      "time": "0.031"
+    },
+    {
+      "name": "test_connect_holds_no_transaction_and_commits_the_backfill",
+      "time": "0.010"
+    },
+    {
+      "name": "test_connect_with_nothing_to_backfill_never_waits_for_the_write_lock",
+      "time": "0.009"
+    },
+    {
+      "name": "test_backfill_participates_in_an_open_transaction",
+      "time": "0.013"
+    },
+    {
+      "name": "test_backfill_tolerates_a_busy_lock_and_leaves_no_transaction[0]",
+      "time": "0.011"
+    },
+    {
+      "name": "test_backfill_tolerates_a_busy_lock_and_leaves_no_transaction[200]",
+      "time": "0.211"
+    },
+    {
+      "name": "test_backfill_tolerates_a_busy_lock_and_leaves_no_transaction[30000]",
+      "time": "0.262"
+    },
+    {
+      "name": "test_backfill_restores_timeout_after_a_non_lock_error",
+      "time": "0.010"
+    }
+  ],
+  "corrected_fake_pass": true
+}

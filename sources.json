@@ -1,0 +1,621 @@
+[
+  {
+    "path": "docs/plans/2026-09-10-browser-rewrite-contributor.md",
+    "sha256": "fde0dfa29e1a5e811290dfd5ddb5d1da8a87262ada077dc62e04a58254d5112b",
+    "bytes": 3395,
+    "origin": "canonical",
+    "lines": 67
+  },
+  {
+    "path": "docs/plans/2026-09-10-exchange-rewrite-consumption-bridge.md",
+    "sha256": "8a82dc3cfabb3579e53e1161967be42f029b4cbcd71803644d133d336be3c473",
+    "bytes": 1189,
+    "origin": "canonical",
+    "lines": 29
+  },
+  {
+    "path": "docs/plans/2026-09-10-exchange-submission-durability.md",
+    "sha256": "80b5dc4337e3a66412d9cdfe85e0a8073118af5fae82bc40904cd700e36e0ef1",
+    "bytes": 2126,
+    "origin": "canonical",
+    "lines": 46
+  },
+  {
+    "path": "docs/plans/2026-09-10-program-info-call-scoped-refactor.md",
+    "sha256": "7dd12bc613bf612ab26f7fe5585c163b730352dc2ed0668c691b06a25e1415a9",
+    "bytes": 9228,
+    "origin": "canonical",
+    "lines": 181
+  },
+  {
+    "path": "docs/plans/2026-09-20-forgiving-input-cleanup.md",
+    "sha256": "1fe0267a075eacaf0209b2236b464a05cdbadd23aa685817c7d8d22683fd8abf",
+    "bytes": 29419,
+    "origin": "canonical",
+    "lines": 417
+  },
+  {
+    "path": "docs/plans/2026-09-20-unified-reversing-workstation.md",
+    "sha256": "217e7ba40ba7aa47f7cf06dde6df3dda8b01692778b57d023f484cd95d015522",
+    "bytes": 9505,
+    "origin": "canonical",
+    "lines": 154
+  },
+  {
+    "path": "docs/plans/2026-09-21-distributed-compute-design.md",
+    "sha256": "7ebd00091da789314f063711739de1d058974ea99b957315eea4bc3ec7386e46",
+    "bytes": 132713,
+    "origin": "canonical",
+    "lines": 665
+  },
+  {
+    "path": "docs/plans/2026-09-21-goal.md",
+    "sha256": "f4b1bf144aa3999ed751b8b913cb60d71b4db612fcd37530a69226dd589874f6",
+    "bytes": 5675,
+    "origin": "canonical",
+    "lines": 73
+  },
+  {
+    "path": "docs/plans/2026-09-21-grid-of-one-walkthrough.md",
+    "sha256": "cbb0107bc2278150a14041e50e2da269ceb25ca32d55cf9b550a646ca8180c5f",
+    "bytes": 6304,
+    "origin": "canonical",
+    "lines": 90
+  },
+  {
+    "path": "docs/plans/2026-09-21-loop-charter.md",
+    "sha256": "f5ce62cfb76077644a8b3f9cd61ef57ab9ea0958faa47be5caec912eea74ad1b",
+    "bytes": 9700,
+    "origin": "canonical",
+    "lines": 148
+  },
+  {
+    "path": "docs/plans/2026-09-21-plan-audit-2.md",
+    "sha256": "6c55c49f3014e1b758a116059710ac3f120688599fdd7b1a1535bbeb1618aefa",
+    "bytes": 10219,
+    "origin": "canonical",
+    "lines": 137
+  },
+  {
+    "path": "docs/plans/2026-09-21-plan-audit-3.md",
+    "sha256": "3f539d90c4cd061da3e1f50abf71f90e8a3530a1ae75b0bd556b60d5ae5a90f1",
+    "bytes": 8608,
+    "origin": "canonical",
+    "lines": 101
+  },
+  {
+    "path": "docs/plans/2026-09-21-plan-audit-4.md",
+    "sha256": "d1f0af103a0935b94dccfc86f88e4cfe86805c08753a64f7eed6b2ac20daec79",
+    "bytes": 7025,
+    "origin": "canonical",
+    "lines": 76
+  },
+  {
+    "path": "docs/plans/2026-09-21-portable-signatures-codecaves-generic-plan.md",
+    "sha256": "3fe90a781fd79f93bd648adbc2e2e5653db0a95f159b4aa051ab36e34a71dc74",
+    "bytes": 197889,
+    "origin": "canonical",
+    "lines": 2283
+  },
+  {
+    "path": "docs/plans/2026-09-21-risk-register.md",
+    "sha256": "893b426dcc37acf1d3a0b069741b98650c99766ea85fd6c3026b4dbfa21eec7a",
+    "bytes": 22885,
+    "origin": "canonical",
+    "lines": 118
+  },
+  {
+    "path": "docs/plans/2026-09-21-user-requirements-ledger.md",
+    "sha256": "10760ab45d1f7e847da709cc846d624a7febe5233660b23a28e53df2f9ffbccb",
+    "bytes": 15840,
+    "origin": "canonical",
+    "lines": 224
+  },
+  {
+    "path": "docs/plans/2026-09-22-autonomous-capability-product-roadmap.md",
+    "sha256": "860623770bf9d8c6f8df2c3ab2336d67da342e47e60edb04e100de943b0e2f2d",
+    "bytes": 16942,
+    "origin": "canonical",
+    "lines": 211
+  },
+  {
+    "path": "docs/plans/2026-09-22-design-package.md",
+    "sha256": "9ac1a731f2cf6b32a99b87d6e56923f18caa13493f2b5a8b809ddc69b194d1b6",
+    "bytes": 23573,
+    "origin": "canonical",
+    "lines": 244
+  },
+  {
+    "path": "docs/plans/2026-09-22-external-validation-design.md",
+    "sha256": "11e964aa2b1a2fbd566802be1fea171ae9dac5ee63648f6218b98c9e4d56f564",
+    "bytes": 17451,
+    "origin": "canonical",
+    "lines": 260
+  },
+  {
+    "path": "docs/plans/2026-09-22-failure-prevention-and-recovery-contracts.md",
+    "sha256": "b870eac34288c23a534c456e2035183e99d67b4a8dbfd1075fd731e98df91e98",
+    "bytes": 35073,
+    "origin": "canonical",
+    "lines": 325
+  },
+  {
+    "path": "docs/plans/2026-09-22-history-grounded-maintainability-design.md",
+    "sha256": "52a156b2fd7d95856bef688bcddb31c812314808be470e7807ead660a5943366",
+    "bytes": 23374,
+    "origin": "canonical",
+    "lines": 231
+  },
+  {
+    "path": "docs/plans/2026-09-22-recovery-contracts-and-validation-plan.md",
+    "sha256": "bf62b361c221262465657e6ea0816f92c20ae453ad7a402a8b19976a814e4fc9",
+    "bytes": 26964,
+    "origin": "canonical",
+    "lines": 367
+  },
+  {
+    "path": "docs/plans/2026-09-22-recovery-design-review.md",
+    "sha256": "ee885df78cd8f3a1a83177abc75ad6b818a3544bb09ff8987525cbd1237ce5cf",
+    "bytes": 15681,
+    "origin": "canonical",
+    "lines": 165
+  },
+  {
+    "path": "docs/plans/2026-09-22-session-obligation-audit.md",
+    "sha256": "3b5005ca055ffe9716bf11c97ba41ee35580f4d8f9600f11c95acec601920731",
+    "bytes": 22562,
+    "origin": "canonical",
+    "lines": 264
+  },
+  {
+    "path": "docs/plans/2026-09-22-task-acceptance-and-continuation-design.md",
+    "sha256": "cde6f08b48f416e63b020c221e00f75da70c6de15b628ba64a14d2dec00881db",
+    "bytes": 52107,
+    "origin": "canonical",
+    "lines": 763
+  },
+  {
+    "path": "docs/plans/2026-09-26-acceptance-and-budget-integration-findings.md",
+    "sha256": "cc59b94f9024db0d73652c96db2b424a4d8a6b206a3fe1265bf98d6d3f9b0722",
+    "bytes": 7277,
+    "origin": "canonical",
+    "lines": 105
+  },
+  {
+    "path": "docs/plans/2026-09-27-implementation-progress-and-live-track.md",
+    "sha256": "75b88c029a5b3961ddaab803ee2c3fad99a83320ce00fb3f14c605fd724871bf",
+    "bytes": 65071,
+    "origin": "canonical",
+    "lines": 880
+  },
+  {
+    "path": "docs/plans/2026-09-27-p13-external-execution-plan.md",
+    "sha256": "8e4ebbd1c6b2fdf7e4a87e53f8e39ba05391e17b948a303997b02cf0066e864b",
+    "bytes": 9657,
+    "origin": "canonical",
+    "lines": 233
+  },
+  {
+    "path": "docs/plans/2026-09-27-weekend-design-scope.md",
+    "sha256": "90864b911b3804c82e74477180442bc6c53d9cd32e75f11ddca031021143cdff",
+    "bytes": 10685,
+    "origin": "canonical",
+    "lines": 123
+  },
+  {
+    "path": "docs/plans/2026-09-08-donated-compute-work-exchange.md",
+    "sha256": "875b5f2ca313e4bc4fb34638a23b90496881a7de74ace9a4f97697ffd28507c1",
+    "bytes": 14081,
+    "origin": "canonical",
+    "lines": 263
+  },
+  {
+    "path": "docs/plans/README.md",
+    "sha256": "0e6bb85256e2d6b9ae13153e558cba8693ce19e5aa4e0a6c927c2e0fe4c83339",
+    "bytes": 5486,
+    "origin": "canonical",
+    "lines": 70
+  },
+  {
+    "path": "docs/plans/2026-09-22-session-obligations.json",
+    "sha256": "ef72679259681765a5928e1365fe02ef39991700b736dd6993d0a71b2a6b158c",
+    "bytes": 63005,
+    "origin": "canonical",
+    "lines": 1334
+  },
+  {
+    "path": "docs/plans/2026-09-27-weekend-unit-delivery.json",
+    "sha256": "ed68532594552579f07bdd9a75da138a4f18286633de1635da8d35666451b31f",
+    "bytes": 861509,
+    "origin": "canonical",
+    "lines": 16414
+  },
+  {
+    "path": "docs/dashboard-design/2026-09-20-delivery-reconciliation.md",
+    "sha256": "913e40f7a4973e00837a5d6fb45cd4e7bb8ca516ac742aef79777b1ebf6ab59a",
+    "bytes": 8515,
+    "origin": "canonical",
+    "lines": 148
+  },
+  {
+    "path": "docs/dashboard-design/2026-09-20-ghidra-guide-capability-inventory.md",
+    "sha256": "3acec1a7080de08c72394ff9eab4806fdfb668838799a518ebc7c3b39e0e9f2f",
+    "bytes": 22758,
+    "origin": "canonical",
+    "lines": 148
+  },
+  {
+    "path": "docs/dashboard-design/2026-09-20-kotorxid-capability-inventory.md",
+    "sha256": "2c42563b98c08b9be967756d8f291329d066d1c5d3bede57ee0395ccdc8f4541",
+    "bytes": 16503,
+    "origin": "canonical",
+    "lines": 215
+  },
+  {
+    "path": "docs/dashboard-design/2026-09-20-unified-workstation-spec.md",
+    "sha256": "25a6ad42b63c85d3d6e122039e27c2244f89877b1ddde7c6c704e39b42d0ac63",
+    "bytes": 10964,
+    "origin": "canonical",
+    "lines": 186
+  },
+  {
+    "path": "docs/dashboard-design/2026-09-21-consolidated-design-plan.md",
+    "sha256": "dcd1d83c9d6f987b0cfcc41f8e9f1e532748e7acb26f660e16a0721c4f99abf8",
+    "bytes": 47601,
+    "origin": "canonical",
+    "lines": 706
+  },
+  {
+    "path": "docs/dashboard-design/2026-09-21-improvement-recommendations.md",
+    "sha256": "fc53db7ebbae37d1a35099680be2c7086184217514e900dc34609a19831193d2",
+    "bytes": 12034,
+    "origin": "canonical",
+    "lines": 204
+  },
+  {
+    "path": "docs/plans/wb-control-briefs/chrome-report.md",
+    "sha256": "00bf0f4664c589093f0e568044fabe9d48386717cc4bd73837b2d46f4d1e7e73",
+    "bytes": 2896,
+    "origin": "canonical",
+    "lines": 51
+  },
+  {
+    "path": "docs/plans/wb-control-briefs/chrome.md",
+    "sha256": "9451358bd6da4bf1bc26947f60b6ec5d986600400b127a6c0d98efd2d56ed4bb",
+    "bytes": 1171,
+    "origin": "canonical",
+    "lines": 17
+  },
+  {
+    "path": "docs/plans/wb-control-briefs/dialogs-report.md",
+    "sha256": "afd65318167e6b960b995fbd2ca91b39f168015cbbdf45b713e65240f95222b4",
+    "bytes": 2244,
+    "origin": "canonical",
+    "lines": 55
+  },
+  {
+    "path": "docs/plans/wb-control-briefs/dialogs.md",
+    "sha256": "b7220b82da615a7872e5d4c7040ff01a85b13d3a6f0cef4e170c8449c95f94fc",
+    "bytes": 1072,
+    "origin": "canonical",
+    "lines": 17
+  },
+  {
+    "path": "docs/research/swkotor-multiplayer/README.md",
+    "sha256": "3eb4a82a2e7d0115138bb6fa0dab7d33b03ce9f5354d899970306593f869b9b7",
+    "bytes": 11035,
+    "origin": "canonical",
+    "lines": 178
+  },
+  {
+    "path": "docs/research/swkotor-multiplayer/engine-evidence.md",
+    "sha256": "0cfc50f23b9b4483b51bf009a13b16e423bd08fbfd7c5b720c689bb1d66bbdc1",
+    "bytes": 14432,
+    "origin": "canonical",
+    "lines": 148
+  },
+  {
+    "path": "docs/research/swkotor-multiplayer/evidence-review.md",
+    "sha256": "80ac050dd7c397dc69fe6cfa033ab39f491fac025e1fee0c532d8e075700536c",
+    "bytes": 1374,
+    "origin": "canonical",
+    "lines": 10
+  },
+  {
+    "path": "docs/research/swkotor-multiplayer/evidence/005d4cb0_SendMessageToPlayer.cpp.txt",
+    "sha256": "60b8f0754f61307330b45bb7c03dfe37d696e3b1137ab2be1751d80b6befcdc4",
+    "bytes": 4710,
+    "origin": "canonical",
+    "lines": 166
+  },
+  {
+    "path": "docs/research/swkotor-multiplayer/evidence/binary-binding.json",
+    "sha256": "595ada775e19b518ecb558db78d1c414b461c0a7964d85c468e86c7d6b9caf4d",
+    "bytes": 504,
+    "origin": "canonical",
+    "lines": 10
+  },
+  {
+    "path": "docs/research/swkotor-multiplayer/evidence/client-handle-message-disassembly.txt",
+    "sha256": "821719c992cf1e35b94b46ada86595abedc61bca0977692116d33c4c3e484a66",
+    "bytes": 536,
+    "origin": "canonical",
+    "lines": 12
+  },
+  {
+    "path": "docs/research/swkotor-multiplayer/evidence/netlayer-inventory.json",
+    "sha256": "efa54f27a5734db5fee87e37ed24d033d8afac29edfaa9fb111b07efbe9351c8",
+    "bytes": 7851,
+    "origin": "canonical",
+    "lines": 9
+  },
+  {
+    "path": "docs/research/swkotor-multiplayer/evidence/player-info-disassembly.txt",
+    "sha256": "dec6a5ca2bf5ed168debd23f4446f0b1331687e343f5fdffe09b6596ebcf00ee",
+    "bytes": 536,
+    "origin": "canonical",
+    "lines": 12
+  },
+  {
+    "path": "docs/research/swkotor-multiplayer/evidence/receive-disassembly.txt",
+    "sha256": "f16c425d0333e9101bddb181d4e2bfbe647060aa9bf0e42be5d92b6168c5e601",
+    "bytes": 2972,
+    "origin": "canonical",
+    "lines": 62
+  },
+  {
+    "path": "docs/research/swkotor-multiplayer/evidence/send-callers.txt",
+    "sha256": "d936c6bb42f375648e8ce01cae5af70464061a2ddf3694dc1b5eb2cbd3d93284",
+    "bytes": 24139,
+    "origin": "canonical",
+    "lines": 519
+  },
+  {
+    "path": "docs/research/swkotor-multiplayer/evidence/send-disassembly.txt",
+    "sha256": "be96cc65c85b7f9d8b6372d672837bc1be1a7840e35e00275845557b66d6fcec",
+    "bytes": 12831,
+    "origin": "canonical",
+    "lines": 260
+  },
+  {
+    "path": "docs/research/swkotor-multiplayer/evidence/send-message-to-player.json",
+    "sha256": "0cf68060cda937f480cce49e01ac551eff3288442afa9e3bf1371a90ee0a1151",
+    "bytes": 92949,
+    "origin": "canonical",
+    "lines": 9
+  },
+  {
+    "path": "docs/research/swkotor-multiplayer/evidence/server-handle-message-disassembly.txt",
+    "sha256": "48ba2b3da443245ebde771160572ec1a6fa47923efbc22949c7a8cce41261b4a",
+    "bytes": 535,
+    "origin": "canonical",
+    "lines": 12
+  },
+  {
+    "path": "docs/research/swkotor-multiplayer/evidence/server-internal-handle-message-disassembly.txt",
+    "sha256": "7b8cd90c145cbe46635999862af468a8f4179994dbc71b4d343a29c8a9465bde",
+    "bytes": 2565,
+    "origin": "canonical",
+    "lines": 54
+  },
+  {
+    "path": "docs/research/swkotor-multiplayer/lobby-research.md",
+    "sha256": "d5de1e06b451ef29153d3f08321a0ebc6a6aa5e5b6c9a402252b22b109bd6f76",
+    "bytes": 6177,
+    "origin": "canonical",
+    "lines": 41
+  },
+  {
+    "path": "docs/research/swkotor-multiplayer/nwn-evidence.md",
+    "sha256": "3e5ecc41e3400094f09519aa945ad9168ebfb1fcb659979dfce3150b53bf267f",
+    "bytes": 3438,
+    "origin": "canonical",
+    "lines": 34
+  },
+  {
+    "path": "docs/dashboard-design/pipeline-diagram/README.md",
+    "sha256": "93547de59cbe3cd306e98ae162bb0bdd9552431a939ecbff7cfc49019e81270c",
+    "bytes": 11343,
+    "origin": "canonical",
+    "lines": 174
+  },
+  {
+    "path": "docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio",
+    "sha256": "96a5d7b87575e48ab792a81ef27c37bc361b2f939313772d67f96d12eb28780b",
+    "bytes": 365047,
+    "origin": "canonical",
+    "lines": 1022
+  },
+  {
+    "path": "docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.png",
+    "sha256": "c6c71566d47a7c28b349a7eae1d39eab43016673b8c69ab9b9f8f5c034fd1358",
+    "bytes": 2278799,
+    "origin": "canonical"
+  },
+  {
+    "path": "docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg",
+    "sha256": "a124af582c52c19dc630f25b0b11d8fb0a9411be1ec78725865281e631cf7a3f",
+    "bytes": 160871,
+    "origin": "canonical",
+    "lines": 977
+  },
+  {
+    "path": "docs/dashboard-design/pipeline-diagram/autonomous-capabilities.drawio",
+    "sha256": "46cbafdb1ea0b1153faeeac78d716ebd6a4ee186abfaf86ab343e7e9e5ef3014",
+    "bytes": 52081,
+    "origin": "canonical",
+    "lines": 154
+  },
+  {
+    "path": "docs/dashboard-design/pipeline-diagram/autonomous-capabilities.png",
+    "sha256": "b27bdcd8660ec262016ca16fff0e2bc35ea1b75abd5a96272408bfaf2e03e167",
+    "bytes": 611746,
+    "origin": "canonical"
+  },
+  {
+    "path": "docs/dashboard-design/pipeline-diagram/autonomous-capabilities.svg",
+    "sha256": "972a4e727a7cbf1d482cc74e52e47638f997849a686ea4281e2e7e1081c69872",
+    "bytes": 15710,
+    "origin": "canonical",
+    "lines": 140
+  },
+  {
+    "path": "docs/dashboard-design/pipeline-diagram/execution-contracts.drawio",
+    "sha256": "83343f28f66cac5f2240d29a2f1818595627bd8d9b3e75d427b96e2ac9ef4114",
+    "bytes": 44781,
+    "origin": "canonical",
+    "lines": 131
+  },
+  {
+    "path": "docs/dashboard-design/pipeline-diagram/execution-contracts.png",
+    "sha256": "27287e3186e4a570789c80ae1a27b1b98679f0e3caf2ece5a59455070d48635d",
+    "bytes": 809685,
+    "origin": "canonical"
+  },
+  {
+    "path": "docs/dashboard-design/pipeline-diagram/execution-contracts.svg",
+    "sha256": "8e2805596632087755d93dd2d577b81932834550f22c777a69f93fb72ee7cbb2",
+    "bytes": 16803,
+    "origin": "canonical",
+    "lines": 113
+  },
+  {
+    "path": "docs/dashboard-design/pipeline-diagram/generate_execution_diagram.py",
+    "sha256": "76bb8b4d55aa99c7ff74a21eaa55e5e25a62fd3471214a8a03f0dbc26f2918ee",
+    "bytes": 7243,
+    "origin": "canonical",
+    "lines": 117
+  },
+  {
+    "path": "docs/dashboard-design/pipeline-diagram/generate_pipeline_diagram.py",
+    "sha256": "74f88f9009771b3f89f2f8971908b9c9f08f981be2e090363b384367fd107081",
+    "bytes": 41492,
+    "origin": "canonical",
+    "lines": 545
+  },
+  {
+    "path": "docs/dashboard-design/pipeline-diagram/generate_resilience_diagram.py",
+    "sha256": "c13c094c7f3ca8ccccb1d0d23cc80ef81e9113c0a1eba49c0fcf599e74b3ce4c",
+    "bytes": 7159,
+    "origin": "canonical",
+    "lines": 112
+  },
+  {
+    "path": "docs/dashboard-design/pipeline-diagram/resilience-contracts.drawio",
+    "sha256": "7b413a50264fa09845c08800b5b4fadd8916c4372b274daf141600437eabd568",
+    "bytes": 43931,
+    "origin": "canonical",
+    "lines": 125
+  },
+  {
+    "path": "docs/dashboard-design/pipeline-diagram/resilience-contracts.png",
+    "sha256": "9705cbb3caf9872a86f8db688b039027ec215d8ab857a6a6396f412fbc4fd607",
+    "bytes": 844168,
+    "origin": "canonical"
+  },
+  {
+    "path": "docs/dashboard-design/pipeline-diagram/resilience-contracts.svg",
+    "sha256": "4355df7bf141cd64c972e47399cef9c8d3b3f99429edc54892e07bc5b24fb1f9",
+    "bytes": 16831,
+    "origin": "canonical",
+    "lines": 112
+  },
+  {
+    "path": "docs/dashboard-design/pipeline-diagram/svg_to_drawio.py",
+    "sha256": "e13d4999709d64112dadca9db94bf1cfb536aa4a58f8e8bdf4a7ce8bcb8b1658",
+    "bytes": 16196,
+    "origin": "canonical",
+    "lines": 348
+  },
+  {
+    "path": "AGENTS.md",
+    "sha256": "0f26f53735f8baba558759eb7c74a5d9ebf8f3d90ae5b8f11044097812173759",
+    "bytes": 7120,
+    "origin": "canonical",
+    "lines": 108
+  },
+  {
+    "path": "README.md",
+    "sha256": "b703aa13d311f3dbe8e03ce8b923130c4b0e7e25ab1a18177336af73ac9918d9",
+    "bytes": 7711,
+    "origin": "canonical",
+    "lines": 162
+  },
+  {
+    "path": "USAGE.md",
+    "sha256": "aed33308b2b695d16405fb914933d32943f562b76abfefeced53521e295b9744",
+    "bytes": 22797,
+    "origin": "canonical",
+    "lines": 378
+  },
+  {
+    "path": "VISION.md",
+    "sha256": "2846a4abd42c2917b47f888ff5416a37792433fc54c4ada887c9a682857d135b",
+    "bytes": 19344,
+    "origin": "canonical",
+    "lines": 299
+  },
+  {
+    "path": "STRATEGY.md",
+    "sha256": "49b7dfcc3319d59bcab73c1b65f6735c75a7bd6b8e64ea946b87f50c5317312d",
+    "bytes": 22851,
+    "origin": "canonical",
+    "lines": 212
+  },
+  {
+    "path": "docs/FRONTEND_INTENT.md",
+    "sha256": "83701e3e6ba107057cbfabaf5f546f9ac4f3703bf9790de1cc30f3267246d068",
+    "bytes": 55007,
+    "origin": "canonical",
+    "lines": 624
+  },
+  {
+    "path": "docs/DELIVERY_STATUS.md",
+    "sha256": "ed937a345c7f65f950a5481d6d5c4eb37df431c4e0f43091325efac483b5f0ae",
+    "bytes": 25507,
+    "origin": "canonical",
+    "lines": 368
+  },
+  {
+    "path": "docs/RUNTIME_REUSE.md",
+    "sha256": "7f018d3bab82e279814f05ee6a10dc3cf39c2bab36676b2def54584d887b12bf",
+    "bytes": 14370,
+    "origin": "canonical",
+    "lines": 184
+  },
+  {
+    "path": "docs/solutions/README.md",
+    "sha256": "98f80719deec53f8a736e7f3490557ca76d1052f781fe47206698ce5afbdcf7c",
+    "bytes": 1572,
+    "origin": "canonical",
+    "lines": 35
+  },
+  {
+    "path": "worktree/docs/plans/2026-09-28-0817-feat-static-codebrowser-project-tabs-plan.md",
+    "sha256": "2bfa736700538c6bbe55f670207252438ed94c58a99e3483efc0a32c2717eb05",
+    "bytes": 152104,
+    "lines": 1853,
+    "origin": "consolidation worktree 24ef91c"
+  },
+  {
+    "path": "worktree/docs/FRONTEND_IMPLEMENTATION_STATUS.md",
+    "sha256": "430a2dcc1e0b01c21f07b90503efbd6c8e61eb7bd334ead5a7d0db62e03cbd84",
+    "bytes": 5372,
+    "lines": 67,
+    "origin": "consolidation worktree 24ef91c"
+  },
+  {
+    "path": "worktree/docs/PRODUCT_AND_WORKSPACE_GUIDE.md",
+    "sha256": "90b77becf8d537fbcca6993f2512c5456ac68efd93404af98cc2f8bbd07eb007",
+    "bytes": 33842,
+    "lines": 448,
+    "origin": "consolidation worktree 24ef91c"
+  },
+  {
+    "path": "worktree/docs/EXPORT_SCOPE.md",
+    "sha256": "3416783c947c53c07ba197bf1a3915de64275391f4bec559a0c0143d0a539f09",
+    "bytes": 2829,
+    "lines": 57,
+    "origin": "consolidation worktree 24ef91c"
+  }
+]

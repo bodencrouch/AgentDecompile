@@ -1,0 +1,359 @@
+[
+  {
+    "test": "test_agent_rule_files_exist_and_hop",
+    "paths": {
+      "tests/test_agent_internal_docs.py": {
+        "base": "99d94f43acbacb96c081b5c131fc8e03c0106e03",
+        "head": "99d94f43acbacb96c081b5c131fc8e03c0106e03",
+        "equal": true
+      }
+    },
+    "trace": "tests/test_agent_internal_docs.py:49: in test_agent_rule_files_exist_and_hop"
+  },
+  {
+    "test": "test_cursorrules_registry_triple",
+    "paths": {
+      "tests/test_agent_internal_docs.py": {
+        "base": "99d94f43acbacb96c081b5c131fc8e03c0106e03",
+        "head": "99d94f43acbacb96c081b5c131fc8e03c0106e03",
+        "equal": true
+      }
+    },
+    "trace": "tests/test_agent_internal_docs.py:64: in test_cursorrules_registry_triple"
+  },
+  {
+    "test": "test_subset_of_hashes_inlines_to_unique_host",
+    "paths": {
+      "src/agentdecompile_recovery/corpus/block_inline.py": {
+        "base": "c6fc7d6d210f85d50a4944c2001df3652af6f9e7",
+        "head": "c6fc7d6d210f85d50a4944c2001df3652af6f9e7",
+        "equal": true
+      },
+      "tests/test_block_inline.py": {
+        "base": "a2373cafd706dc480fccc931913b174f488161c8",
+        "head": "a2373cafd706dc480fccc931913b174f488161c8",
+        "equal": true
+      }
+    },
+    "trace": "tests/test_block_inline.py:26: in test_subset_of_hashes_inlines_to_unique_host\n    hits = inline_hits(missing, survivors)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nsrc/agentdecompile_recovery/corpus/block_inline.py:254: in inline_hits\n    hits.append(_hit(\nsrc/agentdecompile_recovery/corpus/block_inline.py:95: in _hit\n    \"src_end\": _range_end(vanished),\n               ^^^^^^^^^^^^^^^^^^^^\nsrc/agentdecompile_recovery/corpus/block_inline.py:84: in _range_end\n    addr = int(fn.get(\"addr\") or 0)\n           ^^^^^^^^^^^^^^^^^^^^^^^^"
+  },
+  {
+    "test": "test_hashes_split_across_two_hosts_no_hit",
+    "paths": {
+      "src/agentdecompile_recovery/corpus/block_inline.py": {
+        "base": "c6fc7d6d210f85d50a4944c2001df3652af6f9e7",
+        "head": "c6fc7d6d210f85d50a4944c2001df3652af6f9e7",
+        "equal": true
+      },
+      "tests/test_block_inline.py": {
+        "base": "a2373cafd706dc480fccc931913b174f488161c8",
+        "head": "a2373cafd706dc480fccc931913b174f488161c8",
+        "equal": true
+      }
+    },
+    "trace": "tests/test_block_inline.py:44: in test_hashes_split_across_two_hosts_no_hit\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nsrc/agentdecompile_recovery/corpus/block_inline.py:234: in inline_hits\n    hits.append(_hit(\nsrc/agentdecompile_recovery/corpus/block_inline.py:95: in _hit\n    \"src_end\": _range_end(vanished),\n               ^^^^^^^^^^^^^^^^^^^^\nsrc/agentdecompile_recovery/corpus/block_inline.py:84: in _range_end\n    addr = int(fn.get(\"addr\") or 0)\n           ^^^^^^^^^^^^^^^^^^^^^^^^"
+  },
+  {
+    "test": "test_unique_containment_among_several_survivors",
+    "paths": {
+      "src/agentdecompile_recovery/corpus/block_inline.py": {
+        "base": "c6fc7d6d210f85d50a4944c2001df3652af6f9e7",
+        "head": "c6fc7d6d210f85d50a4944c2001df3652af6f9e7",
+        "equal": true
+      },
+      "tests/test_block_inline.py": {
+        "base": "a2373cafd706dc480fccc931913b174f488161c8",
+        "head": "a2373cafd706dc480fccc931913b174f488161c8",
+        "equal": true
+      }
+    },
+    "trace": "tests/test_block_inline.py:67: in test_unique_containment_among_several_survivors\n    hits = inline_hits(missing, survivors)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nsrc/agentdecompile_recovery/corpus/block_inline.py:254: in inline_hits\n    hits.append(_hit(\nsrc/agentdecompile_recovery/corpus/block_inline.py:95: in _hit\n    \"src_end\": _range_end(vanished),\n               ^^^^^^^^^^^^^^^^^^^^\nsrc/agentdecompile_recovery/corpus/block_inline.py:84: in _range_end\n    addr = int(fn.get(\"addr\") or 0)\n           ^^^^^^^^^^^^^^^^^^^^^^^^"
+  },
+  {
+    "test": "test_contained_in_two_survivors_is_ambiguous",
+    "paths": {
+      "src/agentdecompile_recovery/corpus/block_inline.py": {
+        "base": "c6fc7d6d210f85d50a4944c2001df3652af6f9e7",
+        "head": "c6fc7d6d210f85d50a4944c2001df3652af6f9e7",
+        "equal": true
+      },
+      "tests/test_block_inline.py": {
+        "base": "a2373cafd706dc480fccc931913b174f488161c8",
+        "head": "a2373cafd706dc480fccc931913b174f488161c8",
+        "equal": true
+      }
+    },
+    "trace": "tests/test_block_inline.py:85: in test_contained_in_two_survivors_is_ambiguous\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nsrc/agentdecompile_recovery/corpus/block_inline.py:254: in inline_hits\n    hits.append(_hit(\nsrc/agentdecompile_recovery/corpus/block_inline.py:95: in _hit\n    \"src_end\": _range_end(vanished),\n               ^^^^^^^^^^^^^^^^^^^^\nsrc/agentdecompile_recovery/corpus/block_inline.py:84: in _range_end\n    addr = int(fn.get(\"addr\") or 0)\n           ^^^^^^^^^^^^^^^^^^^^^^^^"
+  },
+  {
+    "test": "test_inline_review_when_blocks_are_contained",
+    "paths": {
+      "tests/test_callgraph_propagate.py": {
+        "base": "d9f17c98981d8f8f4ee2d47f16ffa719c6204952",
+        "head": "d9f17c98981d8f8f4ee2d47f16ffa719c6204952",
+        "equal": true
+      }
+    },
+    "trace": "tests/test_callgraph_propagate.py:172: in test_inline_review_when_blocks_are_contained\n    inline = next(row for row in hits if row.get(\"kind\") == \"inline\")\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^"
+  },
+  {
+    "test": "test_persist_status_keeps_structural_verify",
+    "paths": {
+      "tests/test_callgraph_propagate.py": {
+        "base": "d9f17c98981d8f8f4ee2d47f16ffa719c6204952",
+        "head": "d9f17c98981d8f8f4ee2d47f16ffa719c6204952",
+        "equal": true
+      }
+    },
+    "trace": "tests/test_callgraph_propagate.py:225: in test_persist_status_keeps_structural_verify"
+  },
+  {
+    "test": "test_structural_persist_stays_verify",
+    "paths": {
+      "tests/test_channel_confidence.py": {
+        "base": "e13ef2ea87cc4a314042024b9f38f736d2ec5e95",
+        "head": "e13ef2ea87cc4a314042024b9f38f736d2ec5e95",
+        "equal": true
+      }
+    },
+    "trace": "tests/test_channel_confidence.py:29: in test_structural_persist_stays_verify"
+  },
+  {
+    "test": "test_structures_parse_and_validate_use_ghidra12_cparser",
+    "paths": {
+      "src/agentdecompile_cli/mcp_server/providers/structures.py": {
+        "base": "32289a2d663417ce055fbebf1322fa581f0b6e68",
+        "head": "32289a2d663417ce055fbebf1322fa581f0b6e68",
+        "equal": true
+      },
+      "tests/test_cli_live_regressions.py": {
+        "base": "13273dc6052c586f6ec29966d5b47ea01d7344ba",
+        "head": "13273dc6052c586f6ec29966d5b47ea01d7344ba",
+        "equal": true
+      }
+    },
+    "trace": "tests/test_cli_live_regressions.py:221: in test_structures_parse_and_validate_use_ghidra12_cparser\n    out = json.loads(asyncio.run(provider._parse({\"cdefinition\": \"struct LiveTwo { int a; };\"}, program_info=info))[0].text)\n                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n    return runner.run(main)\n           ^^^^^^^^^^^^^^^^\n    return self._loop.run_until_complete(task)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n    return future.result()\n           ^^^^^^^^^^^^^^^\nsrc/agentdecompile_cli/mcp_server/providers/structures.py:482: in _parse\n    return await self._modify_from_c(args, program_info=program_info)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nsrc/agentdecompile_cli/mcp_server/providers/structures.py:463: in _modify_from_c\n    stored_types, last_name = self._run_program_transaction(program, \"parse-c-struct\", _parse_c_struct)\n                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\ntests/test_cli_live_regressions.py:219: in <lambda>\n    monkeypatch.setattr(provider, \"_run_program_transaction\", lambda _p, _n, fn: fn(), raising=False)\n                                                                                 ^^^^\nsrc/agentdecompile_cli/mcp_server/providers/structures.py:447: in _parse_c_struct\n    for table in (parser.getComposites(), parser.getEnums(), parser.getTypes()):\n                  ^^^^^^^^^^^^^^^^^^^^"
+  },
+  {
+    "test": "test_existing_auto_rows_with_conflicting_names_are_downgraded",
+    "paths": {
+      "src/agentdecompile_recovery/corpus/propagate.py": {
+        "base": "1c38a622ddf593b68bd6cddc566839eb930ce7a2",
+        "head": "1c38a622ddf593b68bd6cddc566839eb930ce7a2",
+        "equal": true
+      },
+      "tests/test_corpus_match_status.py": {
+        "base": "1474994d45b6e30b2c0774aea94838eb6860d2c3",
+        "head": "1474994d45b6e30b2c0774aea94838eb6860d2c3",
+        "equal": true
+      }
+    },
+    "trace": "tests/test_corpus_match_status.py:59: in test_existing_auto_rows_with_conflicting_names_are_downgraded\n    changed = downgrade_named_conflicts(con, \"v1\")\n              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nsrc/agentdecompile_recovery/corpus/propagate.py:294: in downgrade_named_conflicts\n    rows = con.execute("
+  },
+  {
+    "test": "test_reclassification_rolls_back_status_when_identity_rebuild_fails",
+    "paths": {
+      "src/agentdecompile_recovery/corpus/propagate.py": {
+        "base": "1c38a622ddf593b68bd6cddc566839eb930ce7a2",
+        "head": "1c38a622ddf593b68bd6cddc566839eb930ce7a2",
+        "equal": true
+      },
+      "tests/test_corpus_match_status.py": {
+        "base": "1474994d45b6e30b2c0774aea94838eb6860d2c3",
+        "head": "1474994d45b6e30b2c0774aea94838eb6860d2c3",
+        "equal": true
+      }
+    },
+    "trace": "tests/test_corpus_match_status.py:83: in test_reclassification_rolls_back_status_when_identity_rebuild_fails\n    reclassify_existing(con, \"v1\")\nsrc/agentdecompile_recovery/corpus/propagate.py:328: in reclassify_existing\n    changed = downgrade_named_conflicts(con, run, commit=False)\n              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nsrc/agentdecompile_recovery/corpus/propagate.py:315: in downgrade_named_conflicts\n    evidence = json.loads(row[\"evidence\"] or \"{}\")\n                          ^^^^^^^^^^^^^^^"
+  },
+  {
+    "test": "test_full_key_set_is_pinned",
+    "paths": {
+      "tests/test_determinism_basis.py": {
+        "base": "8c17488161c4af6ec5408565bf259e3d12d400a8",
+        "head": "8c17488161c4af6ec5408565bf259e3d12d400a8",
+        "equal": true
+      }
+    },
+    "trace": "tests/test_determinism_basis.py:96: in test_full_key_set_is_pinned"
+  },
+  {
+    "test": "test_explorer_snapshot_selects_matching_run",
+    "paths": {
+      "tests/test_explorer.py": {
+        "base": "c637b7142e419ba4bc02f5f43770152ce9f1e076",
+        "head": "c637b7142e419ba4bc02f5f43770152ce9f1e076",
+        "equal": true
+      }
+    },
+    "trace": "tests/test_explorer.py:124: in test_explorer_snapshot_selects_matching_run"
+  },
+  {
+    "test": "test_cli_and_catalog_read_report_without_provider_execution",
+    "paths": {
+      "src/agentdecompile_recovery/corpus/cli.py": {
+        "base": "7bc940ec7093c5c6eea33b7782393d87d5db803b",
+        "head": "e0a4e5499ede66dbe0702bb92f8c79b1d28e734b",
+        "equal": false
+      },
+      "tests/test_external_validation_reports.py": {
+        "base": "c4677799f7c1ed30fe93a7487a2ad9d504c59760",
+        "head": "c4677799f7c1ed30fe93a7487a2ad9d504c59760",
+        "equal": true
+      }
+    },
+    "trace": "    namespace, args = self._parse_known_args(args, namespace, intermixed)\n                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n    positionals_end_index = consume_positionals(start_index)\n                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n    take_action(action, args)\n    argument_values = self._get_values(action, argument_strings)\n                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n    self._check_value(action, value[0])\n    raise ArgumentError(action, msg % args)\ntests/test_external_validation_reports.py:70: in test_cli_and_catalog_read_report_without_provider_execution\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nsrc/agentdecompile_recovery/corpus/cli.py:791: in main\n    args = parser.parse_args(argv)\n           ^^^^^^^^^^^^^^^^^^^^^^^\n    args, argv = self.parse_known_args(args, namespace)\n                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n    return self._parse_known_args2(args, namespace, intermixed=False)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n    self.error(str(err))\n    self.exit(2, _('%(prog)s: error: %(message)s\\n') % args)\n    _sys.exit(status)\n                             {init,add-binary,remove-binary,extract-stabs,run,stages,list-archive,check-extraction,init-store,write-snapshot,apply-stabs,propagate-source,evaluate-pair,export-siblings,\n                             ..."
+  },
+  {
+    "test": "test_same_content_sha256_is_identical",
+    "paths": {
+      "tests/test_identical_image.py": {
+        "base": "4852c9450b1720662759c408af1404d84d9516f4",
+        "head": "4852c9450b1720662759c408af1404d84d9516f4",
+        "equal": true
+      }
+    },
+    "trace": "tests/test_identical_image.py:15: in test_same_content_sha256_is_identical"
+  },
+  {
+    "test": "test_versioned_file_import_attaches_imported_program_context",
+    "paths": {
+      "tests/test_import_binary_versioned_context.py": {
+        "base": "247fea0221abed62f90a7eeca0055c6f8ac92554",
+        "head": "247fea0221abed62f90a7eeca0055c6f8ac92554",
+        "equal": true
+      }
+    },
+    "trace": "tests/test_import_binary_versioned_context.py:90: in test_versioned_file_import_attaches_imported_program_context"
+  },
+  {
+    "test": "test_versioned_folder_import_attaches_last_imported_program_context",
+    "paths": {
+      "tests/test_import_binary_versioned_context.py": {
+        "base": "247fea0221abed62f90a7eeca0055c6f8ac92554",
+        "head": "247fea0221abed62f90a7eeca0055c6f8ac92554",
+        "equal": true
+      },
+      "tests/test_mcp_http_auth_contract.py": {
+        "base": "87d549ddc42c589052b0346640a011222a4f1fba",
+        "head": "87d549ddc42c589052b0346640a011222a4f1fba",
+        "equal": true
+      }
+    },
+    "trace": "tests/test_import_binary_versioned_context.py:144: in test_versioned_folder_import_attaches_last_imported_program_context\ntests/test_mcp_http_auth_contract.py:195: in test_installed_middleware_without_credentials_rejects_everything\ntests/test_mcp_http_auth_contract.py:195: in test_installed_middleware_without_credentials_rejects_everything"
+  },
+  {
+    "test": "test_program_analysis_module_exports_public_api",
+    "paths": {
+      "tests/test_program_analysis_gate.py": {
+        "base": "bdb6cd5915a0207fc105396515e3c8d0fb403ff4",
+        "head": "bdb6cd5915a0207fc105396515e3c8d0fb403ff4",
+        "equal": true
+      }
+    },
+    "trace": "tests/test_program_analysis_gate.py:401: in test_program_analysis_module_exports_public_api"
+  },
+  {
+    "test": "test_plans_and_solutions_hubs",
+    "paths": {
+      "tests/test_secondary_docs_surfaces.py": {
+        "base": "4348791ffab0362c4e98639a4c094fe3ce65e687",
+        "head": "4348791ffab0362c4e98639a4c094fe3ce65e687",
+        "equal": true
+      }
+    },
+    "trace": "tests/test_secondary_docs_surfaces.py:75: in test_plans_and_solutions_hubs"
+  },
+  {
+    "test": "test_skills_catalog",
+    "paths": {
+      "tests/test_secondary_docs_surfaces.py": {
+        "base": "4348791ffab0362c4e98639a4c094fe3ce65e687",
+        "head": "4348791ffab0362c4e98639a4c094fe3ce65e687",
+        "equal": true
+      }
+    },
+    "trace": "tests/test_secondary_docs_surfaces.py:89: in test_skills_catalog"
+  },
+  {
+    "test": "test_analysis_gate_invoked_for_non_exempt_tool",
+    "paths": {
+      "tests/test_tool_providers_analysis_gate.py": {
+        "base": "90f91c7a98f246519c9a85d491c0f1e3387db295",
+        "head": "90f91c7a98f246519c9a85d491c0f1e3387db295",
+        "equal": true
+      }
+    },
+    "trace": "tests/test_tool_providers_analysis_gate.py:296: in test_analysis_gate_invoked_for_non_exempt_tool"
+  },
+  {
+    "test": "test_hub_and_healthz_are_on_the_same_app",
+    "paths": {
+      "tests/test_unified_pages.py": {
+        "base": "34c06a81804ef91d6f46ccf5f931a307a7eca52c",
+        "head": "34c06a81804ef91d6f46ccf5f931a307a7eca52c",
+        "equal": true
+      }
+    },
+    "trace": "tests/test_unified_pages.py:29: in test_hub_and_healthz_are_on_the_same_app"
+  },
+  {
+    "test": "test_dashboard_reads_store",
+    "paths": {
+      "tests/test_unified_pages.py": {
+        "base": "34c06a81804ef91d6f46ccf5f931a307a7eca52c",
+        "head": "34c06a81804ef91d6f46ccf5f931a307a7eca52c",
+        "equal": true
+      }
+    },
+    "trace": "tests/test_unified_pages.py:53: in test_dashboard_reads_store"
+  },
+  {
+    "test": "test_functions_page_works_without_source_file_column",
+    "paths": {
+      "tests/test_unified_pages.py": {
+        "base": "34c06a81804ef91d6f46ccf5f931a307a7eca52c",
+        "head": "34c06a81804ef91d6f46ccf5f931a307a7eca52c",
+        "equal": true
+      }
+    },
+    "trace": "tests/test_unified_pages.py:78: in test_functions_page_works_without_source_file_column"
+  },
+  {
+    "test": "test_report_serves_html_file",
+    "paths": {
+      "tests/test_unified_pages.py": {
+        "base": "34c06a81804ef91d6f46ccf5f931a307a7eca52c",
+        "head": "34c06a81804ef91d6f46ccf5f931a307a7eca52c",
+        "equal": true
+      }
+    },
+    "trace": "tests/test_unified_pages.py:105: in test_report_serves_html_file"
+  },
+  {
+    "test": "test_readme_registry_triple",
+    "paths": {
+      "src/agentdecompile_recovery/unified_pages.py": {
+        "base": "6a2c5db3b9034c0ce6bbc58007f59677f6dbbc23",
+        "head": "6a2c5db3b9034c0ce6bbc58007f59677f6dbbc23",
+        "equal": true
+      },
+      "tests/test_native_snapshot_export_integration.py": {
+        "base": "d13a1c8a92e4773b941b19cd437812f82b549240",
+        "head": "d13a1c8a92e4773b941b19cd437812f82b549240",
+        "equal": true
+      },
+      "tests/test_parallel_decompile_integration.py": {
+        "base": "c92a9564609cf931d4c2329dd08fe26560a9d48e",
+        "head": "c92a9564609cf931d4c2329dd08fe26560a9d48e",
+        "equal": true
+      },
+      "tests/test_user_facing_docs.py": {
+        "base": "c3398cc862525e1a1644450ebd7aa8d6589cea21",
+        "head": "c3398cc862525e1a1644450ebd7aa8d6589cea21",
+        "equal": true
+      }
+    },
+    "trace": "tests/test_user_facing_docs.py:158: in test_readme_registry_triple\n    from starlette.testclient import TestClient as TestClient  # noqa\ntests/test_dashboard_actions.py: 5 warnings\ntests/test_dashboard_flow_ui.py: 1 warning\ntests/test_dashboard_openapi_catalog.py: 4 warnings\ntests/test_dashboard_routes.py: 4 warnings\ntests/test_dashboard_runtime.py: 6 warnings\ntests/test_dashboard_server_control.py: 3 warnings\ntests/test_dashboard_steps.py: 1 warning\ntests/test_explorer.py: 4 warnings\ntests/test_unified_pages.py: 7 warnings\ntests/test_workbench_binaries.py: 15 warnings\ntests/test_workbench_nwn_kinds.py: 1 warning\ntests/test_workbench_projects.py: 15 warnings\ntests/test_workbench_tool_fields.py: 3 warnings\ntests/test_workbench_workflows.py: 40 warnings\ntests/test_workspace_state.py: 1 warning\n    warnings.warn(message, PydanticJsonSchemaWarning)\ntests/test_native_snapshot_export_integration.py::test_export_writes_savefiles_with_expected_structure\n    with context as flat_api:\ntests/test_parallel_decompile_integration.py::test_parallel_matches_serial_and_disposes\n    with context as flat:\ntests/test_react_canonical_routing.py::test_canonical_react_delivery\n          on_event is deprecated, use lifespan event handlers instead.\n          Read more about it in the\n          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).\n          \n    @app.on_event(\"startup\")\ntests/test_react_canonical_routing.py::test_canonical_react_delivery\ntests/test_react_canonical_routing.py::test_canonical_react_delivery\n          on_event is deprecated, use lifespan event handlers instead.\n          Read more about it in the\n          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).\n          \n    return self.router.on_event(event_type)  # ty: ignore[deprecated]\ntests/test_react_canonical_routing.py::test_canonical_react_delivery\n          on_event is deprecated, use lifespan event handlers instead.\n          Read more about it in the\n          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).\n          \n    @app.on_event(\"startup\")\ntests/test_rewrite_queue.py: 8 warnings\ntests/test_store_migrations.py: 2 warnings\n    self.pid = os.fork()"
+  }
+]

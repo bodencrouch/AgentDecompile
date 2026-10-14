@@ -1,0 +1,9 @@
+{
+  "sources": 89,
+  "integration_units": 42,
+  "named_obligations": 494,
+  "source_clauses": 814,
+  "diagram_elements": 2025,
+  "errors": [],
+  "scope": "Documentation structure, retained source coverage and cross-file identifiers only; no software or runtime tests."
+}

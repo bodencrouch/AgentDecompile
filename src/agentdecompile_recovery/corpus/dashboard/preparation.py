@@ -10,6 +10,7 @@ import math
 import os
 import socket
 import sqlite3
+import stat
 import threading
 import time
 import uuid
@@ -31,6 +32,12 @@ _LEASES: dict[str, Any] = {}
 _WAITING: set[str] = set()
 _ADMISSION_WAKE = threading.Event()
 _ADMISSION_THREAD: threading.Thread | None = None
+# Observation-only, compact receipt projections. Never used for admission.
+_PUBLIC_CACHE_LOCK = threading.Lock()
+_PUBLIC_CACHE: dict[tuple[str, str], tuple[tuple[int, ...], dict[str, Any], int]] = {}
+_PUBLIC_CACHE_ENTRIES = 100
+_PUBLIC_CACHE_BYTES = 4 * 1024 * 1024
+_PUBLIC_CACHE_GENERATION: tuple[Any, ...] | None = None
 _STAGES = [('inspect', 'Read project'), ('protection', 'Prepare analysis image'),
            ('analysis', 'Analyze missing programs'), ('facts', 'Extract function facts'),
            ('bsim', 'Index similarity signatures'), ('matching', 'Match related builds')] + RECOVERY_STAGES
@@ -760,6 +767,11 @@ def _read(run_id: str) -> dict[str, Any]:
     if not _valid_id(run_id):
         raise ValueError('Invalid preparation ID')
     row = _load_row(_directory() / (run_id + '.json'))
+    return _validate_row(row, run_id)
+
+
+def _validate_row(row: dict[str, Any], run_id: str) -> dict[str, Any]:
+    """Shared receipt validation; this does not establish execution authority."""
     if row.get('id') != run_id:
         raise ValueError('Preparation row identity mismatch')
     for field in ('createdAt', 'updatedAt', 'deadline'):
@@ -890,11 +902,15 @@ def _public_run(row: dict[str, Any], *, detailed: bool = True, live_jobs: list[A
         # full evidence trail belongs to durable history.  Do not replay every
         # old checkpoint on the live two-second feed.
         result['events'] = list(row.get('events') or [])[-3:]
+    return _overlay_current_child(result, live_jobs or [])
+
+
+def _overlay_current_child(result: dict[str, Any], live_jobs: list[Any]) -> dict[str, Any]:
     # The durable receipt is intentionally cheap to read while PyGhidra is
     # busy.  Its stage job id can lag the scheduler by one admitted child,
     # though, which made the UI name a queued comparison as the live one.
     # Overlay only the current child job; the receipt remains the audit record.
-    run_token = f"prepare-{row['id']}"
+    run_token = f"prepare-{result['id']}"
     active_jobs = [job for job in live_jobs or []
                    if getattr(job, 'status', None) in {'queued', 'running', 'cancelling'}
                    and (getattr(job, 'params', {}) or {}).get('run') == run_token]
@@ -927,18 +943,98 @@ def _public_run(row: dict[str, Any], *, detailed: bool = True, live_jobs: list[A
     return result
 
 
+def _public_file_identity(observed: os.stat_result) -> tuple[int, ...]:
+    if not stat.S_ISREG(observed.st_mode):
+        raise ValueError('Preparation receipt must be a regular file')
+    return (observed.st_dev, observed.st_ino, observed.st_size,
+            observed.st_mtime_ns, observed.st_ctime_ns)
+
+
+def _public_receipt(root: Path, path: Path) -> dict[str, Any]:
+    """Reuse only unchanged durable projections, never controls or live jobs."""
+    global _PUBLIC_CACHE_GENERATION
+    key = (str(root), str(path))
+    with _PUBLIC_CACHE_LOCK:
+        # In-place code reload must not retain the previous projection contract.
+        generation = (_public_run.__code__, _validate_row.__code__, _unique_object.__code__,
+                      _ensure_stages.__code__, _merge_stages.__code__,
+                      _bounded_work_progress.__code__, mcp_budget.public.__code__,
+                      mcp_budget.initialize.__code__, _WORK_PROGRESS_FIELDS, tuple(_STAGES), VERSION)
+        if generation != _PUBLIC_CACHE_GENERATION:
+            _PUBLIC_CACHE.clear()
+            _PUBLIC_CACHE_GENERATION = generation
+        try:
+            if not _valid_id(path.stem):
+                raise ValueError('Invalid preparation ID')
+            before = _public_file_identity(path.lstat())
+            # Opening on hits corroborates readability as well as file identity.
+            descriptor = os.open(path, os.O_RDONLY | getattr(os, 'O_NOFOLLOW', 0)
+                                 | getattr(os, 'O_NONBLOCK', 0))
+            try:
+                if _public_file_identity(os.fstat(descriptor)) != before:
+                    raise ValueError('Preparation receipt changed while opening')
+                cached = _PUBLIC_CACHE.get(key)
+                if cached is not None and cached[0] == before:
+                    projected = copy.deepcopy(cached[1])
+                else:
+                    _PUBLIC_CACHE.pop(key, None)
+                    # Parse the corroborated descriptor with the same strict
+                    # duplicate-key parser as _load_row; never rediscover root.
+                    with os.fdopen(descriptor, 'r', encoding='utf-8', closefd=False) as stream:
+                        row = json.load(stream, object_pairs_hook=_unique_object)
+                    if not isinstance(row, dict):
+                        raise ValueError('Preparation row must be an object')
+                    row = _validate_row(row, path.stem)
+                    _ensure_stages(row)
+                    try:
+                        projected = _public_run(row, detailed=row.get('status') in {'running', 'queued', 'paused'})
+                    except (ValueError, KeyError, TypeError, AttributeError):
+                        # Preserve the old public unavailable placeholder and
+                        # its position without retaining malformed action trees.
+                        projected = {key: row[key] for key in
+                                     ('id', 'createdAt', 'updatedAt', 'queuePriority', 'admissionPending') if key in row}
+                        projected['_projectionUnavailable'] = True
+                if (_public_file_identity(os.fstat(descriptor)) != before
+                        or _public_file_identity(path.lstat()) != before):
+                    raise ValueError('Preparation receipt changed while reading')
+            finally:
+                os.close(descriptor)
+            if (cached is None or cached[0] != before) and not projected.get('_projectionUnavailable'):
+                size = len(json.dumps(projected, ensure_ascii=True).encode('utf-8'))
+                if size <= _PUBLIC_CACHE_BYTES:
+                    while _PUBLIC_CACHE and (len(_PUBLIC_CACHE) >= _PUBLIC_CACHE_ENTRIES
+                            or sum(entry[2] for entry in _PUBLIC_CACHE.values()) + size > _PUBLIC_CACHE_BYTES):
+                        _PUBLIC_CACHE.pop(next(iter(_PUBLIC_CACHE)))
+                    _PUBLIC_CACHE[key] = (before, copy.deepcopy(projected), size)
+            return projected
+        except (OSError, ValueError, KeyError, TypeError, AttributeError, OverflowError):
+            _PUBLIC_CACHE.pop(key, None)
+            raise
+
+
 def list_runs(*, public: bool = False) -> list[dict[str, Any]]:
     """Observation never retires slots, creates directories, or repairs rows."""
-    root = _directory().parent.resolve()
+    directory = _directory()
+    root = directory.parent.resolve()
     rows = []
     try:
-        paths = list(_directory().glob('*.json'))[:100]
+        paths = list(directory.resolve().glob('*.json'))[:100]
     except OSError:
         paths = []
+    if public:
+        present = {(str(root), str(path)) for path in paths}
+        with _PUBLIC_CACHE_LOCK:
+            for key in list(_PUBLIC_CACHE):
+                if key not in present:
+                    _PUBLIC_CACHE.pop(key, None)
+    orders = {}
     for path in paths:
         try:
-            row = _read(path.stem)
-            _ensure_stages(row)
+            if public:
+                row = _public_receipt(root, path)
+            else:
+                row = _read(path.stem)
+                _ensure_stages(row)
             command = _read_control(row['id'], root=root)
             for field in ('deadline', 'budgetSeconds', 'budgetOrigin'):
                 if field in command:
@@ -949,25 +1045,25 @@ def list_runs(*, public: bool = False) -> list[dict[str, Any]]:
             if diagnostic:
                 row['authorityObservation'] = copy.deepcopy(diagnostic)
             float(row.get('updatedAt') or 0)
-            _admission_order(row)
+            orders[row['id']] = (-int(row['queuePriority']), float(row.get('createdAt', 0)), row['id'])
             rows.append(row)
-        except (OSError, ValueError, KeyError, TypeError, AttributeError):
+        except (OSError, ValueError, KeyError, TypeError, AttributeError, OverflowError):
             continue
     rows.sort(key=lambda row: float(row.get('updatedAt') or 0), reverse=True)
     positions = {row['id']: index + 1 for index, row in enumerate(sorted(
-        (row for row in rows if row.get('admissionPending')), key=_admission_order))}
+        (row for row in rows if row.get('admissionPending')), key=lambda row: orders[row['id']]))}
     for row in rows:
         row['queuePosition'] = positions.get(row['id'])
     if not public:
         return rows
-    from .actions.jobs import list_jobs
-    live_jobs = list_jobs(compact=True)
+    from .actions.jobs import STORE
+    live_jobs = STORE.preparation_active_jobs({f"prepare-{row['id']}" for row in rows})
     public_rows = []
     for row in rows:
         try:
-            projected = _public_run(row, detailed=row.get('status') in {'running', 'queued', 'paused'}, live_jobs=live_jobs)
-            if 'authorityObservation' in row:
-                projected['authorityObservation'] = row['authorityObservation']
+            if row.pop('_projectionUnavailable', False):
+                raise ValueError('Preparation projection unavailable')
+            projected = _overlay_current_child(row, live_jobs)
             public_rows.append(projected)
         except (ValueError, KeyError, TypeError, AttributeError):
             public_rows.append({'id': row['id'], 'status': 'unavailable', 'durable': False})

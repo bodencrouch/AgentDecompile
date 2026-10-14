@@ -491,15 +491,24 @@ def create_dashboard_router() -> APIRouter:
 
     @router.get("/dashboard/api/workbench/corpus-db")
     async def workbench_corpus_db() -> JSONResponse:
-        from agentdecompile_recovery.corpus.dashboard.common import find_candidate_dbs, live_db, corpus_file_identity
+        from agentdecompile_recovery.corpus.dashboard.common import (
+            CorpusBindingError,
+            find_candidate_dbs,
+            resolve_corpus_binding,
+        )
 
         def _collect() -> dict:
-            current = live_db()
+            try:
+                binding = resolve_corpus_binding()
+                error = None
+            except CorpusBindingError as exc:
+                binding, error = None, str(exc)
             return {
                 "ok": True,
-                "current": str(current) if current is not None else None,
-                "exists": bool(current is not None and current.exists()),
-                "corpus": corpus_file_identity(current),
+                "current": binding["path"] if binding else None,
+                "exists": binding is not None,
+                "corpus": binding or {"identity": "", "path": ""},
+                "bindingError": error,
                 "candidates": [str(p) for p in find_candidate_dbs()],
             }
 
@@ -508,7 +517,12 @@ def create_dashboard_router() -> APIRouter:
 
     @router.post("/dashboard/api/workbench/corpus-db")
     async def workbench_select_corpus_db(request: Request) -> JSONResponse:
-        from agentdecompile_recovery.corpus.dashboard.common import find_candidate_dbs, live_db, set_runtime_db_path, corpus_file_identity
+        from agentdecompile_recovery.corpus.dashboard.common import (
+            CorpusBindingError,
+            find_candidate_dbs,
+            resolve_corpus_binding,
+            set_runtime_db_path,
+        )
 
         try:
             body = await request.json()
@@ -521,25 +535,22 @@ def create_dashboard_router() -> APIRouter:
             return JSONResponse({"ok": False, "error": "path is required"}, status_code=400)
 
         def _select() -> dict:
-            import sqlite3
             from pathlib import Path
 
             candidate = Path(raw_path).expanduser()
-            if not candidate.is_file():
-                return {"ok": False, "error": f"not a file: {candidate}"}
             try:
-                con = sqlite3.connect(f"file:{candidate}?mode=ro", uri=True, timeout=5)
-                con.execute("PRAGMA schema_version")
-                con.close()
-            except sqlite3.Error as exc:
-                return {"ok": False, "error": f"not a readable sqlite db: {exc}"}
-            set_runtime_db_path(candidate)
-            current = live_db()
+                binding = resolve_corpus_binding(candidate)
+            except CorpusBindingError as exc:
+                return {"ok": False, "error": str(exc)}
+            set_runtime_db_path(binding["path"])
             return {
                 "ok": True,
-                "current": str(current) if current is not None else None,
+                # This receipt describes this request's committed selection.
+                # A concurrent later POST may subsequently select another DB.
+                "current": binding["path"],
                 "exists": True,
-                "corpus": corpus_file_identity(current),
+                "corpus": binding,
+                "selectionIdentity": binding["identity"],
                 "candidates": [str(p) for p in find_candidate_dbs()],
             }
 

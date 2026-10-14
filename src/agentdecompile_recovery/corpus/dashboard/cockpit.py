@@ -31,7 +31,6 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, PlainTex
 log = logging.getLogger(__name__)
 
 COCKPIT_STATIC = Path(__file__).parent / "static" / "cockpit"
-ENV_DB = "AGENTDECOMPILE_COCKPIT_DB"
 DB_SUFFIXES = (".sqlite", ".db")
 POLL_S = 2.0
 PING_S = 15.0
@@ -69,9 +68,6 @@ class CockpitError(Exception):
 
 # --------------------------------------------------------------------------- db resolution
 
-_SCAN_CACHE: tuple[float, tuple[str, ...], Path | None] = (0.0, (), None)
-
-
 def _connect(path: Path | str) -> sqlite3.Connection:
     uri = f"file:{quote(str(path), safe='/')}?mode=ro"
     con = sqlite3.connect(uri, uri=True, check_same_thread=False, timeout=5)
@@ -82,81 +78,18 @@ def _connect(path: Path | str) -> sqlite3.Connection:
     return con
 
 
-def _has_logical(path: Path) -> bool:
-    try:
-        con = _connect(path)
-        try:
-            return bool(con.execute(
-                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='logical_function'").fetchone())
-        finally:
-            con.close()
-    except sqlite3.Error:
-        return False
-
-
-def _scan_dirs() -> list[Path]:
-    dirs: list[Path] = []
-    try:
-        from .common import live_root
-        root = live_root()
-    except Exception:  # pragma: no cover - configuration import failures degrade
-        root = None
-    if root is not None:
-        root = Path(root)
-        dirs += [root, root / "databases", root.parent / "databases"]
-    return dirs
-
-
-def _scan_candidates() -> Path | None:
-    """First ``*.sqlite`` (depth <= 2) under the corpus root / ``databases/`` with ``logical_function``."""
-    global _SCAN_CACHE
-    dirs = _scan_dirs()
-    key = tuple(str(d) for d in dirs)
-    stamp, cached_key, cached = _SCAN_CACHE
-    if cached_key == key and time.monotonic() - stamp < 60 and (cached is None or cached.is_file()):
-        return cached
-    found: Path | None = None
-    for directory in dirs:
-        if found or not directory.is_dir():
-            continue
-        try:
-            candidates = sorted(directory.glob("*.sqlite")) + sorted(directory.glob("*/*.sqlite"))
-        except OSError:
-            continue
-        for candidate in candidates:
-            if candidate.is_file() and _has_logical(candidate):
-                found = candidate.resolve()
-                break
-    _SCAN_CACHE = (time.monotonic(), key, found)
-    return found
-
-
 def resolve_db(explicit: str | None = None) -> Path:
-    """``?db=`` -> env -> corpus root / databases scan -> dashboard corpus db."""
+    """Resolve the one selected corpus database through the shared validator."""
     if explicit:
         path = Path(explicit).expanduser()
         if path.suffix.lower() not in DB_SUFFIXES:
             raise CockpitError(f"db must be a {'/'.join(DB_SUFFIXES)} file: {explicit}", 400)
-        if not path.is_file():
-            raise CockpitError(f"db not found: {explicit}", 400)
-        return path.resolve()
-    env = (os.environ.get(ENV_DB) or "").strip()
-    if env:
-        path = Path(env).expanduser()
-        if not path.is_file():
-            raise CockpitError(f"{ENV_DB} does not name an existing file: {env}", 503)
-        return path.resolve()
-    found = _scan_candidates()
-    if found is not None:
-        return found
     try:
-        from .common import live_db
-        configured = live_db()
-    except Exception:  # pragma: no cover
-        configured = None
-    if configured is not None and Path(configured).is_file():
-        return Path(configured).resolve()
-    raise CockpitError("no corpus database configured (pass ?db= or set " + ENV_DB + ")", 503)
+        from .common import CorpusBindingError, resolve_corpus_binding
+        binding = resolve_corpus_binding(explicit)
+    except CorpusBindingError as exc:
+        raise CockpitError(str(exc), 503 if not explicit else 400) from exc
+    return Path(binding["path"])
 
 
 # --------------------------------------------------------------------------- helpers

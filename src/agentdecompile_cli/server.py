@@ -116,8 +116,11 @@ def init_agentdecompile_context(
     If delete_project_binary is set, attempts to remove that program and exits (does not return).
 
     Returns (launcher, project_manager). project_manager is only set when not using a .gpr.
+    threaded controls analysis threading; max_workers=0 selects the CPU-count default.
     """
     logger.debug("diag.enter %s", "server.py:init_agentdecompile_context")
+    if max_workers < 0:
+        raise ValueError("max_workers must be non-negative (0 selects automatic)")
     bin_paths: list[Path] = [Path(p) for p in input_paths]
     logger.info("Project: %s", project_name)
     logger.info("Project location: %s", project_directory)
@@ -142,6 +145,8 @@ def init_agentdecompile_context(
         auth_config=auth_config,
         tls_certfile=tls_certfile,
         tls_keyfile=tls_keyfile,
+        threaded=threaded,
+        max_workers=max_workers,
     )
 
     async def _list_and_exit() -> None:
@@ -817,10 +822,10 @@ def build_server_parser() -> argparse.ArgumentParser:
         ),
     )
     _not_applied = "Not applied: agentdecompile-server accepts it but does not pass it to the analysis backend."
-    g_server.add_argument("--threaded", dest="threaded", action="store_true", help=f"{_not_applied} Default: on.")
-    g_server.add_argument("--no-threaded", dest="threaded", action="store_false", help=f"{_not_applied} Default: on.")
+    g_server.add_argument("--threaded", dest="threaded", action="store_true", help="Enable threaded analysis. Default: on.")
+    g_server.add_argument("--no-threaded", dest="threaded", action="store_false", help="Disable threaded analysis and force a single worker. Default: threaded analysis on.")
     g_server.set_defaults(threaded=True)
-    g_server.add_argument("--max-workers", type=int, default=0, help=f"{_not_applied} Default: 0.")
+    g_server.add_argument("--max-workers", type=int, default=0, help="Analysis worker limit; 0 selects the CPU-count default. Must be non-negative. --no-threaded forces 1. Default: 0.")
     g_server.add_argument(
         "--wait-for-analysis",
         dest="wait_for_analysis",
@@ -876,6 +881,8 @@ def main() -> None:
     logger.debug("diag.enter %s", "server.py:main")
     parser = build_server_parser()
     args = parser.parse_args()
+    if args.max_workers < 0:
+        parser.error("--max-workers must be non-negative (0 selects automatic)")
     _configure_targeted_ai(parser, args)
 
     # ---------------------------------------------------------------

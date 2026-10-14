@@ -166,18 +166,29 @@ def build_target(
     prefix, bare = sym[0], sym[1:]
     tmp = obj.with_suffix(obj.suffix + ".tmp")
     tmp.unlink(missing_ok=True)
-    script = mkobj or pathlib.Path(os.environ.get("AGENT_DECOMPILE_MKOBJ") or "mkobj.py")
-    r = subprocess.run(
-        [sys.executable, str(script),
-         "--binary", str(raw_path), "--offset", str(off), "--size", str(fn["size"]),
-         "--name", bare, "--symbol-prefix", prefix,
-         "--format", FORMAT.get(bits, "coff-i386"), "-o", str(tmp)],
-        capture_output=True, text=True,
-    )
-    if r.returncode != 0 or not tmp.exists():
+    script = mkobj or os.environ.get("AGENT_DECOMPILE_MKOBJ")
+    try:
+        if script:
+            r = subprocess.run(
+                [sys.executable, str(script),
+                 "--binary", str(raw_path), "--offset", str(off), "--size", str(fn["size"]),
+                 "--name", bare, "--symbol-prefix", prefix,
+                 "--format", FORMAT.get(bits, "coff-i386"), "-o", str(tmp)],
+                capture_output=True, text=True,
+            )
+            if r.returncode != 0:
+                raise ValueError(r.stderr.strip() or f"mkobj exited {r.returncode}")
+        else:
+            from .mkobj import write_object
+
+            write_object(binary=raw_path, offset=off, size=fn["size"], name=bare,
+                         symbol_prefix=prefix, format=FORMAT.get(bits, "coff-i386"),
+                         output=tmp)
+        if not tmp.is_file():
+            raise ValueError("mkobj did not produce a target object")
+    except (OSError, ValueError) as exc:
         tmp.unlink(missing_ok=True)
-        if r.stderr.strip():
-            print(f"mkobj failed for {name}: {r.stderr.strip()}", file=sys.stderr)
+        print(f"mkobj failed for {name}: {exc}", file=sys.stderr)
         return None
     tmp.replace(obj)
     return obj

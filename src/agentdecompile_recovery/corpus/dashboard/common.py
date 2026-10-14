@@ -12,6 +12,7 @@ import html
 import hashlib
 import json
 import os
+import re
 import socket
 import sqlite3
 import time
@@ -227,20 +228,229 @@ def live_db() -> Path | None:
 
 
 def corpus_file_identity(database: Path | None) -> dict:
-    """File identity, stable across writes; not a content revision or proof hash.
-
-    ponytail: path/device/inode cannot detect in-place replacement or every inode
-    reuse; adopt a durable corpus UUID if that threat must be covered.
-    """
+    """Compatibility projection of the authoritative validated corpus identity."""
     try:
-        path = database.resolve(strict=True) if database is not None else None
-        if path is None or not path.is_file():
-            return {"identity": "", "path": str(database or "")}
-        stat = path.stat()
-        key = json.dumps([str(path), stat.st_dev, stat.st_ino])
-        return {"identity": hashlib.sha256(key.encode()).hexdigest(), "path": str(path)}
-    except (OSError, RuntimeError, ValueError):
+        binding = resolve_corpus_binding(database)
+        return {key: binding[key] for key in ("identity", "path", "size", "database_uuid")}
+    except (CorpusBindingError, OSError, RuntimeError, TypeError, ValueError):
         return {"identity": "", "path": str(database or "")}
+
+
+class CorpusBindingError(ValueError):
+    """A selected corpus cannot be proven to be the requested recovery context."""
+
+
+def _selected_corpus_path(database: Path | str | None) -> tuple[Path, str]:
+    """Resolve only an explicit selection; never search for a plausible database."""
+    if database is not None and str(database).strip():
+        return Path(database).expanduser(), "request"
+    if _RUNTIME_DB_PATH is not None:
+        return _RUNTIME_DB_PATH.expanduser(), "runtime selection"
+
+    selection = _runtime_db_selection_path()
+    if selection is not None and selection.exists():
+        try:
+            saved = json.loads(selection.read_text(encoding="utf-8"))
+            raw = saved.get("path") if isinstance(saved, dict) else None
+        except (OSError, TypeError, ValueError) as exc:
+            raise CorpusBindingError(
+                f"Saved corpus selection is unreadable at {selection}; explicitly select a corpus database again."
+            ) from exc
+        if not isinstance(raw, str) or not raw.strip():
+            raise CorpusBindingError(
+                f"Saved corpus selection at {selection} has no database path; explicitly select a corpus database."
+            )
+        return Path(raw).expanduser(), "saved selection"
+
+    configured = [
+        (name, os.environ.get(name, "").strip())
+        for name in ("AGENT_DECOMPILE_COCKPIT_DB", "AGENT_DECOMPILE_CORPUS_DB")
+        if os.environ.get(name, "").strip()
+    ]
+    distinct = {value for _, value in configured}
+    if len(distinct) > 1:
+        names = ", ".join(name for name, _ in configured)
+        raise CorpusBindingError(
+            f"Conflicting corpus database settings ({names}); choose one database in the dashboard or configure one path."
+        )
+    if configured:
+        name, value = configured[0]
+        return Path(value).expanduser(), name
+    raise CorpusBindingError(
+        "No corpus database is selected. Choose an existing corpus database in the dashboard; "
+        "no database will be created or guessed."
+    )
+
+
+def resolve_corpus_binding(
+    database: Path | str | None = None,
+    *,
+    program_id: str | None = None,
+    binary_sha256: str | None = None,
+    output_root: Path | str | None = None,
+    expected_identity: str | None = None,
+) -> dict:
+    """Validate and identify one corpus/program binding using read-only SQLite access.
+
+    This is the common identity boundary for Cockpit and dashboard action context.
+    A database must be explicitly selected by request, runtime preference, or a
+    documented DB environment variable. It is never found by directory scan and
+    resolution never creates or mutates a database.
+    """
+    selected, source = _selected_corpus_path(database)
+    try:
+        canonical = selected.resolve(strict=True)
+    except (OSError, RuntimeError, ValueError) as exc:
+        raise CorpusBindingError(
+            f"Selected corpus database does not exist or cannot be resolved: {selected}. "
+            "Choose an existing database in the dashboard."
+        ) from exc
+    if not canonical.is_file():
+        raise CorpusBindingError(f"Selected corpus path is not a regular file: {canonical}.")
+    try:
+        stat = canonical.stat()
+    except OSError as exc:
+        raise CorpusBindingError(f"Cannot inspect selected corpus database: {canonical}: {exc}") from exc
+    if stat.st_size <= 0:
+        raise CorpusBindingError(
+            f"Selected corpus database is empty (0 bytes): {canonical}. Choose a populated corpus database."
+        )
+
+    connection = None
+    try:
+        # Use the corpus store's authoritative, read-only schema admission;
+        # unlike the writer path this neither migrates nor creates anything.
+        from ..store import connect as connect_corpus
+
+        connection = connect_corpus(canonical, read_only=True)
+        connection.execute("PRAGMA query_only=ON")
+        tables = {row[0] for row in connection.execute(
+            "SELECT name FROM sqlite_master WHERE type='table'")}
+        columns = {
+            table: {row[1] for row in connection.execute(f'PRAGMA table_info("{table}")')}
+            for table in ("binary", "func")
+        }
+
+        program_ids: list[str] = []
+        binary_hash: str | None = None
+        binary_match: tuple[int, str, str | None] | None = None
+        if program_id or binary_sha256:
+            binary_columns = columns["binary"]
+            if binary_sha256:
+                hash_column = next((name for name in ("content_sha256", "sha256") if name in binary_columns), None)
+                if hash_column is None:
+                    raise CorpusBindingError(
+                        f"Cannot bind binary SHA-256 in {canonical}: the binary table has no content hash column."
+                    )
+                matches = connection.execute(
+                    f'SELECT id, slug, {hash_column}, '
+                    f'{"game" if "game" in binary_columns else "NULL"} '
+                    f'FROM binary WHERE lower({hash_column})=lower(?)',
+                    (binary_sha256.strip(),),
+                ).fetchall()
+                if len(matches) != 1:
+                    state = "not found" if not matches else "ambiguous"
+                    raise CorpusBindingError(
+                        f"Binary SHA-256 binding is {state} in selected corpus {canonical}; "
+                        "select a unique recorded binary with the expected content hash."
+                    )
+                binary_hash = str(matches[0][2]).lower()
+                binary_match = (int(matches[0][0]), str(matches[0][1]),
+                                str(matches[0][3]) if matches[0][3] not in (None, "") else None)
+            if program_id or binary_match is not None:
+                # Cockpit's project identity is derived from game when present,
+                # otherwise from the concrete binary slug. Match that contract
+                # without allowing a fuzzy name or first-row fallback.
+                game_col = "game" if "game" in binary_columns else None
+                query = (f'SELECT b.id, b.slug, {"b.game" if game_col else "NULL"} FROM binary b '
+                         'WHERE EXISTS (SELECT 1 FROM func f WHERE f.binary_id=b.id)')
+                rows = connection.execute(query).fetchall()
+                groups: dict[tuple[str, str], list[tuple[int, str]]] = {}
+                for bid, slug, game in rows:
+                    key = ("game", str(game)) if game not in (None, "") else ("binary", str(slug))
+                    groups.setdefault(key, []).append((int(bid), str(slug)))
+                used: set[str] = set()
+                pid_by_key: dict[tuple[str, str], str] = {}
+                for key in sorted(groups, key=lambda item: (item[0] != "game", item[1])):
+                    label = key[1]
+                    base = re.sub(r"[^A-Za-z0-9]+", "-", str(label)).strip("-").lower() or "program"
+                    candidate, suffix = base, 2
+                    while candidate in used:
+                        candidate, suffix = f"{base}-{suffix}", suffix + 1
+                    used.add(candidate)
+                    program_ids.append(candidate)
+                    pid_by_key[key] = candidate
+                if not program_id and binary_match is not None:
+                    _, slug, game = binary_match
+                    program_id = pid_by_key.get(("game", game) if game is not None else ("binary", slug))
+                if program_id not in program_ids:
+                    raise CorpusBindingError(
+                        f"Program {program_id!r} is not present in selected corpus {canonical}. "
+                        "Choose a program from this database before starting recovery."
+                    )
+                if binary_match is not None:
+                    _bid, slug, game = binary_match
+                    key = ("game", game) if game is not None else ("binary", slug)
+                    expected_program = pid_by_key.get(key)
+                    if expected_program != program_id:
+                        raise CorpusBindingError(
+                            f"Selected program {program_id!r} does not contain the requested binary SHA-256. "
+                            "Select the matching program and binary together."
+                        )
+        application_id = int(connection.execute("PRAGMA application_id").fetchone()[0])
+        user_version = int(connection.execute("PRAGMA user_version").fetchone()[0])
+        database_uuid = None
+        for table in ("corpus_meta", "corpus_metadata", "metadata"):
+            if table not in tables:
+                continue
+            cols = {row[1] for row in connection.execute(f'PRAGMA table_info("{table}")')}
+            if {"key", "value"}.issubset(cols):
+                row = connection.execute(
+                    f'SELECT value FROM "{table}" WHERE lower(key) IN (\'corpus_uuid\', \'database_uuid\', \'uuid\') LIMIT 1'
+                ).fetchone()
+                if row and row[0]:
+                    database_uuid = str(row[0])
+                    break
+    except CorpusBindingError:
+        raise
+    except (sqlite3.Error, ValueError, OSError) as exc:
+        raise CorpusBindingError(
+            f"Selected database is unreadable or not admitted by the current corpus schema: {canonical}: {exc}"
+        ) from exc
+    finally:
+        if connection is not None:
+            connection.close()
+
+    try:
+        current_stat = canonical.stat()
+    except OSError as exc:
+        raise CorpusBindingError(f"Selected corpus database disappeared during validation: {canonical}") from exc
+    if (current_stat.st_dev, current_stat.st_ino) != (stat.st_dev, stat.st_ino):
+        raise CorpusBindingError(
+            f"Selected corpus database was replaced during validation: {canonical}; reselect it before continuing."
+        )
+
+    identity_payload = [str(canonical), stat.st_dev, stat.st_ino, application_id, user_version, database_uuid]
+    identity = hashlib.sha256(json.dumps(identity_payload, separators=(",", ":")).encode()).hexdigest()
+    if expected_identity and expected_identity != identity:
+        raise CorpusBindingError(
+            f"Selected corpus identity changed for {canonical}; reselect the current database before continuing."
+        )
+    root = Path(output_root).expanduser() if output_root is not None else runtime_work_dir(canonical)
+    if root is not None:
+        root = root.resolve()
+    return {
+        "identity": identity,
+        "path": str(canonical),
+        "size": stat.st_size,
+        "database_uuid": database_uuid,
+        "application_id": application_id,
+        "user_version": user_version,
+        "selection_source": source,
+        "program_id": program_id,
+        "binary_sha256": binary_hash,
+        "output_root": str(root) if root is not None else None,
+    }
 
 
 class CorpusReadError(Exception):
@@ -276,9 +486,9 @@ def corpus_read_snapshot(expected_identity: str = ""):
             connection.close()
 
 
-def runtime_project_root() -> Path | None:
+def runtime_project_root(database: Path | str | None = None) -> Path | None:
     """Return the project owning the selected runtime database when known."""
-    database = live_db()
+    database = Path(database).expanduser() if database is not None else live_db()
     if database is not None and database.parent.name == "db":
         candidate = database.parent.parent
         if (candidate / "corpus_work").is_dir():
@@ -286,9 +496,9 @@ def runtime_project_root() -> Path | None:
     return live_root()
 
 
-def runtime_work_dir() -> Path | None:
+def runtime_work_dir(database: Path | str | None = None) -> Path | None:
     """Return the recovery workspace paired with the selected runtime db."""
-    project = runtime_project_root()
+    project = runtime_project_root(database)
     if project is not None and (project / "corpus_work").is_dir():
         return project / "corpus_work"
     return project

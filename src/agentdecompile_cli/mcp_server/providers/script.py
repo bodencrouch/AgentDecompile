@@ -221,6 +221,12 @@ class ScriptToolProvider(ToolProvider):
         except Exception:
             pass
 
+        from agentdecompile_cli.ghidra_script_runner import run_ghidra_script_on_program
+
+        ns['run_ghidra_script_on_program'] = lambda path, args=(): run_ghidra_script_on_program(
+            program, ns['monitor'], path, args,
+        )
+
         # Convenience accessors from the program
         if program is not None:
             ns["getMemory"] = program.getMemory
@@ -438,6 +444,8 @@ class ScriptToolProvider(ToolProvider):
             try:
                 result = await asyncio.shield(worker)
             except asyncio.CancelledError:
+                if ns.get('monitor') is not None:
+                    ns['monitor'].cancel()
                 while not worker.done():
                     try:
                         await asyncio.shield(worker)

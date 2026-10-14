@@ -39,6 +39,7 @@ import hashlib
 import json
 import os
 import re
+import shutil
 import subprocess
 import tempfile
 from dataclasses import dataclass, field
@@ -57,7 +58,16 @@ ROLES = ("compiler", "linker", "assembler")
 RELEVANT_ENV_KEYS = (
     "ASFLAGS", "CFLAGS", "CL", "CPPFLAGS", "CXXFLAGS", "INCLUDE", "LDFLAGS", "LIB",
     "LIBPATH", "LINK", "ML", "SOURCE_DATE_EPOCH", "WINEARCH", "WINEDLLOVERRIDES",
-    "WINEPREFIX", "_CL_", "_LINK_",
+    "WINEPREFIX", "WINEPATH", "WINEDEBUG", "PATH", "LC_ALL", "LANG", "LC_CTYPE",
+    "HOME", "USER", "LOGNAME", "DISPLAY", "XDG_RUNTIME_DIR", "TMPDIR", "_CL_", "_LINK_",
+)
+
+# Strict measured MSVC children receive only these inherited values, plus the
+# execution owner's controlled Wine/include overrides. Every retained value is
+# bound; loader hooks, custom Wine launchers and unrelated secrets are excluded.
+MEASURED_MSVC_ENV_KEYS = (
+    "PATH", "HOME", "USER", "LOGNAME", "DISPLAY", "XDG_RUNTIME_DIR", "TMPDIR",
+    "WINEARCH", "WINEDLLOVERRIDES", "WINEDEBUG", "SOURCE_DATE_EPOCH",
 )
 
 #: Version text kept in the record for reading; the full text is hashed.
@@ -179,7 +189,8 @@ def _probe(role: str, argv: list[str], env: dict[str, str], timeout: float) -> t
 
 
 def _component(role: str, spec: ToolSpec, *, env: dict[str, str], wine: WineHost | None,
-               forms: list[tuple[str, str]], timeout: float) -> tuple[dict, str]:
+               forms: list[tuple[str, str]], timeout: float,
+               roots: Mapping[str, str | os.PathLike]) -> tuple[dict, str]:
     path = spec.path
     if not path.is_file():
         raise _Unpinned(f"{role}_executable_missing: {path.name}")
@@ -193,8 +204,18 @@ def _component(role: str, spec: ToolSpec, *, env: dict[str, str], wine: WineHost
         try:
             rel = path.resolve().relative_to(Path(wine.prefix).resolve())
         except ValueError:
-            raise _Unpinned(f"{role}_outside_wine_prefix: {path.name}") from None
-        comp["prefix_relative_path"] = PurePosixPath(*rel.parts).as_posix()
+            for name, root in sorted(roots.items()):
+                try:
+                    rel = path.resolve().relative_to(Path(root).resolve())
+                except ValueError:
+                    continue
+                comp["named_root"] = name
+                comp["root_relative_path"] = PurePosixPath(*rel.parts).as_posix()
+                break
+            else:
+                raise _Unpinned(f"{role}_outside_named_roots: {path.name}") from None
+        else:
+            comp["prefix_relative_path"] = PurePosixPath(*rel.parts).as_posix()
         argv = [str(wine.wine), str(path), *spec.version_args]
     else:
         argv = [str(path), *spec.version_args]
@@ -213,7 +234,8 @@ def _identity_payload(record: dict) -> dict:
 
 def capture(tools: Mapping[str, ToolSpec | None], *, env: Mapping[str, str],
             wine: WineHost | None = None, roots: Mapping[str, str | os.PathLike] | None = None,
-            env_keys: tuple[str, ...] = RELEVANT_ENV_KEYS, timeout: float = 30.0) -> dict:
+            env_keys: tuple[str, ...] = RELEVANT_ENV_KEYS, timeout: float = 30.0,
+            environment_is_effective: bool = False) -> dict:
     """A pinned identity record for *tools*, or an explicit unpinned one.
 
     *env* is the environment the build runs under; only *env_keys* enter the
@@ -224,7 +246,9 @@ def capture(tools: Mapping[str, ToolSpec | None], *, env: Mapping[str, str],
     if wine is not None:
         all_roots.setdefault("WINEPREFIX", wine.prefix)
     forms = _root_forms(all_roots)
-    run_env = _run_env(env, wine)
+    # An execution owner can supply its already-merged environment verbatim;
+    # adding LC_ALL here would otherwise make version and compile paths differ.
+    run_env = dict(env) if environment_is_effective else _run_env(env, wine)
     try:
         unknown = sorted(set(tools) - set(ROLES))
         if unknown:
@@ -242,17 +266,22 @@ def capture(tools: Mapping[str, ToolSpec | None], *, env: Mapping[str, str],
                 components[role] = {"role": role, "used": False}
                 continue
             components[role], locations[role] = _component(role, spec, env=run_env, wine=wine,
-                                                           forms=forms, timeout=timeout)
+                                                           forms=forms, timeout=timeout, roots=all_roots)
         host: dict = {"kind": "native"}
         if wine is not None:
+            wine_path = shutil.which(str(wine.wine), path=run_env.get("PATH"))
+            if wine_path is None:
+                raise _Unpinned("wine_executable_missing")
             code, text = _probe("wine", [str(wine.wine), "--version"], run_env, timeout)
             text = _relocate(text, forms)
             host = {"kind": "wine", "wine_version_exit": code, "wine_version_sha256": _sha(text),
-                    "wine_version_text": text[:VERSION_TEXT_LIMIT]}
+                    "wine_version_text": text[:VERSION_TEXT_LIMIT],
+                    "wine_exe_sha256": sha256_file(wine_path)}
+            locations["wine"] = str(Path(wine_path).resolve())
             locations["wine_prefix"] = str(wine.prefix)
-    except _Unpinned as exc:
-        return {"schema": SCHEMA, "state": "unpinned", "reason": exc.reason}
-    rec_env = {k: _relocate(str(env[k]), forms) for k in sorted(env_keys) if k in env}
+    except (OSError, _Unpinned) as exc:
+        return {"schema": SCHEMA, "state": "unpinned", "reason": str(exc)}
+    rec_env = {k: _relocate(str(run_env[k]), forms) for k in sorted(env_keys) if k in run_env}
     record = {"schema": SCHEMA, "state": "pinned", "components": components, "env": rec_env,
               "host": host, "locations": locations}
     record["identity_sha256"] = _sha(canonical_bytes(_identity_payload(record)))
@@ -270,6 +299,70 @@ def verify(record: Mapping) -> bool:
         return _sha(canonical_bytes(_identity_payload(dict(record)))) == ident
     except (KeyError, TypeError, ValueError):
         return False
+
+
+PROVISIONAL_EXECUTABLE_SCHEMA = "agentdecompile.provisional-executable-evidence/v1"
+
+
+def inspect_only(*, command: list[str]) -> dict:
+    """Hash explicit executable paths without version probes or calibration.
+
+    This evidence deliberately fails verify(); headers, DLLs and Wine prefix
+    contents remain unbound and must be supplied by the acceptance owner.
+    """
+    if len(command) < 2 or any(not Path(path).is_absolute() or not Path(path).is_file()
+                               for path in command[:2]):
+        raise ValueError("Provisional evidence requires explicit Wine and compiler executable paths")
+    payload = {"schema": PROVISIONAL_EXECUTABLE_SCHEMA, "recipeState": "provisional",
+               "support": "unmeasured", "closureBound": False,
+               "components": {"compiler": {"exe_sha256": sha256_file(command[1])}},
+               "host": {"wine_exe_sha256": sha256_file(command[0])}}
+    payload["evidenceSha256"] = _sha(canonical_bytes(payload))
+    return payload
+
+
+def bind_invocation(evidence: Mapping, *, command: list[str], env: Mapping[str, str],
+                    requested_args: list[str], policy: str, allow_provisional: bool = False) -> dict:
+    """Reuse stable version evidence, recomputing live executable/invocation facts.
+
+    This does not probe versions or pin headers, DLLs or prefix contents.
+    Historical integrity-only records cannot supply this stronger binding.
+    """
+    provisional = False
+    if allow_provisional and evidence.get("schema") == PROVISIONAL_EXECUTABLE_SCHEMA:
+        current = inspect_only(command=command)
+        provisional = dict(evidence) == current
+    if (not provisional and not verify(evidence)) or not evidence.get("host", {}).get("wine_exe_sha256"):
+        raise ValueError("Strong executable identity evidence is unavailable")
+    if set(env) - set(RELEVANT_ENV_KEYS):
+        raise ValueError("Measured compiler environment contains unreviewed values")
+    compiler = Path(command[1]).resolve()
+    wine = shutil.which(command[0], path=env.get("PATH"))
+    if wine is None:
+        raise ValueError("Wine executable is unavailable")
+    if (sha256_file(compiler) != evidence["components"]["compiler"]["exe_sha256"]
+            or sha256_file(wine) != evidence["host"]["wine_exe_sha256"]):
+        raise ValueError("Executable identity changed since version capture")
+    payload = {"schema": ("agentdecompile.provisional-msvc-invocation-binding/v1" if provisional
+                           else "agentdecompile.msvc-invocation-binding/v1"),
+               "evidence": dict(evidence), "command": list(command),
+               "environment": {key: str(env[key]) for key in sorted(RELEVANT_ENV_KEYS) if key in env},
+               "requestedArgs": list(requested_args),
+               "environmentPolicy": "measured-msvc-allowlist/v1",
+               "omittedFlagPolicy": policy, "sourceLanguage": "c"}
+    if provisional:
+        payload.update(recipeState="provisional", support="unmeasured", closureBound=False)
+    payload["bindingSha256"] = _sha(canonical_bytes(payload))
+    return payload
+
+
+def compare_live_binding(expected: Mapping, **invocation) -> dict:
+    """Compare current bytes, arguments, environment and policy without probes."""
+    live = bind_invocation(expected.get("evidence", {}), allow_provisional=(
+        expected.get("schema") == "agentdecompile.provisional-msvc-invocation-binding/v1"), **invocation)
+    if live != expected:
+        raise ValueError("Measured compiler invocation binding changed")
+    return live
 
 
 def manifest_toolchain(record: Mapping) -> dict:

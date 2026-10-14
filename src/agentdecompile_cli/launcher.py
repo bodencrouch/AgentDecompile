@@ -1853,6 +1853,9 @@ class AgentDecompileLauncher:
         auth_config: Any | None = None,
         tls_certfile: str | None = None,
         tls_keyfile: str | None = None,
+        *,
+        threaded: bool = True,
+        max_workers: int | None = None,
     ) -> int:
         """Start Python MCP server.
 
@@ -1864,6 +1867,8 @@ class AgentDecompileLauncher:
             auth_config: Optional AuthConfig for HTTP Basic auth enforcement.
             tls_certfile: Optional path to TLS certificate (PEM) for HTTPS.
             tls_keyfile: Optional path to TLS private key (PEM) for HTTPS.
+            threaded: Enable threaded analysis; False forces a single worker.
+            max_workers: Analysis worker limit; None or 0 selects the CPU-count default.
 
         Returns:
         -------
@@ -1872,8 +1877,12 @@ class AgentDecompileLauncher:
         Raises:
         ------
             RuntimeError: If server fails to start
+            ValueError: If max_workers is negative
         """
         logger.debug("diag.enter %s", "launcher.py:AgentDecompileLauncher.start")
+        if max_workers is not None and max_workers < 0:
+            raise ValueError("max_workers must be non-negative (0 selects automatic)")
+        context_max_workers = None if max_workers == 0 else max_workers
         try:
             if host is not None:
                 os.environ["AGENT_DECOMPILE_HOST"] = host
@@ -1958,6 +1967,8 @@ class AgentDecompileLauncher:
                     force_analysis=False,
                     verbose_analysis=False,
                     no_symbols=False,
+                    threaded=threaded,
+                    max_workers=context_max_workers,
                 )
                 # Warn if unintegrated fallback projects exist from previous locked sessions.
                 _startup_warn_pending_fallbacks(projects_dir, project_name)
@@ -2002,6 +2013,8 @@ class AgentDecompileLauncher:
                         force_analysis=False,
                         verbose_analysis=False,
                         no_symbols=False,
+                        threaded=threaded,
+                        max_workers=context_max_workers,
                     )
                 except Exception as _fallback_err:
                     # The copied project data may be corrupt or partially locked.
@@ -2032,6 +2045,8 @@ class AgentDecompileLauncher:
                         force_analysis=False,
                         verbose_analysis=False,
                         no_symbols=False,
+                        threaded=threaded,
+                        max_workers=context_max_workers,
                     )
                 # Record the fallback → original mapping so reintegration tools
                 # can merge this session's changes back later.

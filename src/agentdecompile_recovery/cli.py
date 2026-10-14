@@ -333,6 +333,12 @@ def build_parser(prog: str | None = None) -> argparse.ArgumentParser:
 
     profile = sub.add_parser("compiler-profile-corpus", help="Select and sweep a compiler-profile corpus from verified matched examples.")
     profile.long_running = True
+    profile.mutating = True
+    profile.add_argument("--profile-path", type=Path, help="Write a measured admission profile inside out-dir.")
+    profile.add_argument("--program-fingerprint", help="Exact analyzed program fingerprint for admission.")
+    profile.add_argument("--architecture", help="Analyzed program architecture for admission.")
+    profile.add_argument("--probe-inventory", type=Path, help="Explicit function inventory for source-hypothesis bootstrap.")
+    profile.add_argument("--target-receipt", type=Path, help="Original-target receipt; requires probe inventory.")
     profile.add_argument("--matched-examples", type=Path, default=Path("target/source-parity-index/default/matched-examples.jsonl"))
     profile.add_argument("--out-dir", type=Path, default=Path("target/source-parity-profile/default"))
     profile.add_argument("--max-cases", type=int, default=6)
@@ -343,6 +349,22 @@ def build_parser(prog: str | None = None) -> argparse.ArgumentParser:
     profile.add_argument("--wineprefix", type=Path)
     profile.add_argument("--timeout", type=int, default=120)
     profile.add_argument("--clean", action="store_true")
+
+    wave = sub.add_parser("candidate-wave", help="Run one admitted bounded preserved-C experiment; no recovery promotion.")
+    wave.long_running = True
+    wave.mutating = True
+    for name in ("db", "allowed-source-root", "preserved-selection-manifest",
+                 "materialized-binaries-root", "target-receipt", "context-path",
+                 "compiler-root", "wineprefix", "objdiff-check", "objdiff-wasm-root", "out-dir"):
+        wave.add_argument("--" + name, type=Path, required=True)
+    for name in ("target-repo-path", "target-sha256", "target-md5", "context-origin",
+                 "architecture", "wine"):
+        wave.add_argument("--" + name, required=True)
+    wave.add_argument("--compiler-arg", action="append", required=True,
+                      help="Explicit provisional compiler flag; repeat in invocation order.")
+    wave.add_argument("--cap", type=int, required=True, help="Positive distinct candidate attempt cap.")
+    wave.add_argument("--timeout", type=int, required=True, help="Positive compiler timeout in seconds.")
+    wave.add_argument("--admission-json", help="Internal frozen compiler contract supplied by dashboard admission.")
 
     synth = sub.add_parser("source-parity-synthesize", help="Generate and objdiff-gate source candidates from a recovery queue.")
     synth.long_running = True
@@ -1020,6 +1042,15 @@ def run_compiler_profile_corpus(args: argparse.Namespace) -> int:
         "--timeout",
         str(args.timeout),
     ]
+    if args.profile_path is not None:
+        argv.extend(["--profile-path", str(args.profile_path.resolve())])
+    if args.program_fingerprint is not None:
+        argv.extend(["--program-fingerprint", args.program_fingerprint])
+    if args.architecture is not None:
+        argv.extend(["--architecture", args.architecture])
+    for option, value in (("--probe-inventory", args.probe_inventory), ("--target-receipt", args.target_receipt)):
+        if value is not None:
+            argv.extend([option, str(value.resolve())])
     if args.select_only:
         argv.append("--select-only")
     if args.clean:
@@ -1418,6 +1449,12 @@ def main(argv: list[str] | None = None, prog: str | None = None) -> int:
         return run_sweep_package(args)
     if args.command == "compiler-profile-corpus":
         return run_compiler_profile_corpus(args)
+    if args.command == "candidate-wave":
+        from .corpus.candidate_wave import run_catalog_candidate_wave
+        result = run_catalog_candidate_wave({key.replace('_', '-'): value
+            for key, value in vars(args).items() if key != 'command'})
+        print(json.dumps(result, indent=2, sort_keys=True))
+        return 1 if result.get('stopReason') or result.get('resourceClearanceRequired') else 0
     if args.command == "source-parity-synthesize":
         return run_source_parity_synthesize(args)
     if args.command == "source-plugin-pipeline":

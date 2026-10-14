@@ -58,6 +58,137 @@ def _compiler(profile: dict[str, Any]) -> str | None:
     return str(path) if path.is_file() else shutil.which(value)
 
 
+def _usable_target_profile(profile: dict[str, Any], checkpoint: dict[str, Any]) -> bool:
+    return bool(
+        _compiler(profile)
+        and str(profile.get('programFingerprint') or '').strip().lower()
+        == str(checkpoint.get('programFingerprint') or '').strip().lower()
+        and checkpoint.get('programFingerprint')
+        and str(profile.get('architecture') or '').strip().casefold()
+        == str(checkpoint.get('architecture') or '').strip().casefold()
+        and checkpoint.get('architecture')
+    )
+
+
+def _inventory_receipt_valid(receipt: dict[str, Any], script: Path, checkpoint: dict[str, Any], program: str,
+                             discovered_path: Path | None = None) -> bool:
+    try:
+        published_path = Path(receipt['receiptPath'])
+        token = published_path.name.removesuffix('.receipt.json')
+        if (len(token) != 32 or any(char not in '0123456789abcdef' for char in token)
+                or published_path.name != token + '.receipt.json'
+                or (discovered_path is not None and discovered_path.resolve() != published_path.resolve())
+                or not published_path.is_file() or read_object(published_path) != receipt):
+            return False
+        return bool(
+            receipt.get('complete') is True and receipt.get('program') == program
+            and receipt.get('programFingerprint') == checkpoint.get('programFingerprint')
+            and receipt.get('architecture') == checkpoint.get('architecture')
+            and receipt.get('scriptSha256') == hashlib.sha256(script.read_bytes()).hexdigest()
+            and receipt.get('inventorySha256') == hashlib.sha256(Path(receipt['inventoryPath']).read_bytes()).hexdigest()
+        )
+    except (OSError, KeyError, TypeError):
+        return False
+
+
+def _export_calibration_inventory(work: Path, root: Path, checkpoint: dict[str, Any],
+                                  program: str, execution_program: str, context: dict[str, Any],
+                                  action: Callable[..., dict[str, Any]]) -> dict[str, Any]:
+    """Export canonical rows through the existing owned JVM and durable action."""
+    script = root / 'scripts' / 'ghidra' / 'ExportFunctionInventory.java'
+    if not script.is_file():
+        # Installed recovery packages may run with a different corpus root.
+        script = Path(__file__).resolve().parents[4] / 'scripts' / 'ghidra' / 'ExportFunctionInventory.java'
+    if not script.is_file():
+        return {'ok': False, 'error': 'Canonical function inventory exporter is unavailable.'}
+    directory = work / 'calibration-input'
+    for path in sorted(directory.glob('*.receipt.json')):
+        if '.partial.' in path.name:
+            continue
+        receipt = read_object(path)
+        if _inventory_receipt_valid(receipt, script, checkpoint, program, discovered_path=path):
+            return {'ok': True, 'data': receipt, 'receiptPath': str(path)}
+    config = {'script': str(script), 'scriptSha256': hashlib.sha256(script.read_bytes()).hexdigest(),
+              'directory': str(directory), 'program': program,
+              'programFingerprint': checkpoint.get('programFingerprint'),
+              'architecture': checkpoint.get('architecture')}
+    exported = action('calibration-inventory-export', 'mcp.execute-script', {
+        'programPath': execution_program,
+        'code': calibration_inventory_script(config), 'timeout': 180,
+    }, context)
+    receipt = exported.get('data') or {}
+    if not exported.get('ok') or not isinstance(receipt, dict) or not _inventory_receipt_valid(receipt, script, checkpoint, program):
+        return {'ok': False, 'error': exported.get('error') or
+                'Calibration inventory receipt is missing, incomplete, or no longer matches its inputs.',
+                'jobId': exported.get('jobId')}
+    published = read_object(Path(str(receipt.get('receiptPath') or '')))
+    if published != receipt:
+        return {'ok': False, 'error': 'Calibration inventory receipt was not completely published.'}
+    return {'ok': True, 'data': receipt, 'receiptPath': receipt['receiptPath']}
+
+
+def calibration_inventory_script(config: dict[str, Any]) -> str:
+    return 'import json\nconfig = json.loads(' + repr(json.dumps(config)) + ')\n' + r'''
+import hashlib, uuid, os
+from pathlib import Path
+fingerprint = str(currentProgram.getExecutableMD5() or '').strip().lower()
+architecture = str(currentProgram.getLanguageID())
+if not config['programFingerprint'] or fingerprint != str(config['programFingerprint']).strip().lower():
+    raise RuntimeError('Owned program fingerprint differs from the calibration checkpoint.')
+if not config['architecture'] or architecture != config['architecture']:
+    raise RuntimeError('Owned program architecture differs from the calibration checkpoint.')
+script = Path(config['script'])
+if hashlib.sha256(script.read_bytes()).hexdigest() != config['scriptSha256']:
+    raise RuntimeError('Canonical inventory exporter changed before execution.')
+directory = Path(config['directory'])
+directory.mkdir(parents=True, exist_ok=True)
+token = uuid.uuid4().hex
+staging = directory / (token + '.partial.jsonl')
+inventory = directory / (token + '.jsonl')
+receipt_path = directory / (token + '.receipt.json')
+receipt_staging = directory / (token + '.partial.receipt.json')
+diagnostics = run_ghidra_script_on_program(str(script), [str(staging)])
+monitor.checkCancelled()
+if 'ExportFunctionInventory COMPLETE ' not in diagnostics['stdout']:
+    raise RuntimeError('Canonical inventory exporter did not signal completion.')
+if not staging.is_file():
+    raise RuntimeError('Canonical inventory output is missing.')
+count = 0
+with staging.open() as stream:
+    for line in stream:
+        monitor.checkCancelled()
+        row = json.loads(line)
+        if not isinstance(row, dict) or not all(key in row for key in ('bodyRanges', 'bytes', 'entryOffset', 'bodyBytes')):
+            raise RuntimeError('Canonical inventory row is incomplete.')
+        count += 1
+if count != int(currentProgram.getFunctionManager().getFunctionCount()):
+    raise RuntimeError('Canonical inventory did not include every function.')
+if str(currentProgram.getExecutableMD5() or '').strip().lower() != fingerprint or str(currentProgram.getLanguageID()) != architecture:
+    raise RuntimeError('Owned program identity changed during inventory export.')
+if hashlib.sha256(script.read_bytes()).hexdigest() != config['scriptSha256']:
+    raise RuntimeError('Canonical inventory exporter changed during execution.')
+monitor.checkCancelled()
+with staging.open('rb') as stream:
+    os.fsync(stream.fileno())
+staging.rename(inventory)
+receipt = {'complete': True, 'program': config['program'],
+           'ownedProgramName': str(currentProgram.getName()),
+           'programFingerprint': config['programFingerprint'], 'architecture': architecture,
+           'inventoryPath': str(inventory),
+           'inventorySha256': hashlib.sha256(inventory.read_bytes()).hexdigest(),
+           'scriptPath': str(script), 'scriptSha256': config['scriptSha256'],
+           'receiptPath': str(receipt_path), 'functionCount': count, 'diagnostics': diagnostics}
+monitor.checkCancelled()
+with receipt_staging.open('x') as stream:
+    json.dump(receipt, stream, sort_keys=True)
+    stream.flush()
+    os.fsync(stream.fileno())
+monitor.checkCancelled()
+receipt_staging.rename(receipt_path)
+__result__ = json.dumps(receipt)
+'''
+
+
 def _known_source_examples(work: Path, root: Path, slug: str) -> Path | None:
     """Find only a pre-existing, verified candidate/target probe corpus."""
     candidates = (
@@ -217,7 +348,13 @@ def continue_recovery(row: dict[str, Any], root: Path, db: Path,
                    'slug': checkpoint.get('slug') or '', 'repo': checkpoint.get('repoPath') or ''}
 
         def result(key: str, status: str, reason: str, **details: Any) -> None:
-            checkpoint.setdefault('workflow', {})[key] = {'status': status, 'reason': reason, 'updatedAt': time.time(), **details}
+            workflow = checkpoint.setdefault('workflow', {})
+            retained = {}
+            if key == 'calibrate-global':
+                prior = workflow.get(key, {})
+                retained = {field: prior[field] for field in ('calibrationInventory', 'calibrationOutputDir')
+                            if field in prior}
+            workflow[key] = {'status': status, 'reason': reason, 'updatedAt': time.time(), **retained, **details}
             commit_checkpoint({'name': 'stage-outcome', 'stage': key, 'values': checkpoint['workflow'][key]})
             completed, _, _ = aggregate(key)
             update(key, 'running', f'{program}: {reason}', completed=completed, total=len(all_programs),
@@ -308,6 +445,21 @@ def continue_recovery(row: dict[str, Any], root: Path, db: Path,
         profile_admission: dict[str, Any] | None = None
         if configured:
             profile_path = Path(configured).expanduser()
+        candidate_profile = read_object(profile_path)
+        if not configured and not _usable_target_profile(candidate_profile, checkpoint):
+            candidate_profile = read_object(root / 'compiler-profile.json')
+        if original_target is not None and not _usable_target_profile(candidate_profile, checkpoint):
+            inventory_export = _export_calibration_inventory(
+                work, root, checkpoint, program, execution_program, context, action,
+            )
+            result('calibrate-global', 'partial' if inventory_export['ok'] else 'blocked',
+                   'Canonical calibration inventory exported from the owned analyzed program.'
+                   if inventory_export['ok'] else inventory_export['error'],
+                   calibrationInventory=inventory_export,
+                   calibrationOutputDir=str(work / 'compiler-calibration'))
+            if not inventory_export['ok']:
+                block_after('recover-source', 'Waiting for complete target-bound calibration inventory.')
+                continue
         header = work / 'ghidra_types.h'
         layout_config = {'db': str(db), 'binaryId': checkpoint['binaryId'], 'program': program, 'header': str(header)}
         exported_types = action('calibrate-global', 'mcp.execute-script', {'programPath': execution_program, '_preparationProbe': True, 'code': layout_script(layout_config), 'timeout': 180}, context)
@@ -355,7 +507,14 @@ def continue_recovery(row: dict[str, Any], root: Path, db: Path,
         calibration = action('calibrate-global', 'corpus.calibrate-global', fields, context)
         calibration_receipt = read_object(work / 'calibrate-global.json')
         compiler = _compiler(profile)
-        target_bound = (profile.get('programFingerprint') and profile['programFingerprint'] == checkpoint.get('programFingerprint')) or (profile.get('architecture') and profile['architecture'] == checkpoint.get('architecture'))
+        profile_fingerprint = str(profile.get('programFingerprint') or '').strip().lower()
+        target_fingerprint = str(checkpoint.get('programFingerprint') or '').strip().lower()
+        profile_architecture = str(profile.get('architecture') or '').strip().casefold()
+        target_architecture = str(checkpoint.get('architecture') or '').strip().casefold()
+        target_bound = bool(
+            profile_fingerprint and profile_fingerprint == target_fingerprint
+            and (not profile_architecture or profile_architecture == target_architecture)
+        )
         if not target_bound:
             compiler = None
         if not calibration['ok'] or calibration_receipt.get('state') != 'done' or not compiler:
@@ -363,7 +522,7 @@ def continue_recovery(row: dict[str, Any], root: Path, db: Path,
             if not profile:
                 compiler_gap = (str(profile_admission.get('reason') or '') if profile_admission else '') or 'Target compiler profile missing: installed compilers do not establish this binary\'s compiler, flags, or ABI.'
             elif not target_bound:
-                compiler_gap = 'Compiler profile is not bound to this target fingerprint or architecture.'
+                compiler_gap = 'Compiler profile must match this executable fingerprint; matching architecture alone is insufficient.'
             elif not compiler:
                 compiler_gap = 'Configured compiler script is unavailable.'
             else:

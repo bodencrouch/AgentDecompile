@@ -40,6 +40,15 @@ SOURCE = ("wine master 4e819f05 (2026-09-25): dlls/ntdll/unix/server.c init_serv
           "server/request.c create_dir, create_server_dir, create_server_lock, acquire_lock, "
           "socket_cleanup, kill_lock_owner")
 
+
+def prefix_identity(prefix: str | os.PathLike[str]) -> dict:
+    """Capture an existing canonical owned directory; never provision Wine."""
+    path = os.path.realpath(os.fspath(prefix))
+    st = os.stat(path)
+    if not stat.S_ISDIR(st.st_mode) or st.st_uid != os.getuid():
+        raise ValueError("Calibration prefix must be an existing owned directory")
+    return {"prefix": path, "uid": st.st_uid, "dev": f"{st.st_dev:x}", "ino": f"{st.st_ino:x}"}
+
 # Linux x86_64/aarch64 ``struct flock``: short l_type, short l_whence, off_t
 # l_start, off_t l_len, pid_t l_pid, padded to 32 bytes.
 _FLOCK = "hhqqi"

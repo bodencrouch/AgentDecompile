@@ -17,6 +17,8 @@ import subprocess
 import shutil
 import inspect
 import tempfile
+import time
+from contextlib import contextmanager
 from collections import Counter, defaultdict
 from typing import Iterable
 
@@ -66,6 +68,45 @@ typedef unsigned long long undefined8;
 typedef unsigned int uint;
 typedef unsigned long ulong;
 """
+
+
+@dataclasses.dataclass(frozen=True)
+class CompilerBinding:
+    """Explicit wrapper invocation and fallback source context."""
+
+    executable: pathlib.Path
+    environment_overrides: dict[str, str] = dataclasses.field(default_factory=dict)
+    argument_protocol: str = "source-output-symbol"
+    fallback_preamble: str = ""
+
+
+def normalize_compiler_binding(compiler, env_overrides=None) -> CompilerBinding:
+    """Adapt legacy paths/tuples once; explicit bindings never infer context."""
+    if isinstance(compiler, CompilerBinding):
+        binding = dataclasses.replace(
+            compiler, executable=pathlib.Path(compiler.executable),
+            environment_overrides={**compiler.environment_overrides, **(env_overrides or {})},
+        )
+    else:
+        if isinstance(compiler, tuple):
+            compiler, legacy_environment = compiler
+            env_overrides = {**(legacy_environment or {}), **(env_overrides or {})}
+        executable = pathlib.Path(compiler)
+        binding = CompilerBinding(
+            executable=executable,
+            environment_overrides=dict(env_overrides or {}),
+            fallback_preamble=MS_PREAMBLE if "msvc" in executable.name else GNU_PREAMBLE,
+        )
+    if binding.argument_protocol not in ("source-output", "source-output-symbol"):
+        raise ValueError(f"unsupported compiler argument protocol: {binding.argument_protocol!r}")
+    if not isinstance(binding.fallback_preamble, str):
+        raise ValueError("compiler fallback preamble must be a string")
+    return binding
+
+
+def compiler_preamble(seed: Seed, evidence_root: pathlib.Path, binding: CompilerBinding) -> str:
+    context = source_context(seed, evidence_root)
+    return context if context is not None else binding.fallback_preamble
 
 
 @dataclasses.dataclass(frozen=True)
@@ -205,6 +246,90 @@ def mask_relocations(data: bytes, relocations: Iterable[dict]) -> bytes:
     return bytes(masked)
 
 
+@dataclasses.dataclass(frozen=True)
+class DestinationArtifacts:
+    """Declared destination identities; image authority remains caller-owned."""
+
+    destination_repo: str
+    destination_address: str
+    size: int
+    original_image_sha256: str
+    region_sha256: str
+    object_path: pathlib.Path
+    object_sha256: str
+    spec_path: pathlib.Path
+    spec_sha256: str
+    reference_policy: str
+
+
+def resolve_target_artifacts(seed: Seed, root: pathlib.Path, *,
+                             destination_artifacts: DestinationArtifacts | None = None,
+                             target: bytes | None = None) -> tuple[pathlib.Path | None, list[dict], dict | None]:
+    """One owner for explicit execution and fingerprint inputs; never fall back on error."""
+    if destination_artifacts is None:
+        obj, relocations = source_target_artifacts(seed, root)
+        return obj, relocations, None
+    declared = destination_artifacts
+    if not isinstance(declared, DestinationArtifacts):
+        raise ValueError('destination_binding_invalid_type')
+    if (declared.destination_repo != seed.destination_repo
+            or not isinstance(declared.destination_address, str)
+            or declared.destination_address != normalize_address(seed.destination_address)
+            or type(declared.size) is not int or declared.size <= 0 or declared.size != seed.size):
+        raise ValueError('destination_binding_seed_mismatch')
+    for name in ('original_image_sha256', 'region_sha256', 'object_sha256', 'spec_sha256'):
+        if not isinstance(getattr(declared, name), str) or not re.fullmatch('[0-9a-f]{64}', getattr(declared, name)):
+            raise ValueError('destination_binding_invalid_' + name)
+    if not isinstance(declared.reference_policy, str) or not declared.reference_policy.strip():
+        raise ValueError('destination_binding_reference_policy_missing')
+    if target is not None and (len(target) != declared.size
+            or hashlib.sha256(target).hexdigest() != declared.region_sha256):
+        raise ValueError('destination_binding_region_mismatch')
+    identities = {}
+    blobs = {}
+    for role in ('object', 'spec'):
+        path = pathlib.Path(getattr(declared, role + '_path'))
+        if not path.is_absolute():
+            raise ValueError('destination_' + role + '_path_not_absolute')
+        try:
+            resolved = path.resolve(strict=True)
+            before = resolved.stat()
+            if not resolved.is_file():
+                raise ValueError('destination_' + role + '_not_file')
+            blob = resolved.read_bytes()
+            after = resolved.stat()
+        except OSError as exc:
+            raise ValueError('destination_' + role + '_unavailable') from exc
+        identity = lambda stat: (stat.st_dev, stat.st_ino, stat.st_size, stat.st_mtime_ns, stat.st_ctime_ns)
+        if identity(before) != identity(after) or path.resolve(strict=True) != resolved:
+            raise ValueError('destination_' + role + '_changed_during_read')
+        if hashlib.sha256(blob).hexdigest() != getattr(declared, role + '_sha256'):
+            raise ValueError('destination_' + role + '_hash_mismatch')
+        identities[role] = {'path': str(resolved), 'sha256': getattr(declared, role + '_sha256'),
+                            'stat': identity(after)}
+        blobs[role] = blob
+    try:
+        spec = json.loads(blobs['spec'])
+        relocations = spec.get('relocations', [])
+        if not isinstance(spec, dict) or not isinstance(relocations, list):
+            raise ValueError()
+        for relocation in relocations:
+            if (not isinstance(relocation, dict)
+                    or type(relocation.get('immOffset')) is not int
+                    or type(relocation.get('immSize')) is not int
+                    or relocation['immOffset'] < 0 or relocation['immSize'] <= 0
+                    or relocation['immOffset'] + relocation['immSize'] > declared.size):
+                raise ValueError()
+    except (ValueError, TypeError, AttributeError) as exc:
+        raise ValueError('destination_spec_invalid_relocations') from exc
+    receipt = {'destinationRepo': declared.destination_repo, 'destinationAddress': declared.destination_address,
+               'size': declared.size, 'originalImageSha256': declared.original_image_sha256,
+               'regionSha256': declared.region_sha256, 'object': identities['object'],
+               'spec': identities['spec'], 'referencePolicy': declared.reference_policy,
+               'relocations': relocations, 'authority': 'caller-declared-destination-reference'}
+    return pathlib.Path(identities['object']['path']), relocations, receipt
+
+
 def objdiff_only_coff_symbol_decoration(output: str) -> bool:
     """Accept objdiff differences caused only by MSVC's leading global underscore."""
     pattern = re.compile(
@@ -321,13 +446,16 @@ COMPILE_RESULT_FIELDS = (
 )
 
 
-def compile_basis(seed: Seed, compiler: pathlib.Path, evidence_root: pathlib.Path,
+def compile_basis(seed: Seed, compiler: pathlib.Path | CompilerBinding, evidence_root: pathlib.Path,
                   manifest=None, env_overrides=None, *, objdiff_check=None,
-                  coff_functions=None, elf_symbol_bytes=None) -> tuple[dict, str, dict]:
+                  coff_functions=None, elf_symbol_bytes=None,
+                  destination_artifacts: DestinationArtifacts | None = None,
+                  frozen_preamble: str | None = None) -> tuple[dict, str, dict]:
     """Fingerprint observed inputs; closure completeness is a caller declaration."""
-    preamble = source_context(seed, evidence_root) or (
-        MS_PREAMBLE if "msvc" in compiler.name else GNU_PREAMBLE)
-    environment = {**os.environ, **(env_overrides or {})}
+    binding = normalize_compiler_binding(compiler, env_overrides)
+    compiler = binding.executable
+    preamble = frozen_preamble if frozen_preamble is not None else compiler_preamble(seed, evidence_root, binding)
+    environment = {**os.environ, **binding.environment_overrides}
     complete, reason, dependencies, declared = False, 'manifest_not_supplied', [], {}
     try:
         if manifest is not None:
@@ -354,9 +482,9 @@ def compile_basis(seed: Seed, compiler: pathlib.Path, evidence_root: pathlib.Pat
     except OSError:
         wrapper_hash = None
         complete, reason = False, 'compiler_unreadable'
-    target_object, relocations = source_target_artifacts(seed, evidence_root)
-    target_inputs = None
-    if target_object is not None:
+    target_object, relocations, target_inputs = resolve_target_artifacts(
+        seed, evidence_root, destination_artifacts=destination_artifacts)
+    if target_object is not None and destination_artifacts is None:
         spec_path = target_object.parent / 'specs' / (target_object.stem + '.json')
         try:
             target_inputs = {'path': str(target_object.resolve()),
@@ -397,6 +525,7 @@ def compile_basis(seed: Seed, compiler: pathlib.Path, evidence_root: pathlib.Pat
     # Hash every actually passed environment value, a conservative superset of
     # selected relevant/declared names. No raw environment values enter receipts.
     material = {'wrapper': wrapper_hash, 'compiler': str(compiler.resolve()),
+                'argumentProtocol': binding.argument_protocol,
                 'cwd': str(pathlib.Path.cwd().resolve()), 'targetArtifacts': target_inputs,
                 'objectParsers': parser_inputs, 'objectVerifier': verifier_inputs,
                 'preamble': hashlib.sha256(preamble.encode('utf-8')).hexdigest(),
@@ -406,11 +535,14 @@ def compile_basis(seed: Seed, compiler: pathlib.Path, evidence_root: pathlib.Pat
                 'comparisonPolicy': 'raw-region-v1'}
     return ({'key': hashlib.sha256(json.dumps(material, sort_keys=True).encode()).hexdigest(),
              'closureComplete': complete, 'closureReason': reason,
-             'closureProof': 'explicit-declaration-not-automatically-proven'}, preamble, environment)
+             'closureProof': 'explicit-declaration-not-automatically-proven',
+             **({'destinationArtifacts': target_inputs} if destination_artifacts is not None else {})}, preamble, environment)
 
 
 def can_reuse_compile_result(current: dict, previous: dict | None) -> bool:
     if not previous or previous.get("compile_status") != "byte_exact" or previous.get("comparisonPolicy") != "raw-region-v1":
+        return False
+    if previous.get("objdiff_verified") is not True or previous.get("objdiff_symbol_normalized"):
         return False
     basis, prior_basis = current.get('compileBasis'), previous.get('compileBasis')
     if (not isinstance(basis, dict) or not isinstance(prior_basis, dict)
@@ -435,12 +567,48 @@ def can_reuse_compile_result(current: dict, previous: dict | None) -> bool:
     return all(current.get(key) == previous.get(key) for key in keys)
 
 
+@contextmanager
+def _compile_artifacts(directory, execution):
+    """Claim a fresh retained directory or preserve legacy temporary cleanup."""
+    started = time.monotonic()
+    temporary = None
+    if directory is None:
+        temporary = tempfile.TemporaryDirectory(prefix="ad-seed-")
+        root = pathlib.Path(temporary.name)
+    else:
+        root = pathlib.Path(directory)
+        if not root.is_absolute():
+            raise ValueError('compile_artifact_directory_not_absolute')
+        root.mkdir(exist_ok=False)
+        execution['artifactDirectory'] = str(root)
+    try:
+        yield root
+    finally:
+        execution['elapsedSeconds'] = time.monotonic() - started
+        if temporary is None:
+            with (root / 'execution.json').open('x', encoding='utf-8') as handle:
+                json.dump(execution, handle, indent=2, sort_keys=True)
+        else:
+            temporary.cleanup()
+
+
+def _compile_file_snapshot(path):
+    """One stable blob supplies both parser input and retained-file identity."""
+    before = path.stat()
+    blob = path.read_bytes()
+    after = path.stat()
+    stamp = lambda info: (info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns, info.st_ctime_ns)
+    if stamp(before) != stamp(after) or not path.is_file() or path.is_symlink():
+        raise ValueError('compile_artifact_changed_during_read: ' + path.name)
+    return blob, {'sha256': hashlib.sha256(blob).hexdigest(), 'stat': list(stamp(after))}
+
+
 def compile_seed(
     slug: str,
     seed: Seed,
     target: bytes,
     *,
-    compiler: pathlib.Path,
+    compiler: pathlib.Path | CompilerBinding,
     evidence_root: pathlib.Path,
     objdiff_check: pathlib.Path | None = None,
     env_overrides: dict[str, str] | None = None,
@@ -448,30 +616,114 @@ def compile_seed(
     elf_symbol_bytes=None,
     frozen_preamble: str | None = None,
     frozen_environment: dict | None = None,
+    destination_artifacts: DestinationArtifacts | None = None,
+    artifact_directory: pathlib.Path | None = None,
+    compiler_timeout: int = 120,
 ) -> dict:
-    preamble = frozen_preamble if frozen_preamble is not None else source_context(seed, evidence_root) or (
-        MS_PREAMBLE if "msvc" in compiler.name else GNU_PREAMBLE
-    )
-    with tempfile.TemporaryDirectory(prefix="ad-seed-") as td:
-        tmp = pathlib.Path(td)
+    if type(compiler_timeout) is not int or compiler_timeout <= 0:
+        raise ValueError('compiler_timeout_must_be_positive_integer')
+    binding = normalize_compiler_binding(compiler, env_overrides)
+    try:
+        target_object, relocations, target_receipt = resolve_target_artifacts(
+            seed, evidence_root, destination_artifacts=destination_artifacts, target=target)
+    except (ValueError, TypeError, OSError) as exc:
+        return {'compile_status': 'destination_artifacts_invalid', 'compile_detail': str(exc)}
+    def recheck_destination():
+        if destination_artifacts is not None:
+            _, _, current = resolve_target_artifacts(seed, evidence_root,
+                destination_artifacts=destination_artifacts, target=target)
+            if current != target_receipt:
+                raise ValueError('destination_artifacts_identity_changed')
+    artifact_receipt = ({'destinationArtifacts': target_receipt}
+                        if destination_artifacts is not None else {})
+    if target_object is None or objdiff_check is None or not pathlib.Path(objdiff_check).is_file():
+        return {
+            "compile_status": "verifier_unavailable",
+            "compile_detail": "A target object and objdiff checker are required before compilation.",
+            **artifact_receipt,
+        }
+    preamble = frozen_preamble if frozen_preamble is not None else compiler_preamble(seed, evidence_root, binding)
+    execution = {'compilerSucceeded': False, 'compilerSeconds': None, 'objdiffSeconds': None,
+                 'compilerTimeoutSeconds': compiler_timeout}
+    artifact_receipt['execution'] = execution
+    with _compile_artifacts(artifact_directory, execution) as tmp:
         source = tmp / "seed.c"
         obj = tmp / "seed.o"
-        source.write_text(preamble + "\n" + seed.payload)
+        translation_unit = (preamble + "\n" + seed.payload).encode('utf-8')
+        with source.open('xb') as handle:
+            handle.write(translation_unit)
+        _, source_identity = _compile_file_snapshot(source)
+        if source_identity['sha256'] != hashlib.sha256(translation_unit).hexdigest():
+            return {'compile_status': 'consumed_artifacts_changed',
+                    'compile_detail': 'compile_source_differs_from_frozen_translation_unit', **artifact_receipt}
+        execution['sourceSha256'] = source_identity['sha256']
+        execution['sourceIdentity'] = source_identity
+        object_identity = None
+        def recheck_compiled_artifacts():
+            for path, expected in ((source, source_identity), (obj, object_identity)):
+                if expected is None:
+                    continue
+                try:
+                    _, current = _compile_file_snapshot(path)
+                except (ValueError, OSError) as exc:
+                    raise ValueError('compile_artifact_identity_changed: ' + path.name) from exc
+                if current != expected:
+                    raise ValueError('compile_artifact_identity_changed: ' + path.name)
         env = dict(frozen_environment) if frozen_environment is not None else os.environ.copy()
         if frozen_environment is None:
-            env.update(env_overrides or {})
+            env.update(binding.environment_overrides)
+        argv = [str(binding.executable), str(source), str(obj)]
+        if binding.argument_protocol == "source-output-symbol":
+            argv.append(seed.defined_name)
         try:
+            recheck_destination()
+            recheck_compiled_artifacts()
+        except (ValueError, TypeError, OSError) as exc:
+            return {'compile_status': 'destination_artifacts_invalid', 'compile_detail': str(exc), **artifact_receipt}
+        try:
+            compiler_started = time.monotonic()
             run = subprocess.run(
-                [str(compiler), str(source), str(obj), seed.defined_name],
-                capture_output=True, text=True, env=env, timeout=120,
+                argv,
+                capture_output=True, text=True, env=env, timeout=compiler_timeout,
             )
-        except subprocess.TimeoutExpired:
-            return {"compile_status": "timeout"}
+        except subprocess.TimeoutExpired as exc:
+            execution['timedOutStage'] = 'compiler'
+            execution['resourceClearanceRequired'] = True
+            execution['resourceClearanceReason'] = 'outer_compiler_timeout'
+            execution['compilerSeconds'] = time.monotonic() - compiler_started
+            for role, output in (('stdout', exc.stdout), ('stderr', exc.stderr)):
+                (tmp / ('compiler.' + role + '.txt')).write_bytes(
+                    output if isinstance(output, bytes) else (output or '').encode('utf-8'))
+            return {"compile_status": "timeout", **artifact_receipt}
+        except OSError as exc:
+            execution['compilerSeconds'] = time.monotonic() - compiler_started
+            (tmp / 'compiler.stderr.txt').write_text(str(exc), encoding='utf-8')
+            return {'compile_status': 'compiler_unavailable', 'compile_detail': str(exc), **artifact_receipt}
+        execution.update(compilerSeconds=time.monotonic() - compiler_started,
+                         compilerReturnCode=run.returncode,
+                         compilerSucceeded=run.returncode == 0 and obj.is_file())
+        if run.returncode == 124:
+            execution.update(timedOutStage='compiler', resourceClearanceRequired=True,
+                             resourceClearanceReason='wrapped_compiler_timeout')
+        elif run.returncode < 0 or 128 <= run.returncode <= 192:
+            execution.update(resourceClearanceRequired=True,
+                             resourceClearanceReason='compiler_signal_termination_uncertain')
+        for role in ('stdout', 'stderr'):
+            (tmp / ('compiler.' + role + '.txt')).write_text(getattr(run, role) or '', encoding='utf-8')
+        blob = None
+        try:
+            recheck_destination()
+            recheck_compiled_artifacts()
+            if obj.is_file():
+                blob, object_identity = _compile_file_snapshot(obj)
+                execution['objectSha256'] = object_identity['sha256']
+                execution['objectIdentity'] = object_identity
+        except (ValueError, TypeError, OSError) as exc:
+            return {'compile_status': 'consumed_artifacts_changed', 'compile_detail': str(exc), **artifact_receipt}
         if run.returncode != 0 or not obj.exists():
             detail = ((run.stdout or "") + (run.stderr or ""))[-800:]
-            return {"compile_status": "failed", "compile_detail": detail}
+            return {"compile_status": "failed", "compile_detail": detail, **artifact_receipt}
         try:
-            blob = obj.read_bytes()
             if blob[:4] == b"\x7fELF":
                 if elf_symbol_bytes is None:
                     raise LookupError("elf_symbol_bytes helper is required")
@@ -482,8 +734,7 @@ def compile_seed(
                 symbols = coff_functions(blob, prefix="")
             object_name, compiled = select_object_symbol(symbols, seed.defined_name)
         except Exception as exc:
-            return {"compile_status": "object_unreadable", "compile_detail": str(exc)}
-        target_object, relocations = source_target_artifacts(seed, evidence_root)
+            return {"compile_status": "object_unreadable", "compile_detail": str(exc), **artifact_receipt}
         objdiff_verified = False
         diff_return = 0
         if target_object is not None:
@@ -491,22 +742,54 @@ def compile_seed(
                 return {
                     "compile_status": "verifier_unavailable",
                     "compile_detail": "objdiff checker path is required",
+                    **artifact_receipt,
                 }
             try:
+                diff_started = time.monotonic()
+                recheck_destination()
+                recheck_compiled_artifacts()
                 diff = subprocess.run(
                     [shutil.which("node", path=env.get("PATH")) or "node", str(objdiff_check), str(obj), str(target_object), object_name],
                     capture_output=True, text=True, timeout=60, env=env,
                 )
+                execution.update(objdiffSeconds=time.monotonic() - diff_started,
+                                 objdiffReturnCode=diff.returncode)
+                if diff.returncode == 124 or diff.returncode < 0 or 128 <= diff.returncode <= 192:
+                    execution.update(resourceClearanceRequired=True,
+                                     resourceClearanceReason='objdiff_termination_uncertain')
+                for role in ('stdout', 'stderr'):
+                    (tmp / ('objdiff.' + role + '.txt')).write_text(getattr(diff, role) or '', encoding='utf-8')
+                recheck_destination()
+                recheck_compiled_artifacts()
+            except (ValueError, TypeError) as exc:
+                return {'compile_status': 'consumed_artifacts_changed', 'compile_detail': str(exc), **artifact_receipt}
             except (OSError, subprocess.TimeoutExpired) as exc:
-                return {"compile_status": "verifier_unavailable", "compile_detail": str(exc)}
+                execution['objdiffSeconds'] = time.monotonic() - diff_started
+                (tmp / 'objdiff.error.txt').write_text(str(exc), encoding='utf-8')
+                if isinstance(exc, subprocess.TimeoutExpired):
+                    execution['timedOutStage'] = 'objdiff'
+                    execution.update(resourceClearanceRequired=True, resourceClearanceReason='objdiff_timeout')
+                    for role in ('stdout', 'stderr'):
+                        output = getattr(exc, role)
+                        (tmp / ('objdiff.' + role + '.txt')).write_bytes(
+                            output if isinstance(output, bytes) else (output or '').encode('utf-8'))
+                return {"compile_status": "verifier_unavailable", "compile_detail": str(exc), **artifact_receipt}
             diff_output = (diff.stdout or "") + (diff.stderr or "")
             diff_return = diff.returncode
-            if diff.returncode != 0 and not objdiff_only_coff_symbol_decoration(diff_output):
+            if diff.returncode != 0:
                 return {
                     "compile_status": "object_mismatch",
                     "compile_detail": diff_output[-1200:],
+                    "objdiff_verified": False,
+                    "objdiff_symbol_normalized": objdiff_only_coff_symbol_decoration(diff_output),
+                    **artifact_receipt,
                 }
             objdiff_verified = True
+        try:
+            recheck_destination()
+            recheck_compiled_artifacts()
+        except (ValueError, TypeError, OSError) as exc:
+            return {'compile_status': 'consumed_artifacts_changed', 'compile_detail': str(exc), **artifact_receipt}
         exact = bool(target) and compiled == target
         normalized_match = len(compiled) == len(target) and (
             mask_relocations(compiled, relocations) == mask_relocations(target, relocations)
@@ -522,6 +805,7 @@ def compile_seed(
             ),
             "relocations_masked": len(relocations),
             "compiled_bytes": compiled[:max(len(target), min(len(compiled), 64))].hex(),
+            **artifact_receipt,
         }
 
 
@@ -545,7 +829,27 @@ def audit(
     coff_functions=None,
     elf_symbol_bytes=None,
 ) -> dict:
+    compile_destinations = compile_destinations or retry_failed_only
+    if compile_destinations:
+        prerequisites = {
+            "raw_dir": raw_dir is not None,
+            "mapper_for": callable(mapper_for),
+            "compiler_for": callable(compiler_for),
+            "evidence_root": evidence_root is not None,
+            "object parser": callable(coff_functions) or callable(elf_symbol_bytes),
+        }
+        missing = [name for name, supplied in prerequisites.items() if not supplied]
+        if missing:
+            raise ValueError(
+                "Destination compilation requires explicit target/toolchain inputs: "
+                + ", ".join(missing)
+                + ". No candidates were read or results written."
+            )
     candidate_rows = read_jsonl(pathlib.Path(candidates_path))
+    candidate_index = {
+        (r["src_program"], r["src_name"], r["dst_slug"], normalize_address(r["dst_addr"]))
+        for r in candidate_rows
+    }
     groups = group_candidates(candidate_rows)
     reuse = build_reuse_index(pathlib.Path(reuse_path))
     verified_coverage = (
@@ -592,11 +896,7 @@ def audit(
             candidate_key = (
                 source_program, source.stem, slug, seed.destination_address
             )
-            result["candidate_manifest_match"] = candidate_key in {
-                (r["src_program"], r["src_name"], r["dst_slug"],
-                 normalize_address(r["dst_addr"]))
-                for r in candidate_rows
-            }
+            result["candidate_manifest_match"] = candidate_key in candidate_index
             result["destination_group_candidates"] = len(
                 groups.get((slug, seed.destination_address), [])
             )
@@ -615,8 +915,8 @@ def audit(
                 )
             else:
                 target = b""
-                result["destination_bytes"] = seed.source_original_bytes.hex()
-                result["source_bytes_match_destination"] = True
+                result["destination_bytes"] = None
+                result["source_bytes_match_destination"] = None
             links = reuse.get(reuse_key(
                 seed.source_path, seed.destination_repo, seed.destination_address
             ), [])
@@ -644,10 +944,9 @@ def audit(
             if compile_destinations and result["static_status"] == "identity_linked":
                 previous = previous_results.get(result["seed"])
                 if compiler_for is not None and evidence_root is not None:
-                    compiler, overrides = compiler_for(slug)
-                    compiler = pathlib.Path(compiler)
-                    basis, preamble, environment = compile_basis(seed, compiler, evidence_root,
-                                                                compile_input_manifest, overrides,
+                    binding = normalize_compiler_binding(compiler_for(slug))
+                    basis, preamble, environment = compile_basis(seed, binding, evidence_root,
+                                                                compile_input_manifest,
                                                                 objdiff_check=objdiff_check, coff_functions=coff_functions,
                                                                 elf_symbol_bytes=elf_symbol_bytes)
                     result['compileBasis'] = basis
@@ -656,13 +955,13 @@ def audit(
                         result['compileResultReused'] = True
                     else:
                         result.update(compile_seed(
-                            slug, seed, target or seed.source_original_bytes,
-                            compiler=compiler, evidence_root=evidence_root, env_overrides=overrides,
+                            slug, seed, target,
+                            compiler=binding, evidence_root=evidence_root,
                             frozen_preamble=preamble, frozen_environment=environment,
                             objdiff_check=objdiff_check, coff_functions=coff_functions, elf_symbol_bytes=elf_symbol_bytes,
                         ))
-                        after, _, _ = compile_basis(seed, compiler, evidence_root,
-                                                    compile_input_manifest, overrides,
+                        after, _, _ = compile_basis(seed, binding, evidence_root,
+                                                    compile_input_manifest,
                                                     objdiff_check=objdiff_check, coff_functions=coff_functions,
                                                     elf_symbol_bytes=elf_symbol_bytes)
                         if after != basis and result.get('compile_status') == 'byte_exact':
@@ -738,6 +1037,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--retry-failed", action="store_true")
     parser.add_argument("--compile-input-manifest", type=pathlib.Path)
     args = parser.parse_args(argv)
+    if args.compile or args.retry_failed:
+        parser.error(
+            "Standalone seed validation has no target-image reader or compiler binding. "
+            "Destination compilation requires the campaign's configured audit API; "
+            "no compilation was started and no results were written."
+        )
     audit(
         seeds_dir=args.seeds_dir,
         candidates_path=args.candidates,

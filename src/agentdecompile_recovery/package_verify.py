@@ -8,7 +8,9 @@ import os
 import re
 import shutil
 import signal
+import shlex
 import subprocess
+import sys
 import tempfile
 
 from pathlib import Path
@@ -513,6 +515,152 @@ def locate_cached_object(metadata: Path, source_text: str) -> Path | None:
     return None
 
 
+MSVC_OMITTED_FLAG_POLICY = "omit /GS- unconditionally for legacy compatibility"
+
+
+def write_bound_msvc_wrapper(*, wrapper: Path, args: list[str], timeout: int,
+                             msvc_root: Path, wine: str, wineprefix: Path | None,
+                             binding: dict[str, Any],
+                             recipe: dict[str, Any] | None = None) -> None:
+    """Shared two-argument compiler wrapper; refuse different existing evidence.
+
+    Optional provisional recipe evidence is preflighted with the wrapper before
+    either is written. Exclusive creation never overwrites a concurrent writer.
+    """
+    from .corpus import toolchain_identity
+    provisional = binding.get("schema") == "agentdecompile.provisional-msvc-invocation-binding/v1"
+    if provisional and (recipe is None or recipe.get("recipeState") != "provisional"
+                        or recipe.get("binding") != binding):
+        raise ValueError("Provisional compiler wrapper requires its unmeasured recipe evidence")
+    if type(timeout) is not int or timeout <= 0:
+        raise ValueError("Compiler timeout must be a positive integer")
+    if not isinstance(args, list) or any(not isinstance(flag, str) or not flag or
+                                         "\x00" in flag for flag in args):
+        raise ValueError("Compiler flags must be an explicit list of nonempty strings")
+    prepared = prepare_msvc_invocation(source=Path("candidate.c"), args=args,
+        msvc_root=msvc_root, wine=wine, wineprefix=wineprefix, strict_c=True)
+    invocation = {key: prepared[key] for key in ("command", "env", "requested_args", "policy")}
+    toolchain_identity.compare_live_binding(binding, **invocation)
+    # Pin the Python interpreter and package source root exactly as the measured
+    # wrapper did; compiling still uses the invocation owner's isolated cwd.
+    content = (
+        "#!/usr/bin/env bash\nset -euo pipefail\n"
+        f"exec {shlex.quote(str(Path(sys.executable).resolve()))} - \"$@\" <<'PROFILE_COMPILER_PY'\n"
+        "import sys\nfrom pathlib import Path\n"
+        f"sys.path.insert(0, {str(Path(__file__).resolve().parents[1])!r})\n"
+        "from agentdecompile_recovery.package_verify import compile_with_msvc\n"
+        "if len(sys.argv) != 3:\n"
+        "    raise SystemExit('measured compiler requires exactly source and output; extra arguments would change calibration')\n"
+        "source, output = (Path(value).resolve() for value in sys.argv[1:3])\n"
+        "result = compile_with_msvc(\n"
+        "    source=source, object_path=output, out_dir=output.parent, stem=output.stem,\n"
+        f"    args={args!r}, timeout={timeout!r},\n"
+        f"    msvc_root=Path({str(prepared['root'])!r}), wine={wine!r},\n"
+        f"    wineprefix={('Path(' + repr(str(wineprefix)) + ')') if wineprefix is not None else 'None'},\n"
+        f"    expected_binding={binding!r},\n"
+        ")\n"
+        "if result.get('status') != 'ok':\n"
+        "    print(result.get('reason') or result.get('stderrTail') or 'Measured compiler failed', file=sys.stderr)\n"
+        "raise SystemExit(0 if result.get('status') == 'ok' else int(result.get('returnCode') or 1))\n"
+        "PROFILE_COMPILER_PY\n"
+    )
+    outputs = [(wrapper, content)]
+    if recipe is not None:
+        outputs.append((wrapper.parent / "provisional-compiler-recipe.json",
+                        json.dumps(recipe, indent=2, sort_keys=True) + "\n"))
+    for path, expected in outputs:
+        if path.is_symlink() or (path.exists() and (
+                not path.is_file() or path.read_text(encoding="utf-8") != expected)):
+            raise ValueError(f"Compiler recipe output collision: {path}")
+    toolchain_identity.compare_live_binding(binding, **invocation)
+    wrapper.parent.mkdir(parents=True, exist_ok=True)
+    for path, expected in outputs:
+        try:
+            with path.open("x", encoding="utf-8") as fh:
+                fh.write(expected)
+                if path == wrapper:
+                    os.fchmod(fh.fileno(), 0o755)
+        except FileExistsError:
+            # Recheck concurrent creations through a descriptor that refuses
+            # symlinks, and never chmod a replaced path by name.
+            fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
+            with os.fdopen(fd, "r", encoding="utf-8") as fh:
+                if fh.read() != expected:
+                    raise ValueError(f"Compiler recipe output collision: {path}")
+                if path == wrapper:
+                    os.fchmod(fh.fileno(), 0o755)
+
+
+def create_provisional_msvc_recipe(*, compiler_root: Path, wine: str,
+                                   wineprefix: Path, args: list[str], timeout: int,
+                                   program_fingerprint: str, architecture: str,
+                                   out_dir: Path) -> dict[str, Any]:
+    """Internal, explicitly unmeasured recipe with no compiler/version execution.
+
+    Executable hashes and invocation do not bind headers, DLLs or prefix closure.
+    The caller must bind that closure before reusable acceptance, and owns all
+    resource admission. This recipe cannot replace measured calibration evidence.
+    """
+    from .corpus import toolchain_identity
+    for name, path in (("compiler root", compiler_root), ("private Wine prefix", wineprefix),
+                       ("output directory", out_dir)):
+        if not isinstance(path, Path) or not path.is_absolute():
+            raise ValueError(f"Explicit absolute {name} is required")
+        if path.is_symlink() or (path.exists() and not path.is_dir()):
+            raise ValueError(f"Invalid {name}: {path}")
+    if not compiler_root.is_dir() or not wineprefix.is_dir():
+        raise ValueError("Compiler root and private Wine prefix must exist")
+    if not isinstance(wine, str) or not Path(wine).is_absolute() or not Path(wine).is_file() or not os.access(wine, os.X_OK):
+        raise ValueError("Explicit absolute executable Wine path is required")
+    if not isinstance(program_fingerprint, str) or not re.fullmatch(r"[0-9a-fA-F]{64}", program_fingerprint):
+        raise ValueError("Program fingerprint must be a SHA256 digest")
+    if not isinstance(architecture, str) or not architecture.strip() or "\x00" in architecture:
+        raise ValueError("Explicit architecture is required")
+    if type(timeout) is not int or timeout <= 0 or not isinstance(args, list) or any(
+            not isinstance(flag, str) or not flag or "\x00" in flag for flag in args):
+        raise ValueError("Explicit flags and positive integer timeout are required")
+    compiler_root, wineprefix, out_dir = (path.resolve() for path in (compiler_root, wineprefix, out_dir))
+    wine = str(Path(wine).resolve())
+    prepared = prepare_msvc_invocation(source=Path("candidate.c"), args=args,
+        msvc_root=compiler_root, wine=wine, wineprefix=wineprefix, strict_c=True)
+    evidence = toolchain_identity.inspect_only(command=prepared["command"])
+    binding = toolchain_identity.bind_invocation(evidence, allow_provisional=True,
+        **{key: prepared[key] for key in ("command", "env", "requested_args", "policy")})
+    wrapper = out_dir / "provisional-compiler-compile.sh"
+    recipe = {"schema": "agentdecompile.provisional-compiler-recipe/v1",
+              "recipeState": "provisional", "support": "unmeasured", "closureBound": False,
+              "programFingerprint": program_fingerprint, "architecture": architecture,
+              "compilerScript": str(wrapper), "compilerRoot": str(compiler_root),
+              "compilerArgs": list(args), "effectiveArgs": prepared["effectiveArgs"],
+              "timeout": timeout, "wine": wine, "wineprefix": str(wineprefix), "binding": binding,
+              "wrapperContext": {"python": str(Path(sys.executable).resolve()),
+                                 "sourceRoot": str(Path(__file__).resolve().parents[1])},
+              "claimBoundary": "Unmeasured executable and invocation evidence only; no original-compiler, calibration, cohort or recovery claim. Caller must bind headers/DLL/prefix closure before reusable acceptance and own resource admission."}
+    write_bound_msvc_wrapper(wrapper=wrapper, args=args, timeout=timeout,
+        msvc_root=compiler_root, wine=wine, wineprefix=wineprefix, binding=binding, recipe=recipe)
+    return recipe
+
+
+def prepare_msvc_invocation(*, source: Path, args: list[str], msvc_root: Path | None,
+                            wine: str, wineprefix: Path | None, strict_c: bool = False) -> dict[str, Any]:
+    """The command and effective environment shared by execution and binding."""
+    root = resolve_msvc_root(msvc_root).expanduser().resolve()
+    env = msvc_environment(root, wineprefix, measured=strict_c)
+    resolved_wine = shutil.which(wine, path=env.get("PATH")) or wine
+    is_assembler = source.suffix.lower() == ".asm"
+    if strict_c and (source.suffix.lower() != ".c" or any(
+            flag.upper().startswith(("/TP", "/TC", "-TP", "-TC", "@")) for flag in args)):
+        raise ValueError("Measured compiler binding requires C source without language switches or response files")
+    source_name = "in.asm" if is_assembler else "in.c"
+    effective = [] if is_assembler else [flag for flag in args if flag.upper() != "/GS-"]
+    command = [str(Path(resolved_wine).resolve()) if Path(resolved_wine).is_file() else resolved_wine,
+               str(root / "bin" / ("ml.exe" if is_assembler else "cl.exe")),
+               "/nologo", "/c", *effective, "/Foout.obj", source_name]
+    return {"root": root, "env": env, "command": command, "source_name": source_name,
+            "effectiveArgs": effective, "requested_args": list(args),
+            "policy": MSVC_OMITTED_FLAG_POLICY}
+
+
 def compile_with_msvc(
     *,
     source: Path,
@@ -524,8 +672,19 @@ def compile_with_msvc(
     msvc_root: Path | None,
     wine: str,
     wineprefix: Path | None,
+    expected_binding: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    root = resolve_msvc_root(msvc_root)
+    from .corpus.toolchain_identity import compare_live_binding
+    try:
+        prepared = prepare_msvc_invocation(source=source, args=args, msvc_root=msvc_root,
+            wine=wine, wineprefix=wineprefix, strict_c=expected_binding is not None)
+        invocation = {key: prepared[key] for key in ("command", "env", "requested_args", "policy")}
+        if expected_binding is not None:
+            compare_live_binding(expected_binding, **invocation)
+    except (OSError, ValueError, KeyError, TypeError) as exc:
+        return {"status": "failed", "compilerInvoked": False, "returnCode": 3,
+                "reason": str(exc), "stderrTail": str(exc), "binding": expected_binding}
+    root = prepared["root"]
     cl_exe = root / "bin" / "cl.exe"
     ml_exe = root / "bin" / "ml.exe"
     stdout_path = out_dir / f"{stem}.object.stdout.txt"
@@ -551,24 +710,21 @@ def compile_with_msvc(
         stderr_path.write_text(message, encoding="utf-8")
         return {"status": "failed", "compilerInvoked": False, "returnCode": 3, "reason": message, "stdout": str(stdout_path), "stderr": str(stderr_path), "stderrTail": message}
 
-    source_text = source.read_text(encoding="utf-8", errors="replace")
-    source_name = "in.asm" if is_assembler else "in.c"
-    (artifact_work_dir / source_name).write_text(source_text, encoding="utf-8")
+    # Byte copies preserve the caller's exact UTF-8 translation unit, including
+    # CRLF. Text reads previously normalized newlines before compilation.
+    source_bytes = source.read_bytes()
+    if expected_binding is not None:
+        source_bytes.decode('utf-8', errors='strict')
+    source_sha256 = hashlib.sha256(source_bytes).hexdigest()
+    source_name = prepared["source_name"]
+    (artifact_work_dir / source_name).write_bytes(source_bytes)
     out_name = "out.obj"
-    if is_assembler:
-        command = [wine, str(ml_exe), "/nologo", "/c", f"/Fo{out_name}", source_name]
-    else:
-        # VC Toolkit 2003 accepts stack-cookie enablement but does not accept
-        # the later ``/GS-`` spelling; it truncates that token to ``/G-`` and
-        # fails the compile.  The profile's other flags remain explicit, while
-        # this unsupported disable token is omitted for this legacy compiler.
-        msvc_args = [flag for flag in args if flag.upper() != "/GS-"]
-        command = [wine, str(cl_exe), "/nologo", "/c", *msvc_args, f"/Fo{out_name}", source_name]
-    env = msvc_environment(root, wineprefix)
+    command = prepared["command"]
+    env = prepared["env"]
     with tempfile.TemporaryDirectory(prefix=f"recovery-msvc-{stem}-") as tmp:
         work_dir = Path(tmp)
         local_source = work_dir / source_name
-        local_source.write_text(source_text, encoding="utf-8")
+        local_source.write_bytes(source_bytes)
         proc = run_command(command, cwd=work_dir, env=env, timeout=timeout)
         produced = work_dir / out_name
         # Wine can start and fail before loading the compiler. Only compiler
@@ -579,14 +735,35 @@ def compile_with_msvc(
         ))
         if produced.exists():
             shutil.copy2(produced, artifact_work_dir / out_name)
-        if proc.returncode == 0 and produced.exists():
+        binding_error = None
+        if (local_source.read_bytes() != source_bytes
+                or (artifact_work_dir / source_name).read_bytes() != source_bytes
+                or source.read_bytes() != source_bytes):
+            binding_error = 'Compiler translation-unit bytes changed during execution'
+        if expected_binding is not None:
+            try:
+                current = prepare_msvc_invocation(source=source, args=args, msvc_root=msvc_root,
+                    wine=wine, wineprefix=wineprefix, strict_c=True)
+                compare_live_binding(expected_binding, **{key: current[key] for key in
+                    ("command", "env", "requested_args", "policy")})
+            except (OSError, ValueError, KeyError, TypeError) as exc:
+                binding_error = str(exc)
+        if proc.returncode == 0 and produced.exists() and binding_error is None:
             shutil.copy2(produced, object_path)
     stdout_path.write_text(proc.stdout, encoding="utf-8")
     stderr_path.write_text(proc.stderr, encoding="utf-8")
     return {
-        "status": "ok" if proc.returncode == 0 and object_path.exists() else "failed",
+        "status": "ok" if proc.returncode == 0 and object_path.exists() and binding_error is None else "failed",
         "returnCode": proc.returncode,
         "command": command,
+        "sourceSha256": source_sha256,
+        "compilerInputSha256": source_sha256,
+        "requestedArgs": list(args),
+        "effectiveArgs": prepared["effectiveArgs"],
+        "omittedFlagPolicy": prepared["policy"],
+        "binding": expected_binding,
+        "bindingValid": expected_binding is not None and binding_error is None,
+        "reason": binding_error,
         "object": str(object_path) if object_path.exists() else None,
         "stdout": str(stdout_path),
         "stderr": str(stderr_path),
@@ -623,8 +800,21 @@ def resolve_msvc_root(msvc_root: Path | None) -> Path:
     return COMPILER_PROFILES[DEFAULT_COMPILER_PROFILE]
 
 
-def msvc_environment(msvc_root: Path, wineprefix: Path | None) -> dict[str, str]:
-    env = dict(os.environ)
+def resolve_wineprefix(wineprefix: Path | None, *, base: Path | None = None) -> Path:
+    prefix = (wineprefix or Path(os.environ.get("WINEPREFIX") or "target/toolchain-acquire/vctoolkit2003/wineprefix")).expanduser()
+    if base is not None and not prefix.is_absolute():
+        prefix = base / prefix
+    return prefix.resolve()
+
+
+def msvc_environment(msvc_root: Path, wineprefix: Path | None, *, measured: bool = False) -> dict[str, str]:
+    if measured:
+        from .corpus.toolchain_identity import MEASURED_MSVC_ENV_KEYS
+        env = {key: os.environ[key] for key in MEASURED_MSVC_ENV_KEYS if key in os.environ}
+        env.setdefault("PATH", "/usr/bin:/bin")
+        env["LC_ALL"] = "C"
+    else:
+        env = dict(os.environ)
     # ``CL`` and ``_CL_`` are implicit command-line fragments consumed by
     # cl.exe.  They leak from developer shells/CI and can silently change the
     # compiler profile (for example adding the unsupported ``/G-`` flag), so
@@ -632,8 +822,7 @@ def msvc_environment(msvc_root: Path, wineprefix: Path | None) -> dict[str, str]
     for key in tuple(env):
         if key.upper() in {"CL", "_CL_"}:
             env.pop(key, None)
-    prefix = wineprefix or Path(env.get("WINEPREFIX") or "target/toolchain-acquire/vctoolkit2003/wineprefix")
-    env["WINEPREFIX"] = str(prefix.expanduser().resolve())
+    env["WINEPREFIX"] = str(resolve_wineprefix(wineprefix))
     env["WINEDEBUG"] = env.get("WINEDEBUG", "-all")
     env["WINEPATH"] = str(msvc_root / "bin")
     include_dirs = [msvc_root / "include", msvc_root / "PlatformSDK" / "include"]

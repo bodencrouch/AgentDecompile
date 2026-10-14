@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import copy
 import hashlib
 import math
 import os
@@ -21,6 +22,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from agentdecompile_recovery.languages import SourceLanguage, default_source_language, language_spec
+from agentdecompile_recovery.corpus.compiler_action_contract import compiler_action_contract
 
 from agentdecompile_recovery.corpus.dashboard.actions.catalog import (
     ActionSpec,
@@ -265,6 +267,65 @@ def _external_contract_matches(action_id: str, params: dict, keys: dict, root: P
     return all(value for _, value in expected) and keys.get("external") == sorted(expected)
 
 
+def _compiler_binding(row: dict) -> dict:
+    return {"jobId": row.get("id"), "attempt": row.get("executionAttempt"),
+            "resourceKeys": row.get("resourceKeys"), "executionRoot": row.get("executionRoot"),
+            "argvDigest": hashlib.sha256(json.dumps(row.get("argv"), separators=(",", ":")).encode()).hexdigest(),
+            "paramsDigest": hashlib.sha256(json.dumps(row.get("params"), sort_keys=True, separators=(",", ":")).encode()).hexdigest()}
+
+
+def _compiler_probe(row: dict) -> dict:
+    contract = compiler_action_contract(row.get('actionId'))
+    return contract.probe(row.get('params') or {}) if contract else {'state': 'unknown', 'reason': 'unknown_compiler_contract'}
+
+
+def _compiler_complete(row: dict) -> bool:
+    """One fail-closed predicate for terminal, restore and reconciliation."""
+    contract = compiler_action_contract(row.get('actionId'))
+    if contract is None or not row.get("executionAttempt"):
+        return False
+    try:
+        params = row.get("params") or {}
+        if params.get(contract.root_key) != row.get("executionRoot"):
+            return False
+        if row.get("argv") != build_command(action_by_id(row["actionId"]), params):
+            return False
+        if (row.get("resourceKeys") or {}).get("external") != [list(claim) for claim in contract.claims(params)]:
+            return False
+        if not contract.output_only(params):
+            identity = params.get(contract.prefix_key)
+            if (not isinstance(identity, dict) or set(identity) != {'prefix', 'uid', 'dev', 'ino'}
+                    or identity.get('prefix') != params.get('wineprefix') or type(identity.get('uid')) is not int
+                    or any(not isinstance(identity.get(key), str) or not re.fullmatch('[0-9a-f]+', identity[key]) for key in ('dev', 'ino'))):
+                return False
+    except (ValueError, TypeError, KeyError, OSError):
+        return False
+    proof = row.get("clearanceObservation") or {}
+    if not isinstance(proof, dict):
+        return False
+    if proof.get(contract.binding_key) != _compiler_binding(row):
+        return False
+    observed = proof.get('observedAt')
+    if type(observed) not in (int, float) or not math.isfinite(observed) or observed <= 0:
+        return False
+    if row.get('finishedAt') is not None:
+        finished = row['finishedAt']
+        if type(finished) not in (int, float) or not math.isfinite(finished) or observed > finished:
+            return False
+    if proof.get("source") == contract.no_dispatch_source:
+        return proof.get("dispatch") == "refused" and not row.get("executionOwner") and isinstance(proof.get("preflight"), dict)
+    if not _bound_clearance(row) or (proof.get("preflight") or {}).get("state") != "clear":
+        return False
+    if contract.output_only(params):
+        return True
+    identity = params.get(contract.prefix_key)
+    reconciliation = row.get('resourceReconciliation') or {}
+    wine = (reconciliation.get(contract.observation_key)
+            if reconciliation.get(contract.binding_key) == _compiler_binding(row)
+            else None) or proof.get("wineClearance") or {}
+    return bool(identity) and wine.get("state") == "clear" and all((wine.get("evidence") or {}).get(key) == value for key, value in identity.items())
+
+
 def _bound_clearance(row: dict) -> bool:
     if row.get("actionId") == "recover.verify-package":
         from agentdecompile_recovery.native_verify_contract import command_matches
@@ -386,7 +447,9 @@ def _cross_place_not_dispatched(row: dict) -> bool:
 
 
 def _native_no_dispatch_binding(row: dict) -> dict:
-    return {"source": "catalog-native-before-dispatch-v1", "jobId": row.get("id"),
+    contract = compiler_action_contract(row.get('actionId'))
+    source = contract.before_reservation_source if contract else 'catalog-native-before-dispatch-v1'
+    return {"source": source, "jobId": row.get("id"),
             "actionId": row.get("actionId"), "attempt": row.get("executionAttempt"),
             "executionRoot": row.get("executionRoot"), "status": row.get("status"),
             "argvDigest": hashlib.sha256(json.dumps(row.get("argv"), separators=(",", ":")).encode()).hexdigest(),
@@ -395,7 +458,7 @@ def _native_no_dispatch_binding(row: dict) -> dict:
 
 def _native_not_dispatched(row: dict) -> bool:
     """A durable predispatch phase is distinct from compiler-session clearance."""
-    return (row.get("actionId") in {"recover.verify-package", "corpus.cross-place"}
+    return ((row.get("actionId") in {"recover.verify-package", "corpus.cross-place"} or compiler_action_contract(row.get('actionId')) is not None)
             and row.get("status") in {"queued", "cancelling", "failed", "cancelled"}
             and row.get("resourceDisposition") == "unreserved" and not row.get("resourceKeys")
             and not row.get("executionOwner") and not row.get("clearanceObservation")
@@ -405,7 +468,7 @@ def _native_not_dispatched(row: dict) -> bool:
 
 
 def _observe_native_no_dispatch(job: JobRecord) -> None:
-    if job.action_id in {"recover.verify-package", "corpus.cross-place"}:
+    if job.action_id in {"recover.verify-package", "corpus.cross-place"} or compiler_action_contract(job.action_id) is not None:
         job.no_dispatch_observation = _native_no_dispatch_binding(job.to_dict())
 
 
@@ -427,6 +490,9 @@ def _external_resource_entries(action: ActionSpec | None, params: dict, *, base:
     if action.id == 'review.decide':
         from .match_review import resource_paths
         return tuple(('store', str(path)) for path in sorted(resource_paths(params['db'])))
+    contract = compiler_action_contract(action.id)
+    if contract:
+        return contract.claims(params)
     contract = _EXTERNAL_ACTION_CONTRACTS.get(action.id, ())
     base = base or (live_root() or Path.cwd()).resolve()
     claims = []
@@ -615,6 +681,18 @@ class JobStore:
                 historical_verify_params = None
                 if _native_not_dispatched(row):
                     continue
+                if (contract := compiler_action_contract(row.get('actionId'))) is not None:
+                    # Never rediscover defaults or infer Wine clearance from an
+                    # old CLI exit. Ambiguous history blocks admission visibly.
+                    if not row.get('executionRoot'):
+                        raise ValueError('historical calibration has no original execution root')
+                    historical_verify_params = row.get('params') or {}
+                    if historical_verify_params.get(contract.root_key) != row['executionRoot']:
+                        raise ValueError('historical calibration execution-root binding disagrees')
+                    historical_claims = contract.claims(historical_verify_params)
+                    if not keys:
+                        keys = {'external': [[kind, value] for kind, value in historical_claims]}
+                    disposition = 'released' if _compiler_complete(row) and row.get('status') in {'ok', 'failed', 'cancelled'} and row.get('finishedAt') else 'quarantined'
                 if row.get('actionId') == 'corpus.cross-place' and not (_bound_clearance(row) or _cross_place_not_dispatched(row)):
                     from agentdecompile_recovery.corpus.cross_place import freeze_parameters
                     if not row.get('executionRoot'):
@@ -871,6 +949,31 @@ class JobStore:
             if not committed_release or job_id in self._cross_leases:
                 return self._cross_place_reconciliation_report_locked(row, current)
         keys, proof, owner = row.get('resourceKeys'), row.get('clearanceObservation'), row.get('executionOwner')
+        if (contract := compiler_action_contract(row.get('actionId'))) is not None:
+            candidate = dict(row)
+            candidate['clearanceObservation'] = dict(proof or {})
+            candidate.pop('resourceReconciliation', None)
+            fresh = None
+            fresh_session_clear = False
+            if _bound_clearance(row):
+                from agentdecompile_recovery.corpus.supervision import session_clearance
+                if session_clearance(owner) == 'clear':
+                    fresh_session_clear = True
+                    fresh = _compiler_probe(row)
+                    candidate['clearanceObservation']['wineClearance'] = fresh
+            complete = _compiler_complete(candidate)
+            terminal = row.get('status') in {'ok', 'failed', 'cancelled'} and bool(row.get('finishedAt'))
+            matches = current is None or (current.status in {'ok', 'failed', 'cancelled'}
+                and _compiler_binding(current.to_dict()) == _compiler_binding(row)
+                and self._receipt_versions.get(job_id) == row.get('receiptVersion'))
+            version = type(row.get('receiptVersion')) is int and row['receiptVersion'] >= 1
+            eligible = complete and terminal and matches and version and (
+                (proof or {}).get('source') == contract.no_dispatch_source or fresh_session_clear)
+            return {**result, 'ok': True, 'eligible': eligible,
+                    'reconciliationKind': contract.kind, 'resourceKeys': keys,
+                    'receiptVersion': row.get('receiptVersion'), contract.observation_key: fresh,
+                    'missingEvidence': [] if eligible else ['complete_bound_terminal_' + contract.kind + '_lifecycle'],
+                    'nextAction': 'repair_stale_reservation' if eligible else 'retain_reservation'}
         missing = []
         if type(row.get('receiptVersion')) is not int or row['receiptVersion'] < 1:
             missing.append('valid_receipt_generation')
@@ -939,9 +1042,28 @@ class JobStore:
             return {**report, 'eligible': False, 'nextAction': 'retain_reservation', 'error': 'Receipt changed during reconciliation'}
         if report.get('reconciliationKind') == 'cross-place-generation':
             return self._repair_cross_place_locked(row, report, trigger=trigger)
+        if (contract := compiler_action_contract(row.get('actionId'))) is not None and report.get('reconciliationKind') == contract.kind:
+            # Keep original observations intact; the fresh observation is an
+            # additional reconciliation basis, never rewritten launch history.
+            candidate = dict(row)
+            candidate['clearanceObservation'] = dict(row.get('clearanceObservation') or {})
+            if report.get(contract.observation_key) is not None:
+                from agentdecompile_recovery.corpus.supervision import session_clearance
+                if session_clearance(row.get('executionOwner') or {}) != 'clear':
+                    return {**report, 'eligible': False, 'nextAction': 'retain_reservation'}
+                fresh = _compiler_probe(row)
+                candidate.pop('resourceReconciliation', None)
+                candidate['clearanceObservation']['wineClearance'] = fresh
+                report[contract.observation_key] = fresh
+            if not _compiler_complete(candidate):
+                return {**report, 'eligible': False, 'nextAction': 'retain_reservation'}
+            row['resourceDisposition'] = 'released'
         row['resourceReconciliation'] = {'trigger': trigger, 'at': time.time(),
                                          'basisReceiptVersion': row.get('receiptVersion'),
                                          'operation': 'repair_committed_terminal_release'}
+        if (contract := compiler_action_contract(row.get('actionId'))) is not None and report.get('reconciliationKind') == contract.kind:
+            row['resourceReconciliation'][contract.observation_key] = report.get(contract.observation_key)
+            row['resourceReconciliation'][contract.binding_key] = _compiler_binding(row)
         with self._persist_lock:
             save_state(path, row)
         current = self._jobs.get(job_id)
@@ -989,6 +1111,28 @@ class JobStore:
             history.update({key: _copy_job(job) for key, job in self._jobs.items()})
         return sorted(history.values(), key=lambda job: job.created_at, reverse=True)
 
+    def preparation_active_jobs(self, run_tokens: set[str]) -> list[JobRecord]:
+        """Fresh local child observations; retained receipts are never live handles.
+
+        This scoped read deliberately does not rebuild history, reconcile owners,
+        or make admission decisions. `_from_history` already marks retained active
+        rows interrupted, so those rows cannot contribute to this UI overlay.
+        """
+        with self._lock:
+            snapshots = []
+            for job in self._jobs.values():
+                token = job.params.get('run')
+                if (job.status not in {'queued', 'running', 'cancelling'} or job.history_only
+                        or not isinstance(token, str) or not token.startswith('prepare-')
+                        or token not in run_tokens):
+                    continue
+                snapshot = _copy_job(job)
+                snapshot.params = copy.deepcopy(job.params)
+                snapshot.work_progress = copy.deepcopy(job.work_progress)
+                snapshots.append(snapshot)
+            # Preserve list() order for stable current-child overlay ties.
+            return sorted(snapshots, key=lambda job: job.created_at, reverse=True)
+
     def get(self, job_id: str, *, compact: bool = False) -> JobRecord | None:
         with self._lock:
             job = self._jobs.get(job_id)
@@ -1024,6 +1168,12 @@ class JobStore:
         )
         if preparation_authority is not None:
             preparation_authority.root_start('allocated', job.id)
+        if (contract := compiler_action_contract(action.id)) is not None:
+            if not Path(job.execution_root).is_absolute():
+                raise ValueError('Calibration requires an absolute captured execution root')
+            job.execution_root = str(Path(job.execution_root).resolve())
+            job.params = contract.freeze(job.params, Path(job.execution_root))
+            job.argv = build_command(action, job.params)
         cancel = threading.Event()
         with self._lock:
             _observe_native_no_dispatch(job)
@@ -1109,6 +1259,11 @@ class JobStore:
                     _observe_native_no_dispatch(job)
                     self._persist_locked(job, force=True)
             else:
+                if (contract := compiler_action_contract(job.action_id)) is not None:
+                    # start() captured policy before persisting the receipt;
+                    # resource admission must consume exactly those values.
+                    contract.validate(job.params)
+                    job.argv = build_command(action, job.params)
                 # Pin snapshot arguments to their reserved physical paths;
                 # subprocess argparse does not expand a shell-style ~/out.
                 for _kind, name in _EXTERNAL_ACTION_CONTRACTS.get(job.action_id, ()):
@@ -1357,6 +1512,8 @@ class JobStore:
                             self._jobs[job_id].work_progress = progress
                         self._persist_locked(self._jobs[job_id], force=True)
                 if self.executor:
+                    if compiler_action_contract(job.action_id) is not None:
+                        raise ValueError('Compiler admission requires the bound local executor callbacks')
                     code, log = self.executor(argv, cwd, cancel)
                 else:
                     # Pair matching is durable and idempotent for a frozen
@@ -1374,12 +1531,18 @@ class JobStore:
                             self._persist_locked(job, force=True)
                     def observe_clearance(identity: dict) -> None:
                         with self._lock:
+                            prior = dict(job.clearance_observation)
                             job.clearance_observation = {
                                 'source': 'local-executor-session-observer-v1', 'jobId': job.id,
                                 'attempt': job.execution_attempt, 'resourceKeys': dict(job.resource_keys),
                                 'argvDigest': hashlib.sha256(json.dumps(job.argv, separators=(',', ':')).encode()).hexdigest(),
                                 'process': dict(identity), 'sessionClearance': 'clear', 'observedAt': time.time(),
                             }
+                            if (contract := compiler_action_contract(job.action_id)) is not None:
+                                job.clearance_observation.update({
+                                    contract.binding_key: _compiler_binding(job.to_dict()),
+                                    'preflight': prior.get('preflight'),
+                                    'wineClearance': _compiler_probe(job.to_dict())})
                             self._persist_locked(job, force=True)
                     if job.action_id == 'corpus.cross-place':
                         from agentdecompile_recovery.corpus import cross_place, cross_place_admission
@@ -1440,10 +1603,34 @@ class JobStore:
                         code, log = cross_place.supervise(job.params, execute=execute_generation,
                             transition=transition, cancel=cancel)
                     else:
+                        def compiler_not_started():
+                            with self._lock:
+                                if job.execution_owner:
+                                    raise ValueError('calibration_no_dispatch_has_owner')
+                                job.clearance_observation['dispatch'] = 'refused'
+                                job.clearance_observation['noDispatchReason'] = 'executor_cancelled_before_spawn'
+                                self._persist_locked(job, force=True)
+                        if (contract := compiler_action_contract(job.action_id)) is not None:
+                            with self._lock:
+                                contract.freeze(job.params, cwd)  # Recheck captured inputs immediately before dispatch.
+                                preflight = _compiler_probe(job.to_dict())
+                                job.clearance_observation = {
+                                    'source': contract.no_dispatch_source, 'dispatch': 'unknown',
+                                    contract.binding_key: _compiler_binding(job.to_dict()),
+                                    'preflight': preflight, 'observedAt': time.time()}
+                                self._persist_locked(job, force=True)
+                                if preflight.get('state') != 'clear':
+                                    raise ValueError('Calibration dispatch refused: ' + json.dumps(preflight, sort_keys=True))
+                                # Persist possible dispatch before calling the executor;
+                                # a crash cannot leave an affirmative no-child receipt.
+                                job.clearance_observation['dispatch'] = 'possible'
+                                self._persist_locked(job, force=True)
                         code, log = _default_executor(
                             argv, cwd, cancel, on_output=publish_log,
                             unlimited=unlimited_match, on_started=observe_owner, on_unresolved=wait_for_owner,
-                            on_clearance=observe_clearance if job.action_id in LOCAL_RECONCILIATION_ACTIONS | _EXTERNAL_ACTION_CONTRACTS.keys() else None,
+                            on_clearance=observe_clearance if job.action_id in LOCAL_RECONCILIATION_ACTIONS | _EXTERNAL_ACTION_CONTRACTS.keys() or compiler_action_contract(job.action_id) is not None else None,
+                            on_not_started=compiler_not_started if compiler_action_contract(job.action_id) is not None else None,
+                            environment=contract.child_environment(job.params) if compiler_action_contract(job.action_id) is not None else None,
                         )
                 if action is not None and action.backend == "bsim-cli":
                     from agentdecompile_recovery.corpus.bsim_ops import _bsim_cli_error
@@ -1457,6 +1644,8 @@ class JobStore:
                 has_external_claims = bool(job.resource_keys.get("external")) and job.action_id != "review.decide"
                 job.resource_disposition = ("quarantined" if (has_external_claims and not (self.executor is None and _external_contract_matches(job.action_id, job.params, job.resource_keys, cwd) and (_bound_clearance(job.to_dict()) or _cross_place_not_dispatched(job.to_dict())))) or _ownership_unresolved(log)
                                             else "released") if job.resource_keys else "unreserved"
+                if compiler_action_contract(job.action_id) is not None and self.executor is None:
+                    job.resource_disposition = 'released' if _compiler_complete(job.to_dict()) and not _ownership_unresolved(log) else 'quarantined'
                 job.log = log[-MAX_LOG_BYTES:]
                 job.returncode = code
                 job.finished_at = time.time()
@@ -1474,7 +1663,7 @@ class JobStore:
                 job = self._jobs[job_id]
                 job.error = str(exc)
                 if job.resource_keys:
-                    job.resource_disposition = "released" if _cross_place_not_dispatched(job.to_dict()) else "quarantined"
+                    job.resource_disposition = "released" if (_cross_place_not_dispatched(job.to_dict()) or (self.executor is None and _compiler_complete(job.to_dict()))) else "quarantined"
                 job.status = "cancelled" if cancel.is_set() else "failed"
                 job.finished_at = time.time()
         finally:
@@ -1955,6 +2144,7 @@ def _default_executor(
     on_clearance: Callable[[dict], None] | None = None,
     inherited_fds: tuple[int, ...] = (),
     on_not_started: Callable[[], None] | None = None,
+    environment: dict[str, str] | None = None,
 ) -> tuple[int, str]:
     """Drain output without blocking cancellation when a child is silent."""
     if not argv:
@@ -1975,7 +2165,7 @@ def _default_executor(
         if on_not_started: on_not_started()
         return 1, '[cancelled before spawn]'
     proc = subprocess.Popen(argv, cwd=str(cwd), stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT, text=True, bufsize=1, env=clean_environment() if native_guarded else isolated_job_env(argv),
+        stderr=subprocess.STDOUT, text=True, bufsize=1, env=clean_environment() if native_guarded else environment if environment is not None else isolated_job_env(argv),
         start_new_session=os.name != "nt", pass_fds=inherited_fds)
     from agentdecompile_recovery.corpus.supervision import process_identity, session_clearance
     reader_stop = None
@@ -2309,6 +2499,12 @@ def start_job(
             return {"error": str(exc)}, 400
         job = get_job(run.get("jobId", ""))
         return {"ok": run["status"] != "blocked", "run": run, "job": job.to_dict() if job else {"id": run.get("jobId", ""), "status": run["status"]}}, 202
+    execution_root = (_execution_context.root if _execution_context is not None else (live_root() or Path.cwd()).resolve())
+    if (contract := compiler_action_contract(action.id)) is not None:
+        try:
+            filled = contract.freeze(filled, execution_root)
+        except (OSError, ValueError) as exc:
+            return {"error": str(exc), "actionId": action.id}, 400
     argv = build_command(action, filled)
     if dry_run:
         return {"ok": True, "dryRun": True, "action": action.to_dict(), "argv": argv, "params": filled}, 200
@@ -2325,7 +2521,7 @@ def start_job(
             _trusted_context is _PREPARATION_PROBE
             and action.id == "mcp.execute-script"
         ),
-        _execution_root=_execution_context.root if _execution_context is not None else None,
+        _execution_root=execution_root,
     )
     return {"ok": True, "job": job.to_dict()}, 202
 

@@ -30,8 +30,7 @@ public class ExportFunctionInventory extends GhidraScript {
     protected void run() throws Exception {
         String[] args = getScriptArgs();
         if (args.length < 1) {
-            printerr("usage: ExportFunctionInventory.java <output.jsonl>");
-            return;
+            throw new IllegalArgumentException("usage: ExportFunctionInventory.java <output.jsonl>");
         }
 
         File out = new File(args[0]);
@@ -48,9 +47,7 @@ public class ExportFunctionInventory extends GhidraScript {
 
         try (BufferedWriter writer = new BufferedWriter(new FileWriter(out))) {
             while (functions.hasNext()) {
-                if (monitor.isCancelled()) {
-                    break;
-                }
+                monitor.checkCancelled();
                 Function function = functions.next();
                 Address entry = function.getEntryPoint();
                 long entryOffset = entry.getOffset();
@@ -64,12 +61,14 @@ public class ExportFunctionInventory extends GhidraScript {
                 int instructionCount = 0;
                 InstructionIterator instructions = listing.getInstructions(body, true);
                 while (instructions.hasNext()) {
+                    monitor.checkCancelled();
                     instructions.next();
                     instructionCount++;
                 }
 
                 StringBuilder hex = new StringBuilder(bodyBytes * 2);
                 for (Address addr : body.getAddresses(true)) {
+                    monitor.checkCancelled();
                     try {
                         byte value = memory.getByte(addr);
                         hex.append(String.format("%02x", value & 0xff));
@@ -84,6 +83,16 @@ public class ExportFunctionInventory extends GhidraScript {
                 row.put("entryOffset", entryOffset);
                 row.put("section", section);
                 row.put("bodyBytes", bodyBytes);
+                java.util.List<Map<String, Object>> bodyRanges = new java.util.ArrayList<>();
+                ghidra.program.model.address.AddressRangeIterator ranges = body.getAddressRanges();
+                while (ranges.hasNext()) {
+                    ghidra.program.model.address.AddressRange range = ranges.next();
+                    Map<String, Object> extent = new LinkedHashMap<>();
+                    extent.put("start", String.format("%08x", range.getMinAddress().getOffset()));
+                    extent.put("endInclusive", String.format("%08x", range.getMaxAddress().getOffset()));
+                    bodyRanges.add(extent);
+                }
+                row.put("bodyRanges", bodyRanges);
                 row.put("instructionCount", instructionCount);
                 row.put("bytes", hex.toString());
 
@@ -93,6 +102,7 @@ public class ExportFunctionInventory extends GhidraScript {
             }
         }
 
-        println("ExportFunctionInventory wrote " + count + " functions to " + out.getAbsolutePath());
+        monitor.checkCancelled();
+        println("ExportFunctionInventory COMPLETE " + count + " functions to " + out.getAbsolutePath());
     }
 }

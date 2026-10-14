@@ -7,9 +7,15 @@ type Roster = { units?: { total?: number; byStatus?: Record<string, number>; byL
 const models: Record<ProviderId, string> = { openai: "gpt-4.1-mini", anthropic: "claude-sonnet-4-20250514" };
 
 /** An opt-in, proposal-only browser worker. It is intentionally self-contained for both shells. */
-export function ExchangeContribution() {
+export function ExchangeContribution({ showTrigger = true, open: requestedOpen, onOpenChange }: {
+  showTrigger?: boolean;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+}) {
   const worker = useRef<Worker | null>(null);
-  const [open, setOpen] = useState(false);
+  const [localOpen, setLocalOpen] = useState(false);
+  const open = requestedOpen ?? localOpen;
+  const setOpen = (value: boolean) => { if (requestedOpen === undefined) setLocalOpen(value); onOpenChange?.(value); };
   const [provider, setProvider] = usePref<ProviderId>("exchange.provider", "openai");
   const [model, setModel] = usePref("exchange.model", models[provider]);
   const [apiKey, setApiKey] = useState("");
@@ -70,10 +76,10 @@ export function ExchangeContribution() {
   const awaiting = roster.units?.byStatus?.["awaiting-verification"] || 0;
 
   return <>
-    <button className="exchange-contribution-trigger" onClick={() => setOpen(true)}>Contribute compute</button>
-    {open && <DialogFrame title="Contribute compute" onClose={close} footer={<><button onClick={close}>Close</button>{state === "stopped" ? <button className="exchange-primary" onClick={start}>Start contributing</button> : <button onClick={stop}>Stop contributing</button>}</>}>
+    {showTrigger && <button className="exchange-contribution-trigger" title="Optional provider-backed rewrite proposals; no CPU is donated" aria-haspopup="dialog" aria-expanded={open} onClick={() => setOpen(true)}>Contribute proposals</button>}
+    {open && <DialogFrame title="Contribute rewrite proposals" onClose={close} footer={<><button onClick={close}>Close</button>{state === "stopped" ? <button className="exchange-primary" onClick={start}>Start contributing proposals</button> : <button onClick={stop}>Stop contributing</button>}</>}>
       <section className="exchange-contribution" aria-describedby="exchange-boundary">
-        <p id="exchange-boundary">This tab sends rewrite evidence directly to the selected provider only after Start. It submits proposals for coordinator verification; it does not compile, match, or verify results.</p>
+        <p id="exchange-boundary"><strong>Optional AI rewrite contribution—not spare-CPU donation.</strong> After you choose Start, this browser uses the provider and API key you enter to draft C rewrites, then submits them as untrusted proposals for independent coordinator verification. Your key is sent directly to the provider, never to the coordinator. The browser worker pauses while this tab is hidden.</p>
         <label>Provider<select value={provider} disabled={state !== "stopped"} onChange={e => { const next = e.target.value as ProviderId; setProvider(next); setModel(models[next]); }}>{Object.entries(PROVIDERS).map(([id, value]) => <option key={id} value={id}>{value.label}</option>)}</select></label>
         <label>Model<input value={model} disabled={state !== "stopped"} onChange={e => setModel(e.target.value)} required /></label>
         <label>API key<input type="password" value={apiKey} disabled={state !== "stopped"} onChange={e => setApiKey(e.target.value)} autoComplete="off" required /></label>

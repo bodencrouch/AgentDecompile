@@ -60,7 +60,7 @@ AgentDecompile's recovery pipeline has all the pieces (enrich, synthesis, match,
 - `docs/solutions/architecture-patterns/tiered-re-analysis-knowledgebase.md` — Tier 3 mutations only after Tier 2 read-only; proof campaign is Tier 3
 - `docs/solutions/architecture-patterns/agent-native-mcp-patterns.md` — MCP tool-seq patterns, session persistence, UI hints
 - `docs/CRITICAL_PATH.md` — Reconstruct pipeline stages, receipts, `--autonomous` usage
-- `docs/plans/2026-07-24-perf-recovery-one-shot-living-plan.md` — U1-U5 completed, G14-G16 backlog
+- Historical one-shot performance work: U1-U5 completed; remaining storage/work-dir follow-up is captured in this plan's acceptance criteria.
 
 ### External References
 
@@ -276,5 +276,5 @@ AgentDecompile's recovery pipeline has all the pieces (enrich, synthesis, match,
 
 - **Origin document:** [docs/brainstorms/2026-07-25-recovery-improvement-backlog-requirements.md](docs/brainstorms/2026-07-25-recovery-improvement-backlog-requirements.md)
 - Related code: `src/agentdecompile_recovery/proof_campaign.py`, `src/agentdecompile_recovery/mcp_tool_seq.py`, `src/agentdecompile_recovery/ghidra_context.py`, `src/agentdecompile_recovery/frontdoor.py`
-- Related plans: `docs/plans/2026-07-24-perf-recovery-one-shot-living-plan.md` (U1-U5 done, G14-G16 backlog)
+- Related context: historical one-shot performance work (U1-U5 done; current throughput requires fresh measurement).
 - External: decomp-goal-harness campaign loop, objdiff/permuter compile-diff patterns

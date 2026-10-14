@@ -17,10 +17,23 @@ Roles differ only in what a node mirrors and whether it may sign invites, run ve
 appliers: ``operator`` signs any invite, ``fleet`` signs fleet and donor invites, ``donor`` signs
 nothing.  A donor-issued invite is refused at parse time by name.
 
-Key algorithms are a registry.  ``ed25519`` is the working algorithm when the ``cryptography``
-package imports; ``hash-token`` (HMAC over a random secret) always works and exists so a
-single-host grid or the determinism harness needs no signing library — its "public" material is
-the secret itself, so it verifies only inside the process (or keyring) that holds the secret.
+Key algorithms are a registry.  ``ed25519`` is the working algorithm when a signing backend
+imports (``log.signing.SIGNING_BACKENDS``: cryptography, pynacl) and the default; ``hash-token``
+(HMAC over a random secret) always works and exists so a single-host grid or the determinism
+harness needs no signing library — its "public" material is a commitment to the secret, so it
+verifies only inside the process (or keyring) that holds the secret.
+
+**One key-id scheme (U126)**: ``key_id_for(algorithm, public) = "<algorithm>:<hex sha256(public)>"``,
+identical to ``log.signing.key_id_of`` — for ed25519 the id in ``signer_key`` is the id a
+``log.signing.Keyring`` looks up, so node-signed records verify offline through the same keyring
+as operator-signed ones.  ``NodeSigner`` wraps the matching ``log.signing`` signer
+(``Ed25519Signer`` / ``HashTokenSigner``) and the node's keyring *is* ``log.signing.Keyring``.
+
+**Key lifetime**: ``key_lifetime_s`` (default 7 days, ``identity.key_lifetime_s``).  ``NodeKeyStore.renew``
+rotates a key past its lifetime to a fresh one that remembers its predecessors
+(``previous_key_ids``), refused by name unless the canaries were just re-proven
+(``after_canary=True``); the new key's KEY_ANNOUNCE record (``announce_body``) lists the old id
+under ``supersedes``.
 
 Acceptance tests named for the final verification phase (design §15.0, U125/U126):
   * ``test_invite_roles``: a fleet key signs a donor and a fleet invite; a donor key's invite is
@@ -49,6 +62,9 @@ from typing import Any, Iterable, Mapping, Protocol, Sequence
 from urllib.parse import urlsplit, urlunsplit
 
 from ..core import GridError, NodeIdentity, NotConfigured, Refused, Registry, canonical_json, digest
+from ..log import signing as _signing
+from ..log.keys import KEYS_PARTITION, key_announce_body
+from ..log.signing import Ed25519Signer, HashTokenSigner, Keyring, key_id_of
 
 INVITE_VERSION = 1
 DEFAULT_KEY_LIFETIME_S = 7 * 24 * 3600          # design §6.2: short-lived keys, renewed by canary re-run
@@ -87,59 +103,42 @@ KEY_ALGORITHMS = Registry("key algorithm")
 
 
 class Ed25519Algorithm:
-    """Working when the ``cryptography`` package imports; otherwise ``NotConfigured`` names it."""
+    """The ``log.signing`` ed25519 backend (first importable of cryptography, pynacl); the default."""
 
     name = "ed25519"
 
     @staticmethod
-    def _module():
+    def _backend(name: str = ""):
         try:
-            from cryptography.hazmat.primitives import serialization
-            from cryptography.hazmat.primitives.asymmetric import ed25519
-        except Exception as exc:  # pragma: no cover - depends on the environment
-            raise NotConfigured("key algorithm 'ed25519' needs the 'cryptography' package (the 'agentdecompile[signing]' extra); use key_algorithm='hash-token' for a single-host grid") from exc
-        return serialization, ed25519
+            return _signing.select_backend(name)
+        except NotConfigured as exc:
+            raise NotConfigured(f"key algorithm 'ed25519': {exc}; use worker.key_algorithm='hash-token' for a single-host harness") from exc
 
     def generate(self) -> tuple[bytes, bytes]:
-        serialization, ed25519 = self._module()
-        private = ed25519.Ed25519PrivateKey.generate()
-        secret = private.private_bytes(serialization.Encoding.Raw, serialization.PrivateFormat.Raw, serialization.NoEncryption())
-        public = private.public_key().public_bytes(serialization.Encoding.Raw, serialization.PublicFormat.Raw)
-        return secret, public
+        return self._backend().generate()
 
     def sign(self, secret: bytes, data: bytes) -> bytes:
-        _, ed25519 = self._module()
-        return ed25519.Ed25519PrivateKey.from_private_bytes(secret).sign(data)
+        return self._backend().sign(secret, data)
 
     def verify(self, material: bytes, data: bytes, signature: bytes) -> bool:
-        _, ed25519 = self._module()
-        try:
-            ed25519.Ed25519PublicKey.from_public_bytes(material).verify(signature, data)
-            return True
-        except Exception:
-            return False
+        return self._backend().verify(material, data, signature)
 
     def describe(self) -> Mapping[str, Any]:
-        try:
-            self._module()
-            status = "working"
-        except NotConfigured:
-            status = "declared"
-        return {"name": self.name, "status": status, "needs": ["cryptography"], "public": "32-byte raw Ed25519 public key"}
+        return {"name": self.name, "status": "working" if _signing.have_backend() else "declared", "default": True,
+                "needs": ["one of " + ", ".join(_signing.BACKEND_ORDER)], "public": "32-byte raw Ed25519 public key"}
 
 
 class HashTokenAlgorithm:
     """Always working.  ``public`` is a commitment to the secret; verification needs the secret."""
 
     name = "hash-token"
-    _DOMAIN = b"adgrid/hash-token/v1/"
 
     def generate(self) -> tuple[bytes, bytes]:
         secret = secrets.token_bytes(32)
-        return secret, hashlib.sha256(self._DOMAIN + b"public" + secret).digest()
+        return secret, _signing.hash_token_public(secret)
 
     def sign(self, secret: bytes, data: bytes) -> bytes:
-        return hmac.new(secret, self._DOMAIN + data, hashlib.sha256).digest()
+        return _signing.hash_token_sign(secret, data)
 
     def verify(self, material: bytes, data: bytes, signature: bytes) -> bool:
         return hmac.compare_digest(self.sign(material, data), signature)
@@ -153,8 +152,8 @@ KEY_ALGORITHMS.register("hash-token", HashTokenAlgorithm())
 
 
 def key_id_for(algorithm: str, public: bytes) -> str:
-    """A key id is a content address of the public material, never the material itself."""
-    return digest(canonical_json({"alg": algorithm, "pub": public.hex()}))[:32]
+    """The one key-id scheme: ``<algorithm>:<hex sha256 of the raw public material>`` (= ``log.signing.key_id_of``)."""
+    return key_id_of(algorithm, public)
 
 
 # --------------------------------------------------------------------------- node key
@@ -178,31 +177,24 @@ class NodeKey:
         }
 
 
-class Keyring:
-    """key_id -> (algorithm, verification material).  Filled from invites, manifests and the local key."""
+# ``Keyring`` is ``log.signing.Keyring``: one keyring type for operator and node keys (U126).
+# ``add(key_id, algorithm, material)``, ``get``, ``__contains__`` and ``key_ids`` keep this module's spelling.
 
-    def __init__(self) -> None:
-        self._keys: dict[str, tuple[str, bytes]] = {}
 
-    def add(self, key_id: str, algorithm: str, material: bytes) -> None:
-        self._keys[key_id] = (algorithm, material)
+def _keyring_add_node_key(self: Keyring, key: "NodeKey") -> None:
+    material = key.secret if key.algorithm == "hash-token" else key.public
+    self.add(key.key_id, key.algorithm, material, role="node", expires_at=key.expires_at,
+             supersedes=list(key.previous_key_ids))
 
-    def add_node_key(self, key: NodeKey) -> None:
-        material = key.secret if key.algorithm == "hash-token" else key.public
-        self.add(key.key_id, key.algorithm, material)
 
-    def get(self, key_id: str) -> tuple[str, bytes] | None:
-        return self._keys.get(key_id)
-
-    def __contains__(self, key_id: object) -> bool:
-        return key_id in self._keys
-
-    def key_ids(self) -> list[str]:
-        return sorted(self._keys)
+Keyring.add_node_key = _keyring_add_node_key  # type: ignore[attr-defined]
 
 
 class NodeSigner:
-    """``core.Signer`` over a ``NodeKey``; verification of other keys goes through the keyring."""
+    """``core.Signer`` over a ``NodeKey``: wraps the ``log.signing`` signer for the key's algorithm
+    (``inner``: ``Ed25519Signer`` or ``HashTokenSigner``), so a node signature is byte-for-byte what
+    the operator signer of the same algorithm would produce and verifies through any ``Keyring``
+    holding the public key.  Verification of *other* keys goes through ``keyring``."""
 
     def __init__(self, key: NodeKey, keyring: Keyring | None = None) -> None:
         self.key = key
@@ -210,39 +202,53 @@ class NodeSigner:
         self.keyring = keyring or Keyring()
         self.keyring.add_node_key(key)
         self._algorithm: KeyAlgorithm = KEY_ALGORITHMS.get(key.algorithm)
+        if key.algorithm == "ed25519":
+            self.inner: Any = Ed25519Signer(key.secret)
+        elif key.algorithm == "hash-token":
+            self.inner = HashTokenSigner(key.secret)
+        else:
+            raise IdentityError(f"no log.signing signer for key algorithm {key.algorithm!r}")
+        if self.inner.key_id != key.key_id:
+            raise IdentityError("node key id does not match its public material; the key directory is inconsistent")
+
+    @property
+    def name(self) -> str:
+        return self.inner.name
+
+    @property
+    def public_bytes(self) -> bytes:
+        return self.inner.public_bytes
 
     def sign(self, data: bytes) -> str:
-        return _b64e(self._algorithm.sign(self.key.secret, data))
+        return self.inner.sign(data)
 
     def verify(self, key_id: str, data: bytes, signature: str) -> bool:
-        entry = self.keyring.get(key_id)
-        if entry is None:
-            return False
-        algorithm_name, material = entry
-        try:
-            return KEY_ALGORITHMS.get(algorithm_name).verify(material, data, _b64d(signature))
-        except (KeyError, ValueError):
-            return False
+        return self.keyring.verify(key_id, data, signature)
 
 
 class NodeKeyStore:
-    """The key directory: ``keys/node.json`` (public record) + ``keys/node.secret`` (0600) + ``identity.json``."""
+    """The key directory: ``keys/node.json`` (public record) + ``keys/node.secret`` (0600) + ``identity.json``
+    + ``keys/announced`` (key ids whose KEY_ANNOUNCE was enqueued).  ``key_lifetime_s`` is the default
+    lifetime of every key it creates or renews (``identity.key_lifetime_s``)."""
 
-    def __init__(self, state_dir: str | os.PathLike[str]) -> None:
+    def __init__(self, state_dir: str | os.PathLike[str], *, key_lifetime_s: float = DEFAULT_KEY_LIFETIME_S) -> None:
         self.state_dir = Path(state_dir)
         self.keys_dir = self.state_dir / "keys"
         self.public_path = self.keys_dir / "node.json"
         self.secret_path = self.keys_dir / "node.secret"
         self.identity_path = self.state_dir / "identity.json"
+        self.announced_path = self.keys_dir / "announced"
+        self.key_lifetime_s = float(key_lifetime_s)
 
     # -- keys
     def exists(self) -> bool:
         return self.public_path.exists() and self.secret_path.exists()
 
-    def create(self, *, algorithm: str = "ed25519", now: float, lifetime_s: float = DEFAULT_KEY_LIFETIME_S, previous: Sequence[str] = ()) -> NodeKey:
+    def create(self, *, algorithm: str = "ed25519", now: float, lifetime_s: float | None = None, previous: Sequence[str] = ()) -> NodeKey:
         alg = KEY_ALGORITHMS.get(algorithm)
         secret, public = alg.generate()
-        key = NodeKey(algorithm, key_id_for(algorithm, public), secret, public, float(now), float(now) + float(lifetime_s), tuple(previous))
+        lifetime = self.key_lifetime_s if lifetime_s is None else float(lifetime_s)
+        key = NodeKey(algorithm, key_id_for(algorithm, public), secret, public, float(now), float(now) + lifetime, tuple(previous))
         self._write(key)
         return key
 
@@ -259,20 +265,37 @@ class NodeKeyStore:
             raise IdentityError("node key id does not match its public material; the key directory is inconsistent")
         return key
 
-    def load_or_create(self, *, algorithm: str = "ed25519", now: float, lifetime_s: float = DEFAULT_KEY_LIFETIME_S) -> NodeKey:
+    def load_or_create(self, *, algorithm: str = "ed25519", now: float, lifetime_s: float | None = None) -> NodeKey:
         return self.load() if self.exists() else self.create(algorithm=algorithm, now=now, lifetime_s=lifetime_s)
 
-    def renew(self, key: NodeKey, *, now: float, canaries_passed: bool, lifetime_s: float = DEFAULT_KEY_LIFETIME_S) -> NodeKey:
-        """Extend the expiry.  Refused by name unless the canaries were just re-proven (design §6.2)."""
-        if not canaries_passed:
+    def renew(self, key: NodeKey, *, now: float, canaries_passed: bool = False, after_canary: bool = True,
+              lifetime_s: float | None = None, force: bool = False) -> NodeKey:
+        """A key past its lifetime (or ``force``) is *rotated* to a fresh key that lists it under
+        ``previous_key_ids`` — the old key is announced as superseded by the new key's KEY_ANNOUNCE
+        (``announce_body``).  With ``after_canary`` (the default) the rotation is refused by name
+        unless the canaries were just re-proven (design §6.2).  A key inside its lifetime is
+        returned unchanged."""
+        if not force and not key.expired(now):
+            return key
+        if after_canary and not canaries_passed:
             raise Refused("key-renewal-needs-canaries")
-        renewed = replace(key, expires_at=float(now) + float(lifetime_s))
-        self._write(renewed)
-        return renewed
+        return self.rotate(key, now=now, lifetime_s=lifetime_s)
 
-    def rotate(self, key: NodeKey, *, now: float, lifetime_s: float = DEFAULT_KEY_LIFETIME_S) -> NodeKey:
+    def rotate(self, key: NodeKey, *, now: float, lifetime_s: float | None = None) -> NodeKey:
         """A new key that remembers its predecessors so old records stay attributable."""
         return self.create(algorithm=key.algorithm, now=now, lifetime_s=lifetime_s, previous=(key.key_id, *key.previous_key_ids))
+
+    # -- announcements
+    def announced(self, key_id: str) -> bool:
+        if not self.announced_path.exists():
+            return False
+        return key_id in self.announced_path.read_text("utf-8").split()
+
+    def mark_announced(self, key_id: str) -> None:
+        self.keys_dir.mkdir(parents=True, exist_ok=True)
+        existing = self.announced_path.read_text("utf-8") if self.announced_path.exists() else ""
+        if key_id not in existing.split():
+            _write_atomic(self.announced_path, (existing + key_id + "\n").encode("utf-8"))
 
     def _write(self, key: NodeKey) -> None:
         self.keys_dir.mkdir(parents=True, exist_ok=True)
@@ -447,6 +470,29 @@ def bind_identity(key: NodeKey, invite: Invite, capabilities: Iterable[str]) -> 
     return NodeIdentity(key_id=key.key_id, capabilities=tuple(sorted(set(capabilities))), invite_lineage=invite.joiner_lineage, role=invite.role)
 
 
+# --------------------------------------------------------------------------- announcements
+def announce_body(key: NodeKey, identity: NodeIdentity) -> dict[str, Any]:
+    """The KEY_ANNOUNCE body for ``key`` (partition ``log.keys.KEYS_PARTITION``): public material,
+    role, lineage, expiry and the key ids it supersedes (``previous_key_ids``).  Signed by the key
+    itself when written (``log.records`` binds ``body.key_id == signer_key``)."""
+    if key.key_id != identity.key_id:
+        raise IdentityError("announce: the identity's key is not the key being announced")
+    return key_announce_body(key_id=key.key_id, algorithm=key.algorithm, pub=key.public, role=identity.role, lineage=identity.invite_lineage,
+                             expires_at=key.expires_at, supersedes=key.previous_key_ids, created_at=key.created_at)
+
+
+def enqueue_announce(outbox: Any, keystore: NodeKeyStore, key: NodeKey, identity: NodeIdentity, *, partition: str = KEYS_PARTITION) -> bool:
+    """Enqueue the KEY_ANNOUNCE once per key id (``keystore.announced``); returns True when enqueued."""
+    if key.algorithm != "ed25519" or keystore.announced(key.key_id):
+        return False
+    from ..core import RecordType
+    from .outbox import PendingRecord
+
+    outbox.enqueue(record=PendingRecord(partition, RecordType.KEY_ANNOUNCE, announce_body(key, identity), ""))
+    keystore.mark_announced(key.key_id)
+    return True
+
+
 # --------------------------------------------------------------------------- independence
 def lineage_set(key_id: str, lineage: Iterable[str]) -> frozenset[str]:
     return frozenset({key_id, *lineage})
@@ -508,5 +554,5 @@ __all__ = [
     "DEFAULT_INVITE_LIFETIME_S", "DEFAULT_KEY_LIFETIME_S", "Ed25519Algorithm", "HashTokenAlgorithm", "INVITE_VERSION", "IdentityError",
     "Invite", "InviteError", "KEY_ALGORITHMS", "KeyAlgorithm", "Keyring", "NodeKey", "NodeKeyStore", "NodeSigner", "ROLES", "ROLE_MAY_SIGN",
     "ROLE_MAY_VERIFY", "assert_two_lineages", "bind_identity", "independent", "independent_identities", "key_id_for", "lineage_for_joiner",
-    "lineage_set", "make_invite", "parse_invite_url", "split_fabric_url", "verify_invite",
+    "lineage_set", "make_invite", "parse_invite_url", "split_fabric_url", "verify_invite", "announce_body", "enqueue_announce",
 ]

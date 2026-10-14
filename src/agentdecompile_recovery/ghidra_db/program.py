@@ -33,6 +33,7 @@ Observed on the curated Odyssey database (swkotor2.exe, image base 0x400000):
 from __future__ import annotations
 
 import re
+import struct
 from dataclasses import dataclass
 from enum import IntEnum
 from pathlib import Path
@@ -41,6 +42,7 @@ from typing import Any, Iterable, Iterator
 
 from .address_map import AddressMap, DecodedAddress
 from .buffer_file import BufferFile
+from .chained_buffer import iter_chained_buffer_chunks
 from .master_table import TableRecord, find_table, iter_rows
 
 # Table names, as written by ProgramDB and its adapters.
@@ -48,6 +50,7 @@ PROGRAM_TABLE = "Program"
 ADDRESS_MAP_TABLE = "ADDRESS MAP"
 SYMBOLS_TABLE = "Symbols"
 FUNCTION_DATA_TABLE = "Function Data"
+SCOPE_ADDRESSES_TABLE = "Range Map - SCOPE ADDRESSES"
 COMMENTS_TABLE = "Comments"
 MEMORY_BLOCKS_TABLE = "Memory Blocks"
 COMPOSITE_DATA_TYPES_TABLE = "Composite Data Types"
@@ -182,6 +185,19 @@ class Symbol:
 
 
 @dataclass(frozen=True)
+class FunctionBodyRange:
+    """One recorded Ghidra function-body interval (both endpoints inclusive)."""
+
+    function_symbol_id: int
+    start: DecodedAddress
+    end: DecodedAddress
+
+    @property
+    def size(self) -> int:
+        return self.end.offset - self.start.offset + 1
+
+
+@dataclass(frozen=True)
 class Function:
     """A function symbol joined to its Function Data row.
 
@@ -290,6 +306,28 @@ class MemoryBlock:
             "start": f"0x{self.start:x}",
             "length": self.length,
             "permissions": self.permissions,
+        }
+
+
+@dataclass(frozen=True)
+class FileBytesSource:
+    """Original imported-file bytes retained in a Ghidra program database."""
+
+    source_id: int
+    filename: str
+    file_offset: int
+    size: int
+    original_buffer_ids: tuple[int, ...]
+    layered_buffer_ids: tuple[int, ...]
+
+    def to_json(self) -> dict[str, Any]:
+        return {
+            "sourceId": self.source_id,
+            "filename": self.filename,
+            "fileOffset": self.file_offset,
+            "size": self.size,
+            "originalBufferCount": len(self.original_buffer_ids),
+            "layeredBufferCount": len(self.layered_buffer_ids),
         }
 
 
@@ -519,6 +557,56 @@ class GhidraProgram:
             )
         return data
 
+    def function_body_ranges(self) -> dict[int, list[FunctionBodyRange]]:
+        """Return recorded function bodies keyed by Ghidra function-symbol id.
+
+        Ghidra's scope-address range map stores inclusive encoded address
+        endpoints and a scope/symbol id. Restrict the join to actual function
+        symbols; other namespace scopes in the same range map are unrelated.
+        A missing table is supported for older/alternate project schemas, while
+        malformed ranges belonging to a function fail closed instead of
+        fabricating a contiguous extent.
+        """
+
+        table = self.table(SCOPE_ADDRESSES_TABLE)
+        if table is None:
+            return {}
+        function_ids = {function.symbol_id for function in self.functions()}
+        ranges: dict[int, list[FunctionBodyRange]] = {}
+        for row in iter_rows(self.buffer_file, table):
+            raw_id = row.get("Value")
+            if raw_id is None:
+                continue
+            symbol_id = int(raw_id)
+            if symbol_id not in function_ids:
+                continue
+            start = self.decode_address(row.get("From"))
+            end = self.decode_address(row.get("To"))
+            if start is None or end is None or not start.is_memory or not end.is_memory:
+                raise GhidraProgramError(
+                    f"{self.path}: function scope {symbol_id} has a non-memory range"
+                )
+            if start.address_type != end.address_type or start.base_index != end.base_index:
+                raise GhidraProgramError(
+                    f"{self.path}: function scope {symbol_id} crosses address spaces"
+                )
+            if end.offset < start.offset:
+                raise GhidraProgramError(
+                    f"{self.path}: function scope {symbol_id} has a reversed range"
+                )
+            ranges.setdefault(symbol_id, []).append(
+                FunctionBodyRange(symbol_id, start, end)
+            )
+
+        for symbol_id, entries in ranges.items():
+            entries.sort(key=lambda item: (item.start.offset, item.end.offset))
+            for previous, current in zip(entries, entries[1:]):
+                if current.start.offset <= previous.end.offset:
+                    raise GhidraProgramError(
+                        f"{self.path}: function scope {symbol_id} has overlapping ranges"
+                    )
+        return ranges
+
     def names_by_entry(self, *, curated_only: bool = True) -> dict[int, str]:
         """`{virtualAddress: functionName}` -- the map the naming tier consumes.
 
@@ -612,6 +700,113 @@ class GhidraProgram:
         blocks.sort(key=lambda block: block.start)
         return blocks
 
+    # -- original import bytes --------------------------------------------
+
+    @staticmethod
+    def _coded_int_array(value: Any, *, column: str) -> tuple[int, ...]:
+        """Decode Ghidra's BinaryCodedField INT_ARRAY without guessing."""
+
+        if not isinstance(value, bytes) or len(value) < 2:
+            raise GhidraProgramError(f"File Bytes.{column}: missing coded int array")
+        # db.BinaryCodedField.INT_ARRAY = 4; the next byte signals nullness.
+        if value[0] != 4:
+            raise GhidraProgramError(
+                f"File Bytes.{column}: coded type {value[0]} is not an int array"
+            )
+        if value[1] == 0xFF:
+            return ()
+        if value[1] != 0 or (len(value) - 2) % 4:
+            raise GhidraProgramError(f"File Bytes.{column}: malformed coded int array")
+        return tuple(
+            struct.unpack_from(">i", value, offset)[0]
+            for offset in range(2, len(value), 4)
+        )
+
+    def file_bytes_sources(self) -> list[FileBytesSource]:
+        """Describe Ghidra's imported byte sources without loading their payloads."""
+
+        table = self.table("File Bytes")
+        if table is None:
+            return []
+        key_name = table.schema().key_name
+        sources: list[FileBytesSource] = []
+        for row in iter_rows(self.buffer_file, table):
+            try:
+                source = FileBytesSource(
+                    source_id=int(row[key_name]),
+                    filename=str(row.get("Filename") or ""),
+                    file_offset=int(row.get("Offset") or 0),
+                    size=int(row.get("Size") or 0),
+                    original_buffer_ids=self._coded_int_array(
+                        row.get("Chain Buffer IDs"), column="Chain Buffer IDs"
+                    ),
+                    layered_buffer_ids=self._coded_int_array(
+                        row.get("Layered Chain Buffer IDs"),
+                        column="Layered Chain Buffer IDs",
+                    ),
+                )
+            except (KeyError, TypeError, ValueError) as exc:
+                raise GhidraProgramError(
+                    f"{self.path}: malformed File Bytes record"
+                ) from exc
+            if source.size < 0 or source.file_offset < 0:
+                raise GhidraProgramError(
+                    f"{self.path}: File Bytes record {source.source_id} has a negative range"
+                )
+            sources.append(source)
+        return sources
+
+    def read_original_file_bytes(
+        self, source_id: int, *, max_bytes: int = 512 * 1024 * 1024
+    ) -> bytes:
+        """Read immutable imported bytes, not Ghidra's analysis-edited layer.
+
+        A caller must select a source ID explicitly. This avoids silently
+        choosing among embedded files or reconstructing an incomplete image.
+        """
+
+        return b"".join(self.iter_original_file_chunks(source_id, max_bytes=max_bytes))
+
+    def iter_original_file_chunks(
+        self, source_id: int, *, max_bytes: int = 512 * 1024 * 1024
+    ) -> Iterator[bytes]:
+        """Stream the selected immutable import source from its original buffers.
+
+        Layered buffers contain analysis edits and are deliberately excluded.
+        Each chunk remains bounded by one Ghidra chained-buffer data node.
+        """
+
+        matches = [source for source in self.file_bytes_sources() if source.source_id == source_id]
+        if len(matches) != 1:
+            raise GhidraProgramError(
+                f"{self.path}: expected one File Bytes source {source_id}, found {len(matches)}"
+            )
+        source = matches[0]
+        if source.size > max_bytes:
+            raise GhidraProgramError(
+                f"{self.path}: File Bytes source is {source.size} bytes, over the {max_bytes}-byte limit"
+            )
+        if source.size and not source.original_buffer_ids:
+            raise GhidraProgramError(
+                f"{self.path}: File Bytes source {source_id} has no original buffers"
+            )
+        yielded = 0
+        for buffer_id in source.original_buffer_ids:
+            for chunk in iter_chained_buffer_chunks(self.buffer_file, buffer_id):
+                yielded += len(chunk)
+                if yielded > source.size:
+                    raise GhidraProgramError(
+                        f"{self.path}: File Bytes source {source_id} original buffers exceed "
+                        f"the declared {source.size} bytes"
+                    )
+                if chunk:
+                    yield chunk
+        if yielded != source.size:
+            raise GhidraProgramError(
+                f"{self.path}: File Bytes source {source_id} declares {source.size} bytes "
+                f"but its original buffers contain {yielded}"
+            )
+
     # -- data types --------------------------------------------------------
 
     def composite_data_types(self) -> Iterator[CompositeDataType]:
@@ -688,7 +883,7 @@ def census_names(program: GhidraProgram) -> dict[str, Any]:
 
     return {
         "schema": "agentdecompile.name-census.v1",
-        "program": program.name,
+        "program": program.program_name,
         "language": program.language_id,
         "functions": {
             "total": func_total,

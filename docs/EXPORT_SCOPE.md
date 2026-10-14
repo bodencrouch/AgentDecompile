@@ -36,6 +36,15 @@ Three distinct browser workstreams cannot satisfy this export implicitly:
   browser, requiring an executable route and rendering, input, audio, save and
   sustained-play evidence.
 
+WASM and graphics/GL are first-class capability areas in the higher-level
+reverse-engineering workbench: supported analysis, comparison, visualization or
+target instrumentation may run through browser-portable providers. That does not
+define a WASM hook-pack consumer, replace Ghidra's JVM-backed analysis, or
+establish native compiler, objdiff, or whole-image recovery proof. Target-side
+graphics observations and browser-side visualization are separate evidence.
+Claims must name the actual operation and supported target rather than treating
+“runs in the browser” as a capability or proof category.
+
 None defines a WASM consumer of the hook pack, generated bindings or runtime
 harness. Likewise, this narrowly scoped exclusion does not remove M7 from the
 [autonomous capability roadmap](plans/2026-09-22-autonomous-capability-product-roadmap.md).

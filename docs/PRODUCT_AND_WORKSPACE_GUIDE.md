@@ -1,7 +1,8 @@
 # AgentDecompile: what it delivers and how the workspaces should explain it
 
 This guide explains the product and translates its recovery diagrams into useful
-operator workflows. It supplements the [charter](../VISION.md),
+operator workflows. The [current user contract](USER_INTENT.md) defines inputs,
+outputs, and scope; this guide supplements the [charter](../VISION.md),
 [strategy](../STRATEGY.md), [frontend requirements](FRONTEND_INTENT.md) and
 [frontends implementation plan](plans/2026-09-28-0817-feat-static-codebrowser-project-tabs-plan.md).
 It does not replace those authorities or declare their unfinished work complete.

@@ -2,11 +2,13 @@ import {TierProgress} from '../TierProgress';
 import {ExportReadiness} from '../ExportReadiness';
 import {useEffect,useRef,useState} from 'react';
 import {API,request,type Data,type Selection} from '../contracts';
-import {ErrorLine,RecordView,useData} from '../ui';
+import {ErrorLine,useData} from '../ui';
 import {memberSelection} from './navigation';
 import {CoverageMatrix} from './coverageMatrix';
+import {ProjectCollection} from './ProjectCollection';
 
-export function LogicalNavigator({selection,binaries,corpus,revision,onSelect,onMember}:{selection:Selection;binaries:Data[];corpus:ReturnType<typeof useData>;revision:number;onSelect:(patch:Partial<Selection>)=>void;onMember:(selection:Selection)=>void}) {
+export function LogicalNavigator({selection,collectionLocator='',binaries,binariesLoading=false,binariesError='',corpus,revision,onSelect,onMember}:{selection:Selection;collectionLocator?:string;binaries:Data[];binariesLoading?:boolean;binariesError?:string;corpus:ReturnType<typeof useData>;revision:number;onSelect:(patch:Partial<Selection>)=>void;onMember:(selection:Selection)=>void}) {
+  const projectSelection={...selection,locator:selection.locator||collectionLocator};
   const [filter,setFilter]=useState(''),[search,setSearch]=useState(''),[pages,setPages]=useState<number[]>([0]);
   const [inspecting,setInspecting]=useState(false),[inspectionError,setInspectionError]=useState('');
   const [tierReports,setTierReports]=useState<{key:string;reports:Record<string,Data>;loading:boolean}>({key:'',reports:{},loading:false});
@@ -20,7 +22,7 @@ export function LogicalNavigator({selection,binaries,corpus,revision,onSelect,on
   const detailReady=compatible&&!legacy&&!list.error&&!detail.loading&&!detail.error&&!inspectionError&&detail.data.corpus?.identity===expected;
   const members:Data[]=detailReady?detail.data.members||[]:[];
   const generation=useRef(0);
-  useEffect(()=>{generation.current++;setInspectionError('');setInspecting(false);return()=>{generation.current++;};},[selection,expected,revision]);
+  useEffect(()=>{generation.current++;setInspectionError('');setInspecting(false);return()=>{generation.current++;};},[selection,collectionLocator,expected,revision]);
   const binaryBasis=JSON.stringify(binaries.map(binary=>[String(binary.slug||''),String(binary.content_sha256||binary.contentSha256||binary.sha256||'')]));
   const tierKey=detailReady?`${expected}:${selection.logicalId}:${revision}:${binaryBasis}`:'';
   useEffect(()=>{
@@ -33,19 +35,21 @@ export function LogicalNavigator({selection,binaries,corpus,revision,onSelect,on
     void Promise.all([worker(),worker()]).then(()=>{if(!controller.signal.aborted)setTierReports({key:tierKey,reports:{...reports},loading:false});});
     return()=>controller.abort();
   },[tierKey,binaryBasis,expected]);
-  async function inspect(member:Data){
+  async function inspect(member:Data,outsideProject=false){
     const attempt=++generation.current;
     setInspecting(true);setInspectionError('');
     try{
       const fresh=await request(detailUrl!);
       if(attempt!==generation.current)return;
       if(fresh.corpus?.identity!==expected||!(fresh.members||[]).some((row:Data)=>row.slug===member.slug&&row.addr===member.addr))throw new Error('The corpus or member changed. Refresh and select the member again.');
-      onMember(memberSelection(member,binaries,selection));
+      onMember(memberSelection(member,binaries,outsideProject?{...selection,locator:'',projectId:''}:projectSelection));
     }catch(error){if(attempt===generation.current)setInspectionError(String(error));}
     finally{if(attempt===generation.current)setInspecting(false);}
   }
   const missing=detailReady?binaries.filter(binary=>!members.some(member=>binary.slug===member.slug||binary.aliasSlugs?.includes(member.slug))):[];
-  return <div className="ws-document"><h2>Shared logical codebase</h2>
+  return <div className="ws-document">
+    <ProjectCollection selection={projectSelection} binaries={binaries} members={members} identityName={String(detail.data.name||'')} sourceFile={String(detail.data.source_file||'')} objectFile={String(detail.data.object_file||'')} ready={compatible&&!binariesLoading&&!binariesError} loading={corpus.loading||binariesLoading} error={corpus.error||binariesError} relationshipReady={detailReady} relationshipLoading={detail.loading} canInspect={detailReady&&!inspecting&&(detail.data.errors||[]).length===0} onInspect={(member,outside)=>void inspect(member,outside)} onBuild={onMember}/>
+    <h2>Find related implementations</h2>
     <p>Reading corpus <code>{corpus.data.corpus?.path||corpus.data.current||'Unavailable'}</code>. This is the server-selected corpus, not a project-scoped lookup. Member evidence does not establish accepted equivalence or byte accuracy.</p>
     <ErrorLine error={corpus.error||inspectionError}/>
     {legacy&&<p role="status">This saved logical ID has no database identity. Select an identity from the list explicitly to bind it to this corpus.</p>}
@@ -59,16 +63,10 @@ export function LogicalNavigator({selection,binaries,corpus,revision,onSelect,on
     <div className="ws-toolbar"><button disabled={pages.length===1||list.loading} onClick={()=>setPages(old=>old.slice(0,-1))}>Previous identities</button><button disabled={!list.data.more||list.loading||Boolean(list.error)} onClick={()=>setPages(old=>[...old,Number(list.data.rows?.at(-1)?.id)||0])}>Next identities</button></div>
     {selection.logicalId&&<section aria-label="Logical entity members"><h3>{detail.data.name||`Identity ${selection.logicalId}`}</h3><ErrorLine error={detail.error}/>{(detail.data.errors||[]).map((error:string,index:number)=><ErrorLine key={index} error={error}/>)}
       {detail.loading&&<p role="status">Reading members…</p>}
-      <table className="ws-table"><thead><tr><th>Build / address</th><th>Relationship evidence</th><th>Inspection target</th></tr></thead><tbody>{members.map((member,index)=>{
-        const target=memberSelection(member,binaries,selection);
-        const ambiguous=members.filter(row=>row.slug===member.slug).length>1;
-        return <tr key={`${member.slug}:${member.addr}:${index}`}><td><strong>{member.slug}</strong><br/><code>{member.addr||'No address'}</code></td><td>{ambiguous?'Multiple recorded members in this build; relationship ambiguous. ':''}{member.method||'Method not recorded'} · confidence {member.confidence??'not recorded'}<details><summary>Evidence / divergence</summary><RecordView value={member.evidence??{status:'No divergence or acceptance verdict supplied'}}/></details></td><td><button disabled={!target.slug||!target.addr||!detailReady||inspecting||(detail.data.errors||[]).length>0} onClick={()=>void inspect(member)}>Inspect member</button><small>{target.program?`${target.locator} · ${target.program}`:'No unique project binding; corpus browsing only'}</small></td></tr>;
-      })}</tbody></table>
-      {!detail.loading&&!members.length&&<p>No members returned for this identity.</p>}
-      {detailReady&&<CoverageMatrix members={members} binaries={binaries} logicalId={selection.logicalId} corpusIdentity={selection.corpusIdentity} tierReportsBySlug={tierReports.key===tierKey?tierReports.reports:{}} loading={tierReports.key===tierKey&&tierReports.loading}/>}
+      {detailReady&&!members.length&&<p>No members returned for this identity.</p>}
+      {detailReady&&<details><summary>Recorded coverage and tier evidence</summary><CoverageMatrix members={members} binaries={binaries} logicalId={selection.logicalId} corpusIdentity={selection.corpusIdentity} tierReportsBySlug={tierReports.key===tierKey?tierReports.reports:{}} loading={tierReports.key===tierKey&&tierReports.loading}/></details>}
       {missing.length>0&&<details><summary>Builds without a returned member ({missing.length})</summary><p>This does not establish that a build is unmatched; the API supplies no negative-match or divergence verdict.</p><ul>{missing.map((binary,index)=><li key={binary.slug||index}>{binary.name||binary.slug||binary.sha256}</li>)}</ul></details>}
     </section>}
-    <TierProgress selection={selection} revision={revision}/>
-    <ExportReadiness selection={selection} revision={revision}/>
+    <details><summary>Recovery and export evidence</summary><TierProgress selection={selection} revision={revision}/><ExportReadiness selection={selection} revision={revision}/></details>
   </div>;
 }

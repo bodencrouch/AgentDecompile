@@ -2,6 +2,9 @@
 
 Operations follow [AGENTS](../AGENTS.md); pipeline priorities and acceptance follow
 [STRATEGY](../STRATEGY.md). Skills route work; they do not supply competing policy.
+The current product inputs, outputs, and intent are consolidated in
+[docs/USER_INTENT.md](../docs/USER_INTENT.md); skill bodies should link to these
+authorities rather than repeat or redefine them.
 
 User docs start at [README.md](../README.md), [USAGE.md](../USAGE.md), and [docs/INDEX.md](../docs/INDEX.md). Authoring: `.agents/skills/skill-authoring`.
 
@@ -44,12 +47,14 @@ automatic propagation threshold.
 | `mcp-debugging` | MCP session, transport, or tool-routing failures |
 | `lfg` | Continue authorized work from STRATEGY and existing evidence |
 | `re-planner` / `re-worker` / `re-critic` / `re-aggregator` | Multi-agent RE roles |
-| `agentdecompile-server-env` | Attach existing 8080, environment, bind, sessions |
 
-`agentdecompile-rewrite-worker` and `agentdecompile-server-env` have canonical
-bodies under `.agents/skills/` and Claude loaders. Migrated `source-command-*`
-skills route to the current command guidance. The project plugin connects by native
-HTTP to existing 8080; it starts no process and does not modify global MCP defaults.
+The legacy Claude-only entrypoints `.claude/skills/agentdecompile-server-env/`
+and `.claude/skills/agentdecompile-rewrite-worker/` are retired safety notices,
+not available shared skills: their former canonical bodies are absent. They route
+to current setup or source-recovery guidance and must not revive stale startup or
+`/loop` workflows. Migrated `source-command-*` skills route to current command
+guidance. The project plugin connects by native HTTP to existing 8080; it starts
+no process and does not modify global MCP defaults.
 
 General-development validation reference (do not run during the current mission):
 

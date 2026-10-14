@@ -17,6 +17,9 @@ from __future__ import annotations
 import hashlib
 import re
 import struct
+from collections import deque
+
+from .coff_object import RELOCATIONS, parse_object_inventory
 
 SCHEMA = "agentdecompile.coff-fixup-roundtrip.v1"
 
@@ -40,19 +43,6 @@ SYM_DEBUG = -2
 
 # (machine, type) -> (name, width, kind, extra) where kind is
 # "abs" (S + A), "rva" (S - image_base + A) or "rel" (S + A - (P + 4 + extra)).
-RELOCATIONS = {
-    (MACHINE_I386, I386_DIR32): ("IMAGE_REL_I386_DIR32", 4, "abs", 0),
-    (MACHINE_I386, I386_DIR32NB): ("IMAGE_REL_I386_DIR32NB", 4, "rva", 0),
-    (MACHINE_I386, I386_REL32): ("IMAGE_REL_I386_REL32", 4, "rel", 0),
-    (MACHINE_AMD64, AMD64_ADDR64): ("IMAGE_REL_AMD64_ADDR64", 8, "abs", 0),
-    (MACHINE_AMD64, AMD64_ADDR32): ("IMAGE_REL_AMD64_ADDR32", 4, "abs", 0),
-    (MACHINE_AMD64, AMD64_ADDR32NB): ("IMAGE_REL_AMD64_ADDR32NB", 4, "rva", 0),
-    **{
-        (MACHINE_AMD64, AMD64_REL32 + k): (
-            "IMAGE_REL_AMD64_REL32" + (f"_{k}" if k else ""), 4, "rel", k)
-        for k in range(6)
-    },
-}
 
 _MKOBJ_EXTERNAL = re.compile(r"EXT_([0-9a-f]{8})")
 
@@ -200,6 +190,210 @@ def _place(parsed: dict, place_va: int, symbols: dict[str, int], image_base: int
         out[offset:offset + width] = packed
         records.append(record)
     return bytes(out), records
+
+
+def place_sections(obj: bytes, placements: dict[int, int], symbols: dict[str, int],
+                   *, image_base: int | None = None) -> dict:
+    """Place explicit COFF contributions, not a linked image or function proof.
+
+    Numeric section identities prevent duplicate local names from aliasing.
+    Callers own placement/external-binding provenance; this function never
+    derives bindings from comparison bytes, selects COMDAT winners, interprets
+    SafeSEH metadata or infers function extents. Unplaced sections stay explicit.
+    """
+    inventory = parse_object_inventory(obj)
+    sections = {section['index']: section for section in inventory['sections']}
+    limit = 1 << (32 if inventory['machine'] == MACHINE_I386 else 64)
+    if not isinstance(placements, dict) or not placements:
+        raise FixupRefusal('section_placements_required')
+    if not isinstance(symbols, dict) or any(
+            not isinstance(name, str) or type(value) is not int or not 0 <= value < limit
+            for name, value in symbols.items()):
+        raise FixupRefusal('invalid_external_bindings')
+    if image_base is not None and (type(image_base) is not int or not 0 <= image_base < limit):
+        raise FixupRefusal('invalid_image_base')
+    spans = []
+    for index, address in placements.items():
+        if type(index) is not int or index not in sections or type(address) is not int:
+            raise FixupRefusal('invalid_section_placement')
+        section = sections[index]
+        if not 0 <= address < limit or address + section['size'] > limit:
+            raise FixupRefusal('section_placement_overflow', str(index))
+        if len(section['data']) != section['size']:
+            raise FixupRefusal('uninitialized_section_placement_unsupported', str(index))
+        definition = inventory['sectionDefinitions'].get(index, {})
+        if definition.get('selection') == 5 and definition['association'] not in placements:
+            raise FixupRefusal('unplaced_comdat_parent', str(index))
+        if section['size']:
+            spans.append((address, address + section['size'], index))
+    spans.sort()
+    if any(left[1] > right[0] for left, right in zip(spans, spans[1:])):
+        raise FixupRefusal('overlapping_section_placements')
+
+    output = []
+    for index in sorted(placements):
+        section = sections[index]
+        resolved = {}
+        relocations = []
+        for relocation in section['relocations']:
+            symbol_index = relocation['symbolIndex']
+            symbol = inventory['symbols'].get(symbol_index)
+            if symbol is None:
+                raise FixupRefusal('bad_symbol_index', str(symbol_index))
+            number, value = symbol['section'], symbol['value']
+            if number > 0:
+                if number not in placements:
+                    raise FixupRefusal('unplaced_defined_symbol', symbol['name'])
+                if value > sections[number]['size']:
+                    raise FixupRefusal('symbol_outside_section', symbol['name'])
+                value += placements[number]
+                if value >= limit:
+                    raise FixupRefusal('symbol_address_overflow', symbol['name'])
+                number = SYM_ABSOLUTE
+            elif number == 0 and (value or symbol['storageClass'] != 2 or symbol['auxiliaries']):
+                raise FixupRefusal('unsupported_external_symbol', symbol['name'])
+            elif number not in (0, SYM_ABSOLUTE, SYM_DEBUG):
+                raise FixupRefusal('unsupported_symbol_section', symbol['name'])
+            resolved[symbol_index] = {'name': symbol['name'], 'section': number,
+                                      'value': value, 'class': symbol['storageClass']}
+            relocations.append({'offset': relocation['offset'], 'symbol_index': symbol_index,
+                                'type': relocation['type']})
+        relocations.sort(key=lambda item: (item['offset'], item['symbol_index'], item['type']))
+        parsed = {'machine': inventory['machine'], 'section_number': index,
+                  'code': section['data'], 'symbols': resolved, 'relocations': relocations}
+        # Every internal target was converted to an absolute symbol, preventing
+        # an external name map from overriding an unplaced internal definition.
+        data, records = _place(parsed, placements[index], symbols, image_base)
+        output.append({'section': index, 'name': section['name'], 'address': placements[index],
+                       'data': data, 'sha256': _sha256(data), 'relocations': records,
+                       'comdat': inventory['sectionDefinitions'].get(index)})
+    return {'schema': 'agentdecompile.coff-section-placement/v1',
+            'objectSha256': inventory['sha256'], 'sections': output,
+            'unplacedSections': sorted(set(sections) - set(placements)),
+            'claim': 'Explicit section placement only; not linked closure, function extent or byte proof.'}
+
+
+def derive_section_bindings(obj: bytes, entry_section: int, entry_address: int,
+                            target_region, *, image_base: int) -> dict:
+    """Derive diagnostic bindings from target operands, never independent proof.
+
+    Only relocation-reachable sections are visited. Every non-relocation byte
+    must match before a section can supply outgoing bindings. The seed names a
+    section base, not a recovered function extent; no COMDAT winner, SafeSEH
+    interpretation or unreferenced contribution placement is inferred.
+    """
+    inventory = parse_object_inventory(obj)
+    sections = {section['index']: section for section in inventory['sections']}
+    limit = 1 << (32 if inventory['machine'] == MACHINE_I386 else 64)
+    if type(entry_section) is not int or entry_section not in sections:
+        raise FixupRefusal('invalid_entry_section')
+    if type(image_base) is not int or not 0 <= image_base < limit:
+        raise FixupRefusal('invalid_image_base')
+    if not callable(target_region):
+        raise FixupRefusal('target_region_reader_required')
+    placements = {}
+    externals = {}
+    section_provenance = {}
+    external_provenance = {}
+    symbol_addresses = {}
+    pending = deque()
+
+    def bind_section(index, address, provenance):
+        if type(address) is not int or not 0 <= address < limit:
+            raise FixupRefusal('section_placement_overflow', str(index))
+        if index in placements:
+            if placements[index] != address:
+                raise FixupRefusal('conflicting_section_binding', str(index))
+            return
+        section = sections[index]
+        if not section['size'] or len(section['data']) != section['size']:
+            raise FixupRefusal('uninitialized_section_placement_unsupported', str(index))
+        end = address + section['size']
+        if end > limit:
+            raise FixupRefusal('section_placement_overflow', str(index))
+        if any(address < base + sections[other]['size'] and base < end
+               for other, base in placements.items()):
+            raise FixupRefusal('overlapping_section_placements')
+        placements[index] = address
+        section_provenance[index] = provenance
+        pending.append(index)
+
+    bind_section(entry_section, entry_address, 'Explicit captured target section-base seed; not function extent proof.')
+    while pending:
+        index = pending.popleft()
+        section = sections[index]
+        address = placements[index]
+        code = section['data']
+        captured = target_region(address, len(code))
+        if not isinstance(captured, bytes) or len(captured) != len(code):
+            raise FixupRefusal('missing_target_section_data', str(index))
+        fields = []
+        last_end = 0
+        for relocation in sorted(section['relocations'], key=lambda row: (row['offset'], row['symbolIndex'], row['type'])):
+            spec = RELOCATIONS.get((inventory['machine'], relocation['type']))
+            if spec is None:
+                raise FixupRefusal('unsupported_relocation_type', str(relocation['type']))
+            name, width, kind, extra = spec
+            offset = relocation['offset']
+            if offset < last_end:
+                raise FixupRefusal('overlapping_fixups', str(offset))
+            if offset + width > len(code):
+                raise FixupRefusal('fixup_out_of_bounds', str(offset))
+            if captured[last_end:offset] != code[last_end:offset]:
+                raise FixupRefusal('target_section_shape_mismatch', str(index))
+            fields.append((relocation, name, width, kind, extra))
+            last_end = offset + width
+        if captured[last_end:] != code[last_end:]:
+            raise FixupRefusal('target_section_shape_mismatch', str(index))
+        # No propagation until the entire contribution's fixed bytes match.
+        for relocation, name, width, kind, extra in fields:
+            offset = relocation['offset']
+            addend_format = '<q' if width == 8 else '<i' if kind == 'rel' else '<I'
+            addend = struct.unpack_from(addend_format, code, offset)[0]
+            operand_format = '<i' if kind == 'rel' else '<Q' if width == 8 else '<I'
+            operand = struct.unpack_from(operand_format, captured, offset)[0]
+            target = operand - addend
+            if kind == 'rel':
+                target += address + offset + 4 + extra
+            elif kind == 'rva':
+                target += image_base
+            if not 0 <= target < limit:
+                raise FixupRefusal('symbol_address_overflow', str(relocation['symbolIndex']))
+            symbol_index = relocation['symbolIndex']
+            symbol = inventory['symbols'].get(symbol_index)
+            if symbol is None:
+                raise FixupRefusal('bad_symbol_index', str(symbol_index))
+            if symbol['storageClass'] not in (2, 3, 6):
+                raise FixupRefusal('unsupported_symbol_storage', str(symbol_index))
+            if symbol_index in symbol_addresses and symbol_addresses[symbol_index] != target:
+                raise FixupRefusal('conflicting_symbol_binding', str(symbol_index))
+            symbol_addresses[symbol_index] = target
+            provenance = f'Target-derived {name} at section {index} +0x{offset:x}; implicit addend {addend}; not independent identity proof.'
+            number, value = symbol['section'], symbol['value']
+            if number > 0:
+                if value > sections[number]['size']:
+                    raise FixupRefusal('symbol_outside_section', symbol['name'])
+                bind_section(number, target - value, provenance)
+            elif number == SYM_ABSOLUTE:
+                if target != value:
+                    raise FixupRefusal('absolute_symbol_mismatch', symbol['name'])
+            elif number == SYM_DEBUG:
+                raise FixupRefusal('debug_symbol_target', symbol['name'])
+            elif number == 0:
+                if value or symbol['storageClass'] != 2 or symbol['auxiliaries']:
+                    raise FixupRefusal('unsupported_external_symbol', symbol['name'])
+                if symbol['name'] in externals and externals[symbol['name']] != target:
+                    raise FixupRefusal('conflicting_external_binding', symbol['name'])
+                externals[symbol['name']] = target
+                external_provenance.setdefault(symbol['name'], provenance)
+            else:
+                raise FixupRefusal('unsupported_symbol_section', symbol['name'])
+    return {'placements': dict(sorted(placements.items())),
+            'externals': dict(sorted(externals.items())),
+            'sectionProvenance': dict(sorted(section_provenance.items())),
+            'externalProvenance': dict(sorted(external_provenance.items())),
+            'objectSha256': inventory['sha256'],
+            'claim': 'Target-derived diagnostic bindings only; not independent identity, extent or byte proof.'}
 
 
 def mkobj_external_symbols(obj: bytes, origin_va: int) -> dict[str, int]:

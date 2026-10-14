@@ -4,10 +4,13 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import signal
 import shutil
+import stat
 import subprocess
 import sys
+import tempfile
 import time
 from contextlib import redirect_stdout
 from dataclasses import dataclass
@@ -20,7 +23,13 @@ from .acquisition_bundle import load_bundle, validate_bundle_target
 from .context_export import ExportConfig, export_context
 from .context_pack import build_context_pack
 from .export_package import build_export_package
-from .functions import analyze_function_candidates_with_objdump, discover_function_candidates, write_function_candidates
+from .functions import (
+    analyze_function_candidates_with_objdump,
+    dedupe_same_address_candidates,
+    discover_function_candidates,
+    summarize_candidates,
+    write_function_candidates,
+)
 from .inventory import build_binary_inventory, write_inventory
 from .critical_path import write_critical_path
 from .proof_ladder import write_proof_ladder
@@ -50,6 +59,211 @@ from .tools import (
 
 ROOT = Path(__file__).resolve().parents[2]
 
+_MEDIA_TYPES = frozenset({"Texture2D", "Sprite", "AudioClip", "TextAsset", "Font"})
+
+
+def stage_summary_needs_retry(summary: Any) -> bool:
+    if not isinstance(summary, dict):
+        return False
+    status = str(summary.get("status") or "")
+    return status in {"error", "failed"} or status.startswith("paused-")
+
+
+def _unity_source_identity(path: Path) -> dict[str, int | str]:
+    info = path.stat()
+    return {
+        "name": path.name,
+        "sizeBytes": info.st_size,
+        "mtimeNs": info.st_mtime_ns,
+        "ctimeNs": info.st_ctime_ns,
+        "device": info.st_dev,
+        "inode": info.st_ino,
+    }
+
+
+def _unity_resource_companion_owner_names(name: str) -> set[str]:
+    """Return conventional serialized-owner names for a stream companion."""
+
+    if name.endswith(".resS"):
+        return {name.removesuffix(".resS")}
+    if name.endswith(".resource"):
+        stem = name.removesuffix(".resource")
+        return {stem, stem if stem.endswith(".assets") else f"{stem}.assets"}
+    return set()
+
+
+def _unity_excluded_media_sources(data_dir: Path, excluded: set[str]) -> dict[str, Any]:
+    """Resolve excluded serialized owners and their external stream companions."""
+
+    from .unity_assets import discover_data_files, discover_resource_companions
+
+    owners = {path.name: path for path in discover_data_files(data_dir)}
+    planned_companions = {
+        name for name in excluded if _unity_resource_companion_owner_names(name)
+    }
+    planned_owners = excluded - planned_companions
+    selected_owners = [
+        owners[name] for name in sorted(planned_owners & owners.keys())
+    ]
+    selected_owner_names = {path.name for path in selected_owners}
+    companions = discover_resource_companions(data_dir)
+    associated_companions = [
+        path
+        for path in companions
+        if _unity_resource_companion_owner_names(path.name) & selected_owner_names
+    ]
+    available_companion_names = {path.name for path in companions}
+    associated_names = {path.name for path in associated_companions}
+    return {
+        "selectedOwners": selected_owners,
+        "associatedCompanions": associated_companions,
+        "missingOwners": sorted(planned_owners - owners.keys()),
+        "plannedCompanions": sorted(planned_companions),
+        "unavailablePlannedCompanions": sorted(
+            planned_companions - available_companion_names
+        ),
+        "unassociatedPlannedCompanions": sorted(
+            (planned_companions & available_companion_names) - associated_names
+        ),
+    }
+
+
+def _media_file_identity(path: Path) -> dict[str, int] | None:
+    try:
+        info = path.lstat()
+    except FileNotFoundError:
+        return None
+    if not stat.S_ISREG(info.st_mode):
+        return None
+    return {
+        "device": info.st_dev,
+        "inode": info.st_ino,
+        "sizeBytes": info.st_size,
+        "mtimeNs": info.st_mtime_ns,
+    }
+
+
+def _media_conflict_identity(path: Path) -> dict[str, int | str] | None:
+    file_identity = _media_file_identity(path)
+    if file_identity is not None:
+        return file_identity
+    try:
+        info = path.lstat()
+    except FileNotFoundError:
+        return None
+    if not stat.S_ISDIR(info.st_mode):
+        return None
+    return {
+        "kind": "directory",
+        "device": info.st_dev,
+        "inode": info.st_ino,
+        "sizeBytes": info.st_size,
+        "mtimeNs": info.st_mtime_ns,
+    }
+
+
+def _media_output_files(output_dir: Path) -> dict[str, Path]:
+    files: dict[str, Path] = {}
+    if not output_dir.exists():
+        return files
+    for type_name in _MEDIA_TYPES:
+        type_dir = output_dir / type_name
+        if type_dir.is_symlink():
+            raise ValueError(f"media output contains a symlinked type directory: {type_dir}")
+        if not type_dir.is_dir():
+            continue
+        for path in type_dir.iterdir():
+            if path.is_symlink():
+                raise ValueError(f"media output contains a symlinked file: {path}")
+            if path.is_file():
+                files[f"{type_name}/{path.name}"] = path
+    return files
+
+
+def _media_owned_files(receipt: dict[str, Any], project_root: Path, output_dir: Path) -> dict[str, dict[str, int]]:
+    if (receipt.get("ownershipSchema") != "agentdecompile.unity-media-ownership.v1"
+            or receipt.get("targetProject") != str(project_root)
+            or receipt.get("outputDir") != str(output_dir)):
+        return {}
+    owned: dict[str, dict[str, int]] = {}
+    items = receipt.get("ownedFiles")
+    if not isinstance(items, list):
+        return {}
+    for item in items:
+        if not isinstance(item, dict) or not isinstance(item.get("path"), str):
+            continue
+        parts = Path(item["path"]).parts
+        if (len(parts) == 2 and parts[0] in _MEDIA_TYPES
+                and parts[1] not in {".", ".."}
+                and isinstance(item.get("identity"), dict)):
+            # Earlier receipts included ctime, which changes when an original
+            # inode is moved to and restored from an Assets-local backup.
+            owned[item["path"]] = {
+                key: item["identity"].get(key)
+                for key in ("device", "inode", "sizeBytes", "mtimeNs")
+            }
+    return owned
+
+
+def _media_receipt_matches_output(receipt: dict[str, Any], project_root: Path) -> bool:
+    """Check every recorded media file without following output symlinks."""
+
+    assets_dir = project_root / "Assets"
+    output_dir = assets_dir / "RecoveredPrimaryContent"
+    if (receipt.get("ownershipSchema") != "agentdecompile.unity-media-ownership.v1"
+            or receipt.get("targetProject") != str(project_root)
+            or receipt.get("outputDir") != str(output_dir)
+            or assets_dir.is_symlink() or not assets_dir.is_dir()
+            or output_dir.is_symlink()
+            or (output_dir.exists() and not output_dir.is_dir())):
+        return False
+
+    reconciliation = receipt.get("reconciliation")
+    owned = receipt.get("ownedFiles")
+    conflicts = reconciliation.get("preservedConflictFiles") if isinstance(reconciliation, dict) else None
+    conflict_paths = reconciliation.get("preservedChangedOrConflictingFiles") if isinstance(reconciliation, dict) else None
+    if not isinstance(owned, list) or not isinstance(conflicts, list) or not isinstance(conflict_paths, list):
+        return False
+    if (not all(isinstance(path, str) for path in conflict_paths)
+            or len(conflicts) != len(conflict_paths)
+            or len(set(conflict_paths)) != len(conflict_paths)):
+        return False
+
+    seen: set[str] = set()
+    for index, item in enumerate([*owned, *conflicts]):
+        if not isinstance(item, dict) or not isinstance(item.get("path"), str):
+            return False
+        relative = item["path"]
+        parts = Path(relative).parts
+        if (len(parts) != 2 or parts[0] not in _MEDIA_TYPES
+                or parts[1] in {".", ".."}
+                or relative != f"{parts[0]}/{parts[1]}"
+                or relative in seen):
+            return False
+        seen.add(relative)
+        identity = item.get("identity")
+        if (not isinstance(identity, dict)
+                or any(type(identity.get(key)) is not int for key in ("device", "inode", "sizeBytes", "mtimeNs"))):
+            return False
+        is_conflict = index >= len(owned)
+        kind = identity.get("kind")
+        if kind is not None and (not is_conflict or kind != "directory"):
+            return False
+        parent = output_dir / parts[0]
+        if parent.is_symlink() or not parent.is_dir():
+            return False
+        expected: dict[str, int | str] = {
+            key: identity[key] for key in ("device", "inode", "sizeBytes", "mtimeNs")
+        }
+        if kind == "directory":
+            expected["kind"] = kind
+        actual = (_media_conflict_identity(parent / parts[1]) if is_conflict
+                  else _media_file_identity(parent / parts[1]))
+        if actual != expected:
+            return False
+    return {item["path"] for item in conflicts} == set(conflict_paths)
+
+
 # Stages that consume acquisition / context-pack facts. Early inventory stages must
 # remain resumable when mid-run ``--context`` only changes acquisition identity.
 ACQUISITION_SENSITIVE_STAGES = frozenset(
@@ -61,6 +275,14 @@ ACQUISITION_SENSITIVE_STAGES = frozenset(
     }
 )
 
+# Explicit reruns are currently supported only for the source-recovery chain,
+# whose downstream invalidation is declared with ``Stage.depends_on`` below.
+# Other pipeline stages still rely on ``--force`` until their dependency edges
+# are modeled; accepting them here would make resume reuse stale downstream work.
+RERUN_SAFE_STAGES = frozenset(
+    {"generate-source-candidates", "synthesize-source-tasks", "plan-strategy"}
+)
+
 
 @dataclass(frozen=True)
 class Stage:
@@ -68,6 +290,7 @@ class Stage:
     description: str
     outputs: tuple[Path, ...]
     run: Callable[["RecoveryRunner", "Stage"], dict[str, Any]]
+    depends_on: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -77,6 +300,7 @@ class RecoveryConfig:
     preferred_name: str | None = None
     resume: bool = False
     force: bool = False
+    rerun_stages: tuple[str, ...] = ()
     stop_after: str | None = None
     json_output: bool = False
     progress_width: int = 24
@@ -94,7 +318,9 @@ class RecoveryConfig:
     source_synthesis_engine: str = "legacy"
     source_synthesis_mode: str = "clang"
     source_synthesis_limit: int = 25
+    source_synthesis_offset: int = 0
     source_synthesis_max_variants: int = 4
+    source_synthesis_diagnostic_priority_states: tuple[Path, ...] = ()
     source_synthesis_semantic_only: bool = False
     source_synthesis_skip_boundary_suspect: bool = False
     source_synthesis_verify_packaged_source: bool = False
@@ -118,14 +344,22 @@ class RecoveryConfig:
     skip_enrichment: bool = False
     project: Path | None = None
     project_program: str | None = None
+    ghidra_source_project: Path | None = None
+    ghidra_source_program: str | None = None
     unity_project_out: Path | None = None
     unity_editor: Path | None = None
     unity_editor_version: str | None = None
     unity_max_memory_gb: float | None = None
+    unity_max_texture_pixels: int | None = None
     unity_include_resources_assets: bool | None = None
     unity_repair_attempts: int = 3
     unity_editor_timeout: int = 3600
     unity_assetripper_cli: Path | None = None
+    unity_assetripper_remote_host: str | None = None
+    unity_assetripper_remote_input: str | None = None
+    unity_assetripper_remote_output: str | None = None
+    unity_assetripper_remote_port: int = 18086
+    unity_assetripper_ssh_port: int = 22
     unity_ilspycmd: Path | None = None
     unity_install_mcp_bridge: bool = False
     # Program name used in operator-facing diagnostics emitted by the runner.
@@ -142,26 +376,28 @@ class RecoveryRunner:
         self.run_dir = config.work_dir
         self.state = RunState(self.run_dir)
         self.cancelled = False
+        self.completed_in_run: set[str] = set()
         self.stages = self._build_stages()
 
     def _build_stages(self) -> list[Stage]:
         return [
             Stage("discover", "resolve target binary and content identity", (self.run_dir / "target.json",), RecoveryRunner.stage_discover),
             Stage("inspect-capabilities", "inspect local tools and reusable proof surfaces", (self.run_dir / "capabilities.json",), RecoveryRunner.stage_inspect_capabilities),
-            Stage("prepare-analysis-image", "prepare the binary image used for static analysis", (self.run_dir / "analysis-target.json",), RecoveryRunner.stage_prepare_analysis_image),
-            Stage("export-context", "export app/archive/resource context into LLM-readable files", (self.run_dir / "context-export/manifest.json",), RecoveryRunner.stage_export_context),
-            Stage("inventory-binary", "derive executable sections, imports, symbols, and code/data ranges", (self.run_dir / "binary-inventory.json",), RecoveryRunner.stage_inventory_binary),
-            Stage("discover-functions", "derive function-boundary candidates from symbols and executable ranges", (self.run_dir / "function-candidates.json",), RecoveryRunner.stage_discover_functions),
-            Stage("analyze-functions", "enrich function candidates with tool-backed boundary analysis", (self.run_dir / "function-analysis.json",), RecoveryRunner.stage_analyze_functions),
+            Stage("prepare-analysis-image", "prepare the binary image used for static analysis", (self.run_dir / "analysis-target.json",), RecoveryRunner.stage_prepare_analysis_image, ("discover",)),
+            Stage("export-context", "export app/archive/resource context into LLM-readable files", (self.run_dir / "context-export/manifest.json",), RecoveryRunner.stage_export_context, ("discover",)),
+            Stage("inventory-binary", "derive executable sections, imports, symbols, and code/data ranges", (self.run_dir / "binary-inventory.json",), RecoveryRunner.stage_inventory_binary, ("prepare-analysis-image",)),
+            Stage("discover-functions", "join Ghidra-recorded function bodies with executable-image candidates", (self.run_dir / "function-candidates.json",), RecoveryRunner.stage_discover_functions, ("inventory-binary",)),
+            Stage("analyze-functions", "enrich function candidates with tool-backed boundary analysis", (self.run_dir / "function-analysis.json",), RecoveryRunner.stage_analyze_functions, ("discover-functions", "inspect-capabilities")),
             Stage(
                 "enrich-decompile",
                 "PyGhidra enrich DB and decompile facts before source generation",
                 (self.run_dir / "facts" / "enrich-receipt.json",),
                 RecoveryRunner.stage_enrich_decompile,
+                ("analyze-functions",),
             ),
-            Stage("generate-source-candidates", "generate automatic source-candidate tasks from decompiler facts", (self.run_dir / "source-generation/summary.json",), RecoveryRunner.stage_generate_source_candidates),
-            Stage("synthesize-source-tasks", "compile and objdiff generated source tasks against bounded target slices", (self.run_dir / "source-synthesis/summary.json",), RecoveryRunner.stage_synthesize_source_tasks),
-            Stage("plan-strategy", "derive recovery strategy and required proof inputs", (self.run_dir / "strategy.json",), RecoveryRunner.stage_plan_strategy),
+            Stage("generate-source-candidates", "generate automatic source-candidate tasks from decompiler facts", (self.run_dir / "source-generation/summary.json",), RecoveryRunner.stage_generate_source_candidates, ("analyze-functions", "enrich-decompile")),
+            Stage("synthesize-source-tasks", "compile and objdiff generated source tasks against bounded target slices", (self.run_dir / "source-synthesis/summary.json",), RecoveryRunner.stage_synthesize_source_tasks, ("generate-source-candidates",)),
+            Stage("plan-strategy", "derive recovery strategy and required proof inputs", (self.run_dir / "strategy.json",), RecoveryRunner.stage_plan_strategy, ("synthesize-source-tasks",)),
             Stage("byte-authority", "optionally emit a byte-exact source authority package", (self.run_dir / "byte-authority/result.json",), RecoveryRunner.stage_byte_authority),
             Stage("legacy-adapter", "optionally dispatch compatible legacy target-specific adapters", (self.run_dir / "legacy-adapter.json",), RecoveryRunner.stage_legacy_adapter),
             Stage("snapshot-existing-recovery", "snapshot previously verified recovery artifacts for this target", (self.run_dir / "snapshot-existing-recovery.json",), RecoveryRunner.stage_snapshot_existing_recovery),
@@ -170,6 +406,7 @@ class RecoveryRunner:
             Stage("unity-export-assets", "export Unity scenes/prefabs/assets into a reopenable project tree", (self.run_dir / "unity/assetripper.json",), RecoveryRunner.stage_unity_export_assets),
             Stage("unity-decompile-managed", "decompile shipped game assemblies to editable C#", (self.run_dir / "unity/managed.json",), RecoveryRunner.stage_unity_decompile_managed),
             Stage("unity-compose-project", "compose an openable Unity project from exported assets and decompiled source", (self.run_dir / "unity/compose.json",), RecoveryRunner.stage_unity_compose_project),
+            Stage("unity-recover-excluded-media", "recover importable media from containers omitted by the memory-budgeted project export", (self.run_dir / "unity/primary-content.json",), RecoveryRunner.stage_unity_recover_excluded_media),
             Stage("unity-editor-validate", "open the composed project headlessly and record compile/scene errors", (self.run_dir / "unity/validate.json",), RecoveryRunner.stage_unity_editor_validate),
             Stage("unity-repair", "apply diagnostic-driven repairs until the project opens cleanly or stops converging", (self.run_dir / "unity/repair.json",), RecoveryRunner.stage_unity_repair),
             Stage("report", "write aggregate run report", (self.run_dir / "report.json",), RecoveryRunner.stage_report),
@@ -180,6 +417,15 @@ class RecoveryRunner:
         signal.signal(signal.SIGTERM, self._cancel)
         self.run_dir.mkdir(parents=True, exist_ok=True)
         selected = self.selected_stages()
+        invalidated_stages = self.rerun_dependency_closure()
+        if invalidated_stages:
+            for stage_name in invalidated_stages - selected:
+                receipt = self.state.data.get("stages", {}).get(stage_name)
+                if isinstance(receipt, dict) and receipt.get("status") == "complete":
+                    receipt["status"] = "invalidated"
+                    receipt["invalidatedBy"] = sorted(self.config.rerun_stages)
+                    receipt["invalidationReason"] = "an upstream stage was explicitly rerun"
+            self.state.save()
         stage_timings: list[dict[str, Any]] = []
         for index, stage in enumerate(self.stages, start=1):
             if stage.name not in selected:
@@ -199,6 +445,7 @@ class RecoveryRunner:
                     }
                 )
                 continue
+            self.invalidate_downstream(stage.name)
             started = time.monotonic()
             self.progress(index, stage, stage.description)
             receipt = self.state.stage_receipt(stage.name)
@@ -254,6 +501,35 @@ class RecoveryRunner:
                 self._write_stage_timings(stage_timings)
                 self.stage_failed(stage, started, str(exc), 1)
                 return 1
+            if stage_summary_needs_retry(summary):
+                duration = round(time.monotonic() - started, 3)
+                reason = str(summary.get("reason") or summary.get("error") or f"{stage.name} reported {summary['status']}")
+                reported_code = summary.get("returnCode")
+                if reported_code is None:
+                    reported_code = summary.get("exitCode")
+                if reported_code is None:
+                    reported_code = summary.get("tunnelExitCode")
+                try:
+                    return_code = int(reported_code)
+                    if return_code == 0:
+                        return_code = 1
+                except (TypeError, ValueError):
+                    return_code = 1
+                stage_timings.append(
+                    {
+                        "stage": stage.name,
+                        "status": "failed",
+                        "durationSeconds": duration,
+                        "error": reason,
+                    }
+                )
+                self._write_stage_timings(stage_timings)
+                self.stage_failed(stage, started, reason, return_code)
+                receipt = self.state.stage_receipt(stage.name)
+                receipt["summary"] = summary
+                self.state.save()
+                return return_code
+            self.completed_in_run.add(stage.name)
             duration = round(time.monotonic() - started, 3)
             receipt.update(
                 {
@@ -288,6 +564,16 @@ class RecoveryRunner:
 
     def selected_stages(self) -> set[str]:
         names = [stage.name for stage in self.stages]
+        unknown_reruns = sorted(set(self.config.rerun_stages) - set(names))
+        if unknown_reruns:
+            raise SystemExit(f"unknown --rerun-stage {unknown_reruns[0]!r}; choices: {', '.join(names)}")
+        unsupported_reruns = sorted(set(self.config.rerun_stages) - RERUN_SAFE_STAGES)
+        if unsupported_reruns:
+            choices = ", ".join(sorted(RERUN_SAFE_STAGES))
+            raise SystemExit(
+                f"--rerun-stage is currently supported only for {choices}; "
+                "use --force until dependency invalidation is modeled for other stages"
+            )
         if self.config.stop_after is None:
             return set(names)
         if self.config.stop_after not in names:
@@ -299,14 +585,83 @@ class RecoveryRunner:
             return False
         if self.config.force:
             return False
+        if stage.name in self.rerun_dependency_closure():
+            return False
+        if stage.name == "report" and self.completed_in_run:
+            return False
+        if set(stage.depends_on) & self.completed_in_run:
+            return False
         if self.config.force_rematch and stage.name == "synthesize-source-tasks":
             return False
         receipt = self.state.data.get("stages", {}).get(stage.name, {})
         if receipt.get("status") != "complete":
             return False
+        summary = receipt.get("summary")
+        if stage_summary_needs_retry(summary):
+            return False
+        if stage.name == "unity-recover-excluded-media" and isinstance(summary, dict):
+            if summary.get("missingPlannedContainers"):
+                return False
+            failed = summary.get("failed")
+            if isinstance(failed, (int, float)) and failed > 0:
+                return False
         if receipt.get("configFingerprint") != self.stage_fingerprint(stage):
             return False
+        if stage.name == "unity-recover-excluded-media":
+            primary_receipt = self._load_unity_json("primary-content.json")
+            if primary_receipt.get("ownershipSchema") or not isinstance(summary, dict) or summary.get("status") != "skipped":
+                project_out = self.config.unity_project_out
+                if project_out is None:
+                    return False
+                try:
+                    if not _media_receipt_matches_output(primary_receipt, project_out.expanduser().resolve()):
+                        return False
+                except (OSError, ValueError):
+                    return False
         return all(path.exists() for path in stage.outputs)
+
+    def invalidate_downstream(self, stage_name: str) -> None:
+        """Persist dependency invalidation before rerunning an upstream stage.
+
+        This keeps a stop-after/resume boundary safe: downstream receipts cannot
+        remain reusable merely because the upstream refresh happened in a prior
+        process. Their artifacts stay on disk as salvageable evidence.
+        """
+
+        affected = {stage_name}
+        changed = True
+        while changed:
+            changed = False
+            for stage in self.stages:
+                if stage.name not in affected and set(stage.depends_on) & affected:
+                    affected.add(stage.name)
+                    changed = True
+        if stage_name != "report":
+            affected.add("report")
+        invalidated: list[str] = []
+        for name in sorted(affected - {stage_name}):
+            receipt = self.state.data.get("stages", {}).get(name)
+            if isinstance(receipt, dict) and receipt.get("status") == "complete":
+                receipt["status"] = "invalidated"
+                receipt["invalidatedBy"] = stage_name
+                receipt["invalidationReason"] = "an upstream stage is being refreshed"
+                invalidated.append(name)
+        if invalidated:
+            self.state.save()
+
+    def rerun_dependency_closure(self) -> set[str]:
+        """Include declared downstream stages and always refresh the aggregate report."""
+        affected = set(self.config.rerun_stages)
+        changed = True
+        while changed:
+            changed = False
+            for stage in self.stages:
+                if stage.name not in affected and set(stage.depends_on) & affected:
+                    affected.add(stage.name)
+                    changed = True
+        if affected:
+            affected.add("report")
+        return affected
 
     def stage_config(self, stage: Stage) -> dict[str, Any]:
         source_batch_stage = stage.name in {"generate-source-candidates", "synthesize-source-tasks", "report"}
@@ -324,7 +679,21 @@ class RecoveryRunner:
             "sourceSynthesisEngine": self.config.source_synthesis_engine,
             "sourceSynthesisMode": self.config.source_synthesis_mode,
             "sourceSynthesisLimit": self.config.source_synthesis_limit if compiler_stage else 50,
+            "sourceSynthesisOffset": self.config.source_synthesis_offset if compiler_stage else 0,
             "sourceSynthesisMaxVariants": self.config.source_synthesis_max_variants,
+            "sourceSynthesisDiagnosticPriorityStates": (
+                [
+                    {
+                        "path": str(path.expanduser().resolve()),
+                        "sha256": sha256_file(path.expanduser().resolve())
+                        if path.expanduser().resolve().is_file()
+                        else None,
+                    }
+                    for path in self.config.source_synthesis_diagnostic_priority_states
+                ]
+                if stage.name == "synthesize-source-tasks"
+                else None
+            ),
             "sourceSynthesisSemanticOnly": self.config.source_synthesis_semantic_only,
             "sourceSynthesisSkipBoundarySuspect": self.config.source_synthesis_skip_boundary_suspect,
             "sourceSynthesisVerifyPackagedSource": self.config.source_synthesis_verify_packaged_source,
@@ -356,11 +725,81 @@ class RecoveryRunner:
             "stageTimeout": self.config.stage_timeout,
             "stage": stage.name,
         }
+        if stage.name == "unity-export-assets":
+            config["unityAssetRipperRemote"] = {
+                "host": self.config.unity_assetripper_remote_host,
+                "input": self.config.unity_assetripper_remote_input,
+                "output": self.config.unity_assetripper_remote_output,
+                "port": self.config.unity_assetripper_remote_port,
+                "sshPort": self.config.unity_assetripper_ssh_port,
+            }
+        if stage.name == "unity-plan":
+            config["unityPlan"] = {
+                "maxMemoryGb": self.config.unity_max_memory_gb,
+                "includeResourcesAssets": self.config.unity_include_resources_assets,
+                "editorVersion": self.config.unity_editor_version,
+                "editorPath": str(self.config.unity_editor) if self.config.unity_editor else None,
+            }
+        if stage.name in {"unity-compose-project", "unity-recover-excluded-media", "unity-editor-validate", "unity-repair"}:
+            config["unityProjectOut"] = (
+                str(self.config.unity_project_out.expanduser().resolve())
+                if self.config.unity_project_out
+                else None
+            )
+        if stage.name == "unity-recover-excluded-media":
+            probe = self._load_unity_json("probe.json")
+            plan = self._load_unity_json("plan.json")
+            export_plan = plan.get("export") or {}
+            data_dir = Path(str(probe["dataDir"])) if probe.get("dataDir") else None
+            excluded = set(export_plan.get("excludedContainers") or [])
+            sources = (
+                _unity_excluded_media_sources(data_dir, excluded)
+                if data_dir is not None and data_dir.is_dir()
+                else {
+                    "selectedOwners": [],
+                    "associatedCompanions": [],
+                    "missingOwners": sorted(
+                        name for name in excluded
+                        if not _unity_resource_companion_owner_names(name)
+                    ),
+                    "plannedCompanions": sorted(
+                        name for name in excluded
+                        if _unity_resource_companion_owner_names(name)
+                    ),
+                    "unavailablePlannedCompanions": sorted(
+                        name for name in excluded
+                        if _unity_resource_companion_owner_names(name)
+                    ),
+                    "unassociatedPlannedCompanions": [],
+                }
+            )
+            config["excludedMediaRecovery"] = {
+                "dataDir": str(data_dir.resolve()) if data_dir else None,
+                "excludedContainers": sorted(excluded),
+                "sourceFiles": [
+                    _unity_source_identity(path)
+                    for path in sources["selectedOwners"]
+                ],
+                "resourceCompanions": [
+                    _unity_source_identity(path)
+                    for path in sources["associatedCompanions"]
+                ],
+                "plannedResourceCompanions": sources["plannedCompanions"],
+                "unavailableResourceCompanions": sources[
+                    "unavailablePlannedCompanions"
+                ],
+                "unassociatedResourceCompanions": sources[
+                    "unassociatedPlannedCompanions"
+                ],
+                "missingPlannedContainers": sources["missingOwners"],
+            }
         if stage.name in ACQUISITION_SENSITIVE_STAGES:
             # Stable bundle identity — not ephemeral --context path lists — so mid-run
             # re-acquire invalidates only stages that consume acquisition facts.
             config["acquisitionIdentity"] = self.acquisition_identity()
             config["freshEnrichmentIdentity"] = self.fresh_enrichment_identity()
+        if stage.name in {"discover-functions", "enrich-decompile"} and self.config.ghidra_source_project is not None:
+            config["ghidraFunctionSource"] = self.ghidra_function_source_identity()
         if stage.name == "enrich-decompile" and self.config.project is not None:
             from .reconstruct_enrich import resolve_existing_project_source
 
@@ -376,6 +815,36 @@ class RecoveryRunner:
                     "error": str(exc),
                 }
         return config
+
+    def ghidra_function_source_identity(self) -> dict[str, Any]:
+        """Include the selected project database revision in discovery resume keys."""
+
+        from .ghidra_db import find_program, list_programs, resolve_project_root
+
+        root = resolve_project_root(self.config.ghidra_source_project).resolve()
+        wanted = self.config.ghidra_source_program
+        entry = find_program(root, wanted) if wanted else None
+        if entry is None and not wanted:
+            entries = list_programs(root)
+            if len(entries) == 1:
+                entry = entries[0]
+        if entry is None:
+            return {
+                "root": str(root),
+                "program": wanted,
+                "status": "missing-or-ambiguous",
+            }
+        info = entry.database_path.stat()
+        return {
+            "root": str(root),
+            "program": entry.project_path,
+            "databaseVersion": entry.version,
+            "databasePath": str(entry.database_path.resolve()),
+            "databaseSize": info.st_size,
+            "databaseMtimeNs": info.st_mtime_ns,
+            "databaseDevice": info.st_dev,
+            "databaseInode": info.st_ino,
+        }
 
     def fresh_enrichment_identity(self) -> dict[str, Any] | None:
         """Identify fresh, target-bound Ghidra facts produced by this run.
@@ -787,14 +1256,211 @@ class RecoveryRunner:
     def stage_discover_functions(self, _stage: Stage) -> dict[str, Any]:
         inventory = json.loads((self.run_dir / "binary-inventory.json").read_text(encoding="utf-8"))
         candidates = discover_function_candidates(inventory)
+        project_summary: dict[str, Any] | None = None
+        if self.config.ghidra_source_project is not None:
+            candidates, project_summary = self.merge_ghidra_project_functions(
+                candidates, inventory
+            )
         write_function_candidates(self.run_dir / "function-candidates.json", candidates)
         summary = dict(candidates.get("summary") or {})
+        if project_summary is not None:
+            summary["ghidraProject"] = project_summary
         if inventory.get("format") in {"elf", "macho"}:
             from .slice_verify import write_slice_verify_summary
 
             slice_summary = write_slice_verify_summary(self.run_dir, inventory, candidates)
             summary["sliceVerify"] = slice_summary.get("status")
         return summary
+
+    def merge_ghidra_project_functions(
+        self,
+        candidates: dict[str, Any],
+        inventory: dict[str, Any],
+    ) -> tuple[dict[str, Any], dict[str, Any]]:
+        """Join exact Ghidra function identities and recorded bodies to discovery.
+
+        Project metadata is admitted only after its original FileBytes hash is
+        shown to be the current recovery target. Function body ranges are
+        rebased by image-relative offsets and never flattened when discontiguous.
+        """
+
+        from .ghidra_db import find_program, list_programs, open_project_program, resolve_project_root
+
+        root = resolve_project_root(self.config.ghidra_source_project).resolve()
+        wanted = self.config.ghidra_source_program
+        entry = find_program(root, wanted) if wanted else None
+        if entry is None and not wanted:
+            entries = list_programs(root)
+            if len(entries) == 1:
+                entry = entries[0]
+        if entry is None:
+            raise ValueError(
+                f"Ghidra function source does not select exactly one program: {root} ({wanted or 'unspecified'})"
+            )
+
+        target = self.load_target()
+        database_path = entry.database_path
+        before = database_path.stat()
+        with open_project_program(root, entry.project_path) as program:
+            sources = program.file_bytes_sources()
+            if len(sources) != 1:
+                raise ValueError(
+                    f"{entry.project_path}: expected one original FileBytes source before joining Ghidra functions; "
+                    f"found {len(sources)}"
+                )
+            digest = hashlib.sha256()
+            byte_count = 0
+            for chunk in program.iter_original_file_chunks(sources[0].source_id):
+                digest.update(chunk)
+                byte_count += len(chunk)
+            if digest.hexdigest() != target.sha256 or byte_count != target.size:
+                raise ValueError(
+                    f"Ghidra function source FileBytes does not match the recovery target "
+                    f"({digest.hexdigest()} / {byte_count} bytes != {target.sha256} / {target.size})"
+                )
+
+            scope_table_present = program.table("Range Map - SCOPE ADDRESSES") is not None
+            bodies = program.function_body_ranges()
+            project_functions = list(program.functions())
+            target_image_base = inventory.get("imageBase")
+            target_image_base = int(target_image_base) if target_image_base is not None else None
+            existing = list(candidates.get("candidates") or [])
+            names_at_address: dict[int, str] = {}
+            for row in existing:
+                address = row.get("address")
+                name = str(row.get("name") or "")
+                if address is not None and name and not name.startswith(("FUN_", "SUB_", "entry_", "range_")):
+                    names_at_address.setdefault(int(address), name)
+
+            added: list[dict[str, Any]] = []
+            body_function_count = 0
+            noncontiguous_count = 0
+            missing_body_count = 0
+            out_of_file_count = 0
+
+            def target_address(decoded: Any) -> int:
+                if decoded.is_image_relative and target_image_base is not None:
+                    return target_image_base + decoded.offset
+                return decoded.offset
+
+            code_ranges = inventory.get("codeRanges") or []
+            for function in project_functions:
+                if function.address is None or not function.address.is_memory:
+                    continue
+                address = target_address(function.address)
+                function_ranges = bodies.get(function.symbol_id, [])
+                rows = []
+                for body in function_ranges:
+                    start = target_address(body.start)
+                    end = target_address(body.end)
+                    if end < start:
+                        raise ValueError(
+                            f"{entry.project_path}: rebased function {function.symbol_id} range is reversed"
+                        )
+                    rows.append(
+                        {
+                            "startVa": start,
+                            "endVaInclusive": end,
+                            "size": end - start + 1,
+                            "addressSpace": body.start.space_name,
+                            "imageRelative": body.start.is_image_relative,
+                        }
+                    )
+                starts_at_entry = any(int(row["startVa"]) == address for row in rows)
+                if not scope_table_present:
+                    boundary_status = "unavailable"
+                    size = 0
+                elif not rows:
+                    boundary_status = "missing"
+                    missing_body_count += 1
+                    size = 0
+                elif len(rows) > 1:
+                    boundary_status = "noncontiguous"
+                    noncontiguous_count += 1
+                    size = 0
+                elif not starts_at_entry:
+                    boundary_status = "entry-not-at-body-start"
+                    size = 0
+                else:
+                    only = rows[0]
+                    size = int(only["size"])
+                    boundary_status = "contiguous"
+                    body_function_count += 1
+                    rva = address - target_image_base if target_image_base is not None else address
+                    matching = next(
+                        (
+                            section
+                            for section in code_ranges
+                            if int(section.get("rva") or 0) <= rva
+                            and rva < int(section.get("rva") or 0) + int(section.get("fileSize") or 0)
+                        ),
+                        None,
+                    )
+                    if matching is None or size > (
+                        int(matching.get("fileSize") or 0)
+                        - (rva - int(matching.get("rva") or 0))
+                    ):
+                        boundary_status = "outside-file-backed-code"
+                        size = 0
+                        body_function_count -= 1
+                        out_of_file_count += 1
+
+                name = function.name or names_at_address.get(address) or f"FUN_{address:08x}"
+                row: dict[str, Any] = {
+                    "name": name,
+                    "address": address,
+                    "size": size,
+                    "source": "ghidra-project-function",
+                    "confidence": "high",
+                    "bodyBoundaryStatus": boundary_status,
+                    "bodyRanges": rows,
+                    "ghidraFunction": function.to_json(),
+                    "evidence": {
+                        "sources": ["ghidra-project-function", "ghidra-project-scope-addresses"]
+                        if scope_table_present
+                        else ["ghidra-project-function"],
+                        "projectProgram": entry.project_path,
+                        "projectDatabaseVersion": entry.version,
+                        "functionSymbolId": function.symbol_id,
+                        "boundaryAuthority": "Ghidra recorded function body" if boundary_status == "contiguous" else boundary_status,
+                    },
+                }
+                if size > 0:
+                    row["sizeSource"] = "ghidra-project-function-body"
+                    row["sizeConfidence"] = "recorded"
+                added.append(row)
+
+            merged = dedupe_same_address_candidates(existing + added)
+            merged.sort(key=lambda row: (int(row.get("address") or row.get("rva") or 0), row.get("name", "")))
+            after = database_path.stat()
+            if (before.st_size, before.st_mtime_ns, before.st_ino) != (
+                after.st_size,
+                after.st_mtime_ns,
+                after.st_ino,
+            ):
+                raise ValueError(
+                    f"Ghidra database changed while its function metadata was being read: {database_path}"
+                )
+            result = {
+                **candidates,
+                "candidates": merged,
+                "summary": summarize_candidates(merged),
+            }
+            return result, {
+                "status": "complete",
+                "projectProgram": entry.project_path,
+                "projectDatabaseVersion": entry.version,
+                "fileBytesSha256": digest.hexdigest(),
+                "functionSymbols": len(project_functions),
+                "functionCandidatesAdded": len(added),
+                "distinctFunctionStarts": len({int(row["address"]) for row in added}),
+                "recordedContiguousBodies": body_function_count,
+                "recordedNoncontiguousBodies": noncontiguous_count,
+                "functionsMissingRecordedBody": missing_body_count,
+                "bodyOutsideFileBackedCode": out_of_file_count,
+                "scopeAddressTablePresent": scope_table_present,
+                "claimBoundary": "Ghidra stored function boundaries are analysis metadata, not recovered source or compilation proof",
+            }
 
     def stage_analyze_functions(self, _stage: Stage) -> dict[str, Any]:
         out_path = self.run_dir / "function-analysis.json"
@@ -825,14 +1491,55 @@ class RecoveryRunner:
         binary = analysis_binary_from_work_dir(self.run_dir)
         if binary is None:
             binary = self.load_analysis_target().binary_path
-        return run_reconstruct_enrich(
+        if self.config.ghidra_source_project is not None:
+            # The project already supplies the authoritative function manager.
+            # Do not ask PyGhidra to decompile thousands of heuristic call/prologue
+            # labels that are not recorded functions in that project.
+            project_functions = [
+                row
+                for row in candidates.get("candidates") or []
+                if row.get("source") == "ghidra-project-function"
+            ]
+            candidates = {**candidates, "candidates": project_functions}
+        analysis_project = self.config.project
+        analysis_program = self.config.project_program
+        project_snapshot: dict[str, Any] | None = None
+        if analysis_project is None and self.config.ghidra_source_project is not None:
+            expected = (
+                (self.state.data.get("stages", {}).get("discover-functions", {}).get("config") or {})
+                .get("ghidraFunctionSource")
+            )
+            before = self.ghidra_function_source_identity()
+            if expected is not None and expected != before:
+                raise ValueError(
+                    "Ghidra project changed after function discovery; resume so candidates are refreshed "
+                    "before project-backed decompilation"
+                )
+            from .ghidra_db import resolve_project_root
+            from .ghidra_db.store import native_local_checkout
+
+            source_root = resolve_project_root(self.config.ghidra_source_project).resolve()
+            analysis_project, project_snapshot = native_local_checkout(source_root, self.run_dir)
+            after = self.ghidra_function_source_identity()
+            if before != after:
+                raise ValueError(
+                    "Ghidra project changed while its local analysis snapshot was being admitted; "
+                    "resume after the shared project is stable"
+                )
+            analysis_program = self.config.ghidra_source_program
+
+        summary = run_reconstruct_enrich(
             binary=binary,
             work_dir=self.run_dir,
             candidates_payload=candidates,
             skip=self.config.skip_enrichment,
-            project=self.config.project,
-            project_program=self.config.project_program,
+            project=analysis_project,
+            project_program=analysis_program,
         )
+        if project_snapshot is not None:
+            summary = {**summary, "sharedProjectSnapshot": project_snapshot}
+            atomic_write_json(self.run_dir / "facts" / "enrich-receipt.json", summary)
+        return summary
 
     def resolve_acquisition_facts_source(self, target: dict[str, Any]) -> Path | None:
         # Prefer an explicit acquisition bundle (e.g. frontdoor mid-run snapshot with
@@ -978,6 +1685,7 @@ class RecoveryRunner:
                     source_tasks_only=True,
                     out_dir=out_dir,
                     limit=self.config.source_synthesis_limit,
+                    offset=self.config.source_synthesis_offset,
                     max_variants_per_function=self.config.source_synthesis_max_variants,
                     max_retries=self.config.source_synthesis_max_variants,
                     strategies=set(self.config.source_synthesis_strategies) or None,
@@ -987,13 +1695,19 @@ class RecoveryRunner:
                     dry_run=mode == "dry-run",
                     semantic_only=self.config.source_synthesis_semantic_only or mode == "msvc",
                     skip_boundary_suspect=self.config.source_synthesis_skip_boundary_suspect or mode == "msvc",
+                    work_dir=self.run_dir,
                     clean=not self.config.resume,
                     resume=self.config.resume,
+                    force_fresh=self.config.force_rematch,
                     vc_root=self.config.source_synthesis_vc_root,
                     wine=self.config.source_synthesis_wine,
                     wineprefix=self.config.source_synthesis_wineprefix,
                     timeout=self.config.stage_timeout,
                     target_sha=target.sha256,
+                    bind_unlabeled_source_tasks_to_target=True,
+                    diagnostic_priority_states=list(
+                        self.config.source_synthesis_diagnostic_priority_states
+                    ),
                 )
             )
             export_summary = self.export_synthesized_source_slices(summary)
@@ -1016,6 +1730,8 @@ class RecoveryRunner:
             str(out_dir),
             "--limit",
             str(self.config.source_synthesis_limit),
+            "--offset",
+            str(self.config.source_synthesis_offset),
             "--max-variants-per-function",
             str(self.config.source_synthesis_max_variants),
             "--timeout",
@@ -1031,6 +1747,12 @@ class RecoveryRunner:
             argv.extend(["--compiler", "msvc"])
             argv.append("--semantic-only")
             argv.append("--skip-boundary-suspect")
+            argv.extend(
+                [
+                    "--diagnostic-cache-dir",
+                    str((self.run_dir / "source-synthesis-diagnostics").resolve()),
+                ]
+            )
         else:
             raise ValueError(f"unknown source synthesis mode: {mode}")
         if self.config.source_synthesis_semantic_only and "--semantic-only" not in argv:
@@ -1055,6 +1777,11 @@ class RecoveryRunner:
             argv.extend(["--workers", str(self.config.verify_workers)])
         if self.config.force_rematch:
             argv.append("--force-rematch")
+        for state_path in self.config.source_synthesis_diagnostic_priority_states:
+            argv.extend(["--diagnostic-priority-state", str(state_path.expanduser().resolve())])
+        if self.config.source_synthesis_diagnostic_priority_states:
+            argv.extend(["--target-sha", target.sha256])
+            argv.extend(["--source-task-target-sha", target.sha256])
         (out_dir / "empty-queue.jsonl").parent.mkdir(parents=True, exist_ok=True)
         for empty in ("empty-queue.jsonl", "empty-remaining-features.jsonl", "empty-retrieval.jsonl"):
             (out_dir / empty).write_text("", encoding="utf-8")
@@ -1239,11 +1966,12 @@ class RecoveryRunner:
         plan = self._load_unity_json("plan.json")
         if not probe.get("detected"):
             return self._unity_skip(out_path, "target is not a Unity game")
-        if plan.get("status") == "blocked":
+        if plan.get("status") == "blocked" and not self.config.unity_assetripper_remote_host:
             return self._unity_skip(out_path, str(plan.get("blockedReason") or "plan blocked"))
 
-        cli = resolve_assetripper_cli(ROOT, self.config.unity_assetripper_cli)
-        if cli is None:
+        remote_host = self.config.unity_assetripper_remote_host
+        cli = None if remote_host else resolve_assetripper_cli(ROOT, self.config.unity_assetripper_cli)
+        if cli is None and not remote_host:
             raise ToolchainError(
                 "assetripper-missing",
                 detail=f"set {ASSETRIPPER_ENV} or place an AssetRipper binary under target/assetripper/",
@@ -1254,6 +1982,11 @@ class RecoveryRunner:
             assetripper_cli=cli,
             plan=plan,
             staging_dir=self._unity_dir() / "staging",
+            remote_host=remote_host,
+            remote_input_path=self.config.unity_assetripper_remote_input,
+            remote_output_path=self.config.unity_assetripper_remote_output,
+            remote_port=self.config.unity_assetripper_remote_port,
+            ssh_port=self.config.unity_assetripper_ssh_port,
         )
         atomic_write_json(out_path, receipt)
         return {
@@ -1263,6 +1996,9 @@ class RecoveryRunner:
             "hasProjectVersion": receipt.get("hasProjectVersion"),
             "memoryFailureSuspected": receipt.get("memoryFailureSuspected"),
             "reason": receipt.get("reason"),
+            "exitCode": receipt.get("exitCode"),
+            "tunnelExitCode": receipt.get("tunnelExitCode"),
+            "remoteExportResponseAccepted": receipt.get("remoteExportResponseAccepted"),
         }
 
     def stage_unity_decompile_managed(self, _stage: Stage) -> dict[str, Any]:
@@ -1330,6 +2066,231 @@ class RecoveryRunner:
             "filesCopied": receipt.get("totalFilesCopied"),
             "packagesAdded": (receipt.get("packages") or {}).get("added"),
             "warnings": receipt.get("warnings"),
+        }
+
+    def stage_unity_recover_excluded_media(self, _stage: Stage) -> dict[str, Any]:
+        from .unity_assets import export_primary_content
+
+        out_path = self._unity_dir() / "primary-content.json"
+        probe = self._load_unity_json("probe.json")
+        if not probe.get("detected"):
+            return self._unity_skip(out_path, "target is not a Unity game")
+        project_out = self.config.unity_project_out
+        if project_out is None:
+            return self._unity_skip(out_path, "no target project; pass --unity-project-out <dir>")
+        composition = self._load_unity_json("compose.json")
+        if composition.get("status") not in {"complete", "partial"}:
+            return self._unity_skip(out_path, "the Unity project was not composed successfully")
+
+        plan = self._load_unity_json("plan.json")
+        export_plan = plan.get("export") or {}
+        excluded = set(export_plan.get("excludedContainers") or [])
+        data_dir = Path(str(probe.get("dataDir") or self.unity_install_root()))
+        sources = _unity_excluded_media_sources(data_dir, excluded)
+        selected = sources["selectedOwners"]
+        companions = sources["associatedCompanions"]
+        missing_planned = sources["missingOwners"]
+
+        project_root = project_out.expanduser().resolve()
+        assets_dir = project_root / "Assets"
+        output_dir = assets_dir / "RecoveredPrimaryContent"
+        if assets_dir.is_symlink() or not assets_dir.is_dir():
+            atomic_write_json(out_path, {"status": "error", "reason": "project Assets directory is missing or is a symlink"})
+            return {"status": "error", "reason": "project Assets directory is missing or is a symlink"}
+        if output_dir.is_symlink() or not output_dir.resolve().is_relative_to(project_root):
+            atomic_write_json(out_path, {"status": "error", "reason": "media output path escapes the target project through a symlink"})
+            return {"status": "error", "reason": "media output path escapes the target project through a symlink"}
+        if output_dir.exists() and not output_dir.is_dir():
+            raise ValueError(f"media output path is not a directory: {output_dir}")
+        existing = _media_output_files(output_dir)
+        previous = self._load_unity_json("primary-content.json")
+        owned = _media_owned_files(previous, project_root, output_dir)
+        legacy_ownership = bool(existing) and "ownershipSchema" not in previous
+        generated: dict[str, dict[str, int]] = {}
+        preserved: list[str] = []
+        removed: list[str] = []
+        staging_root = Path(tempfile.mkdtemp(prefix=".RecoveredPrimaryContent-", dir=assets_dir))
+        backups: list[tuple[Path, Path]] = []
+        installed: list[tuple[Path, dict[str, int]]] = []
+        created_dirs: list[Path] = []
+        clean_staging = False
+        try:
+            if selected:
+                staging_dir = staging_root / "export"
+                receipt = export_primary_content(
+                    install_root=self.unity_install_root(),
+                    output_dir=staging_dir,
+                    data_files=selected,
+                    max_texture_pixels=self.config.unity_max_texture_pixels,
+                )
+            else:
+                receipt = {
+                    "schema": "agentdecompile.unity-primary-content-export.v1",
+                    "status": "skipped",
+                    "reason": "the memory-budgeted plan selected no excluded serialized owner files",
+                    "outputDir": str(output_dir),
+                    "selectedFiles": [],
+                    "selectedTypes": [],
+                }
+
+            staged_files = _media_output_files(staging_root / "export") if receipt.get("status") != "error" else {}
+            install_plan: list[tuple[str, Path, Path, dict[str, int] | None]] = []
+            for relative, staged in sorted(staged_files.items()):
+                target = output_dir / relative
+                current = _media_file_identity(target)
+                if target.exists() or target.is_symlink():
+                    if current is None or current != owned.get(relative):
+                        preserved.append(relative)
+                        continue
+                if target.parent.is_symlink() or (target.parent.exists() and not target.parent.is_dir()):
+                    raise ValueError(f"media output type path is not a directory: {target.parent}")
+                install_plan.append((relative, staged, target, current))
+
+            remove_plan: list[tuple[str, Path, dict[str, int]]] = []
+            # Reconcile only unchanged files recorded for this exact project.
+            for relative, identity in sorted(owned.items()):
+                if relative in staged_files or relative in preserved:
+                    continue
+                target = output_dir / relative
+                current = _media_file_identity(target)
+                if current is None:
+                    if target.exists() or target.is_symlink():
+                        preserved.append(relative)
+                    continue
+                if current != identity:
+                    preserved.append(relative)
+                    continue
+                if missing_planned or (selected and (receipt.get("status") == "error" or receipt.get("totalFailed") or receipt.get("totalSkipped"))):
+                    generated[relative] = identity
+                else:
+                    remove_plan.append((relative, target, identity))
+
+            # Move old owned files into Assets-local backups before installing.
+            # The receipt is the commit point; until then every move is reversible.
+            backup_dir = staging_root / "backup"
+            backup_dir.mkdir()
+            if install_plan and not output_dir.exists():
+                output_dir.mkdir()
+                created_dirs.append(output_dir)
+            for index, (relative, staged, target, expected) in enumerate(install_plan):
+                if _media_file_identity(target) != expected or (expected is None and (target.exists() or target.is_symlink())):
+                    raise RuntimeError(f"media destination changed after preflight: {target}")
+                if target.parent.is_symlink() or (target.parent.exists() and not target.parent.is_dir()):
+                    raise RuntimeError(f"media output type path changed after preflight: {target.parent}")
+                if not target.parent.exists():
+                    target.parent.mkdir()
+                    created_dirs.append(target.parent)
+                if expected is not None:
+                    backup = backup_dir / f"install-{index}"
+                    os.replace(target, backup)
+                    backups.append((target, backup))
+                staged_identity = _media_file_identity(staged)
+                if staged_identity is None:
+                    raise OSError(f"staged media is not a regular file: {staged}")
+                os.replace(staged, target)
+                installed.append((target, staged_identity))
+                identity = _media_file_identity(target)
+                if identity != staged_identity:
+                    raise OSError(f"installed media changed after replacement: {target}")
+                generated[relative] = identity
+
+            for index, (relative, target, expected) in enumerate(remove_plan):
+                if _media_file_identity(target) != expected:
+                    raise RuntimeError(f"owned media changed after preflight: {target}")
+                backup = backup_dir / f"remove-{index}"
+                os.replace(target, backup)
+                backups.append((target, backup))
+                removed.append(relative)
+
+            if preserved and receipt.get("status") in {"complete", "skipped"}:
+                receipt["status"] = "partial"
+            if missing_planned:
+                receipt["status"] = "error"
+                receipt["reason"] = (
+                    "planned excluded Unity serialized owner files are missing; "
+                    "retry after restoring the sources"
+                )
+            receipt["missingPlannedContainers"] = missing_planned
+            receipt["targetProject"] = str(project_root)
+            receipt["excludedContainers"] = sorted(excluded)
+            receipt["selectedSerializedOwners"] = [path.name for path in selected]
+            receipt["resourceCompanions"] = [path.name for path in companions]
+            receipt["plannedResourceCompanions"] = sources["plannedCompanions"]
+            receipt["unavailableResourceCompanions"] = sources[
+                "unavailablePlannedCompanions"
+            ]
+            receipt["unassociatedResourceCompanions"] = sources[
+                "unassociatedPlannedCompanions"
+            ]
+            receipt["outputDir"] = str(output_dir)
+            receipt["ownershipSchema"] = "agentdecompile.unity-media-ownership.v1"
+            receipt["ownedFiles"] = [
+                {"path": relative, "identity": identity}
+                for relative, identity in sorted(generated.items())
+            ]
+            receipt["reconciliation"] = {
+                "removedOwnedFiles": removed,
+                "preservedUnownedFiles": sorted(set(existing) - set(owned)),
+                "preservedChangedOrConflictingFiles": sorted(set(preserved)),
+                "preservedConflictFiles": [
+                    {"path": relative, "identity": _media_conflict_identity(output_dir / relative)}
+                    for relative in sorted(set(preserved))
+                ],
+                "legacyOwnershipUnknown": legacy_ownership,
+            }
+            atomic_write_json(out_path, receipt)
+            clean_staging = True
+        except BaseException:
+            rollback_errors: list[str] = []
+            for target, identity in reversed(installed):
+                try:
+                    if _media_file_identity(target) != identity:
+                        raise RuntimeError("installed file changed during rollback")
+                    target.unlink()
+                except OSError as exc:
+                    rollback_errors.append(f"{target}: {exc}")
+                except RuntimeError as exc:
+                    rollback_errors.append(f"{target}: {exc}")
+            for target, backup in reversed(backups):
+                try:
+                    if target.exists() or target.is_symlink():
+                        raise RuntimeError("destination occupied during rollback")
+                    os.replace(backup, target)
+                except (OSError, RuntimeError) as exc:
+                    rollback_errors.append(f"{target}: {exc}")
+            for directory in reversed(created_dirs):
+                try:
+                    directory.rmdir()
+                except OSError:
+                    pass
+            if rollback_errors:
+                raise RuntimeError(
+                    f"media install rollback incomplete; backups retained at {staging_root}: "
+                    + "; ".join(rollback_errors)
+                ) from None
+            clean_staging = True
+            raise
+        finally:
+            if clean_staging:
+                shutil.rmtree(staging_root, ignore_errors=True)
+        return {
+            "status": receipt.get("status"),
+            "reason": receipt.get("reason"),
+            "targetProject": str(project_out),
+            "selectedFiles": receipt.get("selectedFiles"),
+            "exported": receipt.get("totalExported"),
+            "failed": receipt.get("totalFailed"),
+            "missingPlannedContainers": missing_planned,
+            "selectedSerializedOwners": receipt["selectedSerializedOwners"],
+            "resourceCompanions": receipt["resourceCompanions"],
+            "unavailableResourceCompanions": receipt[
+                "unavailableResourceCompanions"
+            ],
+            "unassociatedResourceCompanions": receipt[
+                "unassociatedResourceCompanions"
+            ],
+            "skipped": receipt.get("totalSkipped"),
+            "reconciliation": receipt["reconciliation"],
         }
 
     def stage_unity_editor_validate(self, _stage: Stage) -> dict[str, Any]:

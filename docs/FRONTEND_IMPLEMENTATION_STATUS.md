@@ -6,8 +6,9 @@ It changes 63 owned files: 3,183 insertions and 187 deletions. This is source
 implementation with focused software checks, not live delivery acceptance.
 The [product guide](PRODUCT_AND_WORKSPACE_GUIDE.md) explains the intended workflows;
 the [comprehensive plan](plans/2026-09-28-comprehensive-agentdecompile-plan.md)
-is the current scope authority. Its [living plan](plans/agentdecompile-living-plan.md)
-records current evidence; the earlier 43-unit frontend plan remains retained provenance.
+is the current scope authority. Evidence belongs with its owning task report,
+durable receipt, or acceptance artifact; the earlier 43-unit frontend plan remains
+retained provenance.
 
 A subsequent isolated source increment adds exact logical-entity tier matrices to
 both surfaces, fixes propagation's same-step dependency ancestry, prevents ambiguous

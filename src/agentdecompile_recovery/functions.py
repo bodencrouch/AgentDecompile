@@ -151,7 +151,11 @@ def dedupe_same_address_candidates(candidates: list[dict[str, Any]]) -> list[dic
         )
         aliases = deduped_aliases_for_rows(ordered)
         best_size = max((optional_int(row.get("size")) or 0 for row in rows), default=0)
-        if best_size > 0 and (optional_int(primary.get("size")) or 0) <= 0:
+        authoritative_boundary = (
+            primary.get("source") == "ghidra-project-function"
+            and primary.get("bodyBoundaryStatus") not in {None, "unavailable"}
+        )
+        if best_size > 0 and (optional_int(primary.get("size")) or 0) <= 0 and not authoritative_boundary:
             primary["size"] = best_size
         primary["confidence"] = max((str(row.get("confidence") or "") for row in rows), key=confidence_rank, default=primary.get("confidence"))
         evidence = dict(primary.get("evidence") or {})
@@ -220,6 +224,7 @@ def candidate_merge_priority(row: dict[str, Any]) -> tuple[int, int, int, str]:
 
 def source_priority(source: str) -> int:
     priorities = {
+        "ghidra-project-function": -1,
         "pe-export": 0,
         "macho-symbol": 0,
         "elf-symbol": 0,

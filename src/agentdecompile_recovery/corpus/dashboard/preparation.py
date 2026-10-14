@@ -512,8 +512,16 @@ def _issue_new_objective(root, run_id):
         path = root / '.preparation-authority-births-v1.jsonl'
         directory = root / 'preparations'
         if not path.exists():
-            if directory.exists():
-                raise _refusal(run_id, phase='initialization', reason='Legacy preparation namespace requires continuity reconciliation.')
+            # A legacy preparation directory may contain valid historical
+            # receipts without the newer birth ledger. Preserve those rows as
+            # observations: never adopt their authority or resume them here.
+            # A new objective is safe to issue only after checking that its
+            # exact canonical row path is unused. This lets independent work
+            # continue without rewriting or trusting stale run state.
+            if directory.is_symlink() or (directory.exists() and not directory.is_dir()):
+                raise _refusal(run_id, phase='initialization', reason='Legacy preparation storage is not a regular directory; continuity reconciliation is required.')
+            if (directory / (run_id + '.json')).exists():
+                raise _refusal(run_id, phase='initialization', reason='Legacy preparation row already exists without a current-session birth witness; it cannot be resumed or overwritten.')
             with path.open('xb') as stream:
                 header = _birth_record({'schema': 1, 'kind': 'namespace', 'namespaceId': uuid.uuid4().hex})
                 if stream.write(header) != len(header):
@@ -521,8 +529,9 @@ def _issue_new_objective(root, run_id):
                 stream.flush()
                 os.fsync(stream.fileno())
             _sync_directory(root)
-            directory.mkdir()
-            _sync_directory(root)
+            if not directory.exists():
+                directory.mkdir()
+                _sync_directory(root)
         if not directory.is_dir():
             raise _refusal(run_id, phase='initialization', reason='Established preparation directory is unavailable; reconcile continuity before issuance.')
         namespace, issued, total = _scan_birth_log(path, run_id)
@@ -1119,6 +1128,21 @@ def _project_context(context: dict[str, Any]) -> dict[str, Any]:
         if info.get('gpr'):
             locator = str(Path(info['gpr']).resolve())
         return {**context, 'locator': locator, 'program': '', 'slug': ''}
+    if info.get('kind') == 'shared-fs' and str(context.get('program') or '').strip():
+        # A shared repository can be the selected project's workspace while
+        # the operator is focused on one binary. Preserve that binary scope;
+        # otherwise the later inventory pass expands the request back to every
+        # program in the repository (and one unrelated program can block K1).
+        selected = str(context.get('program') or '').strip()
+        paths = info.get('program_paths')
+        available = {str(name) for name in paths} if isinstance(paths, dict) else set()
+        if selected not in available:
+            leaf = Path(selected.replace('\\', '/')).name.casefold()
+            aliases = [name for name in available if Path(name.replace('\\', '/')).name.casefold() == leaf]
+            if len(aliases) != 1:
+                raise ValueError('The selected binary is not uniquely present in this shared-project inventory.')
+            selected = aliases[0]
+        return {**context, 'locator': str(info.get('canonical') or locator), 'program': selected, 'slug': ''}
     if locator and (locator.startswith('ghidra:') or Path(locator).suffix.lower() in {'.gpr', '.rep'} or Path(locator).is_dir()):
         return {**context, 'locator': locator, 'program': '', 'slug': ''}
     return dict(context)
@@ -1266,11 +1290,8 @@ def _execution_program_bindings(locator: str, info: dict[str, Any], programs: li
 
     routes: dict[str, tuple[str, str]] = {}
     for program, source_key in requested.items():
-        if program in live_routes:
-            routes[program] = live_routes[program]
-            continue
-        # Without a live server route, reuse a previous successful import when
-        # the project still contains that program.
+        # Reuse a previous successful import when the project still contains
+        # that program; validate its actual path, not only the old binding key.
         for candidate, bound_program in bindings[program]:
             programs_by_path = available.get(candidate, {})
             actual = programs_by_path.get(normalized(bound_program))
@@ -1310,6 +1331,12 @@ def _execution_program_bindings(locator: str, info: dict[str, Any], programs: li
         elif leaf:
             candidate, actual = sorted(leaf)[0]
             routes[program] = (candidate, actual)
+        elif program in live_routes:
+            # TCP reachability is not proof that a shared-server login will
+            # succeed. Prefer an exact local Ghidra project when one is
+            # available; use the remote route only when local project data
+            # cannot supply the selected program.
+            routes[program] = live_routes[program]
         else:
             routes[program] = ('', '')
     return routes
@@ -1993,44 +2020,17 @@ def execute(params: dict[str, Any], cancel: threading.Event, *, authority) -> tu
             raise ValueError('Select at most 256 programs per preparation run.')
         with _guard(authority):
             row['programs'] = programs
-        shared_probe: dict[str, Any] | None = None
-        shared_probe_program = ''
-        shared_route = next(
-            (
-                (program, execution_locators[program], execution_programs[program])
-                for program in programs
-                if str(execution_locators[program]).startswith('ghidra://')
-                and execution_programs[program]
-            ),
-            None,
+        # Project enumeration is an offline read. Do not make one arbitrary
+        # shared-server session probe a prerequisite for the entire corpus
+        # wave: it used to stop all later binaries when the first sorted
+        # program could not be opened, even when their stored Ghidra data and
+        # original FileBytes were already usable. Each live Ghidra operation
+        # below is now admitted and recorded against its own program.
+        update(
+            'inspect', 'completed',
+            f'{len(programs)} programs found in the selected project; live Ghidra operations are checked per program.',
+            completed=len(programs), total=len(programs),
         )
-        if shared_route:
-            shared_probe_program, shared_locator, shared_program = shared_route
-            update('inspect', 'running', f'Opening shared Ghidra project through {shared_program}.', completed=0, total=1)
-            shared_probe = action('inspect', 'mcp.execute-script', {
-                'programPath': shared_program, '_preparationProbe': True,
-                'workflowWaitSeconds': 900, 'code': _ANALYSIS_PROBE,
-            }, {**row, 'locator': shared_locator, 'program': shared_program})
-            payload = shared_probe.get('data') or {}
-            probe_ok = (
-                shared_probe.get('ok')
-                and isinstance(payload, dict)
-                and _same_program_path(payload.get('programPath'), shared_program)
-            )
-            with _guard(authority):
-                row['sharedSessionProbe'] = {
-                    'locator': shared_locator, 'program': shared_program, 'at': time.time(),
-                    'ok': bool(probe_ok), 'jobId': shared_probe.get('jobId'),
-                    'observedProgramPath': payload.get('programPath') if isinstance(payload, dict) else '',
-                    'error': '' if probe_ok else str(shared_probe.get('error') or shared_probe.get('log') or 'Shared program activation did not return the requested path.'),
-                }
-            if not probe_ok:
-                detail = row['sharedSessionProbe']['error']
-                update('inspect', 'partial', f'Shared Ghidra session could not open {shared_program}: {detail}', completed=0, total=1)
-                raise ValueError(detail)
-            update('inspect', 'completed', f'Opened shared Ghidra project through {shared_program}; {len(programs)} programs available.', completed=len(programs), total=len(programs))
-        else:
-            update('inspect', 'completed', f'{len(programs)} programs available.', completed=len(programs), total=len(programs))
 
         protection_blocked = set()
         from .protection import inspect_protection, prepare_protected_binary
@@ -2071,12 +2071,9 @@ def execute(params: dict[str, Any], cancel: threading.Event, *, authority) -> tu
                     update('protection', 'running', f'Reusing recorded protection inspection for {program}.', completed=prepared, total=len(programs))
                     continue
                 try:
-                    if program == shared_probe_program and shared_probe is not None:
-                        state = shared_probe
-                    else:
-                        state = action('protection', 'mcp.execute-script', {
-                            'programPath': execution_program, '_preparationProbe': True, 'workflowWaitSeconds': 900, 'code': _ANALYSIS_PROBE
-                        }, context)
+                    state = action('protection', 'mcp.execute-script', {
+                        'programPath': execution_program, '_preparationProbe': True, 'workflowWaitSeconds': 900, 'code': _ANALYSIS_PROBE
+                    }, context)
                 except (_PreparationIssuanceWait, _PreparationControlWait, _PreparationAuthorityRefused):
                     raise
                 except Exception as exc:
@@ -3088,6 +3085,20 @@ def _revise_admission_budget(run_id: str, params: dict[str, Any], *, provider: b
 def control(params: dict[str, Any]) -> dict[str, Any]:
     run_id = str(params.get('preparation_id') or '')
     operation = str(params.get('operation') or '')
+    if operation == 'retire-legacy-watchdog':
+        from .runtime_retirement import retire_legacy_watchdog
+        return retire_legacy_watchdog()
+    if operation in {'pause-scheduler-scope', 'resume-scheduler-scope'}:
+        scope = str(params.get('scope') or '').strip()
+        if not scope:
+            raise ValueError('Choose a scheduler scope: *, lane:<name>, or a corpus database path.')
+        from .actions import jobs as _jobs
+        result = (_jobs.pause_scope(scope) if operation == 'pause-scheduler-scope'
+                  else _jobs.resume_scope(scope))
+        return {'ok': True, 'operation': operation, **result}
+    if operation == 'reclassify-read-only-provider':
+        from .resource_reclassification import reclassify_read_only_provider
+        return reclassify_read_only_provider(str(params.get('job_id') or ''))
     if operation in {'admission-budget', 'provider-budget'}:
         return _revise_admission_budget(run_id, params, provider=operation == 'provider-budget')
     if operation not in {'pause', 'resume', 'stop', 'budget', 'priority'}:
@@ -3125,6 +3136,21 @@ def control(params: dict[str, Any]) -> dict[str, Any]:
             _COMMAND_FAULTS[(str(root), run_id)] = refusal
             raise refusal from exc
     _ADMISSION_WAKE.set()
+    if operation in {'pause', 'resume'}:
+        # H5: the one admission-scoped control also reaches the job store, so a
+        # running verb is settled by its declaration (drain, signal, flag) and
+        # the scope stops or resumes admitting. The scope is this store; the
+        # summary travels on the row so the surfaces can show what drained.
+        from .actions import jobs as _jobs
+
+        scope = str(live_db())
+        settled = _jobs.pause_scope(scope) if operation == 'pause' else _jobs.resume_scope(scope)
+        with _LOCK:
+            row = _read(run_id)
+            row['admissionControl'] = {'operation': operation, 'scope': scope, **{k: v for k, v in settled.items() if k != 'scope'}}
+            _write(row)
+    # Pause takes effect between stages. An accepted native operation is allowed
+    # to drain; releasing its project lock early would risk duplicated mutations.
     may_resume = operation == 'resume' or (operation == 'budget' and row['status'] == 'budget-stop' and command.get('operation') not in {'pause', 'stop'})
     if may_resume and run_id not in _ACTIVE:
         return submit({key: row.get(key, '') for key in ('locator', 'program', 'slug')}, resume=True)

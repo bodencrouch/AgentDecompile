@@ -69,8 +69,8 @@ export function safeClaimHref(value: unknown): string | undefined {
   } catch { return undefined; }
 }
 
-export function ScopedClaims({projection: supplied, address, connection = 'disconnected'}: {
-  projection?: ClaimProjection; address?: string; connection?: string;
+export function ScopedClaims({projection: supplied, address, connection = 'disconnected', error = ''}: {
+  projection?: ClaimProjection; address?: string; connection?: string; error?: string;
 }) {
   const projection = readClaimProjection(supplied);
   const rows = projection?.candidates.filter(candidate => !address || addressKey(candidate.address) === addressKey(address)) || [];
@@ -78,6 +78,7 @@ export function ScopedClaims({projection: supplied, address, connection = 'disco
     <h3>Recovery evidence</h3>
     <p>Recorded observations are separate from current acceptance. No compiler-produced whole image or callable ABI is claimed.</p>
     {connection !== 'live' && connection !== 'polling' && <p role="status">Evidence feed disconnected or connecting; showing the last received scope. Current state unknown.</p>}
+    {error && <p role="status">Evidence feed: {error}</p>}
     {!projection ? <p>No target-bound claim projection received for this selection.</p> : <>
       <p>Target SHA-256 <code>{projection.targetSha256 || 'unknown'}</code></p>
       <p>{projection.basis}</p>

@@ -7,11 +7,11 @@ topic: ghidra-native-sdk
 
 ## Summary
 
-Use Ghidra's own native SLEIGH and decompiler without a JVM in every worker. Export a program once from Ghidra as one decompiler savefile per function plus a manifest. Re-decompile those savefiles with the native engine for option sweeps, engine-upgrade regression checks, and consumers that cannot host Java. Compare native output to the Java decompile of the same program on the same engine version. Plan: `docs/plans/2026-09-08-2330-feat-ghidra-native-sdk-plan.md`.
+Use Ghidra's own native SLEIGH and decompiler without a JVM in every worker. Export a program once from Ghidra as one decompiler savefile per function plus a manifest. Re-decompile those savefiles with the native engine for option sweeps, engine-upgrade regression checks, and consumers that cannot host Java. Compare native output to the Java decompile of the same program on the same engine version. This remains a research proposal; prioritize and sequence implementation through `STRATEGY.md` and the comprehensive delivery plan.
 
 ## Problem Frame
 
-AgentDecompile decompiles through single-threaded `DecompInterface` loops. Every decompile pass, and every option or engine change, pays for a JVM and for Ghidra's process-per-decompiler model again. The one measured baseline is 8621 functions in 342 s at 4 threads via `ghidrecomp` (`docs/plans/2026-07-24-perf-recovery-one-shot-living-plan.md`, Baseline table).
+AgentDecompile decompiles through single-threaded `DecompInterface` loops. Every decompile pass, and every option or engine change, pays for a JVM and for Ghidra's process-per-decompiler model again. A historical benchmark recorded 8,621 functions in 342 s at 4 threads via `ghidrecomp`; treat it as an old observation, not a current throughput guarantee.
 
 Ghidra already ships a native decompiler and a native SLEIGH. Three things stand in the way of using them on their own:
 

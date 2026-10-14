@@ -26,7 +26,7 @@ def main() -> int:
     )
     os.environ.setdefault(
         "VC_ROOT",
-        "/run/media/brunner56/MyBook/Toolchains/msvc8.0-main",
+        str(ROOT / "target/toolchain-acquire/vctoolkit2003/installed-nvme/VC7.1"),
     )
 
     ladder_before = build_proof_ladder(WORK)

@@ -14,7 +14,7 @@ from agentdecompile_recovery.corpus.dashboard.actions.catalog import ActionSpec,
 from agentdecompile_recovery.corpus.dashboard.actions.jobs import cancel_job, get_job, list_jobs, start_job
 
 _KIND = {"str": str, "path": str, "int": int, "float": float, "bool": bool, "array": list[Any], "object": dict[str, Any]}
-_META_KEYS = frozenset({"confirm", "dryRun", "dry_run", "context", "params"})
+_META_KEYS = frozenset({"confirm", "dryRun", "dry_run", "context", "params", "approvalId", "operationKey"})
 
 
 def _safe_ident(value: str) -> str:
@@ -52,11 +52,156 @@ def model_for(action: ActionSpec) -> type[BaseModel]:
     fields["confirm"] = (bool, Field(default=False, description="Required for mutating or dangerous actions"))
     fields["dry_run"] = (bool, Field(default=False, alias="dryRun"))
     fields["context"] = (dict[str, Any] | None, Field(default=None))
+    fields["approval_id"] = (str | None, Field(default=None, alias="approvalId", description="Durable approval record for byte verification"))
+    fields["operation_key"] = (str | None, Field(default=None, alias="operationKey", description="Stable idempotency key for the approved operation"))
     return create_model(
         _safe_ident(action.id),
         __config__=ConfigDict(populate_by_name=True, extra="forbid"),
         **fields,
     )
+
+
+def _retained_admission_summary(admission):
+    """Expose unresolved ownership without copying the complete receipt census."""
+    assessments = admission.get('retainedOwnershipAssessments') or {}
+    by_domain = {}
+    for domain, owners in (assessments.get('byDomain') or {}).items():
+        by_domain[domain] = len(owners)
+    return {
+        'retainedOwnershipAssessmentCount': assessments.get('count', 0),
+        'retainedOwnershipByDomain': by_domain,
+        'retainedPolicyMismatchCount': len(admission.get('retainedPolicyMismatches') or {}),
+        'retainedOwnershipResolved': assessments.get('ownershipResolved', False),
+    }
+
+
+def _job_snapshot(scope):
+    from agentdecompile_recovery.corpus.dashboard.actions.jobs import STORE, _copy_job, list_jobs
+
+    if scope == "current-process":
+        with STORE._lock:
+            rows = [_copy_job(job) for job in STORE._jobs.values()]
+        rows.sort(key=lambda job: job.created_at, reverse=True)
+    else:
+        rows = list_jobs(compact=True)
+
+    admission = STORE.admission_status()
+    with STORE._lock:
+        holders = []
+        for resource, mapping in (
+            ("identity", STORE._identity_held),
+            ("pair", STORE._pair_held),
+            ("ghidra", STORE._ghidra_held),
+            ("output-tree", STORE._external_held),
+        ):
+            for _key, owner_id in mapping.items():
+                job = STORE._jobs.get(owner_id)
+                holders.append({
+                    "resource": resource,
+                    "jobId": owner_id,
+                    "actionId": job.action_id if job else "unknown",
+                    "status": job.status if job else "missing-owner",
+                    "historyOnly": job.history_only if job else None,
+                    "resourceDisposition": job.resource_disposition if job else "unknown",
+                    "liveRecordPresent": job is not None,
+                })
+    # Retained reservations can outlive the in-memory job index. Explain their
+    # exact durable owner without scanning all history or doing I/O under the
+    # scheduler lock. A receipt is evidence, not permission to release a lock.
+    from . import job_history
+
+    receipt_root = job_history.directory()
+    owner_receipts = {}
+    for holder in holders:
+        owner_id = holder["jobId"]
+        if holder["liveRecordPresent"] or receipt_root is None or not job_history._ID.fullmatch(owner_id):
+            continue
+        if owner_id not in owner_receipts:
+            owner_receipts[owner_id] = job_history._job_receipt(receipt_root / (owner_id + ".json"))
+        receipt = owner_receipts[owner_id]
+        if receipt is None or receipt.get("id") != owner_id:
+            continue
+        holder["actionId"] = receipt.get("actionId") or "unknown"
+        holder["retainedReceipt"] = {
+            "status": receipt.get("status", "unknown"),
+            "resourceDisposition": receipt.get("resourceDisposition", "unknown"),
+            "executionOwnerRecorded": bool(receipt.get("executionOwner")),
+            "clearanceRecorded": bool(receipt.get("clearanceObservation")),
+        }
+    summary = {
+        "policy": admission["policy"],
+        "maxConcurrent": admission["maxConcurrent"],
+        "running": admission["running"],
+        "lanes": admission["lanes"],
+        "pausedScopeCount": len(admission["paused"]),
+        "pausedScopes": dict(admission["paused"]),
+        "identityLocksHeld": admission["identityHeld"],
+        "pairLocksHeld": admission["pairHeld"],
+        "ghidraLocksHeld": admission["ghidraHeld"],
+        "outputTreesHeld": admission["outputTreesHeld"],
+        "holders": holders,
+    }
+    summary.update(_retained_admission_summary(admission))
+    return {
+        "ok": True,
+        "scope": scope,
+        "historyIncluded": scope == "retained-history",
+        "jobs": [job.to_dict(include_log=False, include_details=False) for job in rows],
+        "total": len(rows),
+        "admission": summary,
+    }
+
+
+def _reload_binding_snapshot():
+    """Observe quarantined code registrations without creating or merging them."""
+    import os
+    import sys
+
+    module = sys.modules.get("inplace_hotreload")
+    owner = vars(module).get("_active") if module is not None else None
+    codefind = sys.modules.get("codefind")
+    registry = vars(codefind).get("code_registry") if codefind is not None else None
+    if owner is None or registry is None:
+        return {"ok": False, "error": "The active reloader or code registry is unavailable."}
+    guard = owner.guard()
+    if not guard.acquire(blocking=False):
+        return {"ok": False, "error": "The reloader is busy; no state was changed."}
+    try:
+        files = []
+        paths = sorted(owner._quarantined)
+        for path in paths[:16]:
+            codefile = owner.registry.cache.get(path)
+            missing = []
+            visited = 0
+            truncated = False
+            if codefile is not None:
+                for definition in codefile.root.walk():
+                    if visited >= 2000:
+                        truncated = True
+                        break
+                    visited += 1
+                    if (type(definition).__module__ != "jurigged.codetools"
+                            or type(definition).__name__ != "FunctionDefinition"):
+                        continue
+                    codepath = tuple(definition.codepath())
+                    cached = vars(definition).get("_codeobj")
+                    registered = registry.codes.get((*codepath, definition.groundline))
+                    if cached is None and registered is None:
+                        missing.append({"callable": ".".join(str(part) for part in codepath[1:]),
+                                        "originalLine": definition.groundline})
+            observation = owner.files.get(path, {})
+            files.append({"path": path, "state": observation.get("state"),
+                          "sourceSha256": observation.get("sourceSha256"),
+                          "appliedSha256": observation.get("appliedSha256"),
+                          "codefileCached": codefile is not None, "visited": visited,
+                          "truncated": truncated, "unregisteredCallables": missing})
+        return {"ok": True, "pid": os.getpid(), "scope": "current-code-registry",
+                "claim": "Current unresolved bindings are candidates, not proof of the original merge failure.",
+                "quarantinedCount": len(paths), "truncated": len(paths) > 16, "files": files}
+    except (AttributeError, TypeError, ValueError) as error:
+        return {"ok": False, "error": "Could not inspect reloader registrations: " + type(error).__name__}
+    finally:
+        guard.release()
 
 
 def create_actions_api_router() -> APIRouter:
@@ -84,11 +229,16 @@ def create_actions_api_router() -> APIRouter:
 
     @router.get("/api/v1/jobs", summary="List running and recent jobs")
     async def api_list_jobs() -> JSONResponse:
-        rows = await asyncio.to_thread(list_jobs)
-        return JSONResponse({"ok": True, "jobs": [job.to_dict(include_log=False, include_details=False) for job in rows], "total": len(rows)})
+        return JSONResponse(await asyncio.to_thread(_job_snapshot, "retained-history"))
 
     @router.get("/api/v1/jobs/{job_id}", summary="Job status and log")
     async def api_one_job(job_id: str) -> JSONResponse:
+        if job_id == "reload-diagnostics":
+            return JSONResponse(await asyncio.to_thread(_reload_binding_snapshot))
+        if job_id == "current":
+            return JSONResponse(await asyncio.to_thread(_job_snapshot, "current-process"))
+        if job_id == "history":
+            return JSONResponse(await asyncio.to_thread(_job_snapshot, "retained-history"))
         job = await asyncio.to_thread(get_job, job_id)
         if job is None:
             return JSONResponse({"ok": False, "error": f"unknown job {job_id}"}, status_code=404)
@@ -113,6 +263,8 @@ def _mount_action(router: APIRouter, action: ActionSpec) -> None:
     path = f"/api/v1/actions/{group}/{command}"
 
     async def handler(request: Request) -> JSONResponse:
+        from . import approval
+
         try:
             raw = await request.json()
         except Exception:
@@ -130,6 +282,27 @@ def _mount_action(router: APIRouter, action: ActionSpec) -> None:
             params_only.update(nested)
         confirm = bool(raw.get("confirm"))
         dry = bool(raw.get("dryRun") or raw.get("dry_run"))
+        if action.id == approval.ACTION_ID and not dry:
+            try:
+                actor = approval.local_actor(
+                    request.client.host if request.client else None,
+                    request.headers.get("origin"),
+                    str(request.base_url).rstrip("/"),
+                )
+                payload, status = await asyncio.to_thread(
+                    approval.submit,
+                    action.id,
+                    params_only,
+                    context=context,
+                    confirm=confirm,
+                    dry_run=False,
+                    approval_id=str(raw.get("approvalId") or "") or None,
+                    operation_key=str(raw.get("operationKey") or "") or None,
+                    actor=actor,
+                )
+            except approval.ApprovalError as exc:
+                return JSONResponse({"ok": False, "error": str(exc)}, status_code=exc.status)
+            return JSONResponse(payload, status_code=status)
         payload, status = await asyncio.to_thread(
             start_job,
             action.id,

@@ -11,8 +11,10 @@ metadata:
 # BSim corpus (issue 169)
 
 Read [AGENTS](../../../AGENTS.md) and [STRATEGY](../../../STRATEGY.md) first.
-Current recovery operations use the existing 8080 catalog; CLI, test and startup
-recipes below are implementation references subject to the mission restrictions.
+Active recovery uses the checkout-pinned `.venv/bin/agentdecompile-cli` from the
+repository root; frontends are deferred. Reuse existing local or shared Ghidra
+project bytes and analysis when available. Preserve project restrictions on
+tests, startup and process ownership.
 
 
 BSim supplies one identity witness under STRATEGY's field-level propagation gates. Starting PostgreSQL is not ingest.
@@ -23,11 +25,11 @@ BSim supplies one identity witness under STRATEGY's field-level propagation gate
 
 | Goal | CLI | MCP |
 |---|---|---|
-| Create DB | `agentdecompile-corpus bsim-createdatabase --datadir DIR --name NAME` | `bsim-createdatabase` |
-| Ingest repo | `agentdecompile-corpus bsim-ingest --repository REPO --datadir DIR --name NAME` | `bsim-ingest` |
-| Report | `agentdecompile-corpus bsim-report --datadir DIR` | `bsim-report` |
+| Create DB | `.venv/bin/agentdecompile-cli corpus bsim-createdatabase --datadir DIR --name NAME` | `bsim-createdatabase` |
+| Ingest repo | `.venv/bin/agentdecompile-cli corpus bsim-ingest --repository REPO --datadir DIR --name NAME` | `bsim-ingest` |
+| Report | `.venv/bin/agentdecompile-cli corpus bsim-report --datadir DIR` | `bsim-report` |
 
-Workbench: **Analyze → Ingest repository into BSim** / **Report BSim database**.
+Use the CLI forms above; frontends are deferred for current recovery.
 
 ## Report states (do not invent others)
 

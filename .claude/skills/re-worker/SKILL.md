@@ -1,6 +1,6 @@
 ---
 name: re-worker
-description: "Use this skill when asked to analyze, decompile, or type a single function and return a JSON artifact. Not for coordinating other agents."
+description: "Use this skill for bounded reverse-engineering evidence work—including per-function analysis within a multi-binary matching-C or runtime workflow. Not for coordinating other agents."
 license: AGPL-3.0-or-later
 metadata:
   author: AgentDecompile

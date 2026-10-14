@@ -1,9 +1,10 @@
 """Locate local Ghidra projects (.gpr / .rep) and shared repository URLs.
 
 A local project is a ``Name.gpr`` file plus a sibling ``Name.rep`` folder.
-Shared projects are ``ghidra://host:port/repository[/folder/program]`` or an
-HTTP(S) Ghidra-server / shared-folder URL. This module does not talk to a
-live Ghidra JVM — it only classifies locators and lists on-disk program names.
+Native shared projects use ``ghidra://host:port/repository[/folder/program]``.
+HTTP(S) locators refer to the AgentDecompile Project API, never Ghidra RMI.
+Classification does not require a live JVM. Save delegates to the captured
+native owner; filesystem descriptors alone never prove persistence.
 """
 
 from __future__ import annotations
@@ -17,7 +18,7 @@ import time
 from pathlib import Path
 from urllib.parse import urlparse
 
-SAVE_KINDS = ("ghidra-project", "shared-fs", "shared-project")
+SAVE_KINDS = ("ghidra-project", "shared-fs", "shared-project", "project-api")
 
 _SHARED_SCHEMES = ("ghidra", "http", "https")
 _REP_META = {"idata", "user", "versioned"}
@@ -42,8 +43,10 @@ def find_gpr(path: Path) -> Path | None:
             return cand
         if cand.is_dir():
             hits = sorted(p for p in cand.glob("*.gpr") if p.is_file())
-            if hits:
+            if len(hits) == 1:
                 return hits[0]
+            if len(hits) > 1:
+                return None
             name = cand.name
             if name.endswith(".rep"):
                 sibling = cand.with_name(name[: -len(".rep")] + ".gpr")
@@ -110,6 +113,24 @@ def parse_shared_locator(raw: str) -> dict[str, object]:
     scheme = (parsed.scheme or "").lower()
     if scheme not in _SHARED_SCHEMES:
         raise ValueError("shared locator must be ghidra://, http://, or https://")
+    if parsed.username is not None or parsed.password is not None:
+        raise ValueError("Store credentials separately; project URLs must not contain credentials")
+    if not parsed.hostname:
+        raise ValueError("shared project URL requires a host")
+    if scheme in ("http", "https"):
+        # Preserve API path/query semantics. In particular an HTTP port is not
+        # an RMI registry port, and its neighboring ports have no special role.
+        from urllib.parse import urlunparse
+
+        port = parsed.port or (443 if scheme == "https" else 80)
+        canonical = urlunparse(parsed._replace(scheme=scheme, fragment=""))
+        return {
+            "kind": "project-api", "locator": url, "canonical": canonical,
+            "host": parsed.hostname, "port": port, "path": parsed.path,
+            "slug": parsed.path.rstrip("/").rsplit("/", 1)[-1] or parsed.hostname,
+            "access": "http", "protocol": scheme, "programs": [],
+            "requires_server": True, "connected": False,
+        }
     host = parsed.hostname or "localhost"
     port = int(parsed.port or _DEFAULT_SERVER_PORT)
     parts = [p for p in (parsed.path or "").split("/") if p]
@@ -175,12 +196,28 @@ def classify_locator(raw: str) -> dict[str, object]:
         parsed = urlparse(text)
         text = parsed.path or text
     path = Path(text).expanduser()
-    if path.is_dir():
+    # A shared-server repository collection may also contain a same-named,
+    # empty ``repos.gpr`` shell. Prefer the actual indexed repository trees
+    # over that local-project marker so opening the collection enumerates its
+    # programs instead of silently presenting an empty project.
+    if path.is_dir() and _browse_shared_folder(path):
         shared = inspect_shared_fs(path)
         if shared is not None:
             return shared
+    if path.is_dir():
+        candidates = sorted(p for p in path.glob("*.gpr") if p.is_file())
+        if len(candidates) > 1:
+            return {
+                "kind": "project-collection", "locator": str(path.resolve()),
+                "canonical": str(path.resolve()), "slug": path.name,
+                "requires_selection": True, "programs": [],
+                "projects": [{"name": p.stem, "locator": str(p.resolve()),
+                              "kind": "ghidra-project"} for p in candidates],
+            }
     gpr = find_gpr(path)
     if gpr is not None:
+        if not gpr.with_suffix(".rep").is_dir():
+            return {"kind": "empty", "error": "The .gpr is missing its sibling .rep storage"}
         programs = list_local_programs(gpr)
         return {
             "kind": "ghidra-project",
@@ -192,6 +229,10 @@ def classify_locator(raw: str) -> dict[str, object]:
             "programs": programs,
         }
     if path.is_file():
+        if path.suffix.lower() == ".gar":
+            return {"kind": "project-archive", "path": str(path),
+                    "locator": str(path.resolve()), "canonical": str(path.resolve()),
+                    "slug": path.stem, "programs": [], "requires_restore": True}
         packed = False
         try:
             from agentdecompile_recovery.ghidra_db.packed import is_packed_file
@@ -319,6 +360,22 @@ def ghidra_connect_args(info: dict[str, object] | None) -> dict[str, object]:
     return {}
 
 
+def _browse_shared_folder(path):
+    """Recognize indexed repositories without reading their program inventory."""
+    for parent in (path, *path.parents):
+        if parent.suffix.lower() == ".rep":
+            return False  # Local project storage is not a server repository.
+    try:
+        if (path / "~index.dat").is_file():
+            return True
+        for child in path.iterdir():
+            if child.suffix.lower() != ".rep" and child.is_dir() and (child / "~index.dat").is_file():
+                return True
+    except OSError:
+        return False  # A vanished/unreadable marker must not break the chooser.
+    return False
+
+
 def browse_roots(work_dir: Path | None = None) -> list[dict[str, object]]:
     seen: set[str] = set()
     roots: list[dict[str, object]] = []
@@ -342,22 +399,16 @@ def browse_roots(work_dir: Path | None = None) -> list[dict[str, object]]:
         if key in seen or not path.is_dir():
             continue
         seen.add(key)
-        shared = inspect_shared_fs(path)
-        gpr = find_gpr(path)
-        if shared is not None:
-            kind = "shared-fs"
-            programs = list(shared.get("programs") or [])
-        elif gpr is not None:
-            kind = "project-dir"
-            programs = list_local_programs(gpr)
-        else:
+        try:
+            kind = ("shared-fs" if _browse_shared_folder(path)
+                    else "project-dir" if find_gpr(path) is not None else "dir")
+        except OSError:
             kind = "dir"
-            programs = []
         roots.append({
             "name": f"{label}: {path.name or path}",
             "kind": kind,
             "path": key,
-            "programs": programs,
+            "programs": [],  # Enumerate only the project the user opens.
         })
     return roots
 
@@ -418,6 +469,9 @@ def browse_path(raw: str, *, work_dir: Path | None = None) -> dict[str, object]:
     except OSError as exc:
         return {"ok": False, "error": str(exc), "path": text, "parent": "", "entries": []}
     allowed_roots = search_roots(work_dir)
+    # Home is an explicit chooser location, not an expanded search/import/write
+    # destination policy. Keep this permission local to read-only browsing.
+    allowed_roots.append(Path.home().resolve())
     if allowed_roots and not any(_path_within(path, root) for root in allowed_roots):
         return {
             "ok": False,
@@ -449,6 +503,11 @@ def browse_path(raw: str, *, work_dir: Path | None = None) -> dict[str, object]:
     if not path.is_dir():
         return {"ok": False, "error": "path is not a directory or .gpr", "path": str(path), "parent": "", "entries": []}
     entries: list[dict[str, object]] = []
+    local_storage = False
+    for ancestor in (path, *path.parents):
+        if ancestor.suffix.lower() == ".rep":
+            local_storage = True
+            break
     try:
         children = list(path.iterdir())
     except OSError as exc:
@@ -463,21 +522,27 @@ def browse_path(raw: str, *, work_dir: Path | None = None) -> dict[str, object]:
                     "name": child.name,
                     "kind": "gpr",
                     "path": str(child),
-                    "programs": list_local_programs(child),
+                    "programs": [],
                 })
                 continue
-            binary = _browse_binary_entry(child)
-            if binary is not None:
-                entries.append(binary)
+            # The chooser lists locations, not their contents. Opening one
+            # performs format detection and program enumeration; doing that for
+            # every sibling reads thousands of artifacts before a single click.
+            if child.is_file() and child.suffix.lower() in _BROWSE_BINARY_SUFFIXES:
+                entries.append({"name": child.name,
+                    "kind": "packed-program" if child.suffix.lower() == ".gzf" else "binary",
+                    "path": str(child), "programs": []})
                 continue
             if child.is_dir():
-                shared = inspect_shared_fs(child)
-                if shared is not None:
+                # Do not scan every sibling's children just to list this folder.
+                # Repository collections are detected authoritatively when
+                # selected; a directory row still browses and opens them.
+                if not local_storage and child.suffix.lower() != ".rep" and (child / "~index.dat").is_file():
                     entries.append({
                         "name": child.name,
                         "kind": "shared-fs",
                         "path": str(child),
-                        "programs": list(shared.get("programs") or []),
+                        "programs": [],
                     })
                     continue
                 gpr = find_gpr(child)
@@ -485,16 +550,23 @@ def browse_path(raw: str, *, work_dir: Path | None = None) -> dict[str, object]:
                     "name": child.name,
                     "kind": "project-dir" if gpr is not None else "dir",
                     "path": str(child),
-                    "programs": list_local_programs(gpr) if gpr is not None else [],
+                    "programs": [],
                 })
+            elif child.is_file():
+                # Packed Ghidra files can have no suffix. Keep unknown files
+                # selectable, and inspect their format only when requested.
+                entries.append({"name": child.name, "kind": "file",
+                                "path": str(child), "programs": []})
         except OSError:
             continue
+    shared = _browse_shared_folder(path)
+    gpr = None if shared else find_gpr(path)
     return {
         "ok": True,
         "path": str(path),
         "parent": str(path.parent),
-        "kind": "ghidra-project" if find_gpr(path) is not None else "dir",
-        "programs": list_local_programs(find_gpr(path)) if find_gpr(path) is not None else [],
+        "kind": "shared-fs" if shared else "ghidra-project" if gpr is not None else "dir",
+        "programs": [],
         "entries": entries,
     }
 
@@ -649,20 +721,30 @@ def _stat_brief(path: Path) -> dict[str, object]:
 
 
 def _bind_shared_project_to_fs(repository: str) -> dict[str, object] | None:
-    """Map ``ghidra://…/Repo`` to an on-disk server repository when one exists."""
-    name = (repository or "").strip().lstrip("_")
+    """Only bind mirrors recording this exact server origin, never names alone."""
+    if not repository.startswith("ghidra://"):
+        return None
+    source = parse_shared_locator(repository)
+    canonical = str(source.get("canonical") or "")
+    name = str(source.get("repository") or "").strip()
     if not name:
         return None
-    wanted = name.lower()
+    def verified(path: Path, expected: str = canonical) -> dict[str, object] | None:
+        origin = _read_origin(path / "origin.json") or {}
+        source = origin.get("server_locator") or origin.get("source_canonical")
+        if source != expected:
+            return None
+        return inspect_shared_fs(path)
+
     for root in search_roots():
         direct = root / f"_{name}"
         if not direct.is_dir():
             direct = root / name
         if direct.is_dir():
-            hit = inspect_shared_fs(direct)
+            hit = verified(direct)
             if hit:
                 return hit
-        parent = inspect_shared_fs(root)
+        parent = verified(root)
         if not parent:
             continue
         for repo in parent.get("repositories") or []:
@@ -670,15 +752,15 @@ def _bind_shared_project_to_fs(repository: str) -> dict[str, object] | None:
                 continue
             label = str(repo.get("name") or "")
             folder = Path(str(repo.get("path") or "")).name
-            if label.lower() == wanted or folder.lstrip("_").lower() == wanted:
-                child = inspect_shared_fs(Path(str(repo.get("path") or "")))
+            if label == name or folder.lstrip("_") == name:
+                child = verified(Path(str(repo.get("path") or "")))
                 return child or parent
         labels = [
-            str(repo.get("name") or Path(str(repo.get("path") or "")).name).lstrip("_").lower()
+            str(repo.get("name") or Path(str(repo.get("path") or "")).name).lstrip("_")
             for repo in (parent.get("repositories") or [])
             if isinstance(repo, dict)
         ]
-        if wanted in labels:
+        if name in labels:
             return parent
     return None
 
@@ -772,7 +854,7 @@ def inspect_locator(raw: str) -> dict[str, object]:
         out["requires_server"] = True
         out["connected"] = False
         out["user"] = str(shared_defaults().get("user") or "")
-        bound = _bind_shared_project_to_fs(str(out.get("repository") or ""))
+        bound = _bind_shared_project_to_fs(str(out.get("canonical") or raw))
         if bound:
             out["ghidra_locator"] = str(out.get("canonical") or raw)
             out["filesystem_mirror"] = {
@@ -1045,12 +1127,19 @@ def _write_index_dat(path: Path, programs: list[str]) -> None:
 
 
 def _copy_gpr_rep(src_gpr: Path, dest_gpr: Path) -> None:
+    if src_gpr.resolve() == dest_gpr.resolve():
+        raise ValueError("Same-destination Save As must use native Save, not filesystem copying")
+    if dest_gpr.exists() or dest_gpr.with_suffix(".rep").exists():
+        raise ValueError("Destination already exists; reconciliation is required, not replacement")
+    if not src_gpr.with_suffix(".rep").is_dir():
+        raise ValueError("Source project storage is missing")
+    # This primitive must never be used on a live native database.
+    if src_gpr.with_suffix(".lock").exists() or src_gpr.with_suffix(".lock~").exists():
+        raise ValueError("Source project is owned; transfer through its native owner instead")
     dest_gpr.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy2(src_gpr, dest_gpr)
     src_rep = src_gpr.with_suffix(".rep")
     dest_rep = dest_gpr.with_suffix(".rep")
-    if dest_rep.exists():
-        shutil.rmtree(dest_rep)
     if src_rep.is_dir():
         shutil.copytree(src_rep, dest_rep)
     else:
@@ -1097,14 +1186,27 @@ def _write_skeleton_gpr(gpr: Path) -> None:
 def save_project(locator: str, *, work_dir: Path) -> dict[str, object]:
     text = (locator or "").strip()
     if not text:
-        created = create_local_project("Untitled", work_dir=work_dir)
-        created["saved"] = True
-        return created
+        return {"ok": False, "saved": False, "error": "Select an existing project before saving."}
     info = inspect_locator(text)
     if not info.get("ok"):
         return info
+    if info.get("kind") not in {"ghidra-project", "shared-project"}:
+        return {"ok": False, "saved": False, "source": info,
+                "error": "This source requires its persistence adapter; no bookmark or empty project was saved."}
+    from .dashboard import mcp_bridge
+
+    # Do not ensure/open here: a tab switch must not redirect dirty writes.
+    receipt = mcp_bridge.call_tool("checkin-program", {
+        "projectLocator": str(info.get("canonical") or info.get("locator") or text),
+        "saveDirtyOnly": True, "keep_checked_out": True,
+        "comment": "AgentDecompile project save", "format": "json",
+    }, timeout=180.0)
+    payload = receipt.get("parsed")
+    if not receipt.get("ok") or not isinstance(payload, dict) or payload.get("success") is not True:
+        return {"ok": False, "saved": False, "receipt": payload or receipt,
+                "error": str(receipt.get("error") or "Native persistence was incomplete; retained work must be inspected before retrying.")}
     origin = _origin_payload(info, str(info.get("kind") or ""))
-    origin["saved"] = True
+    origin["saved"] = False
     kind = str(info.get("kind") or "")
     if kind == "ghidra-project" and info.get("rep"):
         _write_origin(Path(str(info["rep"])) / "user" / "origin.json", origin)
@@ -1117,7 +1219,12 @@ def save_project(locator: str, *, work_dir: Path) -> dict[str, object]:
         _write_origin(sidecar, origin)
         info["origin_file"] = str(sidecar)
     refreshed = inspect_locator(str(info.get("locator") or text))
-    refreshed["saved"] = True
+    refreshed["saved"] = False
+    refreshed["state"] = "partial"
+    refreshed["message"] = "Open programs persisted; complete project metadata/history persistence is not yet confirmed."
+    refreshed["save_scope"] = "open-programs"
+    refreshed["project_metadata_saved"] = False
+    refreshed["receipt"] = payload
     return refreshed
 
 
@@ -1132,7 +1239,7 @@ def save_project_as(
 ) -> dict[str, object]:
     kind = (target or "").strip()
     if kind not in SAVE_KINDS:
-        return {"ok": False, "error": "Save As target must be ghidra-project, shared-fs, or shared-project"}
+        return {"ok": False, "error": "Save As target must be one of: " + ", ".join(SAVE_KINDS)}
     source = (
         inspect_locator(locator)
         if (locator or "").strip()
@@ -1175,9 +1282,10 @@ def save_project_as(
             folder = dest_gpr.parent
         else:
             dest_gpr = _unique_gpr(folder, stem)
-        folder.mkdir(parents=True, exist_ok=True)
         src_gpr = source.get("gpr")
         if src_kind == "ghidra-project" and src_gpr and Path(str(src_gpr)).is_file():
+            if Path(str(src_gpr)).resolve() == dest_gpr.resolve():
+                return save_project(locator, work_dir=work_dir)
             _copy_gpr_rep(Path(str(src_gpr)), dest_gpr)
             origin["note"] = "Copied local Ghidra project files (.gpr and .rep)."
         elif src_kind == "shared-fs" and src_loc and program_count:
@@ -1192,19 +1300,8 @@ def save_project_as(
                 "No Ghidra server was used."
             )
         else:
-            _write_skeleton_gpr(dest_gpr)
-            if src_kind == "shared-project":
-                origin["note"] = (
-                    "Local checkout of a Ghidra Server (RMI) locator. "
-                    "Program databases were not downloaded; open-project still uses the source locator."
-                )
-            elif src_kind == "shared-fs":
-                origin["note"] = (
-                    "The source lists programs but holds no local program databases. "
-                    "Only the program names from ~index.dat were recorded; no databases were copied."
-                )
-            else:
-                origin["note"] = "New local Ghidra project."
+            return {"ok": False, "saved": False,
+                    "error": "Native project transfer is required; an empty checkout is not a saved project."}
         _write_origin(dest_gpr.with_suffix(".rep") / "user" / "origin.json", origin)
         out = inspect_locator(str(dest_gpr))
         out["converted_from"] = source.get("kind")
@@ -1213,6 +1310,9 @@ def save_project_as(
         return out
 
     if kind == "shared-fs":
+        if not src_loc or not program_count:
+            return {"ok": False, "saved": False,
+                    "error": "Program databases are unavailable to this adapter; an index alone is not a saved project."}
         root = dest_path if dest_path is not None else Path(work_dir) / "shared-exports" / stem
         existing = inspect_shared_fs(root) if root.is_dir() else None
         if existing is None:
@@ -1234,11 +1334,8 @@ def save_project_as(
                 "No Ghidra server was used."
             )
         else:
-            _write_index_dat(repo_dir / "~index.dat", _program_names(source))
-            origin["note"] = (
-                "Wrote a Ghidra-server-shaped index checkout. "
-                "This is not a live server publish; versioned program DBs were not uploaded."
-            )
+            return {"ok": False, "saved": False,
+                    "error": "Program databases are unavailable to this adapter; an index alone is not a saved project."}
         _write_origin(root / "origin.json", origin)
         out = inspect_locator(str(root))
         out["converted_from"] = source.get("kind")
@@ -1254,38 +1351,10 @@ def save_project_as(
     classified = inspect_locator(remote)
     if not classified.get("ok"):
         return classified
-    # HTTP Save As is a reopenable ghidra:// bookmark plus a tiny .gpr stub.
-    # Never copy program databases here — a bound shared-fs repo can be tens of
-    # gigabytes, and an unbound URL has nothing on disk to copy.
-    folder = Path(work_dir) / "ghidra-projects"
-    dest_gpr = _unique_gpr(folder, stem)
-    _write_skeleton_gpr(dest_gpr)
-    http_locator = str(
-        classified.get("http_locator") or classified.get("canonical") or remote
-    )
-    origin["http_locator"] = http_locator
-    origin["bound_locator"] = classified.get("locator") if classified.get("kind") == "shared-fs" else ""
-    origin["local_locator"] = str(dest_gpr)
-    origin["programs"] = _program_names(classified)
-    if classified.get("kind") == "shared-fs" or classified.get("requires_server") is False:
-        origin["note"] = (
-            "Linked ghidra:// to the on-disk repository. "
-            "Program databases were not copied. No Ghidra server is required."
-        )
-    else:
-        origin["note"] = (
-            "Linked a Ghidra Server (RMI) locator and wrote a local checkout stub "
-            "so the project can be reopened. Program databases were not downloaded."
-        )
-    _write_origin(dest_gpr.with_suffix(".rep") / "user" / "origin.json", origin)
-    out = dict(classified)
-    out["origin"] = origin
-    out["local_checkout"] = str(dest_gpr)
-    out["http_locator"] = http_locator
-    out["converted_from"] = source.get("kind")
-    out["origin_note"] = origin["note"]
-    out["saved"] = True
-    return out
+    if str(source.get("canonical") or src_loc) == str(classified.get("canonical") or remote):
+        return save_project(locator, work_dir=work_dir)
+    return {"ok": False, "saved": False, "destination": classified,
+            "error": "Remote Save As requires verified native publication or Project API transfer; no bookmark was substituted."}
 
 
 def session_store_path(work_dir: Path | None) -> Path | None:

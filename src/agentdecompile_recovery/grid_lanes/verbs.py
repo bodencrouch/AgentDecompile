@@ -43,6 +43,8 @@ Acceptance tests (named, landed in the verification phase):
 """
 from __future__ import annotations
 
+import re
+
 import json
 import os
 import sqlite3
@@ -121,6 +123,7 @@ class CorpusVerbKind(PlannableKind):
     """Base for one corpus verb as a grid task.  Subclasses set ``name``, ``verb``, ``budget``."""
 
     name = ""
+    basis_field_set = "corpus_verb"   # analyzer + cascade + data packs + basis_version (U158b)
     verb = ""
     version = 1
     budget = BudgetClass.SMALL
@@ -266,6 +269,7 @@ class CorpusExportHookpack(CorpusVerbKind):
 @task_kind
 class CorpusBackfillPass(CorpusVerbKind):
     name = "corpus-backfill-pass"
+    basis_field_set = "repair"
     verb = "backfill"
     budget = BudgetClass.SMALL
     PARAMS_SCHEMA = {
@@ -329,7 +333,9 @@ class CorpusBackfillPass(CorpusVerbKind):
             for path in sorted(receipts_dir.rglob("*.json")):
                 rel = path.relative_to(receipts_dir)
                 stem = rel.stem
-                if stem.startswith("slug-"):
+                if stem.startswith("slug-") and not re.fullmatch(r"slug-[0-9a-f]{12}", stem):
+                    # Legacy stems carried the slug; backfill now writes the
+                    # hashed stem itself and must not be hashed twice.
                     stem = "slug-" + hashed_slug(stem[len("slug-"):])
                 name = (rel.parent / f"{stem}{rel.suffix}").as_posix()
                 try:
@@ -392,31 +398,117 @@ class CorpusLogicalBuild(CorpusVerbKind):
 
 @task_kind
 class CorpusAttest(CorpusVerbKind):
-    """Declared: ``corpus attest`` (U28x) is not in this checkout."""
+    """Working (U168): one catalogue verb of ``corpus attest`` per task, over the store snapshot.
+
+    The task materialises the snapshot object into its scratch dir and hands that file to
+    ``corpus.attest.AttestationRun`` as an already-private copy (``MaterializedSnapshot``); the
+    verb runs under the subprocess runner with the per-verb deadline as the kill deadline, and the
+    attest receipt (minus its per-run noise: elapsed time, head, comparison) is the ``receipt``
+    object.  Every verb outcome is a value: a hang is the named timeout record
+    ``metrics["timeout"] = {"status": "hang", "verb", "elapsed_s", "deadline_s"}`` plus a
+    ``status: hang`` receipt, never an exception; a verb refusal is a ``refused`` receipt, because
+    counting refusals is what an attestation is for.  "Changed since the previous attestation" is
+    a view comparison, so the lane runs with ``NoComparator`` and the receipt's status is its
+    outcome.  The catalogue and profiles come from ``corpus.attest`` (``describe()`` lists them).
+    """
 
     name = "corpus-attest"
-    verb = ""  # no verb to build argv for
-    budget = BudgetClass.SMALL
+    verb = "attest"
+    budget = BudgetClass.LARGE   # the catalogue's per-verb deadlines (up to 1200 s) exceed MEDIUM's cap
     PARAMS_SCHEMA = {
-        "verb": "one of export-hookpack | backfill | verify-determinism | logical-build",
-        "verb_params": "that verb's params (see its kind)",
-        "deadline_s": "per-verb deadline; the worker's kill deadline for this task",
+        "verb": "a catalogue name (corpus.attest.VERBS) or a bare CLI verb (backfill picks its pass from verb_params)",
+        "verb_params": "that verb's params; ``pass`` selects the backfill entry",
+        "deadline_s": "per-verb kill deadline; defaults to the catalogue's, capped at the budget class",
         "previous_receipt": "optional ref of the last verified attest receipt for (verb, basis) -- diffed in the view",
     }
-    OUTPUTS = {"receipt": "sorted JSON receipt with hashed slugs and the output hashes (never the pack)"}
+    OUTPUTS = {"receipt": "sorted attest receipt: verb, relative argv, exit, status, output hashes, store row-set hashes"}
+
+    # ----------------------------------------------------------------- resolution
+    @staticmethod
+    def _catalogue():
+        from ..corpus import attest
+
+        return attest
+
+    def resolve_verb(self, spec: TaskSpec):
+        attest = self._catalogue()
+        name = str(spec.params.get("verb", ""))
+        if name in attest.VERBS:
+            return attest.VERBS[name]
+        verb_params = spec.params.get("verb_params") or {}
+        pass_name = str(verb_params.get("pass", "")) if isinstance(verb_params, Mapping) else ""
+        found = attest.VERBS.by_cli_verb(name, pass_name=pass_name or None)
+        if found is None:
+            raise Refused(f"attest-verb-unknown:{name or '<empty>'}", candidates=[{"verb": n} for n in attest.VERBS])
+        return found
+
+    def verb_deadline(self, spec: TaskSpec, verb_spec) -> float:
+        requested = spec.params.get("deadline_s")
+        return deadline_for(self.budget, float(requested) if requested else verb_spec.deadline_s)
 
     def argv(self, spec: TaskSpec) -> list[str]:
-        raise NotConfigured("corpus attest verb (U28x) not present in this checkout yet")
-
-    def run(self, spec: TaskSpec, objects: ObjectStore, scratch: str) -> TaskResult:
-        check_kind(spec, self.name, self.version)
-        raise NotConfigured(
-            "corpus attest verb (U28x) not present in this checkout yet; its grid shape is one "
-            "corpus-attest task per (verb, snapshot) with deadline_s as the kill deadline"
+        """The ``SubprocessVerb`` shape: ``corpus attest`` itself, one verb, over ``store.sqlite``."""
+        verb_spec = self.resolve_verb(spec)
+        deadline = self.verb_deadline(spec, verb_spec)
+        return corpus_cli_argv(
+            self.verb, "--db", STORE_FILENAME, "--receipts", f"{OUT_DIRNAME}/receipts", "--workdir", f"{OUT_DIRNAME}/work",
+            "--verbs", verb_spec.name, "--verb-deadline", f"{verb_spec.name}={deadline:g}",
         )
 
-    def verify(self, spec, result, objects, scratch) -> Verification:
-        raise NotConfigured("corpus attest verb (U28x) not present in this checkout yet")
+    # ----------------------------------------------------------------- TaskKind
+    def run(self, spec: TaskSpec, objects: ObjectStore, scratch: str) -> TaskResult:
+        check_kind(spec, self.name, self.version)
+        store_ref = require_input(spec, "store", kind=self.name)
+        verb_spec = self.resolve_verb(spec)
+        deadline = self.verb_deadline(spec, verb_spec)
+        attest = self._catalogue()
+        scratch_dir = Path(scratch)
+        workdir = scratch_dir / OUT_DIRNAME / "work"
+        workdir.mkdir(parents=True, exist_ok=True)
+        started = time.monotonic()
+        store = materialize_object(objects, store_ref, workdir / attest.STORE_FILENAME)
+        run = attest.AttestationRun(
+            db=store, receipts=scratch_dir / OUT_DIRNAME / "receipts", workdir=workdir, verbs=[verb_spec],
+            snapshot=attest.MaterializedSnapshot(), runner=attest.SubprocessRunner(), comparator=attest.NoComparator(),
+            deadline_s=deadline + attest.KILL_AFTER_S, verb_deadlines={verb_spec.name: deadline}, profile="grid",
+            pythonpath=_subprocess_env()["PYTHONPATH"],
+        )
+        _, receipts = run.execute()
+        verb_receipt = receipts[verb_spec.name]
+        receipt = {
+            **{k: v for k, v in verb_receipt.items() if k not in ("elapsed_s", "head", "comparison")},
+            "kind": self.name, "kind_version": self.version, "attest_verb": self.verb,
+            "store": str(store_ref), "params": dict(spec.params), "basis_hash": spec.basis_hash,
+            "exit_code": verb_receipt["exit"],
+            "summary": {
+                "status": verb_receipt["status"], "refusal_class": verb_receipt["refusal_class"],
+                "store_before": verb_receipt["store_before"], "store_after": verb_receipt["store_after"],
+                "outputs": dict(verb_receipt["outputs"]),
+            },
+        }
+        assert_portable(receipt)
+        metrics: dict[str, Any] = {
+            "verb_elapsed_s": round(float(verb_receipt["elapsed_s"]), 3), "deadline_s": deadline,
+            "stderr_sha256": verb_receipt["stderr_sha256"], "head": verb_receipt["head"], "status": verb_receipt["status"],
+        }
+        if verb_receipt["status"] == attest.Status.HANG.value:
+            metrics["timeout"] = {
+                "status": "hang", "verb": verb_spec.name, "elapsed_s": float(verb_receipt["elapsed_s"]),
+                "deadline_s": deadline,
+            }
+        return make_result(
+            spec, {"receipt": put_json(objects, receipt)}, elapsed_s=time.monotonic() - started, metrics=metrics,
+        )
+
+    @classmethod
+    def describe(cls) -> dict[str, Any]:
+        from ..corpus import attest
+
+        return {
+            **super().describe(), "status": "working",
+            "shape": "one task per (catalogue verb, snapshot); the per-verb deadline is the kill deadline",
+            "catalogue": attest.describe_catalogue(),
+        }
 
 
 VERB_KINDS = (CorpusExportHookpack, CorpusBackfillPass, CorpusVerifyDeterminism, CorpusLogicalBuild, CorpusAttest)

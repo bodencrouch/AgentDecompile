@@ -56,30 +56,10 @@ def flatten_names(code: str) -> str:
 
 
 def fix_thiscall(code: str) -> str:
-    """`__thiscall` → `__fastcall(this, edx_unused, ...)` for C-only compilers."""
-    m = THISCALL_RE.search(code)
-    if not m:
-        return code
-    paren_start = code.find("(", m.end())
-    if paren_start == -1:
-        return code
-    depth, i = 0, paren_start
-    while i < len(code):
-        if code[i] == "(":
-            depth += 1
-        elif code[i] == ")":
-            depth -= 1
-            if depth == 0:
-                break
-        i += 1
-    if i >= len(code):
-        return code
-    params = code[paren_start + 1 : i].strip()
-    parts = [p.strip() for p in params.split(",")] if params else []
-    if not parts:
-        return code
-    new_params = ", ".join([parts[0], "int edx_unused"] + parts[1:])
-    return code[: m.start()] + "__fastcall" + code[m.end() : paren_start + 1] + new_params + code[i:]
+    """Explicit x86 C proxy only; ambiguous declarations/calls stay unchanged."""
+    from .ctxtypes import fix_thiscall_signatures
+
+    return fix_thiscall_signatures(code)
 
 
 def fix_field_names(code: str) -> str:

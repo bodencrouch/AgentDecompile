@@ -22,6 +22,7 @@ from agentdecompile_recovery.corpus.dashboard.common import (
     runtime_project_root,
     runtime_work_dir,
 )
+from agentdecompile_recovery.corpus.verb_admission import UNDECLARED, VerbAdmission, from_legacy
 
 PROGRAM_KEYS = frozenset({"programPath", "program", "binary", "path", "repo"})
 ADDR_KEYS = frozenset({
@@ -94,10 +95,31 @@ class ActionSpec:
     long_running: bool = False
     identity_scope: str = ""
     ghidra_exclusive: bool = False
+    # The verb's full admission declaration when it made one.  The three
+    # legacy fields above are populated from it so nothing downstream breaks.
+    admission: VerbAdmission | None = None
+
+    @property
+    def effective_admission(self) -> VerbAdmission:
+        """The declaration, or the conservative default for an undeclared row.
+
+        H5: the loop reads this, never the bare legacy fields, so a row that
+        declared nothing is drained on pause rather than skipped.
+        """
+        if self.admission is not None:
+            return self.admission
+        if not (self.mutating or self.long_running or self.identity_scope):
+            return UNDECLARED
+        return from_legacy(
+            mutating=self.mutating,
+            long_running=self.long_running,
+            identity_scope=self.identity_scope,
+        )
 
     def to_dict(self) -> dict[str, Any]:
         payload = asdict(self)
         payload["fields"] = [field.to_dict() for field in self.fields]
+        payload["admission"] = self.effective_admission.to_dict()
         return payload
 
 
@@ -106,6 +128,49 @@ _ACTIONS: list[ActionSpec] | None = None
 
 def list_actions() -> list[ActionSpec]:
     global _ACTIONS
+    # The in-process server may keep this catalog alive while the CLI parser
+    # changes on disk. Refresh only when that parser's file identity changes,
+    # so the dashboard remains parser-derived without a server restart.
+    import importlib
+    import threading
+
+    refresh_lock = getattr(list_actions, "_refresh_lock", None)
+    if refresh_lock is None:
+        refresh_lock = threading.RLock()
+        list_actions._refresh_lock = refresh_lock
+    with refresh_lock:
+        from agentdecompile_recovery.corpus import cli as corpus_cli
+
+        # Action metadata lives here as well as in the parser. A live source
+        # update to this module must invalidate the cached ActionSpec rows;
+        # parser-only invalidation leaves the HTTP catalog advertising stale
+        # fields and admission contracts after hot reload.
+        catalog_stat = Path(__file__).resolve().stat()
+        catalog_stamp = (catalog_stat.st_dev, catalog_stat.st_ino,
+                         catalog_stat.st_size, catalog_stat.st_mtime_ns)
+        previous_catalog_stamp = getattr(list_actions, "_catalog_stamp", None)
+        # A request can observe the file's new stamp before its code is applied.
+        # Cache ownership must follow the executing definition as well as disk.
+        definition = list_actions.__code__
+        if (previous_catalog_stamp != catalog_stamp
+                or getattr(list_actions, "_definition_code", None) is not definition):
+            if _ACTIONS is not None:
+                _ACTIONS = None
+            list_actions._catalog_stamp = catalog_stamp
+            list_actions._definition_code = definition
+
+        parser_path = Path(corpus_cli.__file__).resolve()
+        parser_stat = parser_path.stat()
+        parser_stamp = (parser_stat.st_dev, parser_stat.st_ino,
+                        parser_stat.st_size, parser_stat.st_mtime_ns)
+        if getattr(list_actions, "_parser_stamp", None) != parser_stamp:
+            try:
+                importlib.reload(corpus_cli)
+            except Exception:
+                if _ACTIONS is None:
+                    raise
+            else:
+                _ACTIONS = None
     if _ACTIONS is None:
         from agentdecompile_recovery.corpus.dashboard.actions.introspect import generate_actions
 
@@ -135,10 +200,10 @@ def list_actions() -> list[ActionSpec]:
             summary="Bind accepted matches without rebuilding existing identities. Fill missing source attribution while retaining human metadata.",
             fields=(FieldSpec("db", required=True, from_context="db"), FieldSpec("run", required=True)),
         ), ActionSpec(
-            id="workbench.workflow-control", title="Adjust automatic workflow", group="workbench",
+            id="workbench.workflow-control", title="Control workflow and scheduler", group="workbench",
             backend="workflow-control", command="workflow-control", mutating=True,
-            summary="Pause, resume, stop, or adjust workflow limits. Budget controls wall time; admission-budget revises root action admissions; provider-budget revises MCP tools/call dispatches. Both require the preparation to drain and the current allocation revision, and retain spending. Accepted native operations drain before stopping.",
-            fields=(FieldSpec("preparation_id", required=True), FieldSpec("operation", required=True, choices=("pause", "resume", "stop", "budget", "priority", "admission-budget", "provider-budget")), FieldSpec("seconds", kind="int"), FieldSpec("unlimited", kind="bool"), FieldSpec("priority", kind="int"),
+            summary="Pause, resume, stop, or adjust a preparation; control scheduler scopes; or safely reclassify a known read-only provider timeout while retaining its Ghidra reservation.",
+            fields=(FieldSpec("preparation_id"), FieldSpec("operation", required=True, choices=("pause", "resume", "stop", "budget", "priority", "admission-budget", "provider-budget", "pause-scheduler-scope", "resume-scheduler-scope", "reclassify-read-only-provider", "retire-legacy-watchdog")), FieldSpec("job_id"), FieldSpec("scope"), FieldSpec("seconds", kind="int"), FieldSpec("unlimited", kind="bool"), FieldSpec("priority", kind="int"),
                     FieldSpec("maxMcpToolCalls", kind="int", help="New total MCP dispatch allocation for provider-budget; spent intents are retained."),
                     FieldSpec("maxActionAdmissions", kind="int", help="New total allocation; previously spent admissions are retained. Use unlimited=true explicitly to remove the cap."),
                     FieldSpec("expectedAllocationRevision", kind="int", help="Required current revision of the selected admission-budget or provider-budget; stale revisions are refused.")),
@@ -157,6 +222,14 @@ def list_actions() -> list[ActionSpec]:
             backend="resource-reconcile", command="resource-reconcile", mutating=True,
             summary="Repair stale reservations only from an already committed same-attempt terminal local clearance receipt. Unknown work remains reserved.",
             fields=(FieldSpec("job_id", required=True),),
+        ), ActionSpec(
+            id="workbench.export-project-source-zip", title="Download project source ZIP", group="workbench",
+            backend="project-source-archive", command="project-source-archive", long_running=True,
+            admission=VerbAdmission(mutating=False, long_running=True, identity_scope="", read_only=True,
+                snapshot="none", output_scope="none", drains_on_pause=True, boots_analyzer=False,
+                lane="source-archive", budget_class="medium", cancel="sigterm"),
+            summary="Package existing source and assembly for every recorded project member, with explicit coverage gaps. Does not regenerate, compile or verify source.",
+            fields=(FieldSpec("project_id", required=True), FieldSpec("corpus_identity", required=True), FieldSpec("locator", from_context="locator")),
         ), ActionSpec(
             id="workbench.export-source-zip", title="Download binary source ZIP", group="workbench",
             backend="source-archive", command="source-archive", long_running=True,
@@ -179,7 +252,24 @@ def list_actions() -> list[ActionSpec]:
                 FieldSpec("compilerPreset", required=True),
             ),
         )]
-    return _ACTIONS
+        from agentdecompile_recovery.corpus import cli as corpus_cli
+        parser_stat = Path(corpus_cli.__file__).resolve().stat()
+        list_actions._parser_stamp = (parser_stat.st_dev, parser_stat.st_ino,
+                                      parser_stat.st_size, parser_stat.st_mtime_ns)
+        catalog_stat = Path(__file__).resolve().stat()
+        list_actions._catalog_stamp = (catalog_stat.st_dev, catalog_stat.st_ino,
+                                       catalog_stat.st_size, catalog_stat.st_mtime_ns)
+    # Qualify the report's receipt-only behavior at the catalog declaration,
+    # including a catalog populated before a function hot reload.
+    from dataclasses import replace
+    report_admission = VerbAdmission(
+        mutating=False, long_running=False, identity_scope="", read_only=True,
+        snapshot="none", output_scope="none", drains_on_pause=True,
+        boots_analyzer=False, lane="admission", budget_class="micro", cancel="never",
+    )
+    return [replace(action, admission=report_admission)
+            if action.backend == "resource-reconciliation-report" and action.admission != report_admission
+            else action for action in _ACTIONS]
 
 
 def action_by_id(action_id: str) -> ActionSpec | None:
@@ -410,6 +500,11 @@ def validate_params(action: ActionSpec, params: dict[str, Any], *, confirm: bool
             if flag in DANGEROUS_ARGV_FLAGS and not confirm:
                 errors.append("argv contains destructive flags; set confirm=true")
                 break
+    if action.backend == "corpus-cli" and action.command == "verify-byteexact":
+        from agentdecompile_recovery.corpus.verification_selection import validate_selection
+
+        errors.extend(validate_selection(candidate=params.get("candidate"),
+                                         offset=params.get("offset"), limit=params.get("limit")))
     return errors
 
 
@@ -451,7 +546,7 @@ def build_command(action: ActionSpec, params: dict[str, Any]) -> list[str]:
         if launcher is None:
             raise ValueError("Ghidra support/bsim not found; configure GHIDRA_INSTALL_DIR")
         return [str(launcher), "commitsigs", str(params["bsimUrl"]), str(params["signatureDirectory"])]
-    if action.backend in {"workflow-control", "activity-snapshot", "merge-evidence", "source-archive", "matching", "resource-reconciliation-report", "resource-reconcile", "match-review"}:
+    if action.backend in {"workflow-control", "activity-snapshot", "merge-evidence", "source-archive", "project-source-archive", "matching", "resource-reconciliation-report", "resource-reconcile", "match-review"}:
         return [action.id]
     if action.backend == "preparation":
         return ["workbench.prepare"]

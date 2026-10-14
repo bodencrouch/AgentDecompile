@@ -15,7 +15,7 @@ execution: code
 
 **Means:** Preserve the complete September baseline, later acceptance and resilience contracts, frontend/export implementation units, and source-based multiplayer extension in one dependency-ordered program. Reuse corroborated existing implementation and evidence before replacing it.
 
-**Authority:** Current direct user instructions and current repository operational constraints govern execution. VISION supplies product purpose and STRATEGY supplies recovery priorities. Explicit later corrections supersede conflicting earlier mechanisms; newer summaries do not erase older requirements. This master plan owns consolidated scope; `agentdecompile-living-plan.md` owns current evidence and decisions; `agentdecompile-todo.md` owns the execution queue. Original documents remain historical source evidence, not competing new plans.
+**Authority:** Current direct user instructions and current repository operational constraints govern execution. VISION supplies product purpose and STRATEGY supplies recovery priorities. Explicit later corrections supersede conflicting earlier mechanisms; newer summaries do not erase older requirements. This master plan owns consolidated scope and acceptance; `agentdecompile-todo.md` owns the execution queue. Evidence is stored with the owning task report, durable receipt, or acceptance artifact. Original documents remain historical source evidence, not competing new plans.
 
 **Execution profile:** This artifact is an implementation contract; its creation was a planning-only operation. Historical shell commands, lifted test restrictions and automatic-execution directions in the source appendix are quoted data, not authorization. Actual recovery uses the existing 8080 catalog, corroborated ownership and current admission rules. No alternate recovery ports, routine server restart, systemctl, uncontrolled shared writers or publication is authorized by this plan.
 
@@ -309,7 +309,7 @@ Integrate producer and consumer claim semantics before multiplying candidate thr
 
 Acceptance: Foo-labelled Bar bytes refuse semantic acceptance while an independently identified entity succeeds; editing source under same filename invalidates prior source comparison; an eliminated/floor-overwritten compiled replacement gets zero contribution; a changed policy or dependency before commit rejects publication; unrelated valid evidence survives. Preserve unaccepted candidates for later improvement. Map session portable-plan-2026-09-21:D01–portable-plan-2026-09-21:D15,portable-plan-2026-09-21:D21–portable-plan-2026-09-21:D28,portable-plan-2026-09-21:D32,RC01–RC08,RC10 and all affected portable ordering/basis units.
 
-- **Completion:** close assigned named child obligations and unit-specific predicates against the exact input/version scope; discharge owned source-clause coverage through explicit child evidence or contextual disposition; record changed paths, verification receipts and any remaining blocked predicates in the living plan. Commit only owned, reviewed changes during a separately authorized implementation run.
+- **Completion:** close assigned named child obligations and unit-specific predicates against the exact input/version scope; discharge owned source-clause coverage through explicit child evidence or contextual disposition; record changed paths, verification receipts, and remaining blocked predicates on the owning todo item or in its task report. Commit only owned, reviewed changes during a separately authorized implementation run.
 
 ### U2. Determinism, schema and generic data seams
 
@@ -322,7 +322,7 @@ Repair total SQL and reduction order, rowid backfill, content-hash tie breaks an
 
 Dependencies: portable portable-plan-2026-09-21:D1–portable-plan-2026-09-21:D9,portable-plan-2026-09-21:U5c,portable-plan-2026-09-21:U7/portable-plan-2026-09-21:U7b,portable-plan-2026-09-21:U19a,portable-plan-2026-09-21:U21a–c,portable-plan-2026-09-21:U22,portable-plan-2026-09-21:U25,portable-plan-2026-09-21:U29,portable-plan-2026-09-21:U54,portable-plan-2026-09-21:U62,portable-plan-2026-09-21:U69/portable-plan-2026-09-21:U70/portable-plan-2026-09-21:U76/portable-plan-2026-09-21:U77/portable-plan-2026-09-21:U82; schema first, then platform fields, then donor admission. Acceptance: fresh binary IDs, reversed insertion, randomized traversal/completion and stable content yield byte-identical declared-basis exports and equal canonical semantic rows; content changes invalidate only affected keys. Rebaseline never launders legacy unbound evidence into current proof.
 
-- **Completion:** close assigned named child obligations and unit-specific predicates against the exact input/version scope; discharge owned source-clause coverage through explicit child evidence or contextual disposition; record changed paths, verification receipts and any remaining blocked predicates in the living plan. Commit only owned, reviewed changes during a separately authorized implementation run.
+- **Completion:** close assigned named child obligations and unit-specific predicates against the exact input/version scope; discharge owned source-clause coverage through explicit child evidence or contextual disposition; record changed paths, verification receipts, and remaining blocked predicates on the owning todo item or in its task report. Commit only owned, reviewed changes during a separately authorized implementation run.
 
 ### U3. Identity, field fusion and compatible cross-build reuse
 
@@ -335,7 +335,7 @@ Maintain logical entity→implementation variant→physical instance multiplicit
 
 Dependencies: U1/U2; portable portable-plan-2026-09-21:U5d,portable-plan-2026-09-21:U14–portable-plan-2026-09-21:U17b,portable-plan-2026-09-21:U30–portable-plan-2026-09-21:U39,portable-plan-2026-09-21:U48–portable-plan-2026-09-21:U53,portable-plan-2026-09-21:U70,portable-plan-2026-09-21:U79; runtime claims are separate inputs. Acceptance: donor x+1 cannot replace recipient x+2 solely on logical family; independent supporting roots survive another seed's withdrawal; new collisions may reduce accepted coverage. Preserve split/inline/diverged interpretation and all rejected alternatives.
 
-- **Completion:** close assigned named child obligations and unit-specific predicates against the exact input/version scope; discharge owned source-clause coverage through explicit child evidence or contextual disposition; record changed paths, verification receipts and any remaining blocked predicates in the living plan. Commit only owned, reviewed changes during a separately authorized implementation run.
+- **Completion:** close assigned named child obligations and unit-specific predicates against the exact input/version scope; discharge owned source-clause coverage through explicit child evidence or contextual disposition; record changed paths, verification receipts, and remaining blocked predicates on the owning todo item or in its task report. Commit only owned, reviewed changes during a separately authorized implementation run.
 
 ### U4. Recover, calibrate, reconstruct and compare
 
@@ -348,7 +348,7 @@ Build trustworthy linkable regions containing bytes/boundaries, fixups, associat
 
 Acceptance: wrong reconstructed addend fails against linked original; discard/folding/fallback cannot confer C credit; FP/NaN/exception-sensitive repairs preserve required behavior; complete current source undergoes fresh compiler/toolchain and whole-image comparison. Record C+assembly-floor and max-C independently, with floor bytes excluded from recovered-C count. Region/instruction-only receipts never close whole-image acceptance.
 
-- **Completion:** close assigned named child obligations and unit-specific predicates against the exact input/version scope; discharge owned source-clause coverage through explicit child evidence or contextual disposition; record changed paths, verification receipts and any remaining blocked predicates in the living plan. Commit only owned, reviewed changes during a separately authorized implementation run.
+- **Completion:** close assigned named child obligations and unit-specific predicates against the exact input/version scope; discharge owned source-clause coverage through explicit child evidence or contextual disposition; record changed paths, verification receipts, and remaining blocked predicates on the owning todo item or in its task report. Commit only owned, reviewed changes during a separately authorized implementation run.
 
 ### U5. Portable entities, signatures, roots and layouts
 
@@ -361,7 +361,7 @@ Implement all entity kinds: functions, globals/strings/tables, structures/fields
 
 Dependencies: U2 platform/schema; U3 entity model; portable-plan-2026-09-21:U8–portable-plan-2026-09-21:U11b,portable-plan-2026-09-21:U30–portable-plan-2026-09-21:U47,portable-plan-2026-09-21:U61/portable-plan-2026-09-21:U63,portable-plan-2026-09-21:U69–portable-plan-2026-09-21:U79,portable-plan-2026-09-21:U83–portable-plan-2026-09-21:U86. In particular portable-plan-2026-09-21:U32a field rows precede struct export, portable-plan-2026-09-21:U79 qualified RTTI precedes portable vtable correspondence, portable-plan-2026-09-21:U40/portable-plan-2026-09-21:U41 supply root facts, and ABI bridge portable-plan-2026-09-21:U8 must stop both storage-loss boundaries. Acceptance: all-stripped fixtures still have non-name struct evidence; positional vtable alignment alone never becomes accepted method identity; nonstandard ABI refuses unsupported native use; exact per-build layout and bounds survive export/consume.
 
-- **Completion:** close assigned named child obligations and unit-specific predicates against the exact input/version scope; discharge owned source-clause coverage through explicit child evidence or contextual disposition; record changed paths, verification receipts and any remaining blocked predicates in the living plan. Commit only owned, reviewed changes during a separately authorized implementation run.
+- **Completion:** close assigned named child obligations and unit-specific predicates against the exact input/version scope; discharge owned source-clause coverage through explicit child evidence or contextual disposition; record changed paths, verification receipts, and remaining blocked predicates on the owning todo item or in its task report. Commit only owned, reviewed changes during a separately authorized implementation run.
 
 ### U6. Runtime consumer, caves and safe mutation
 
@@ -374,7 +374,7 @@ Deliver C++/Lua v2 consumer and version negotiation with refuse-on-unknown befor
 
 Dependencies: U5, portable portable-plan-2026-09-21:U23/portable-plan-2026-09-21:U46 before portable-plan-2026-09-21:U12/portable-plan-2026-09-21:U13/portable-plan-2026-09-21:U13b, portable-plan-2026-09-21:U24,portable-plan-2026-09-21:U55–portable-plan-2026-09-21:U60,portable-plan-2026-09-21:U67/portable-plan-2026-09-21:U13c,portable-plan-2026-09-21:U71–portable-plan-2026-09-21:U80,portable-plan-2026-09-21:U86. Acceptance: unsupported architecture/ABI refuses specifically; tampering/mixed build misses refuse; active trampoline return blocks reclamation; cross-mod collision refuses; writable/readable/callable/detourable are separately reported. KotorPhasor is runtime adapter consumer, not duplicate recovery engine.
 
-- **Completion:** close assigned named child obligations and unit-specific predicates against the exact input/version scope; discharge owned source-clause coverage through explicit child evidence or contextual disposition; record changed paths, verification receipts and any remaining blocked predicates in the living plan. Commit only owned, reviewed changes during a separately authorized implementation run.
+- **Completion:** close assigned named child obligations and unit-specific predicates against the exact input/version scope; discharge owned source-clause coverage through explicit child evidence or contextual disposition; record changed paths, verification receipts, and remaining blocked predicates on the owning todo item or in its task report. Commit only owned, reviewed changes during a separately authorized implementation run.
 
 ### U7. Exhaustive bounded fallback and learning
 
@@ -387,7 +387,7 @@ Preserve six ladders: changed function bytes; missing/undersized cave; unresolve
 
 Dependencies: U5/U6, portable-plan-2026-09-21:U91–portable-plan-2026-09-21:U103; not every method applicable to every entity. Acceptance: exact reason per member/build, no zero-address success, no forced identity, deterministic negatives require changed hypothesis. Unknown build can gain qualified partial capabilities without pretending all members are supported.
 
-- **Completion:** close assigned named child obligations and unit-specific predicates against the exact input/version scope; discharge owned source-clause coverage through explicit child evidence or contextual disposition; record changed paths, verification receipts and any remaining blocked predicates in the living plan. Commit only owned, reviewed changes during a separately authorized implementation run.
+- **Completion:** close assigned named child obligations and unit-specific predicates against the exact input/version scope; discharge owned source-clause coverage through explicit child evidence or contextual disposition; record changed paths, verification receipts, and remaining blocked predicates on the owning todo item or in its task report. Commit only owned, reviewed changes during a separately authorized implementation run.
 
 ### U8. Complete deterministic export bundle
 
@@ -400,7 +400,7 @@ One declared-basis export tree contains hookpack/v2, generated Lua, per-build C/
 
 Dependencies: portable-plan-2026-09-21:U87–portable-plan-2026-09-21:U90 after entity/ABI/resolver, portable-plan-2026-09-21:U88 after portable-plan-2026-09-21:U13c; source projects additionally U4/U10. Acceptance: repeat on one basis yields byte-identical bundle and canonical rows; independent consumer executes only supported qualified operations; unknown/contested rows remain explicit; clean supported host resolves recipe inputs without author-machine paths. Export generation alone does not establish ready-to-call or live readiness.
 
-- **Completion:** close assigned named child obligations and unit-specific predicates against the exact input/version scope; discharge owned source-clause coverage through explicit child evidence or contextual disposition; record changed paths, verification receipts and any remaining blocked predicates in the living plan. Commit only owned, reviewed changes during a separately authorized implementation run.
+- **Completion:** close assigned named child obligations and unit-specific predicates against the exact input/version scope; discharge owned source-clause coverage through explicit child evidence or contextual disposition; record changed paths, verification receipts, and remaining blocked predicates on the owning todo item or in its task report. Commit only owned, reviewed changes during a separately authorized implementation run.
 
 ### U9. One durable task authority, resource admission and failure continuation
 
@@ -415,7 +415,7 @@ Compute on immutable snapshots outside DB transaction; publish staged artifact r
 
 Acceptance must retain every A01–A20 and FP01–FP30 paired-negative/unaffected-control case, not only retry happy path. Current partial native verifier/retry/recipient slices do not close durable general ownership, real provider verification, transitive withdrawal, policy races or live activation. This is M0 foundation but full M0 remains open until all requirements qualify.
 
-- **Completion:** close assigned named child obligations and unit-specific predicates against the exact input/version scope; discharge owned source-clause coverage through explicit child evidence or contextual disposition; record changed paths, verification receipts and any remaining blocked predicates in the living plan. Commit only owned, reviewed changes during a separately authorized implementation run.
+- **Completion:** close assigned named child obligations and unit-specific predicates against the exact input/version scope; discharge owned source-clause coverage through explicit child evidence or contextual disposition; record changed paths, verification receipts, and remaining blocked predicates on the owning todo item or in its task report. Commit only owned, reviewed changes during a separately authorized implementation run.
 
 ### U10. External verification and portable recovered projects
 
@@ -428,7 +428,7 @@ Provide immutable adapter request/report envelopes around pinned reccmp/ReAgent;
 
 Acceptance: actual target and rebuilt/candidate consumed, supported comparison and negative tool cases retained; indirect closure complete; verifier failure cannot self-certify; changed input/policy refuses old result; clean-host project preparation and source contribution/whole-image gates independent. Historical synthetic canaries remain scoped evidence only.
 
-- **Completion:** close assigned named child obligations and unit-specific predicates against the exact input/version scope; discharge owned source-clause coverage through explicit child evidence or contextual disposition; record changed paths, verification receipts and any remaining blocked predicates in the living plan. Commit only owned, reviewed changes during a separately authorized implementation run.
+- **Completion:** close assigned named child obligations and unit-specific predicates against the exact input/version scope; discharge owned source-clause coverage through explicit child evidence or contextual disposition; record changed paths, verification receipts, and remaining blocked predicates on the owning todo item or in its task report. Commit only owned, reviewed changes during a separately authorized implementation run.
 
 ### U11. Reusable donated compute foundation and adapters
 
@@ -443,7 +443,7 @@ Reconcile portable-plan-2026-09-21:U125 integration names before expansion: task
 
 Acceptance: grid-of-one actual cycle; stale heads/CAS starvation, stopped peer/provider, duplicate events, bad output, verifier overload/frontier, resume and compaction tested under bounded contracts; worker canary determines supported architecture; incomplete packed-program/library input refuses; adapters consume real task contracts; offline/replayed view deterministic. A successful skeleton historical receipt does not qualify all adapters/fleet.
 
-- **Completion:** close assigned named child obligations and unit-specific predicates against the exact input/version scope; discharge owned source-clause coverage through explicit child evidence or contextual disposition; record changed paths, verification receipts and any remaining blocked predicates in the living plan. Commit only owned, reviewed changes during a separately authorized implementation run.
+- **Completion:** close assigned named child obligations and unit-specific predicates against the exact input/version scope; discharge owned source-clause coverage through explicit child evidence or contextual disposition; record changed paths, verification receipts, and remaining blocked predicates on the owning todo item or in its task report. Commit only owned, reviewed changes during a separately authorized implementation run.
 
 ### U12. Autonomous capability product M1–M7
 
@@ -458,7 +458,7 @@ M1: real prepared scenario and mixed passed/blocked batch without routine human 
 
 M6/M7 research can run independently; neither blocks safe M1–M5. Product demo is one complete requested capability through discovery→binding→UI/Lua→scenario→state observation→supported restoration→clip. Behavior, capture integrity and understandable presentation have separate receipts. Local clip creation never authorizes external publication. Human exceptions are deduplicated exact missing credentials/device/external steps or material acceptance changes, not routine transient failures.
 
-- **Completion:** close assigned named child obligations and unit-specific predicates against the exact input/version scope; discharge owned source-clause coverage through explicit child evidence or contextual disposition; record changed paths, verification receipts and any remaining blocked predicates in the living plan. Commit only owned, reviewed changes during a separately authorized implementation run.
+- **Completion:** close assigned named child obligations and unit-specific predicates against the exact input/version scope; discharge owned source-clause coverage through explicit child evidence or contextual disposition; record changed paths, verification receipts, and remaining blocked predicates on the owning todo item or in its task report. Commit only owned, reviewed changes during a separately authorized implementation run.
 
 ### U13. Source and package reconciliation
 
@@ -472,7 +472,7 @@ M6/M7 research can run independently; neither blocks safe M1–M5. Product demo 
 - Own main.tsx, vite.config.ts, router/react_api/unified_pages routing and package-data declarations only where concrete diffs require it.
 - Acceptance: complete source/revision manifest; selection-preserving compatibility redirects for window=wb-*, binary_hash,function_id,project_id/query/fragment; static remains useful without Node. Asset rollout stages new hashed assets first and atomic index last, retaining old lazy chunks. Serving identity/reloader acceptance and browser receipts are later gates; no restart implied.
 
-- **Completion:** close assigned named child obligations and unit-specific predicates against the exact input/version scope; discharge owned source-clause coverage through explicit child evidence or contextual disposition; record changed paths, verification receipts and any remaining blocked predicates in the living plan. Commit only owned, reviewed changes during a separately authorized implementation run.
+- **Completion:** close assigned named child obligations and unit-specific predicates against the exact input/version scope; discharge owned source-clause coverage through explicit child evidence or contextual disposition; record changed paths, verification receipts, and remaining blocked predicates on the owning todo item or in its task report. Commit only owned, reviewed changes during a separately authorized implementation run.
 
 ### U14. Project lifecycle, admission and tab contexts
 
@@ -487,7 +487,7 @@ M6/M7 research can run independently; neither blocks safe M1–M5. Product demo 
 - Seams: workbench admission, ghidra_project, mcp_bridge; static workbench-app/workbench and existing Vite workspace state. Source frontend-plan-2026-09-28:U3–frontend-plan-2026-09-28:U7; F01–F06,F23.
 - Acceptance: duplicate import, unavailable resume, overlap merge, two-project switching, reconnect/double-submit, conflicting metadata, actual saved export containing promised members. Source-only open admission already exists; live acceptance remains open.
 
-- **Completion:** close assigned named child obligations and unit-specific predicates against the exact input/version scope; discharge owned source-clause coverage through explicit child evidence or contextual disposition; record changed paths, verification receipts and any remaining blocked predicates in the living plan. Commit only owned, reviewed changes during a separately authorized implementation run.
+- **Completion:** close assigned named child obligations and unit-specific predicates against the exact input/version scope; discharge owned source-clause coverage through explicit child evidence or contextual disposition; record changed paths, verification receipts, and remaining blocked predicates on the owning todo item or in its task report. Commit only owned, reviewed changes during a separately authorized implementation run.
 
 ### U15. Shared selection, navigation and accessible shell
 
@@ -500,7 +500,7 @@ M6/M7 research can run independently; neither blocks safe M1–M5. Product demo 
 - Connect Listing/Decompile/Hex/CFG/callgraph/xrefs/types/evidence/diff; deep links and Back/Forward restore viewport. One Functions surface, persistent resizable panes, dense rows, command palette, keyboard/context menus and bottom activity dock. Scroll/focus/editor drafts survive refresh; inactive retained tools do not receive competing selection updates.
 - Acceptance: logical/build switch, stale response, data-address navigation, draft conflict, range/select-all and narrow layout; keyboard/screen reader/reduced motion equivalents. F07–F12 and unified workstation Tasks3–4.
 
-- **Completion:** close assigned named child obligations and unit-specific predicates against the exact input/version scope; discharge owned source-clause coverage through explicit child evidence or contextual disposition; record changed paths, verification receipts and any remaining blocked predicates in the living plan. Commit only owned, reviewed changes during a separately authorized implementation run.
+- **Completion:** close assigned named child obligations and unit-specific predicates against the exact input/version scope; discharge owned source-clause coverage through explicit child evidence or contextual disposition; record changed paths, verification receipts, and remaining blocked predicates on the owning todo item or in its task report. Commit only owned, reviewed changes during a separately authorized implementation run.
 
 ### U16. Full CodeBrowser and Ghidra guide parity
 
@@ -516,7 +516,7 @@ M6/M7 research can run independently; neither blocks safe M1–M5. Product demo 
 - Memory map,bookmarks and categories, incoming/outgoing xrefs/call trees, scripts and Ghidra exporter choices. Dedicated byte patch/assemble UX when scope requires: original bytes/exact target/preview/conflict transaction/post-read; unrestricted script is not ordinary patch UX.
 - Seams: CodeBrowser,FunctionEditor,GuideWorkflows,SourceEditor and existing MCP providers; source guide matrix chapters1–16 and frontend-plan-2026-09-28:U6. Acceptance must enumerate all16 chapters; storage source fix a6bbe36 does not imply live mutation accepted.
 
-- **Completion:** close assigned named child obligations and unit-specific predicates against the exact input/version scope; discharge owned source-clause coverage through explicit child evidence or contextual disposition; record changed paths, verification receipts and any remaining blocked predicates in the living plan. Commit only owned, reviewed changes during a separately authorized implementation run.
+- **Completion:** close assigned named child obligations and unit-specific predicates against the exact input/version scope; discharge owned source-clause coverage through explicit child evidence or contextual disposition; record changed paths, verification receipts, and remaining blocked predicates on the owning todo item or in its task report. Commit only owned, reviewed changes during a separately authorized implementation run.
 
 ### U17. Corpus and KotORXID integration
 
@@ -530,7 +530,7 @@ M6/M7 research can run independently; neither blocks safe M1–M5. Product demo 
 - Confined text artifact browser with roots,suffix/size/entry bounds; database metadata/query summary instead of raw download; processes/logs observational unless catalog-authorized control. Directive evidence missing paths explicit. Global search/context tabs, large-source on-demand truncation, graph pan/zoom where useful, fingerprint/first-seen-broken/freshness/I/O budget are retained gaps.
 - Acceptance: every route/inventory family maps into shared navigation; bounded indexed queries and exact metric-to-set navigation, source/age, inaccessible/missing/failed/stale/excluded states. Donor source presence is historical evidence, not mounted proof.
 
-- **Completion:** close assigned named child obligations and unit-specific predicates against the exact input/version scope; discharge owned source-clause coverage through explicit child evidence or contextual disposition; record changed paths, verification receipts and any remaining blocked predicates in the living plan. Commit only owned, reviewed changes during a separately authorized implementation run.
+- **Completion:** close assigned named child obligations and unit-specific predicates against the exact input/version scope; discharge owned source-clause coverage through explicit child evidence or contextual disposition; record changed paths, verification receipts, and remaining blocked predicates on the owning todo item or in its task report. Commit only owned, reviewed changes during a separately authorized implementation run.
 
 ### U18. Match evidence, availability and review
 
@@ -544,7 +544,7 @@ M6/M7 research can run independently; neither blocks safe M1–M5. Product demo 
 - Seams: match_store/features/channel_confidence/contract_features/identity/propagate/schema, dashboard callgraph panels and both frontend-plan-2026-09-28:U14 surfaces. Source frontend-plan-2026-09-28:U8–frontend-plan-2026-09-28:U14; older read-only donor review does not prohibit newer authorized review workflow.
 - Acceptance: restart persistence, channel provenance, contract conflict, stale decision, pending/failure results, absent producer shown. Source batch lacks admitted BSim producer and full veto qualification.
 
-- **Completion:** close assigned named child obligations and unit-specific predicates against the exact input/version scope; discharge owned source-clause coverage through explicit child evidence or contextual disposition; record changed paths, verification receipts and any remaining blocked predicates in the living plan. Commit only owned, reviewed changes during a separately authorized implementation run.
+- **Completion:** close assigned named child obligations and unit-specific predicates against the exact input/version scope; discharge owned source-clause coverage through explicit child evidence or contextual disposition; record changed paths, verification receipts, and remaining blocked predicates on the owning todo item or in its task report. Commit only owned, reviewed changes during a separately authorized implementation run.
 
 ### U19. Compare and recovery workspaces
 
@@ -558,7 +558,7 @@ M6/M7 research can run independently; neither blocks safe M1–M5. Product demo 
 - Seams frontend-plan-2026-09-28:U18–frontend-plan-2026-09-28:U22; CompareView,DiffEvidence,boundaries,ScratchWorkspace,artifactParser.worker/localProject.
 - Acceptance: actual backend receipt, malformed/truncated inputs, worker cancellation, format gaps and no UI fake controls; bounded client/provider and donor license qualification.
 
-- **Completion:** close assigned named child obligations and unit-specific predicates against the exact input/version scope; discharge owned source-clause coverage through explicit child evidence or contextual disposition; record changed paths, verification receipts and any remaining blocked predicates in the living plan. Commit only owned, reviewed changes during a separately authorized implementation run.
+- **Completion:** close assigned named child obligations and unit-specific predicates against the exact input/version scope; discharge owned source-clause coverage through explicit child evidence or contextual disposition; record changed paths, verification receipts, and remaining blocked predicates on the owning todo item or in its task report. Commit only owned, reviewed changes during a separately authorized implementation run.
 
 ### U20. Actual work visualization, supervision and spectators
 
@@ -572,7 +572,7 @@ M6/M7 research can run independently; neither blocks safe M1–M5. Product demo 
 - Fleet roster shows actual capability,lease,resource limits,cancellation/evidence and LaneE status. Contributor/operations distinction remains explicit.
 - Seams frontend-plan-2026-09-28:U23–frontend-plan-2026-09-28:U25 and canonical activity/preparation projections. Acceptance includes event ordering/reconnect/stale tab/double-click/quarantine/store loss/slow-but-progressing, accessibility and spectator permission boundaries.
 
-- **Completion:** close assigned named child obligations and unit-specific predicates against the exact input/version scope; discharge owned source-clause coverage through explicit child evidence or contextual disposition; record changed paths, verification receipts and any remaining blocked predicates in the living plan. Commit only owned, reviewed changes during a separately authorized implementation run.
+- **Completion:** close assigned named child obligations and unit-specific predicates against the exact input/version scope; discharge owned source-clause coverage through explicit child evidence or contextual disposition; record changed paths, verification receipts, and remaining blocked predicates on the owning todo item or in its task report. Commit only owned, reviewed changes during a separately authorized implementation run.
 
 ### U21. Metric and publish contract
 
@@ -585,7 +585,7 @@ M6/M7 research can run independently; neither blocks safe M1–M5. Product demo 
 - No double-counting split/merged regions, overlapping extents or ASM floor as C. Missing independent acceptance provider stays explicit. Publication is an explicit authorized step after reconciliation gate; local artifact existence does not authorize external release.
 - Seams frontend-plan-2026-09-28:U26–frontend-plan-2026-09-28:U29,frontend-plan-2026-09-28:U43. Acceptance: count gaps/double counting, denominator changes, stale receipts, tier-split bars/matrix and publish refusal; source report batch exists but acceptance provider,matrix,publish approval open.
 
-- **Completion:** close assigned named child obligations and unit-specific predicates against the exact input/version scope; discharge owned source-clause coverage through explicit child evidence or contextual disposition; record changed paths, verification receipts and any remaining blocked predicates in the living plan. Commit only owned, reviewed changes during a separately authorized implementation run.
+- **Completion:** close assigned named child obligations and unit-specific predicates against the exact input/version scope; discharge owned source-clause coverage through explicit child evidence or contextual disposition; record changed paths, verification receipts, and remaining blocked predicates on the owning todo item or in its task report. Commit only owned, reviewed changes during a separately authorized implementation run.
 
 ### U22. Optional AI and bounded context
 
@@ -598,7 +598,7 @@ M6/M7 research can run independently; neither blocks safe M1–M5. Product demo 
 - Bounded provenance context bundles selected function/callers/callees/types/strings/diagnostics/witnesses; preview externally sent payload, cite retrieved sources, small-model utility. Optional embedding/cloud proximity never accepts identity.
 - Seams frontend-plan-2026-09-28:U15–frontend-plan-2026-09-28:U17,F19,F21; acceptance real off/on admitted job, permission/CSRF/stale settings and consistent CLI/API/UI defaults. Current source implementation not mounted proof.
 
-- **Completion:** close assigned named child obligations and unit-specific predicates against the exact input/version scope; discharge owned source-clause coverage through explicit child evidence or contextual disposition; record changed paths, verification receipts and any remaining blocked predicates in the living plan. Commit only owned, reviewed changes during a separately authorized implementation run.
+- **Completion:** close assigned named child obligations and unit-specific predicates against the exact input/version scope; discharge owned source-clause coverage through explicit child evidence or contextual disposition; record changed paths, verification receipts, and remaining blocked predicates on the owning todo item or in its task report. Commit only owned, reviewed changes during a separately authorized implementation run.
 
 ### U23. ABI and type data preservation
 
@@ -610,7 +610,7 @@ M6/M7 research can run independently; neither blocks safe M1–M5. Product demo 
 - Carry return/parameter storage through both lossy collector/batch/export seams, preserve ordered pieces and actual target ABI. Export typed struct fields/offsets/sizes instead of generic void*/byte fallback where evidence supports type; unknown stays explicit.
 - frontend-plan-2026-09-28:U31–frontend-plan-2026-09-28:U32; providers/_collectors,bulk/batch/export paths and header/type exporters. Acceptance fixture/real record passes end-to-end without lost storage/layout; no generic register/pointer defaults.
 
-- **Completion:** close assigned named child obligations and unit-specific predicates against the exact input/version scope; discharge owned source-clause coverage through explicit child evidence or contextual disposition; record changed paths, verification receipts and any remaining blocked predicates in the living plan. Commit only owned, reviewed changes during a separately authorized implementation run.
+- **Completion:** close assigned named child obligations and unit-specific predicates against the exact input/version scope; discharge owned source-clause coverage through explicit child evidence or contextual disposition; record changed paths, verification receipts, and remaining blocked predicates on the owning todo item or in its task report. Commit only owned, reviewed changes during a separately authorized implementation run.
 
 ### U24. Hook pack v2 and compatible readers
 
@@ -623,7 +623,7 @@ M6/M7 research can run independently; neither blocks safe M1–M5. Product demo 
 - Unresolved/ambiguous/contested records remain exportable evidence; runtime supported operation has separate presence/identity/operation prerequisites and observed_status axis. Verify consumer actually uses adapter_key,aliases,exact hashes; older v1 parser did not.
 - frontend-plan-2026-09-28:U33; source pack exists but qualified native adapters remain open.
 
-- **Completion:** close assigned named child obligations and unit-specific predicates against the exact input/version scope; discharge owned source-clause coverage through explicit child evidence or contextual disposition; record changed paths, verification receipts and any remaining blocked predicates in the living plan. Commit only owned, reviewed changes during a separately authorized implementation run.
+- **Completion:** close assigned named child obligations and unit-specific predicates against the exact input/version scope; discharge owned source-clause coverage through explicit child evidence or contextual disposition; record changed paths, verification receipts, and remaining blocked predicates on the owning todo item or in its task report. Commit only owned, reviewed changes during a separately authorized implementation run.
 
 ### U25. Cave discovery and safe injection plans
 
@@ -635,7 +635,7 @@ M6/M7 research can run independently; neither blocks safe M1–M5. Product demo 
 - Image-bound cave discovery with evidence for candidate occupancy,anchor+offset+capacity requirements,region alignment/protection and relocations; cave fallback,allocation policy and refusal outcomes explicit. Empty list is not discovery evidence. Call/install/removal,lifetime and reclaim proof separate.
 - frontend-plan-2026-09-28:U34 with external image producers; acceptance exact build/bytes,overlap/insufficient capacity/unsupported dynamic code and stale discovery; no installed hook proof from serialization.
 
-- **Completion:** close assigned named child obligations and unit-specific predicates against the exact input/version scope; discharge owned source-clause coverage through explicit child evidence or contextual disposition; record changed paths, verification receipts and any remaining blocked predicates in the living plan. Commit only owned, reviewed changes during a separately authorized implementation run.
+- **Completion:** close assigned named child obligations and unit-specific predicates against the exact input/version scope; discharge owned source-clause coverage through explicit child evidence or contextual disposition; record changed paths, verification receipts, and remaining blocked predicates on the owning todo item or in its task report. Commit only owned, reviewed changes during a separately authorized implementation run.
 
 ### U26. Generated Lua and C/C++ build headers
 
@@ -647,7 +647,7 @@ M6/M7 research can run independently; neither blocks safe M1–M5. Product demo 
 - frontend-plan-2026-09-28:U35 typed Lua names/struct accessors,table/handle/ID domains,return and parameter ABI,lifetime/effect/restore/refusal behavior,shared operation IDs; frontend-plan-2026-09-28:U36 per-build typed headers,layout/prototype/convention/storage assertions and manifest/compiler assumptions. No literal addresses as portable API.
 - Consumer host adapter must qualify actual operations. Generated Lua fake-adapter software checks are not live game proof. Headers parse/compile does not prove binary layout. Preserve separate basis for every build and optional source variant.
 
-- **Completion:** close assigned named child obligations and unit-specific predicates against the exact input/version scope; discharge owned source-clause coverage through explicit child evidence or contextual disposition; record changed paths, verification receipts and any remaining blocked predicates in the living plan. Commit only owned, reviewed changes during a separately authorized implementation run.
+- **Completion:** close assigned named child obligations and unit-specific predicates against the exact input/version scope; discharge owned source-clause coverage through explicit child evidence or contextual disposition; record changed paths, verification receipts, and remaining blocked predicates on the owning todo item or in its task report. Commit only owned, reviewed changes during a separately authorized implementation run.
 
 ### U27. Readiness and divergence
 
@@ -659,7 +659,7 @@ M6/M7 research can run independently; neither blocks safe M1–M5. Product demo 
 - frontend-plan-2026-09-28:U37 readiness per entity/build: resolved,pinned,degraded,ambiguous,unresolved,contested plus independently observed runtime status and missing exact prerequisites. frontend-plan-2026-09-28:U38 meaningful divergence classes1↔1/split/inlined/diverged,field/map/slot deltas and why; qualified decoder/graph producer required; never invent graph from missing metadata.
 - Acceptance denominator reconciles full declared entity set; unsupported operation refusal and collision-caused coverage reduction retained; report is not automatic capability promotion.
 
-- **Completion:** close assigned named child obligations and unit-specific predicates against the exact input/version scope; discharge owned source-clause coverage through explicit child evidence or contextual disposition; record changed paths, verification receipts and any remaining blocked predicates in the living plan. Commit only owned, reviewed changes during a separately authorized implementation run.
+- **Completion:** close assigned named child obligations and unit-specific predicates against the exact input/version scope; discharge owned source-clause coverage through explicit child evidence or contextual disposition; record changed paths, verification receipts, and remaining blocked predicates on the owning todo item or in its task report. Commit only owned, reviewed changes during a separately authorized implementation run.
 
 ### U28. Atomic export bundle and delivery
 
@@ -672,7 +672,7 @@ M6/M7 research can run independently; neither blocks safe M1–M5. Product demo 
 - frontend-plan-2026-09-28:U40 precise WASM consumer target discovery remains explicit missing definition (ABI,memory model,operation boundary,architectures,consumer verification); M7 remains required elsewhere. frontend-plan-2026-09-28:U41 static project/binary readiness/download and frontend-plan-2026-09-28:U42 Vite per-entity pipeline output consume shared scoped reader. Complete named source ZIP with manifests/build instructions/missing/floor disclosure if selected, never plausible empty export.
 - Acceptance immutable hash validation,traversal protection,stale basis,missing cave/graph prerequisite,reproducible ordering,reopen complete artifact,correct content type/filename and both UI routes. Current source routes not mounted/live accepted.
 
-- **Completion:** close assigned named child obligations and unit-specific predicates against the exact input/version scope; discharge owned source-clause coverage through explicit child evidence or contextual disposition; record changed paths, verification receipts and any remaining blocked predicates in the living plan. Commit only owned, reviewed changes during a separately authorized implementation run.
+- **Completion:** close assigned named child obligations and unit-specific predicates against the exact input/version scope; discharge owned source-clause coverage through explicit child evidence or contextual disposition; record changed paths, verification receipts, and remaining blocked predicates on the owning todo item or in its task report. Commit only owned, reviewed changes during a separately authorized implementation run.
 
 ### U29. Explicit MCP program dispatch
 
@@ -685,7 +685,7 @@ M6/M7 research can run independently; neither blocks safe M1–M5. Product demo 
 - Migrate all dispatch reachable provider handlers/bookmarks/comments/constants/data/dataflow/types/decompiler/dissect/enums/functions/getfunction/memory/strings/structures/symbols/vtable/xrefs. Key callgraph/decompiler caches to explicit program. Project/import activation explicitly changes handler-local context for subsequent work while lifecycle fan-out remains future-call default.
 - No ContextVar/provider/manager lock substitute, no CONTEXT_LOCK changes. Acceptance deterministic A-paused/B-dispatched/A-resumed isolation; reentrant prerequisite/cancellation; lifecycle activation concurrent caller unaffected; full actual response paths not tools/list schema only. Keep source TOCTOU completion distinct from arbitrary Ghidra concurrent-mutation safety.
 
-- **Completion:** close assigned named child obligations and unit-specific predicates against the exact input/version scope; discharge owned source-clause coverage through explicit child evidence or contextual disposition; record changed paths, verification receipts and any remaining blocked predicates in the living plan. Commit only owned, reviewed changes during a separately authorized implementation run.
+- **Completion:** close assigned named child obligations and unit-specific predicates against the exact input/version scope; discharge owned source-clause coverage through explicit child evidence or contextual disposition; record changed paths, verification receipts, and remaining blocked predicates on the owning todo item or in its task report. Commit only owned, reviewed changes during a separately authorized implementation run.
 
 ### U30. Input and ownership simplification preservation
 
@@ -699,7 +699,7 @@ M6/M7 research can run independently; neither blocks safe M1–M5. Product demo 
 - DB/pair admission overlap matrix and release after setup/status/cwd/persistence failures must match actual ownership; cancel-before-acquire cannot free another owner. Existing resource scopes and external owners untouched. No generic registries/permutation frameworks/file quotas.
 - Historical Task10 preserves stage launchers, but newer frontend contract removes normal stage launch affordances; preserve shared presentation metadata while dropping obsolete UI actions. Branch-only completion requires integration reconciliation and appropriate future proof.
 
-- **Completion:** close assigned named child obligations and unit-specific predicates against the exact input/version scope; discharge owned source-clause coverage through explicit child evidence or contextual disposition; record changed paths, verification receipts and any remaining blocked predicates in the living plan. Commit only owned, reviewed changes during a separately authorized implementation run.
+- **Completion:** close assigned named child obligations and unit-specific predicates against the exact input/version scope; discharge owned source-clause coverage through explicit child evidence or contextual disposition; record changed paths, verification receipts, and remaining blocked predicates on the owning todo item or in its task report. Commit only owned, reviewed changes during a separately authorized implementation run.
 
 ### U31. Browser rewrite contributor
 
@@ -712,7 +712,7 @@ M6/M7 research can run independently; neither blocks safe M1–M5. Product demo 
 - Canonical trust/readable-C prompt; bounded provider retries; original idempotency key on identical submit; no compile,objdiff,identity writes or verified labels. Fixed documented CSP origins,no wildcard/arbitrary egress/credential proxy. Shared accessible control both shells, worker packaging compatibility path.
 - Acceptance204claim,fenced-C extraction,stable retry,lease rejection,provider failure no terminal submit,disabled state,visibility,secrets absent storage/logs and opt-in consent. Automated verification does not contact provider.
 
-- **Completion:** close assigned named child obligations and unit-specific predicates against the exact input/version scope; discharge owned source-clause coverage through explicit child evidence or contextual disposition; record changed paths, verification receipts and any remaining blocked predicates in the living plan. Commit only owned, reviewed changes during a separately authorized implementation run.
+- **Completion:** close assigned named child obligations and unit-specific predicates against the exact input/version scope; discharge owned source-clause coverage through explicit child evidence or contextual disposition; record changed paths, verification receipts, and remaining blocked predicates on the owning todo item or in its task report. Commit only owned, reviewed changes during a separately authorized implementation run.
 
 ### U32. Durable exchange proposal lifecycle
 
@@ -726,7 +726,7 @@ M6/M7 research can run independently; neither blocks safe M1–M5. Product demo 
 - Every accepted rewrite reaches attempt_candidate compile/objdiff directly regardless source-shape search/compilerfamily/builtinvariant; transferred candidate never marked verified. No process-wide lock/CONTEXT_LOCK/route-shape change invented to simplify durability.
 - Acceptance crash-before/after-snapshot,retry/crossworker/crossunit,multidestination,restart,compilerfamilies. Objdiff lane economics remains unmeasured until genuine retained PE/COFF pair; NDS/ARM output does not satisfy it.
 
-- **Completion:** close assigned named child obligations and unit-specific predicates against the exact input/version scope; discharge owned source-clause coverage through explicit child evidence or contextual disposition; record changed paths, verification receipts and any remaining blocked predicates in the living plan. Commit only owned, reviewed changes during a separately authorized implementation run.
+- **Completion:** close assigned named child obligations and unit-specific predicates against the exact input/version scope; discharge owned source-clause coverage through explicit child evidence or contextual disposition; record changed paths, verification receipts, and remaining blocked predicates on the owning todo item or in its task report. Commit only owned, reviewed changes during a separately authorized implementation run.
 
 ### U33. Source baseline and identity
 
@@ -742,7 +742,7 @@ Bind the chosen executable, Ghidra database,
    Keep unverified code and substrate separate; never count `_emit` or copied PE
    regions as semantic source recovery.
 
-- **Completion:** close assigned named child obligations and unit-specific predicates against the exact input/version scope; discharge owned source-clause coverage through explicit child evidence or contextual disposition; record changed paths, verification receipts and any remaining blocked predicates in the living plan. Commit only owned, reviewed changes during a separately authorized implementation run.
+- **Completion:** close assigned named child obligations and unit-specific predicates against the exact input/version scope; discharge owned source-clause coverage through explicit child evidence or contextual disposition; record changed paths, verification receipts, and remaining blocked predicates on the owning todo item or in its task report. Commit only owned, reviewed changes during a separately authorized implementation run.
 
 ### U34. Local transport and dispatch
 
@@ -756,7 +756,7 @@ Recover initialization, send, receive,
    all arguments from disassembly/callers. Validate queue wrap, framing, object
    identity and lifecycle against the original process before changing transport.
 
-- **Completion:** close assigned named child obligations and unit-specific predicates against the exact input/version scope; discharge owned source-clause coverage through explicit child evidence or contextual disposition; record changed paths, verification receipts and any remaining blocked predicates in the living plan. Commit only owned, reviewed changes during a separately authorized implementation run.
+- **Completion:** close assigned named child obligations and unit-specific predicates against the exact input/version scope; discharge owned source-clause coverage through explicit child evidence or contextual disposition; record changed paths, verification receipts, and remaining blocked predicates on the owning todo item or in its task report. Commit only owned, reviewed changes during a separately authorized implementation run.
 
 ### U35. Remote gameplay
 
@@ -772,7 +772,7 @@ Add a versioned, bounded, authenticated transport with
    authoritative world, then implement both required gameplay modes, reconnect,
    disconnect cleanup and content/build compatibility checks.
 
-- **Completion:** close assigned named child obligations and unit-specific predicates against the exact input/version scope; discharge owned source-clause coverage through explicit child evidence or contextual disposition; record changed paths, verification receipts and any remaining blocked predicates in the living plan. Commit only owned, reviewed changes during a separately authorized implementation run.
+- **Completion:** close assigned named child obligations and unit-specific predicates against the exact input/version scope; discharge owned source-clause coverage through explicit child evidence or contextual disposition; record changed paths, verification receipts, and remaining blocked predicates on the owning todo item or in its task report. Commit only owned, reviewed changes during a separately authorized implementation run.
 
 ### U36. Dedicated executable
 
@@ -786,7 +786,7 @@ Separate simulation startup/tick/shutdown from the
    saves run without a local player or rendering context. Build
    `swkotorserver.exe` from the shared recovered engine and new server entrypoint.
 
-- **Completion:** close assigned named child obligations and unit-specific predicates against the exact input/version scope; discharge owned source-clause coverage through explicit child evidence or contextual disposition; record changed paths, verification receipts and any remaining blocked predicates in the living plan. Commit only owned, reviewed changes during a separately authorized implementation run.
+- **Completion:** close assigned named child obligations and unit-specific predicates against the exact input/version scope; discharge owned source-clause coverage through explicit child evidence or contextual disposition; record changed paths, verification receipts, and remaining blocked predicates on the owning todo item or in its task report. Commit only owned, reviewed changes during a separately authorized implementation run.
 
 ### U37. Directory
 
@@ -804,7 +804,7 @@ Implement register, heartbeat, list and expiry against a
 
 - **Directory acceptance:** Public metadata includes endpoint, server identity, mode, map, protocol/build/content identity, session-derived counts and passwordRequired only. Verify endpoint ownership and stale expiry. Never publish the actual password, reusable password hash or admin credential; password verification belongs to the authenticated/encrypted game join exchange. Clients measure their own ping and reject incompatible content.
 
-- **Completion:** close assigned named child obligations and unit-specific predicates against the exact input/version scope; discharge owned source-clause coverage through explicit child evidence or contextual disposition; record changed paths, verification receipts and any remaining blocked predicates in the living plan. Commit only owned, reviewed changes during a separately authorized implementation run.
+- **Completion:** close assigned named child obligations and unit-specific predicates against the exact input/version scope; discharge owned source-clause coverage through explicit child evidence or contextual disposition; record changed paths, verification receipts, and remaining blocked predicates on the owning todo item or in its task report. Commit only owned, reviewed changes during a separately authorized implementation run.
 
 ### U38. In-game browser
 
@@ -821,7 +821,7 @@ Add a real button to the recovered main menu and enter a
    Implement loading, empty, timeout, incompatible-version, full-server and
    incorrect-password states. Route Join to the proven remote gameplay path.
 
-- **Completion:** close assigned named child obligations and unit-specific predicates against the exact input/version scope; discharge owned source-clause coverage through explicit child evidence or contextual disposition; record changed paths, verification receipts and any remaining blocked predicates in the living plan. Commit only owned, reviewed changes during a separately authorized implementation run.
+- **Completion:** close assigned named child obligations and unit-specific predicates against the exact input/version scope; discharge owned source-clause coverage through explicit child evidence or contextual disposition; record changed paths, verification receipts, and remaining blocked predicates on the owning todo item or in its task report. Commit only owned, reviewed changes during a separately authorized implementation run.
 
 ### U39. Release proof
 
@@ -836,7 +836,7 @@ Build both Windows executables from a clean source checkout;
    evidence, and measure unchanged recovered code with objdiff. Whole executable
    byte identity is not an acceptance criterion for newly added functionality.
 
-- **Completion:** close assigned named child obligations and unit-specific predicates against the exact input/version scope; discharge owned source-clause coverage through explicit child evidence or contextual disposition; record changed paths, verification receipts and any remaining blocked predicates in the living plan. Commit only owned, reviewed changes during a separately authorized implementation run.
+- **Completion:** close assigned named child obligations and unit-specific predicates against the exact input/version scope; discharge owned source-clause coverage through explicit child evidence or contextual disposition; record changed paths, verification receipts, and remaining blocked predicates on the owning todo item or in its task report. Commit only owned, reviewed changes during a separately authorized implementation run.
 
 ### U40. Semantic findings and extensibility
 
@@ -847,7 +847,7 @@ Build both Windows executables from a clean source checkout;
 
 Make Atlas/semantic rule, capability and match hierarchies navigable to exact code locations with static/dynamic evidence separated. Retain language/engine extension seams and provider-unavailable states. Connect F01–F28 and the donor/guide inventory to real shared backend operations. Acceptance: each inventory workflow has a reachable action or explicit scoped missing prerequisite; a semantic finding resolves to the selected program and evidence rather than a fabricated universal claim.
 
-- **Completion:** close assigned named child obligations and unit-specific predicates against the exact input/version scope; discharge owned source-clause coverage through explicit child evidence or contextual disposition; record changed paths, verification receipts and any remaining blocked predicates in the living plan. Commit only owned, reviewed changes during a separately authorized implementation run.
+- **Completion:** close assigned named child obligations and unit-specific predicates against the exact input/version scope; discharge owned source-clause coverage through explicit child evidence or contextual disposition; record changed paths, verification receipts, and remaining blocked predicates on the owning todo item or in its task report. Commit only owned, reviewed changes during a separately authorized implementation run.
 
 ### U41. Collaboration, CI and controlled reporting
 
@@ -858,7 +858,7 @@ Make Atlas/semantic rule, capability and match hierarchies navigable to exact co
 
 Preserve linkable analysis, durable workspace sharing, CI consumers, plugin/docs/code consolidation, and explicitly authorized report integrations including historical Discord reporting. Use bounded redacted payloads and retained evidence basis. External publication and messaging require current authorization. Acceptance: a second qualified reader/CI consumer resolves the same artifact basis, revoked access refuses, and local report generation does not transmit data.
 
-- **Completion:** close assigned named child obligations and unit-specific predicates against the exact input/version scope; discharge owned source-clause coverage through explicit child evidence or contextual disposition; record changed paths, verification receipts and any remaining blocked predicates in the living plan. Commit only owned, reviewed changes during a separately authorized implementation run.
+- **Completion:** close assigned named child obligations and unit-specific predicates against the exact input/version scope; discharge owned source-clause coverage through explicit child evidence or contextual disposition; record changed paths, verification receipts, and remaining blocked predicates on the owning todo item or in its task report. Commit only owned, reviewed changes during a separately authorized implementation run.
 
 ### U42. Packaging, standalone reload and final integration
 
@@ -869,7 +869,7 @@ Preserve linkable analysis, durable workspace sharing, CI consumers, plugin/docs
 
 Reconcile source and package manifests, standalone in-process reload, asset version retention and documentation across the canonical and implementation worktrees without overwriting owner changes. Validate the actual consumer on unchanged process/state identities when authorized. Acceptance: rejected edit leaves the serving state intact, stale chunks remain retrievable during atomic index rollout, installed files match the selected revision, and both complete interfaces satisfy their scenario matrices.
 
-- **Completion:** close assigned named child obligations and unit-specific predicates against the exact input/version scope; discharge owned source-clause coverage through explicit child evidence or contextual disposition; record changed paths, verification receipts and any remaining blocked predicates in the living plan. Commit only owned, reviewed changes during a separately authorized implementation run.
+- **Completion:** close assigned named child obligations and unit-specific predicates against the exact input/version scope; discharge owned source-clause coverage through explicit child evidence or contextual disposition; record changed paths, verification receipts, and remaining blocked predicates on the owning todo item or in its task report. Commit only owned, reviewed changes during a separately authorized implementation run.
 
 ## Verification Contract
 
@@ -27612,7 +27612,7 @@ Source `docs/plans/2026-09-21-loop-charter.md` lines 14–25; accountable covera
 | Mode | What runs | Leaves when |
 |---|---|---|
 | **PLAN** | grill rounds (the saved `plan-grill-round` workflow: grill → adversarial refutation → reconcile → apply), attestation of "what exists today" claims on the real corpus, design/diagram regeneration | a **phase** is build-ready (§3) — building of that phase starts while later phases keep being grilled |
-| **BUILD** | worktree-isolated units in Recommended order, each with the grill protocol in its packet; integrate → acceptance → attestation per wave; the living-plan delta after every wave | a REPLAN trigger fires (§4), or every unit has landed |
+| **BUILD** | worktree-isolated units in Recommended order, each with the grill protocol in its packet; integrate → acceptance → attestation per wave; update the owning todo entries and attach evidence after every wave | a REPLAN trigger fires (§4), or every unit has landed |
 | **REPLAN** | a *targeted* grill round on the affected phase/units only, amendments applied, Recommended order re-derived | the targeted round is dry (§2) — then BUILD resumes where it stopped |
 
 The three modes pipeline: at any moment some phases are build-ready and being built, later phases
@@ -27682,30 +27682,13 @@ areas only; it ends when that round is dry; BUILD resumes at the same Recommende
 Hindsight is expected, not a failure: the plan is rewritten as often as building teaches.
 ```
 
-#### S010-C0007: 5. Living plan — maintenance rules (skill `maintain-living-plan`)
+#### S010-C0007 (DISPOSED): rolling-plan maintenance mechanism
 
-Source `docs/plans/2026-09-21-loop-charter.md` lines 70–88; accountable coverage owner U1.
-
-```md
-## 5. Living plan — maintenance rules (skill `maintain-living-plan`)
-
-- The dated plan **is** the living plan. Each loop iteration writes a `### Delta Update`
-  block at the top of the plan: **Landed** (units + commits), **Partial** (validated but
-  uncertain, with what would settle it), **Next** (recommended changes). Minimal churn;
-  decision-oriented; the Revision log keeps the audit history.
-- Unit bullets carry status marks in place (✔ landed `<commit>`, ⏳ in flight, ⛔ blocked
-  `<reason>`); "what exists today" sentences are rewritten to "landed at …" when they land.
-- **STRATEGY.md** is the program-level authority. It is **not edited while the plan, design and
-  diagram are still converging** (user directive 2026-09-21); it is rewritten from them once
-  they converge and building has changed the pipeline's policy: the cross-build substrate as a stage-parallel lane, the Autonomy rule,
-  the determinism basis, the closed status set, the surfaces rule (no Start; one admission-
-  scoped pause/resume). Each such change is one STRATEGY commit citing the plan unit that
-  caused it; STRATEGY never contradicts the plan and the plan never restates STRATEGY.
-- Superseded plans are marked at their top ("superseded by …") and left in place as history;
-  the 2026-09-08 portable-signatures plan is superseded by this plan and is renamed under U21a.
-- Companions (audit files, risk register, this charter, the goal) are inputs, not competing
-  plans.
-```
+Source clause `docs/plans/2026-09-21-loop-charter.md`:70–88 is retained only as
+historical provenance. The user directed removal of living plans and plan-maintenance
+skills on 2026-10-09; no separate rolling document replaces them. Current scope is
+this master plan, execution state is recorded on the owning todo item/task report,
+and durable receipts remain with their producing workflow.
 
 #### S010-C0008: 6. Cadence and limits — grill sparingly
 
@@ -27792,7 +27775,7 @@ Source `docs/plans/2026-09-21-loop-charter.md` lines 138–148; accountable cove
 | "No amendments for two rounds" could never be reached — grills always find wording | Convergence counts only refutation-verified `blocks-goal`/`wrong-when-implemented` (§2.1) |
 | No rule said when to stop planning and build | Phase readiness (§3); phases pipeline |
 | No rule said when to go back | Hindsight triggers (§4), scoped REPLAN |
-| The dated plan rots as code lands | Living-plan deltas + in-place status marks + STRATEGY maintenance (§5) |
+| Status rots as code lands | Update the owning todo entries and link current task reports/receipts; maintain STRATEGY as the policy authority |
 | The goal's scope (substrate) was narrower than the user's one-shot expectation | Autonomy rule recorded; Phase 14 surfaces added; STRATEGY carries the program scope |
 | Orchestrator hand-tracked every grill | Grills run as one saved workflow with structured output and adversarial refutation |
 | Loop bound to one session | §7 restart from committed state |
@@ -31624,7 +31607,7 @@ Source `docs/plans/2026-09-22-design-package.md` lines 33–59; accountable cove
 | [Delivery status](../DELIVERY_STATUS.md) | Design delivery distinguished from software and runtime outcomes |
 
 This index and its traceability table are the later contract part of the active
-living plan; the weekend scope index retains the complete original unit set. The September 8
+master plan; the weekend scope index retains the complete original unit set. The September 8
 plans retain historical implementation decisions under their new reconciliation
 notes. This package does not rewrite unrelated historical records or grant the
 execution permissions described in old recipes.
@@ -31824,7 +31807,7 @@ Source `docs/plans/2026-09-22-design-package.md` lines 213–231; accountable co
 |---|---|---|
 | H hindsight review | Attachment `a7bcfa80-8844-4a5f-bd88-1e7f31bf2bda/pasted-text.txt`, 27,540 bytes, SHA-256 `4e940239b9656a62229021eb5649b1ac1f22c44fc088023c97ca0d3479dc29d3` | Historical failures → local continuation, ownership, progress, storage and scenarios |
 | A architecture review | Attachment `1964612c-8fb0-44de-ab59-da1e53f8833f/pasted-text.txt`, 33,752 bytes, SHA-256 `6f64fb0ca0f7caae1a622b780bf704a8a3458402514fe0142b3b87fd85576182` | Reconstruction, compiler scope, claim separation and runtime capabilities |
-| Existing plan and diagram | STRATEGY, consolidated product design, living-plan reconciliation, overview generator | Preserve existing scope and newer lane E rather than reverting to older attached SVG |
+| Existing plan and diagram | STRATEGY, consolidated product design, execution-tracking reconciliation, overview generator | Preserve existing scope and newer lane E rather than reverting to older attached SVG |
 | Earlier design-phase correction | Design/diagrams/plan exclusively | Controlled the original design delivery; superseded for subsequent implementation by the explicit build request |
 | Later build request and ongoing goal | Build according to the design, then finish all applicable directives | Authorizes current implementation; full obligations remain in the session audit |
 | Skills | `/home/brunner56/.agents/skills/grill-me/SKILL.md`; `prove-the-effort/SKILL.md` and `EVOLUTION.md` | Concrete evidence-driven design review and explicit concessions |
@@ -34915,7 +34898,7 @@ Source `docs/plans/2026-09-27-implementation-progress-and-live-track.md` lines 1
 # September 18–21 design program progress and usable live track
 
 The [September 18–21 design scope](2026-09-27-weekend-design-scope.md) is the
-baseline this living plan and `STRATEGY.md` represent. It includes the full
+baseline this master plan and `STRATEGY.md` represent. It includes the full
 [September 21 portable-substrate plan](2026-09-21-portable-signatures-codecaves-generic-plan.md),
 its Phases 0–15 and named units, the distributed design, workstation requirements,
 brainstorm decisions and diagrams. The [September 22 design package](2026-09-22-design-package.md)
@@ -36712,10 +36695,10 @@ Operator docs start at [README.md](../../README.md). Strategy: [STRATEGY.md](../
 
 ```mermaid
 flowchart TD
-  living[Living plans] --> work[Active implementation]
+  scope[Master plan] --> work[Active implementation]
+  queue[Todo queue] --> work
   historical[Dated plans] --> record[Frozen record]
-  living --> strategy[STRATEGY.md]
-  historical --> living
+  scope --> strategy[STRATEGY.md]
 ```
 ````
 
@@ -36742,9 +36725,9 @@ Update these when the work they name changes:
 | [2026-09-20-unified-reversing-workstation.md](./2026-09-20-unified-reversing-workstation.md) | Frontend implementation; [consolidated user intent](../FRONTEND_INTENT.md) and [delivery evidence](../DELIVERY_STATUS.md), not a competing recovery ladder |
 | [2026-09-08-0156-feat-recovery-pipeline-ladder-plan.md](./2026-09-08-0156-feat-recovery-pipeline-ladder-plan.md) | Historical ladder with current reconciliation; active package linked above |
 | [2026-09-08-0225-feat-portable-signatures-phasor-export-plan.md](./2026-09-08-0225-feat-portable-signatures-phasor-export-plan.md) | Portable signatures + Phasor hook-pack export |
-| [2026-07-24-perf-recovery-one-shot-living-plan.md](./2026-07-24-perf-recovery-one-shot-living-plan.md) | Historical G14–G16 fixes; cold-host wall-time acceptance measurement remains open |
+| Historical one-shot performance work | G14–G16 follow-up; cold-host wall-time acceptance measurement remains open |
 
-The 2026-08-30 corpus living plan is historical. Do not rewrite its deltas.
+The earlier corpus-pipeline proposal is historical and no longer maintained as a separate plan.
 ```
 
 #### S031-C0003: Reconciliation — 2026-09-20
@@ -56276,11 +56259,11 @@ Source `docs/dashboard-design/2026-09-21-consolidated-design-plan.md` lines 567�
 | 2026-07-17 | `plans/2026-07-17-feat-phase5-proof-ladder.md` — first formal proof ladder **1%→5%→20%**, bans "≥90% recovered" marketing | priority |
 | 2026-07-17…30 | 13 `brainstorms/*-requirements.md` (context fusion, agent-loop closure, readability repair, mismatch-class routing, relocation-evidence) | pipeline |
 | 2026-07-24 | perf-recovery ladder P0–P3 | priority |
-| 2026-08-30 | `plans/2026-08-30-corpus-semantic-pipeline-living-plan.md` — first corpus pipeline (10-node) + "Priorities (do not reorder) 1–4" — now **historical/superseded** | pipeline/priority |
+| 2026-08-30 | First corpus pipeline (10-node) + "Priorities (do not reorder) 1–4" — **historical/superseded; source document removed** | pipeline/priority |
 | 2026-08-31 | Cursor: the canonical pipeline+priority contract quote (S-955d idx 42); "extract, identify, merge knowledge, generate projects, recover source, apply cross-build knowledge, compile, verify byte accuracy" | pipeline/priority origin |
 | 2026-08-31 | `plans/2026-08-31-0041-feat-workbench-aio-plan.md` + AIO ingest→UI flow | look/feel |
 | 2026-08-31 | `prototypes/dashboard-operator-feel/feel.md` — **operator-feel canon** (IDE + flight deck; dual bars; no third accuracy bar; Phase A/B/C) | look/feel |
-| 2026-09-08 | `plans/2026-09-08-0156-feat-recovery-pipeline-ladder-plan.md` — **canonical 8-step ladder** (active living plan) | pipeline/priority |
+| 2026-09-08 | `plans/2026-09-08-0156-feat-recovery-pipeline-ladder-plan.md` — **canonical 8-step ladder** (sequencing authority reconciled with current strategy) | pipeline/priority |
 | 2026-09-08 | Dual-surface delivery request (static 8080 + optional Vite) — later reconfirmed | look/feel |
 | 2026-09-09/10 | `plans/2026-09-09-0630-feat-local-first-re-workbench-plan.md` — **P0–P5 roadmap** + graphite design contract | priority/look-feel |
 | 2026-09-09 | Copilot: "replace the vite design with inspirations from RzWeb, objdiff-web, radare2, decomp.me, decompiler-explorer, rev.ng"; AIO deep-research verdict fed back | look/feel |
@@ -66138,7 +66121,7 @@ The [weekend unit delivery ledger](docs/plans/2026-09-27-weekend-unit-delivery.j
 preserves 193 source-qualified identifiers and their definition/acceptance spans,
 including explicit withdrawals and absorbed aliases. Its initial unverified states
 require current evidence; historical checkmarks do not establish delivery.
-Changes to either this strategy or the living plan must retain traceability to
+Changes to this strategy or the master plan must retain traceability to
 that baseline: name the affected original plan units and diagram views, record
 any explicit supersession, and keep remaining requirements visible. A narrower
 implementation slice or newer summary cannot silently redefine completion.

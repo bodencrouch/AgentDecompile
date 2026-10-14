@@ -1,10 +1,10 @@
 # AgentDecompile
 
-**Connect AI to Ghidra**
+**Recover readable source across related binaries, with AI-ready Ghidra tools and byte-backed proof.**
 
-Run an MCP server that talks to your Ghidra project. List functions, decompile code, rename symbols, and recover source you can rebuild.
+Give AgentDecompile a family of compiled binaries plus their existing Ghidra analysis. It is the higher-level reverse-engineering workbench around Ghidra: it relates each real build, cross-matches code and data, recovers C/C++ that can compile to match the originals, and exposes supported ABI, event, argument, memory, graphics and runtime knowledge for Lua/native shim, DLL, hook and code-cave workflows. The target binaries remain distinct; there is no fictitious merged executable.
 
-AgentDecompile exposes live Ghidra state through the open [Model Context Protocol (MCP)](https://modelcontextprotocol.io), so agents work from functions, references, memory, and decompilation instead of guessing from filenames.
+AgentDecompile exposes live Ghidra state through the open [Model Context Protocol (MCP)](https://modelcontextprotocol.io), alongside its shared recovery and runtime workflows, so agents and people can use functions, references, memory, cross-matches, and decompilation instead of guessing from filenames. AI can propose or operate tools, but the deterministic workflow does not require an AI service and model output is never proof. See the [consolidated user intent](docs/USER_INTENT.md) for exact inputs, outputs, pipeline, supported WASM/graphics/runtime surfaces, and proof boundaries.
 
 [Quick start](#installation) · [Usage guide](USAGE.md) · [Tool list](TOOLS_LIST.md) · [Docs site](https://bodecloud.github.io/AgentDecompile/) · [Doc index](docs/INDEX.md)
 

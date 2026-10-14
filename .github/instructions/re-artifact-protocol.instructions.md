@@ -1,42 +1,46 @@
 ---
-description: "Reverse engineering artifact protocol: shared schema, workspace layout, confidence scoring, and convergence rules for the multi-agent RE pipeline (RE Planner, RE Worker, RE Critic, RE Aggregator)."
-applyTo: "**"
+description: "Optional advisory artifact conventions for the RE Planner, RE Worker, RE Critic, and RE Aggregator workflows."
+applyTo: ".agents/skills/re-*/SKILL.md"
 ---
 
-# RE Artifact Protocol
+# Optional RE Artifact Notes
+
+This protocol applies only when a task explicitly uses the RE Planner/Worker/Critic/
+Aggregator workflow. It is an optional workspace convention, not a required
+product output, corpus authority, recovery pipeline, or approval gate. For the
+product contract and inputs/outputs, follow [USER_INTENT](../../docs/USER_INTENT.md);
+repository operations follow [AGENTS](../../AGENTS.md), and pipeline, matching,
+resource, and proof policy follow [STRATEGY](../../STRATEGY.md). If this file
+disagrees with those authorities, follow them.
+
+AgentDecompile's product result is not a collection of isolated function JSON
+files. A function artifact is one bounded evidence item in the larger binary-family
+workflow: identify each concrete build, cross-match functions/data/types/events,
+recover readable C/C++, compile and compare per target, then retain honest
+target-bound proof. Related builds remain distinct binaries with their own
+addresses, bytes, ABI, layouts, evidence, and divergences.
 
 ## Workspace Layout
 
-This optional analysis protocol uses a task-scoped directory only when needed.
-It is an advisory workspace, not another authoritative corpus store. Follow
-[AGENTS.md](../../AGENTS.md) for operations and [STRATEGY.md](../../STRATEGY.md)
-for evidence, identity and recovery acceptance. Existing corpus/Ghidra bindings
-remain authoritative for their claim types. Record binary digest/build, program
-binding, logical identity (when known), address/region, tool revision, provenance
-and conflicts; an address alone is not identity. The example below is relative
-to a chosen task workspace, not a required filesystem-root directory.
+Use a task-scoped artifact workspace only when useful. Existing corpus and Ghidra
+bindings remain authoritative for their claim types. Keep build fingerprint,
+program binding, logical identity (when known), per-build address/region, tool
+revision, provenance, and conflicts; an address alone is not identity. The
+example below is illustrative and does not prescribe a filesystem layout.
 
 ```
 analysis/
-  triage.json                    # Binary triage from Planner
-  status.json                    # Current analysis status from Aggregator
-  /functions/
-    <build>_<logical-or-region>.json # Advisory artifact with full provenance
-    <build>_<other-region>.json
-  /worker_raw/
-    0x401000_worker_1.json       # Raw Worker output (kept for audit)
-    0x401000_worker_2.json
-  /reviews/
-    0x401000_review.json         # Critic review records
-  /types/
-    structs.json                 # Recovered struct definitions
-    enums.json                   # Recovered enum definitions
-    globals.json                 # Global variable catalog
-  /hypotheses/
-    <id>.json                    # Cross-function hypotheses
-  /logs/
-    runs.jsonl                   # Append-only log of agent runs
+  builds/<build-id>/             # Concrete binary identity and local evidence
+    functions/                   # Optional bounded function artifacts
+    data-types-events/           # Per-build layouts, events, and witnesses
+  cross-build/                   # Candidate identities, matches, divergences
+  recovery/                      # Source variants and target-bound compile/objdiff receipts
+  runtime/                       # Supported call/hook/cave/memory evidence and state
 ```
+
+This is a conceptual example, not a mandated directory tree. Use existing
+AgentDecompile corpus records and receipts where they already own the evidence;
+do not duplicate them into a second authority.
 
 ## Artifact Immutability
 
@@ -45,7 +49,12 @@ analysis/
 - Critic reviews are NEVER modified. New reviews produce new files.
 - The `runs.jsonl` log is append-only.
 
-## Confidence Scale
+## Advisory confidence and review
+
+Confidence is only a human-review aid for semantic hypotheses. It is not a
+probability of correctness, source recovery credit, cross-build equivalence,
+ABI/call safety, or permission to propagate or mutate. Preserve the underlying
+witnesses and unknowns rather than letting a score stand in for evidence.
 
 | Score | Level | Meaning |
 |-------|-------|---------|
@@ -55,7 +64,8 @@ analysis/
 | 0.3–0.4 | Low | Educated guess, significant unknowns |
 | 0.0–0.2 | Speculative | Minimal evidence, structural inference only |
 
-## Convergence Rules
+The optional review labels below describe only whether a bounded analysis item
+has received the requested review. They do not define product completion.
 
 These scores and stopping rules guide optional hypothesis review only. They do
 not establish corpus identity, safe ABI calls, compiling source, objdiff parity
@@ -67,70 +77,33 @@ A hypothesis is **review-converged** when:
 3. No `blocking` gaps remain
 4. Types are consistent with all callers and callees
 
-The scoped advisory review may stop when:
+An optional review may stop when:
 1. All high/medium priority functions are converged
 2. No cross-function type inconsistencies exist
 3. Call graph is fully consistent
 4. Remaining gaps are marked `UNKNOWN` with justification
 
-## Tiered tool routing
+## Evidence and interfaces
 
-Use Ghidra MCP **only when necessary**. Full matrix: `docs/solutions/architecture-patterns/tiered-re-analysis-knowledgebase.md` and skill `.cursor/skills/tiered-re-analysis/SKILL.md`.
+Choose the cheapest sufficient supported evidence path according to
+[tiered re-analysis](../../.agents/skills/tiered-re-analysis/SKILL.md), while
+reusing Ghidra projects and analysis as a core source of program evidence. Resolve
+tool names, schemas, and current capabilities from the live advertised catalog or
+the owning schema—not from a duplicated list in this optional protocol.
 
-| Tier | Ghidra session? | Examples |
-|------|-----------------|----------|
-| 0 | No | MCP `run-file-triage`, `run-external-re-scan`; shell `file`, `strings`, `readelf`, `yara`, `capa`, `binwalk` |
-| 1 | Batch/offline | MCP `run-batch-decompile`, `run-batch-export-gzf`, `run-batch-bsim-signatures`, `run-batch-sast-scan`; CLI `agentdecompile-cli ghidrecomp`, export/SARIF |
-| 2 | MCP read-only | `list-*`, `search-*`, `get-references`, `get-call-graph` |
-| 3 | MCP deep/mutate | `decompile-function`, `analyze-data-flow`, `manage-*`, `match-function` |
-
-**Planner:** Tier 0 triage before `open-project` on cold binaries. **Worker/Critic:** Tier 2 before Tier 3. **Aggregator:** a score alone never authorizes Tier 3 mutation; use field-level evidence, type/layout gates and the ordinary modification-conflict flow.
-
-## MCP Tool Mapping
-
-These are the AgentDecompile MCP tools available for each analysis phase:
-
-### Tier 0 — Static file (no Ghidra session)
-- `run-file-triage` — file metadata, sha256, strings; optional `externalScanTools` embeds capa/yara/binwalk under `externalScans`
-- `run-external-re-scan` — capa, yara, and/or binwalk (single tool or `tools` bundle)
-
-### Tier 1 — Batch / offline (no long-lived MCP session)
-- `run-batch-decompile` — bulk decompile export via ghidrecomp
-- `run-batch-export-gzf` — packed Ghidra project snapshot
-- `run-batch-bsim-signatures` — BSim signature generation
-- `run-batch-sast-scan` — SAST on decompiled output
-
-### Discovery / Read-Only (Tier 2)
-- `list-functions` — enumerate functions (pagination: offset/limit)
-- `list-imports` / `list-exports` — external symbols
-- `list-strings` — embedded strings
-- `get-function` — metadata for one function
-- `get-functions` — batch metadata/decompile/disassemble
-- `get-references` / `list-cross-references` — xref analysis
-- `get-call-graph` — call relationships
-- `search-everything` — multi-scope keyword search
-- `search-strings` / `search-symbols` / `search-constants` — targeted search
-- `get-data` — data at address
-- `inspect-memory` — raw memory inspection
-- `analyze-data-flow` — data flow analysis
-- `analyze-vtables` — C++ vtable recovery
-
-### Mutation (Tier 3 — apply findings)
-- `manage-function` — rename, set prototype/return type/calling convention
-- `manage-comments` — set/get/search comments at addresses
-- `manage-symbols` / `create-label` — rename symbols, create labels
-- `manage-bookmarks` — bookmark addresses with categories
-- `manage-function-tags` — tag functions (crypto, network, etc.)
-- `manage-structures` — create/edit recovered struct types
-- `apply-data-type` — apply type to address
-- `match-function` — cross-binary function matching
-- `execute-script` — arbitrary PyGhidra script (last resort)
+When in scope, artifacts may capture cross-build function/data/type/event
+correspondence and divergence; argument/parameter locations, calling convention,
+returns, state, and memory effects; and supported runtime observations. A
+runtime call, hook, code-cave, Lua/native shim, DLL, or memory-modification claim
+must retain its exact build/process, ABI, evidence, and safety basis. It does not
+establish matching C or byte parity. Likewise, a function-slice match or a C file
+does not establish full-image recovery; see STRATEGY for each claim's proof bar.
 
 ### Naming conventions
 
 Use [AGENTS.md](../../AGENTS.md), the single naming reference.
 
-## Anti-Hallucination Rules
+## Evidence discipline
 
 1. If you cannot find evidence in the binary for a claim, mark it `UNKNOWN`.
 2. If the decompiler output looks suspicious, cross-check with disassembly.

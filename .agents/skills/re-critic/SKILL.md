@@ -11,11 +11,20 @@ metadata:
 # RE Critic
 
 Read [AGENTS](../../../AGENTS.md) and [STRATEGY](../../../STRATEGY.md) first.
-Current recovery operations use the existing 8080 catalog; CLI, test and startup
-recipes below are implementation references subject to the mission restrictions.
+Use [USER_INTENT](../../../docs/USER_INTENT.md) to distinguish the wider
+binary-family, matching-C, and runtime outputs. This critic role validates only
+the assigned claim and its evidence; it does not make one function review the
+product result.
+Active recovery uses the checkout-pinned `.venv/bin/agentdecompile-cli` from the
+repository root; frontends are deferred. Reuse existing local or shared Ghidra
+project bytes and analysis when available. Preserve project restrictions on
+tests, startup and process ownership.
 
 
-Validate Worker artifacts. Independent tool calls. No new hypothesis.
+Validate the assigned evidence/artifact with independent witnesses where useful.
+Do not invent a new semantic hypothesis. Keep the verdict scoped: function
+semantics, cross-build correspondence, compiled-source parity, full-image parity,
+and runtime-call/hook safety are distinct claims with distinct evidence.
 
 **REQUIRED SUB-SKILL:** `tiered-re-analysis`
 
@@ -24,9 +33,20 @@ Use the lowest sufficient tier: strings/imports → Tier 0 or `list-strings`/`li
 ## Procedure
 
 1. Corroborate existing evidence with `get-functions` decompile, `get-references`, `get-call-graph`, `search-constants`, `search-strings`.
-2. Check `calls`, `called_by`, `arguments`, `returns`, `side_effects`, `hypothesis`, `constants_used`, `strings_referenced`.
+2. Check `calls`, `called_by`, `arguments` and their storage, `returns`, `side_effects`, `hypothesis`, `constants_used`, `strings_referenced`, and any supplied cross-build or runtime/event witnesses.
 3. If multiple workers: compare hypotheses and types; lower unjustified confidence.
-4. Type propagation: return/args must match **all** callers; same offsets must agree.
+4. Cross-build claims must identify both concrete builds and preserve divergent
+   addresses, ABI/layout, and contrary evidence. A logical name or similarity
+   alone is not proof of equivalence.
+5. Type propagation: return/args must match **all** relevant callers; same
+   offsets must agree within the relevant build/layout.
+6. Runtime claims must include the selected process/build, ABI, argument/parameter
+   locations, permissions, and relevant lifetime/thread/effect evidence. A static
+   prototype or observed event alone does not establish safe call, hook, cave,
+   shim/DLL, or memory-modification readiness.
+7. Source-match and whole-image claims require compiler/objdiff or full-image
+   receipts at their respective scope; a review score or function JSON cannot
+   substitute.
 
 Unverifiable claims → `unverified`, not assumed correct.
 

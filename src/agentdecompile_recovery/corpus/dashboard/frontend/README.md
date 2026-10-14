@@ -41,7 +41,9 @@ Save workspace writes metadata. Copy project reports whether program databases w
 
 ## Create and edit a scratch
 
-New scratch opens a decomp.me-style workflow with platform, preset/compiler, diff label, required target assembly, and optional context. The Matching surface places Source/Context/Options beside target assembly and compilation/objdiff output. Drafts stay local, survive reloads, and can be downloaded. Compilation uses the existing backend action and requires a valid configured target; provider failures remain visible beside output. A completed job or a local draft is not byte proof: that requires a revision-bound objdiff receipt.
+New scratch starts with a local title and candidate-C draft; platform metadata, target assembly, and compiler setup are optional. When opened from a selected function, the workspace tries to load its recorded assembly and offers only presets advertised for that exact binary. A draft can be saved before any compiler is configured; exact comparison requires an explicit function-to-binary binding and a compatible target. Drafts survive reloads and can be downloaded. Compilation uses the existing backend action; provider failures remain visible beside output. A completed job or a local draft is not byte proof: that requires a revision-bound objdiff receipt.
+
+The workstation exposes File, Edit, View, Project, and Tools menus at desktop and mobile widths. Project management is available from both File and Project, with one-click binary switching, local snapshots, and direct entry points for opening, importing, or creating Ghidra projects. Keyboard shortcuts are listed beside common actions. Optional rewrite contribution is labeled as provider-backed proposals (not donated CPU); the API key is entered in the dialog and sent directly to the selected provider.
 
 ## Follow the Ghidra guide
 

@@ -163,6 +163,71 @@ def _basis_supersession(con: sqlite3.Connection) -> None:
     con.execute(SUPERSESSION_SQL)
     con.execute(SUPERSESSION_INDEX_SQL)
 
+#: Columns migration 4 adds to ``binary`` (register A4, ``corpus admit``).
+#: ``admission_status`` is NULL until the admit verb has seen the row; its
+#: values are ``admitted``, ``placeholder``, ``duplicate``, ``contested`` and
+#: ``unresolved``. ``duplicate_of`` names the keeper (its content hash, or
+#: ``slug:<sha256(slug)[:12]>`` when it has none). ``admission_receipt`` is
+#: the sha256 of the row's receipt file. ``admission_handling`` records how
+#: a placeholder was treated (``quarantine`` or ``exclude``): the hook pack
+#: lists excluded placeholders under ``excluded_builds`` and stays silent
+#: about quarantined ones, and the store is the only channel that reaches
+#: the exporter.
+ADMISSION_COLUMNS: tuple[tuple[str, str], ...] = (
+    ("admission_status", "TEXT"),
+    ("duplicate_of", "TEXT"),
+    ("admission_receipt", "TEXT"),
+    ("admission_handling", "TEXT"),
+)
+
+#: The admitted-rows view. Placeholders, duplicates, contested and
+#: unresolved rows are outside every key, basis, manifest and pack by design
+#: (A4); readers that must survive later column adds filter ``binary``
+#: directly with the same predicate.
+ADMITTED_VIEW = "admitted_binary"
+
+
+def _admission(con: sqlite3.Connection) -> None:
+    """Version 14: admission columns on ``binary`` and the ``admitted_binary`` view.
+
+    Additive only; every existing row keeps ``admission_status`` NULL, which
+    every scoped reader treats as "admission has not run" and falls back to
+    the unscoped legacy behaviour until the first ``corpus admit``. NVMe's
+    earlier standalone lineage recorded these same columns as migration 4;
+    that lineage is recognized without rewriting its ledger, and its missing
+    match-review migration is repaired before later schema steps run.
+    """
+    if not con.in_transaction:
+        raise ValueError("admission migration requires an owned transaction")
+    require_ledger(con, version=13)
+    cols = {row[1] for row in con.execute("PRAGMA table_info(binary)")}
+    for col, decl in ADMISSION_COLUMNS:
+        if col not in cols:
+            con.execute(f"ALTER TABLE binary ADD COLUMN {col} {decl}")
+    con.execute(
+        f"CREATE VIEW IF NOT EXISTS {ADMITTED_VIEW} AS "
+        "SELECT * FROM binary WHERE admission_status = 'admitted'"
+    )
+
+
+def _has_legacy_admission_lineage(con: sqlite3.Connection) -> bool:
+    """Whether this store came from the standalone NVMe schema-v4 branch."""
+    row = con.execute(
+        "SELECT name FROM main.schema_migration WHERE version=4"
+    ).fetchone()
+    return row is not None and row[0] == "admission"
+
+
+def _require_admission_shape(con: sqlite3.Connection) -> None:
+    columns = {row[1]: row[2].upper() for row in con.execute("PRAGMA main.table_info(binary)")}
+    if any(columns.get(name) != "TEXT" for name, _ in ADMISSION_COLUMNS):
+        raise ValueError("admission_schema_corrupt")
+    view = con.execute(
+        "SELECT type,sql FROM main.sqlite_schema WHERE name=?", (ADMITTED_VIEW,)
+    ).fetchone()
+    if view is None or view[0] != "view" or not view[1]:
+        raise ValueError("admission_schema_corrupt")
+
 
 def _match_review(con: sqlite3.Connection) -> None:
     """Version 4: durable per-entity review freshness and atomic decision audit."""
@@ -359,6 +424,25 @@ def _type_schema_ownership(con: sqlite3.Connection) -> None:
     _store._require_type_shape(con, complete=True)
 
 
+def _project_workspace_schema(con: sqlite3.Connection) -> None:
+    """Own project identities additively; preserve legacy bindings verbatim."""
+    if not con.in_transaction:
+        raise ValueError("project workspace migration requires an owned transaction")
+    require_ledger(con, version=14)
+    for ddl in _store.PROJECT_TABLES.values():
+        con.execute(ddl)
+    legacy = con.execute("SELECT 1 FROM main.sqlite_schema WHERE type='table' AND name='program_binding'").fetchone()
+    if legacy:
+        for source_path, locator, program in con.execute("SELECT source_path,locator,program FROM program_binding").fetchall():
+            if not locator or not program:
+                # Keep incomplete historical bindings intact for targeted validation.
+                continue
+            provider = "project-api" if str(locator).startswith(("http://", "https://")) else "legacy-project"
+            workspace_id = _store.resolve_workspace(con, str(locator), provider)
+            _store.bind_analysis_instance(con, workspace_id, str(locator), str(program),
+                                          {"status": "historical-unvalidated"}, source_path=str(source_path))
+
+
 MIGRATIONS: list[Migration] = [
     Migration(1, "baseline", _baseline),
     Migration(2, "analyzer_identity", _analyzer_identity),
@@ -373,6 +457,8 @@ MIGRATIONS: list[Migration] = [
     Migration(11, "decomp_schema_ownership", _decomp_schema_ownership),
     Migration(12, "convention_schema_ownership", _convention_schema_ownership),
     Migration(13, "type_schema_ownership", _type_schema_ownership),
+    Migration(14, "admission", _admission),
+    Migration(15, "project_workspaces", _project_workspace_schema),
 ]
 
 SCHEMA_VERSION = MIGRATIONS[-1].version
@@ -420,6 +506,17 @@ def require_ledger(con: sqlite3.Connection, *, version: int) -> None:
         raise ValueError("missing or malformed migration ledger")
     rows = con.execute("SELECT version, name FROM main.schema_migration ORDER BY version").fetchall()
     expected = [(step.version, step.name) for step in MIGRATIONS if step.version <= version]
+    legacy_admission = any(v == 4 and name == "admission" for v, name in rows)
+    if legacy_admission and version >= 4:
+        # The standalone NVMe branch used schema version 4 for admission,
+        # while integration used it for match review. Preserve its immutable
+        # ledger entry and recognize only that exact known alternate lineage.
+        expected = [(v, "admission" if v == 4 else name) for v, name in expected]
+        _require_admission_shape(con)
+        if version >= 5:
+            from .match_review_schema import _require_objects
+
+            _require_objects(con)
     if [tuple(row) for row in rows] != expected:
         raise ValueError("inconsistent migration ledger")
 
@@ -486,6 +583,31 @@ def apply_pending(
     if current >= goal:
         return []
     applied: list[Migration] = []
+    if registry is MIGRATIONS and current == 4 and goal >= 5 and _has_legacy_admission_lineage(con):
+        # The standalone NVMe lineage spent version 4 on admission. Install
+        # integration's missing v4 match-review schema as an idempotent,
+        # owned transaction before applying versions 5..13. Its original
+        # version-4 ledger row remains untouched and is checked as a known
+        # alternate lineage by require_ledger().
+        try:
+            con.execute("BEGIN IMMEDIATE")
+            now = user_version(con)
+            if now == 4 and _has_legacy_admission_lineage(con):
+                _require_admission_shape(con)
+                _match_review(con)
+            if user_version(con) == now:
+                con.execute("COMMIT")
+            else:
+                _rollback(con)
+            current = user_version(con)
+        except sqlite3.OperationalError as exc:
+            _rollback(con)
+            if current >= LEDGER_VERSION and _store._is_lock_or_readonly(exc):
+                return applied
+            raise
+        except BaseException:
+            _rollback(con)
+            raise
     for step in registry:
         if step.version <= current or step.version > goal:
             continue

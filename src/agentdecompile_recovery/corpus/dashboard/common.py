@@ -107,7 +107,24 @@ _DEFAULT_DRM_EXCLUDED = ()
 
 
 def live_root() -> Path | None:
-    return _env_root() or ROOT
+    """Use the selected corpus's workspace unless explicitly overridden."""
+    return root_for_database(live_db())
+
+
+def root_for_database(database):
+    """Prospective workspace, with exactly the same precedence as live_root."""
+    explicit = _env_root()
+    if explicit is not None:
+        return explicit
+    if database is not None:
+        try:
+            if database.is_file() and database.parent.name == "db":
+                workspace = database.parent.parent / "corpus_work"
+                if workspace.is_dir():
+                    return workspace
+        except (OSError, RuntimeError, ValueError):
+            pass
+    return ROOT
 
 
 _RUNTIME_DB_PATH: Path | None = None
@@ -116,7 +133,9 @@ _REVIEW_SELECTION_GENERATION = uuid.uuid4().hex
 
 
 def _runtime_db_selection_path() -> Path | None:
-    root = live_root()
+    # Keep selection storage stable while changing databases/workspaces, and
+    # avoid live_root -> live_db -> saved selection -> live_root recursion.
+    root = _env_root() or ROOT
     return root / "workbench-corpus-db.json" if root is not None else None
 
 
@@ -139,21 +158,18 @@ def _set_runtime_db_path(path: Path | str | None) -> None:
     the env-var/default location yet.
     """
     global _RUNTIME_DB_PATH
-    _RUNTIME_DB_PATH = Path(path).expanduser() if path else None
+    candidate = Path(path).expanduser() if path else None
     selection = _runtime_db_selection_path()
     if selection is None:
-        return
-    try:
-        if _RUNTIME_DB_PATH is None:
-            selection.unlink(missing_ok=True)
-        else:
-            temporary = selection.with_suffix(".tmp")
-            temporary.write_text(json.dumps({"path": str(_RUNTIME_DB_PATH)}), encoding="utf-8")
-            temporary.replace(selection)
-    except OSError:
-        # The active in-memory selection remains valid even if its workspace
-        # cannot retain a preference across a server restart.
-        pass
+        raise OSError('Corpus selection has no durable preference location')
+    if candidate is None:
+        selection.unlink(missing_ok=True)
+    else:
+        temporary = selection.with_suffix(".tmp")
+        temporary.write_text(json.dumps({"path": str(candidate)}), encoding="utf-8")
+        temporary.replace(selection)
+    # Admission can now fail without changing the active selection/generation.
+    _RUNTIME_DB_PATH = candidate
 
 
 def set_runtime_db_path(path: Path | str | None) -> None:

@@ -47,7 +47,7 @@ import time
 from dataclasses import dataclass, field
 from typing import Any, Callable, Iterable, Mapping, Protocol, Sequence
 
-from ..core import TASK_KINDS, BudgetClass, Frontier, LogStore, NodeIdentity, NotConfigured, ObjectRef, ObjectStore, RecordType, Refused, ResultStatus, TaskResult, TaskSpec
+from ..core import TASK_KINDS, BudgetClass, Frontier, LogStore, NodeIdentity, NotConfigured, ObjectRef, ObjectStore, RecordType, Refused, ResultStatus, TaskResult, TaskSpec, check_basis_projection
 from ..log.signing import Keyring
 from ..verify.policy import DEFAULT_INDEPENDENCE_POLICY, KeyRateLimiter, TokenBucket, independent_groups
 from .outbox import Outbox, PendingRecord, RecordWriter
@@ -570,6 +570,7 @@ class WorkLoop(StepMachine):
                 self._skip("cooloff")
             else:
                 try:
+                    check_basis_projection(kinds[spec.kind], spec)      # U158: consume refuses a projection mismatch by name
                     deadline = deadline_for(spec, self.config.deadlines_s)
                 except Refused as exc:
                     self._skip(exc.reason.split(":", 1)[0])

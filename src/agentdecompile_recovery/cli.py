@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
+import os
 import sys
+import tempfile
 
 from pathlib import Path
 from typing import Any
@@ -36,9 +39,226 @@ from .targets import identify_binary
 from .windows import run_recovery_windows
 
 
+def positive_int(value: str) -> int:
+    """Parse a positive integer for resource limits."""
+
+    try:
+        parsed = int(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError("must be a positive integer") from exc
+    if parsed < 1:
+        raise argparse.ArgumentTypeError("must be a positive integer")
+    return parsed
+
+
 def default_work_dir(target_path: Path) -> Path:
     identity = identify_binary(target_path)
     return Path("target/agentdecompile-recover") / identity.stable_id
+
+
+def _project_recovery_work_dir(project_root: Path, program_path: str) -> Path:
+    """Stable default run directory for a program selected from a Ghidra project."""
+
+    basis = f"{project_root.resolve()}\0{program_path}".encode("utf-8")
+    stable_id = hashlib.sha256(basis).hexdigest()[:24]
+    return Path("target/agentdecompile-recover/ghidra-project") / stable_id
+
+
+def _extract_project_file_bytes(
+    *,
+    project: Path,
+    program_name: str | None,
+    work_dir: Path | None,
+    resume: bool,
+) -> tuple[Path, str, Path | None, bool, Path, Path]:
+    """Materialize one selected program's immutable original FileBytes source.
+
+    Returns (binary path, canonical program path, database project path if this
+    is a local project supported by PyGhidra enrichment, source_is_local, run
+    directory, canonical project database root).
+    The project database is only read; the durable receipt records the exact
+    source and explicitly excludes Ghidra's layered analysis edits.
+    """
+
+    from .ghidra_db import ProjectLayoutError, list_programs, open_project_program, resolve_project_root
+    from .ghidra_db.program import GhidraProgramError
+
+    requested = project.expanduser().resolve()
+    try:
+        project_root = resolve_project_root(requested).resolve()
+    except ProjectLayoutError as exc:
+        raise ValueError(f"not a readable Ghidra project: {exc}") from exc
+    programs = list_programs(project_root)
+    if not programs:
+        raise ValueError(f"{project_root}: project has no program items")
+    if program_name:
+        wanted = str(program_name).rstrip("/")
+        matches = [entry for entry in programs if entry.project_path == wanted or entry.name == wanted]
+        if len(matches) != 1:
+            available = ", ".join(entry.project_path for entry in programs)
+            if not matches:
+                raise ValueError(f"{project_root}: no program {program_name!r} (have: {available})")
+            raise ValueError(
+                f"{project_root}: program name {program_name!r} is ambiguous; "
+                f"use its full project path (matches: {', '.join(entry.project_path for entry in matches)})"
+            )
+        selected = matches[0]
+    elif len(programs) == 1:
+        selected = programs[0]
+    else:
+        available = ", ".join(entry.project_path for entry in programs)
+        raise ValueError(
+            f"{project_root}: multiple programs in project; pass --project-program "
+            f"to select one (have: {available})"
+        )
+
+    # Only a local .gpr/.rep pair can be reopened by the existing enrichment
+    # pipeline. Shared-project roots remain valid immutable byte sources, but
+    # their data is not misrepresented as a local project path.
+    local_project = project_root.suffix.lower() == ".rep" and project_root.with_suffix(".gpr").is_file()
+    local_project_path = project_root.with_suffix(".gpr").resolve() if local_project else None
+    work_dir = (work_dir or _project_recovery_work_dir(project_root, selected.project_path)).expanduser().resolve()
+    source_dir = work_dir / "source"
+    if source_dir.is_symlink():
+        raise ValueError(f"refusing symlinked source directory under recovery work directory: {source_dir}")
+    binary_path: Path | None = None
+    temporary_path: Path | None = None
+    receipt_path = source_dir / "ghidra-file-bytes-provenance.json"
+    if resume and not receipt_path.is_file():
+        raise ValueError(
+            f"--resume requires an existing Ghidra FileBytes provenance receipt: {receipt_path}"
+        )
+    if not receipt_path.exists() and work_dir.exists() and any(work_dir.iterdir()):
+        raise ValueError(
+            f"existing recovery work directory has no Ghidra FileBytes provenance receipt: {work_dir}; "
+            "choose another --work-dir rather than binding stale state"
+        )
+    try:
+        try:
+            opened_program = open_project_program(project_root, selected.project_path)
+        except ProjectLayoutError as exc:
+            raise ValueError(f"could not open {selected.project_path} from {project_root}: {exc}") from exc
+        with opened_program as ghidra_program:
+            sources = ghidra_program.file_bytes_sources()
+            if len(sources) != 1:
+                rendered = ", ".join(
+                    f"{source.source_id}:{source.filename or '<unnamed>'} ({source.size} bytes)"
+                    for source in sources
+                ) or "none"
+                raise ValueError(
+                    f"{selected.project_path}: expected exactly one Ghidra File Bytes source; "
+                    f"found {len(sources)} ({rendered})"
+                )
+            source = sources[0]
+            basename = Path(selected.name.replace("\\", "/")).name
+            if not basename or basename in {".", ".."} or "\0" in basename:
+                basename = selected.name
+            binary_path = source_dir / basename
+
+            if receipt_path.is_symlink() or binary_path.is_symlink():
+                raise ValueError(f"refusing symlinked extracted source or provenance path under {source_dir}")
+            source_dir.mkdir(parents=True, exist_ok=True)
+            digest = hashlib.sha256()
+            byte_count = 0
+            with tempfile.NamedTemporaryFile(
+                mode="wb", prefix=".file-bytes-", dir=source_dir, delete=False
+            ) as staged:
+                temporary_path = Path(staged.name)
+                for chunk in ghidra_program.iter_original_file_chunks(source.source_id):
+                    staged.write(chunk)
+                    digest.update(chunk)
+                    byte_count += len(chunk)
+                staged.flush()
+                os.fsync(staged.fileno())
+            if byte_count != source.size:
+                raise GhidraProgramError(
+                    f"{selected.project_path}: extracted {byte_count} bytes but File Bytes declares {source.size}"
+                )
+
+            basis = {
+                "schema": "agentdecompile.ghidra-file-bytes-source.v1",
+                "projectRoot": str(project_root),
+                "projectInput": str(requested),
+                "programPath": selected.project_path,
+                "programName": selected.name,
+                "programDatabase": str(selected.database_path.resolve()),
+                "programDatabaseVersion": selected.version,
+                "fileBytesSource": source.to_json(),
+                "materializedFile": str(binary_path.resolve()),
+                "sha256": digest.hexdigest(),
+                "sizeBytes": byte_count,
+                "byteAuthority": "Ghidra File Bytes original buffers",
+                "layeredAnalysisEditsIncluded": False,
+                "claimBoundary": "Original imported file bytes extracted from the selected program; not proof of source equivalence or byte-identical rebuild.",
+            }
+
+            existing_receipt: dict[str, Any] | None = None
+            if receipt_path.exists():
+                try:
+                    existing_receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+                except (OSError, json.JSONDecodeError) as exc:
+                    raise ValueError(f"existing provenance receipt is unreadable: {receipt_path}: {exc}") from exc
+                comparable = (
+                    "schema", "projectRoot", "programPath", "sha256", "sizeBytes",
+                    "byteAuthority", "layeredAnalysisEditsIncluded",
+                )
+                if any(existing_receipt.get(key) != basis[key] for key in comparable):
+                    raise ValueError(
+                        f"existing recovery work directory has a different Ghidra project/program/FileBytes basis: {work_dir}; "
+                        "choose another --work-dir rather than reusing stale state"
+                    )
+            binary_exists = binary_path.exists()
+            if binary_exists:
+                if not binary_path.is_file():
+                    raise ValueError(f"extracted source path is not a regular file: {binary_path}")
+                existing_hash = hashlib.sha256()
+                with binary_path.open("rb") as existing:
+                    for chunk in iter(lambda: existing.read(1024 * 1024), b""):
+                        existing_hash.update(chunk)
+                if existing_hash.hexdigest() != basis["sha256"]:
+                    raise ValueError(
+                        f"existing extracted source differs from the selected FileBytes SHA-256: {binary_path}"
+                    )
+            if existing_receipt != basis:
+                receipt_path.parent.mkdir(parents=True, exist_ok=True)
+                receipt_tmp: Path | None = None
+                try:
+                    with tempfile.NamedTemporaryFile(
+                        mode="w", encoding="utf-8", prefix=".provenance-", dir=source_dir, delete=False
+                    ) as output:
+                        receipt_tmp = Path(output.name)
+                        json.dump(basis, output, indent=2, sort_keys=True)
+                        output.write("\n")
+                        output.flush()
+                        os.fsync(output.fileno())
+                    os.replace(receipt_tmp, receipt_path)
+                    receipt_tmp = None
+                    directory_fd = os.open(source_dir, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
+                    try:
+                        os.fsync(directory_fd)
+                    finally:
+                        os.close(directory_fd)
+                finally:
+                    if receipt_tmp is not None:
+                        receipt_tmp.unlink(missing_ok=True)
+            if binary_exists:
+                temporary_path.unlink()
+                temporary_path = None
+            else:
+                os.replace(temporary_path, binary_path)
+                temporary_path = None
+                directory_fd = os.open(source_dir, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
+                try:
+                    os.fsync(directory_fd)
+                finally:
+                    os.close(directory_fd)
+        assert binary_path is not None
+        return binary_path, selected.project_path, local_project_path, local_project, work_dir, project_root
+    except GhidraProgramError as exc:
+        raise ValueError(f"could not extract original File Bytes: {exc}") from exc
+    finally:
+        if temporary_path is not None:
+            temporary_path.unlink(missing_ok=True)
 
 
 def add_unity_arguments(parser: argparse.ArgumentParser) -> None:
@@ -59,6 +279,11 @@ def add_unity_arguments(parser: argparse.ArgumentParser) -> None:
     group.add_argument("--unity-editor-version", help="Editor version to prefer. Defaults to the version read from the shipped player.")
     group.add_argument("--unity-max-memory-gb", type=float, help="Memory budget for asset export. Defaults to a fraction of host available RAM.")
     group.add_argument(
+        "--unity-max-texture-pixels",
+        type=positive_int,
+        help="Skip Texture2D and Sprite objects backed by textures larger than this pixel count during pipeline media recovery.",
+    )
+    group.add_argument(
         "--unity-include-resources-assets",
         action=argparse.BooleanOptionalAction,
         default=None,
@@ -67,6 +292,11 @@ def add_unity_arguments(parser: argparse.ArgumentParser) -> None:
     group.add_argument("--unity-repair-attempts", type=int, default=3, help="Maximum validate/repair iterations before reporting unresolved errors.")
     group.add_argument("--unity-editor-timeout", type=int, default=3600, help="Timeout in seconds for each headless Editor invocation.")
     group.add_argument("--unity-assetripper-cli", type=Path, help="AssetRipper binary. Defaults to env/repo-managed discovery.")
+    group.add_argument("--unity-assetripper-remote-host", help="Use an already-running AssetRipper on this SSH host (SSH is forced to IPv4).")
+    group.add_argument("--unity-assetripper-remote-input", help="Absolute game input directory already present on the remote host.")
+    group.add_argument("--unity-assetripper-remote-output", help="Dedicated absolute export directory on the remote host; it must not overlap input.")
+    group.add_argument("--unity-assetripper-remote-port", type=int, default=18086, help="Remote AssetRipper loopback service port.")
+    group.add_argument("--unity-assetripper-ssh-port", type=int, default=22, help="SSH port on the remote host.")
     group.add_argument("--unity-ilspycmd", type=Path, help="ilspycmd binary. Defaults to env/PATH/dotnet-tools discovery.")
     group.add_argument(
         "--unity-install-mcp-bridge",
@@ -83,10 +313,16 @@ def unity_config_kwargs(args: argparse.Namespace) -> dict[str, Any]:
         "unity_editor": getattr(args, "unity_editor", None),
         "unity_editor_version": getattr(args, "unity_editor_version", None),
         "unity_max_memory_gb": getattr(args, "unity_max_memory_gb", None),
+        "unity_max_texture_pixels": getattr(args, "unity_max_texture_pixels", None),
         "unity_include_resources_assets": getattr(args, "unity_include_resources_assets", None),
         "unity_repair_attempts": int(getattr(args, "unity_repair_attempts", 3) or 3),
         "unity_editor_timeout": int(getattr(args, "unity_editor_timeout", 3600) or 3600),
         "unity_assetripper_cli": getattr(args, "unity_assetripper_cli", None),
+        "unity_assetripper_remote_host": getattr(args, "unity_assetripper_remote_host", None),
+        "unity_assetripper_remote_input": getattr(args, "unity_assetripper_remote_input", None),
+        "unity_assetripper_remote_output": getattr(args, "unity_assetripper_remote_output", None),
+        "unity_assetripper_remote_port": int(getattr(args, "unity_assetripper_remote_port", 18086) or 18086),
+        "unity_assetripper_ssh_port": int(getattr(args, "unity_assetripper_ssh_port", 22) or 22),
         "unity_ilspycmd": getattr(args, "unity_ilspycmd", None),
         "unity_install_mcp_bridge": bool(getattr(args, "unity_install_mcp_bridge", False)),
     }
@@ -183,12 +419,17 @@ def build_parser(prog: str | None = None) -> argparse.ArgumentParser:
 
     recover = sub.add_parser("recover", help="Run the resumable recovery orchestration pipeline.")
     recover.long_running = True
-    recover.add_argument("input", type=Path, help="Folder or binary path.")
+    recover.add_argument(
+        "input",
+        type=Path,
+        nargs="?",
+        help="Folder or binary path; omit only when --project supplies the program bytes.",
+    )
     recover.add_argument("--preferred-name", help="Preferred executable basename when input is a folder.")
-    recover.add_argument("--work-dir", type=Path, help="Run/state directory. Defaults to target/agentdecompile-recover/<stable-target-id>.")
+    recover.add_argument("--work-dir", type=Path, help="Run/state directory. Defaults to a stable target or project/program identity.")
     recover.add_argument("--resume", action="store_true", help="Reuse complete stage receipts with matching config.")
     recover.add_argument("--force", action="store_true", help="Rerun selected stages even when receipts exist.")
-    recover.add_argument("--stop-after", choices=["discover", "inspect-capabilities", "prepare-analysis-image", "export-context", "inventory-binary", "discover-functions", "analyze-functions", "enrich-decompile", "generate-source-candidates", "synthesize-source-tasks", "plan-strategy", "byte-authority", "legacy-adapter", "snapshot-existing-recovery", "unity-probe", "unity-plan", "unity-export-assets", "unity-decompile-managed", "unity-compose-project", "unity-editor-validate", "unity-repair", "report"])
+    recover.add_argument("--stop-after", choices=["discover", "inspect-capabilities", "prepare-analysis-image", "export-context", "inventory-binary", "discover-functions", "analyze-functions", "enrich-decompile", "generate-source-candidates", "synthesize-source-tasks", "plan-strategy", "byte-authority", "legacy-adapter", "snapshot-existing-recovery", "unity-probe", "unity-plan", "unity-export-assets", "unity-decompile-managed", "unity-compose-project", "unity-recover-excluded-media", "unity-editor-validate", "unity-repair", "report"])
     add_unity_arguments(recover)
     recover.add_argument("--skip-enrichment", action="store_true", help="Skip PyGhidra enrich-decompile before source generation.")
     recover.add_argument("--json", action="store_true", help="Emit progress as JSON lines.")
@@ -211,7 +452,7 @@ def build_parser(prog: str | None = None) -> argparse.ArgumentParser:
     recover.add_argument(
         "--project",
         type=Path,
-        help="Existing analyzed local Ghidra project (.gpr or .rep) to decompile without re-importing the raw binary.",
+        help="Existing Ghidra project (.gpr/.rep or shared-project directory); with no positional input, use its original program FileBytes as the target.",
     )
     recover.add_argument(
         "--project-program",
@@ -355,6 +596,17 @@ def build_parser(prog: str | None = None) -> argparse.ArgumentParser:
     synth.add_argument("--remaining-features", type=Path, default=Path("target/source-parity-index/default/remaining-features.jsonl"))
     synth.add_argument("--retrieval", type=Path, default=Path("target/source-parity-index/default/retrieval.jsonl"))
     synth.add_argument("--matched-summary", type=Path, action="append")
+    synth.add_argument(
+        "--diagnostic-priority-state",
+        type=Path,
+        action="append",
+        default=[],
+        help="Use byteexact-cache/v3 state only as an exact target-slice scheduling hint; it never proves a match.",
+    )
+    synth.add_argument(
+        "--target-sha",
+        help="Target-image SHA-256 required when diagnostic priority states are supplied.",
+    )
     synth.add_argument("--out-dir", type=Path, default=Path("target/source-parity-synthesis/default"))
     synth.add_argument("--limit", type=int, default=25)
     synth.add_argument("--offset", type=int, default=0)
@@ -374,6 +626,12 @@ def build_parser(prog: str | None = None) -> argparse.ArgumentParser:
     synth.add_argument("--strategies")
     synth.add_argument("--source-quality", action="append", default=[], help="Only verify generated candidates with this source quality. Repeat or comma-separate.")
     synth.add_argument("--compiler", choices=["msvc", "clang", "clang-cl"], default="msvc")
+    synth.add_argument(
+        "--workers",
+        type=int,
+        default=0,
+        help="Bound compile/objdiff concurrency (0 uses the pipeline's automatic worker count).",
+    )
     synth.add_argument("--clang", default="clang")
     synth.add_argument("--compiler-profile", action="append", default=[], help="Compiler profile as NAME='/O2 /Oy /GS-'. Repeat for multiple profiles.")
     synth.add_argument("--dry-run", action="store_true")
@@ -440,6 +698,97 @@ def build_parser(prog: str | None = None) -> argparse.ArgumentParser:
     )
     unity_export.add_argument("--install-root", type=Path, required=True, help="Unity game install directory (containing a *_Data folder).")
     unity_export.add_argument("--out-dir", type=Path, required=True, help="Output directory for exported assets.")
+    unity_export.add_argument(
+        "--data-file",
+        type=Path,
+        action="append",
+        help="Limit export to a top-level *_Data file (repeatable; filename or full path). Defaults to all data files.",
+    )
+    unity_export.add_argument(
+        "--type",
+        dest="object_types",
+        choices=("Texture2D", "Sprite", "AudioClip", "TextAsset", "Font"),
+        action="append",
+        help="Limit export to this Unity object type (repeatable). Defaults to all supported types.",
+    )
+    unity_export.add_argument(
+        "--max-texture-pixels",
+        type=positive_int,
+        help="Skip Texture2D objects whose parsed width × height exceeds this pixel count.",
+    )
+
+    unity_mesh_export = sub.add_parser(
+        "unity-export-meshes",
+        help="Export bounded raw Mesh byte ranges or lossy OBJ derivatives (requires agentdecompile[unity]).",
+    )
+    unity_mesh_export.add_argument("--install-root", type=Path, required=True, help="Unity game install directory containing a *_Data folder.")
+    unity_mesh_export.add_argument("--out-dir", type=Path, required=True, help="Output directory for Mesh exports and resumable receipt; must be outside the Unity install root.")
+    unity_mesh_export.add_argument("--data-file", type=Path, action="append", help="Limit to a top-level *_Data file (repeatable; e.g. resources.assets).")
+    unity_mesh_export.add_argument("--format", choices=("raw", "obj"), default="obj", help="raw copies the exact source byte range for each Mesh; obj writes a lossy geometry derivative.")
+    unity_mesh_export.add_argument("--max-object-mib", type=int, default=192, help="Skip individual serialized Mesh objects larger than this MiB limit before decoding.")
+    unity_mesh_export.add_argument("--no-resume", action="store_true", help="Ignore prior successful receipt entries and re-export objects.")
+
+    unity_audio_decode = sub.add_parser(
+        "unity-audio-decode",
+        help="Rebuild playable samples from preserved FSB5 Unity AudioClip payloads.",
+    )
+    unity_audio_decode.add_argument("--primary-content-dir", type=Path, required=True, help="Directory produced by unity-export.")
+
+    unity_project_audit = sub.add_parser(
+        "unity-project-audit",
+        help="Read-only audit of local Unity Assets GUID reference closure (candidates only).",
+    )
+    unity_project_audit.add_argument("--project-root", type=Path, required=True, help="Unity project directory containing Assets/.")
+    unity_project_audit.add_argument("--json", action="store_true", help="Print the full candidate report as JSON.")
+
+    unity_project_compare = sub.add_parser(
+        "unity-project-compare",
+        help="Report unresolved Unity GUIDs found in other AssetRipper project exports; never modifies projects.",
+    )
+    unity_project_compare.add_argument("--project-root", type=Path, required=True, help="Unity project to compare.")
+    unity_project_compare.add_argument(
+        "--reference-project",
+        type=Path,
+        action="append",
+        required=True,
+        help="Reference Unity project export (repeatable).",
+    )
+    unity_project_compare.add_argument("--json", action="store_true", help="Print the full per-GUID classification report as JSON.")
+
+    unity_package_audit = sub.add_parser(
+        "unity-package-audit",
+        help="Compare package candidates implied by shipped assemblies with versions directly observed in Unity manifests.",
+    )
+    unity_package_audit.add_argument("--install-root", type=Path, required=True, help="Shipped Unity game install directory.")
+    unity_package_audit.add_argument(
+        "--project-root",
+        type=Path,
+        action="append",
+        default=[],
+        help="Unity project root whose Packages/manifest.json is direct evidence (repeatable).",
+    )
+    unity_package_audit.add_argument("--json", action="store_true", help="Print the complete package evidence report as JSON.")
+
+    unity_reference_graph = sub.add_parser(
+        "unity-reference-graph",
+        help="Export source-backed Unity serialized-object PPtr references with a resumable checkpoint.",
+    )
+    unity_reference_graph.add_argument("--source-file", type=Path, action="append", required=True, help="Unity serialized file to scan (repeatable).")
+    unity_reference_graph.add_argument("--out-jsonl", type=Path, required=True, help="Output JSONL graph path; its SQLite checkpoint is stored beside it.")
+    unity_reference_graph.add_argument("--receipt", type=Path, help="Optional JSON receipt path.")
+    unity_reference_graph.add_argument("--no-resume", action="store_true", help="Discard existing checkpoint rows and rescan selected sources.")
+    unity_reference_graph.add_argument("--json", action="store_true", help="Print the complete scan receipt as JSON.")
+
+    unity_reference_reconcile = sub.add_parser(
+        "unity-reference-reconcile",
+        help="Audit every Unity YAML placeholder PPtr against source graph receipts without repairing assets.",
+    )
+    unity_reference_reconcile.add_argument("--project-root", type=Path, required=True, help="Selected Unity project (read-only).")
+    unity_reference_reconcile.add_argument("--graph-jsonl", type=Path, action="append", required=True, help="Task 1 graph JSONL (repeatable); sibling receipt required.")
+    unity_reference_reconcile.add_argument("--graph-receipt", type=Path, action="append", help="Explicit receipts in graph order; supply one per graph.")
+    unity_reference_reconcile.add_argument("--path-id-map", type=Path, help="Optional existing AssetRipper AuxiliaryFiles/path_id_map.json; never identity proof.")
+    unity_reference_reconcile.add_argument("--out-json", type=Path, required=True, help="Report outside the Unity project, preferably on NVMe; parent must exist.")
+    unity_reference_reconcile.add_argument("--json", action="store_true", help="Print complete report instead of summary; incomplete inputs return 1.")
 
     decomp_atlas = sub.add_parser(
         "decomp-atlas",
@@ -635,7 +984,39 @@ def run_recover(args: argparse.Namespace) -> int:
         raise SystemExit("--force and --resume are mutually exclusive")
     project = getattr(args, "project", None)
     project_program = getattr(args, "project_program", None)
-    if project is not None:
+    ghidra_source_project = project
+    ghidra_source_program = project_program
+    input_path = getattr(args, "input", None)
+    if input_path is None:
+        if project is None:
+            print(
+                f"{getattr(args, '_prog', DEFAULT_PROG)}: provide a binary/folder input or --project",
+                file=sys.stderr,
+            )
+            return 2
+        try:
+            input_path, project_program, local_project, local_project_mode, work_dir, ghidra_source_project = (
+                _extract_project_file_bytes(
+                    project=project,
+                    program_name=project_program,
+                    work_dir=getattr(args, "work_dir", None),
+                    resume=bool(args.resume),
+                )
+            )
+            ghidra_source_program = project_program
+        except (OSError, ValueError) as exc:
+            print(f"{getattr(args, '_prog', DEFAULT_PROG)}: --project error: {exc}", file=sys.stderr)
+            return 2
+        # The shared-project directory is a byte source, not a local project
+        # that PyGhidra can safely reopen for enrichment. Local .gpr/.rep
+        # projects retain the existing enrichment path and selected item.
+        project = local_project
+        project_program = project_program if local_project_mode else None
+        preferred_name = getattr(args, "preferred_name", None) or input_path.name
+    else:
+        work_dir = getattr(args, "work_dir", None) or default_work_dir(input_path)
+        preferred_name = getattr(args, "preferred_name", None)
+    if project is not None and getattr(args, "input", None) is not None:
         from .reconstruct_enrich import resolve_existing_project_source
 
         try:
@@ -643,11 +1024,10 @@ def run_recover(args: argparse.Namespace) -> int:
         except (OSError, ValueError) as exc:
             print(f"{getattr(args, '_prog', DEFAULT_PROG)}: --project error: {exc}", file=sys.stderr)
             return 2
-    work_dir = args.work_dir or default_work_dir(args.input)
     config = RecoveryConfig(
-        input_path=args.input,
+        input_path=input_path,
         work_dir=work_dir,
-        preferred_name=args.preferred_name,
+        preferred_name=preferred_name,
         resume=args.resume,
         force=args.force,
         stop_after=args.stop_after,
@@ -698,6 +1078,8 @@ def run_recover(args: argparse.Namespace) -> int:
         skip_enrichment=bool(getattr(args, "skip_enrichment", False)),
         project=project,
         project_program=project_program,
+        ghidra_source_project=ghidra_source_project,
+        ghidra_source_program=ghidra_source_program,
         display_prog=getattr(args, "_prog", None) or DEFAULT_PROG,
         **unity_config_kwargs(args),
     )
@@ -932,6 +1314,8 @@ def run_source_parity_synthesize(args: argparse.Namespace) -> int:
         str(args.timeout),
         "--progress-every",
         str(args.progress_every),
+        "--workers",
+        str(args.workers),
     ]
     for source_tasks in args.source_tasks:
         argv.extend(["--source-tasks", str(source_tasks.resolve())])
@@ -943,6 +1327,10 @@ def run_source_parity_synthesize(args: argparse.Namespace) -> int:
         argv.append("--upgrade-packaged-source")
     for matched_summary in args.matched_summary or []:
         argv.extend(["--matched-summary", str(matched_summary.resolve())])
+    for state_path in args.diagnostic_priority_state:
+        argv.extend(["--diagnostic-priority-state", str(state_path.resolve())])
+    if args.target_sha:
+        argv.extend(["--target-sha", args.target_sha])
     if args.strategies:
         argv.extend(["--strategies", args.strategies])
     for quality in args.source_quality:
@@ -1006,7 +1394,7 @@ def run_source_plugin_pipeline_command(args: argparse.Namespace) -> int:
         )
     )
     print(json.dumps(report, indent=2, sort_keys=True))
-    return 0
+    return 2 if str(report.get("status") or "").startswith("paused-") else 0
 
 
 def run_compiler_profile_corpus(args: argparse.Namespace) -> int:
@@ -1126,12 +1514,183 @@ def run_unity_export(args: argparse.Namespace) -> int:
     from .unity_assets import export_primary_content
 
     try:
-        receipt = export_primary_content(install_root=args.install_root, output_dir=args.out_dir)
-    except ImportError as exc:
+        receipt = export_primary_content(
+            install_root=args.install_root,
+            output_dir=args.out_dir,
+            data_files=args.data_file,
+            object_types=set(args.object_types) if args.object_types else None,
+            max_texture_pixels=args.max_texture_pixels,
+        )
+    except (ImportError, ValueError) as exc:
         print(json.dumps({"schema": "agentdecompile.unity-primary-content-export.v1", "status": "error", "reason": str(exc)}, indent=2, sort_keys=True))
         return 1
     print(json.dumps(receipt, indent=2, sort_keys=True))
     return 0 if receipt.get("status") == "complete" else 1
+
+
+def run_unity_mesh_export(args: argparse.Namespace) -> int:
+    from .unity_assets import export_mesh_derivatives
+
+    try:
+        receipt = export_mesh_derivatives(
+            install_root=args.install_root,
+            output_dir=args.out_dir,
+            data_files=args.data_file,
+            export_format=args.format,
+            max_object_mib=args.max_object_mib,
+            resume=not args.no_resume,
+        )
+    except (ImportError, OSError, ValueError) as exc:
+        receipt = {"schema": "agentdecompile.unity-mesh-derivative-export.v1", "status": "error", "reason": str(exc)}
+    print(json.dumps(receipt, indent=2, sort_keys=True))
+    return 0 if receipt.get("status") == "complete" else 1
+
+
+def run_unity_audio_decode(args: argparse.Namespace) -> int:
+    from .unity_assets import rebuild_preserved_fsb5_audio
+
+    try:
+        receipt = rebuild_preserved_fsb5_audio(args.primary_content_dir)
+    except ImportError as exc:
+        receipt = {
+            "schema": "agentdecompile.unity-fsb5-decode.v1",
+            "status": "error",
+            "reason": f"FSB5 decoder is required; install `agentdecompile[unity]`: {exc}",
+        }
+    print(json.dumps(receipt, indent=2, sort_keys=True))
+    return 0 if receipt.get("status") == "complete" else 1
+
+
+def run_unity_project_audit(args: argparse.Namespace) -> int:
+    from .unity_project_audit import audit_unity_project
+
+    try:
+        report = audit_unity_project(args.project_root)
+    except (OSError, RuntimeError, ValueError) as exc:
+        print(f"unity-project-audit: {exc}", file=sys.stderr)
+        return 2
+    if args.json:
+        print(json.dumps(report, indent=2, sort_keys=True))
+    else:
+        print(f"Project: {report['project_root']}")
+        print(f"Scan complete within supported Unity-YAML scope: {report['scan_complete']}")
+        print(f"Unity YAML files scanned: {report['scanned_yaml_files']}")
+        print(f"Assets files missing .meta: {report['asset_files_missing_meta_count']}/{report['asset_file_count']}")
+        print(f"Assets folders missing .meta: {report['folders_missing_meta_count']}/{report['folder_count_excluding_assets_root']}")
+        print(f"Indexed local meta GUIDs: {report['indexed_meta_guids']}")
+        print(f"Unresolved local-reference candidates: {report['candidate_count']}")
+        print(f"Duplicate meta GUIDs: {len(report['duplicate_meta_guids'])}")
+        for duplicate in report["duplicate_meta_guids"]:
+            print(f"  {duplicate['guid']}: {', '.join(duplicate['meta_paths'])}")
+        print(f"Orphan meta files: {len(report['orphan_meta_paths'])}; skipped files: {len(report['skipped_files'])}")
+        for path in report["orphan_meta_paths"]:
+            print(f"  Orphan meta: {path}")
+        for skipped in report["skipped_files"]:
+            print(f"  Skipped {skipped['path']}: {skipped['reason']}")
+        for error in report["walk_errors"]:
+            print(f"  Scan issue: {error}")
+        print(report["claim_boundary"])
+    return 0 if report["scan_complete"] else 1
+
+
+def run_unity_project_compare(args: argparse.Namespace) -> int:
+    from .unity_project_compare import compare_unity_projects
+
+    try:
+        report = compare_unity_projects(args.project_root, args.reference_project)
+    except (OSError, RuntimeError, ValueError) as exc:
+        print(f"unity-project-compare: {exc}", file=sys.stderr)
+        return 2
+    if args.json:
+        print(json.dumps(report, indent=2, sort_keys=True))
+    else:
+        print(f"Project: {report['project_root']}")
+        print(f"Reference exports: {len(report['reference_project_roots'])}")
+        print(f"Unresolved GUIDs: {report['unresolved_unique_guid_count']}")
+        print(f"Reference classifications: {report['classification_counts']}")
+        print(f"Project scan complete: {report['project_scan_complete']}")
+        print(f"Reference scans complete: {report['reference_scans_complete']}")
+        print("No project files were modified.")
+    return 0 if report["scan_complete"] else 1
+
+
+def run_unity_package_audit(args: argparse.Namespace) -> int:
+    from .unity_package_audit import audit_unity_packages
+
+    try:
+        report = audit_unity_packages(args.install_root, args.project_root)
+    except (OSError, RuntimeError, ValueError) as exc:
+        print(f"unity-package-audit: {exc}", file=sys.stderr)
+        return 2
+    if args.json:
+        print(json.dumps(report, indent=2, sort_keys=True))
+    else:
+        print(f"Shipped Unity install detected: {report['shippedInstallDetected']}")
+        print(f"Unity version: {report['unityVersion'] or 'unknown'}")
+        print(f"Project manifests: {len(report['projectManifests'])}")
+        print(f"Package evidence rows: {len(report['packages'])}")
+        print(f"Evidence scan complete: {report['scanCompleteness']['complete']}")
+        for package in report["packages"]:
+            print(
+                f"  {package['packageId']}: assemblies={package['mappedAssemblies']}; "
+                f"directVersions={package['directManifestVersions']}"
+            )
+        print("No package versions were inferred or selected.")
+    return 0 if report["scanCompleteness"]["complete"] else 1
+
+
+def run_unity_reference_graph(args: argparse.Namespace) -> int:
+    from .unity_reference_graph import export_reference_graph
+
+    try:
+        report = export_reference_graph(
+            args.source_file,
+            args.out_jsonl,
+            receipt_path=args.receipt,
+            resume=not args.no_resume,
+        )
+    except (OSError, RuntimeError, ValueError, ImportError) as exc:
+        print(f"unity-reference-graph: {exc}", file=sys.stderr)
+        return 2
+    if args.json:
+        print(json.dumps(report, indent=2, sort_keys=True))
+    else:
+        print(f"Unity serialized sources: {report['sourceCount']}")
+        print(
+            f"Object records: {report['objectRecordCount']} "
+            f"({report['partialObjectCount']} partial, {report['failedObjectCount']} failed)"
+        )
+        print(f"PPtr references: {report['referenceCount']}")
+        print(f"Source decode failures: {len(report['sourceFailures'])}")
+        print(f"Status: {report['status']}")
+        print(f"Graph: {report['outputJsonl']}")
+        print(f"Checkpoint: {report['checkpoint']}")
+        print(report["claimBoundary"])
+    return 0 if report["status"] == "complete" else 1
+
+
+def run_unity_reference_reconcile(args: argparse.Namespace) -> int:
+    from .unity_reference_reconcile import _receipt_path, reconcile_unity_references, write_reconciliation_report
+
+    try:
+        report = reconcile_unity_references(
+            args.project_root, args.graph_jsonl,
+            receipt_files=args.graph_receipt, path_id_map=args.path_id_map,
+        )
+        receipts = args.graph_receipt or [_receipt_path(path.resolve()) for path in args.graph_jsonl]
+        write_reconciliation_report(
+            report, args.out_json,
+            protected_inputs=[*args.graph_jsonl, *receipts, *([args.path_id_map] if args.path_id_map else [])],
+        )
+    except (OSError, ValueError, TypeError) as exc:
+        print(f"unity-reference-reconcile: {exc}", file=sys.stderr)
+        return 2
+    if args.json:
+        print(json.dumps(report, indent=2, sort_keys=True))
+    else:
+        print(json.dumps({"status": report["status"], "totals": report["totals"], "output": str(args.out_json.resolve())}, sort_keys=True))
+        print(report["claimBoundary"])
+    return 0 if report["status"] == "complete" else 1
 
 
 def run_decomp_atlas_command(args: argparse.Namespace) -> int:
@@ -1428,6 +1987,20 @@ def main(argv: list[str] | None = None, prog: str | None = None) -> int:
         return run_source_cleanup_package(args)
     if args.command == "unity-export":
         return run_unity_export(args)
+    if args.command == "unity-export-meshes":
+        return run_unity_mesh_export(args)
+    if args.command == "unity-audio-decode":
+        return run_unity_audio_decode(args)
+    if args.command == "unity-project-audit":
+        return run_unity_project_audit(args)
+    if args.command == "unity-project-compare":
+        return run_unity_project_compare(args)
+    if args.command == "unity-package-audit":
+        return run_unity_package_audit(args)
+    if args.command == "unity-reference-graph":
+        return run_unity_reference_graph(args)
+    if args.command == "unity-reference-reconcile":
+        return run_unity_reference_reconcile(args)
     if args.command == "decomp-atlas":
         return run_decomp_atlas_command(args)
     if args.command == "index-codebase":

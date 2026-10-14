@@ -585,6 +585,8 @@ class ImportExportToolProvider(ToolProvider):
                             "description": "Your local version of the file you intend to push upstream. Omit to check in all open programs that are checked out.",
                         },
                         "comment": {"type": "string", "description": "The commit message for history tracking."},
+                        "projectLocator": {"type": "string", "description": "Captured project identity; refuse a save if the native project changed."},
+                        "saveDirtyOnly": {"type": "boolean", "default": False, "description": "Save the captured open project's modified programs and verify shared revisions."},
                         "keep_checked_out": {"type": "boolean", "default": False, "description": "Whether to retain an exclusive file lock after pushing the changes."},
                         "format": {
                             "type": "string",
@@ -3677,6 +3679,65 @@ class ImportExportToolProvider(ToolProvider):
         keep_checked_out = self._get_bool(args, "keepcheckedout", default=False)
         auto_checkin_flow = self._get_bool(args, "__auto_checkin_invocation", default=False)
 
+        captured_locator = self._get_str(args, "projectlocator", default="").strip()
+        captured_server_version: int | None = None
+        if captured_locator:
+            from agentdecompile_recovery.corpus.ghidra_project import inspect_locator
+
+            captured = inspect_locator(captured_locator)
+            session = SESSION_CONTEXTS.get_or_create(get_current_mcp_session_id())
+            handle = session.project_handle or {}
+            if captured.get("kind") == "ghidra-project":
+                project = self._manager.ghidra_project if self._manager else None
+                native = project.getProject().getProjectLocator() if project is not None else None
+                actual = Path(str(native.getLocation())) / (str(native.getName()) + ".gpr") if native is not None else None
+                matches = actual is not None and actual.resolve() == Path(str(captured["gpr"])).resolve()
+            elif captured.get("kind") == "shared-project":
+                matches = (
+                    str(handle.get("server_host") or "").lower() == str(captured.get("host") or "").lower()
+                    and str(handle.get("server_port") or "") == str(captured.get("port") or "")
+                    and str(handle.get("repository_name") or "") == str(captured.get("repository") or "")
+                )
+            else:
+                matches = False
+            if not matches:
+                return create_success_response({"success": False, "error": "Captured project differs from the native owner; no save was performed."})
+            if program_path and captured.get("kind") == "shared-project":
+                captured_server_version = self._shared_repository_item_version(program_path)
+                if captured_server_version is None:
+                    return create_success_response({"success": False, "sharedPublished": False,
+                        "publicationState": "unverified-baseline",
+                        "error": "Cannot establish the captured server revision; no publication preparation was performed."})
+
+        if self._get_bool(args, "savedirtyonly", default=False) and not program_path:
+            if not captured_locator:
+                return create_success_response({"success": False, "error": "Project save requires a captured project locator."})
+            session = SESSION_CONTEXTS.get_or_create(get_current_mcp_session_id())
+            results = []
+            for path_key, info in list((session.open_programs or {}).items()):
+                program = getattr(info, "program", None)
+                if program is None:
+                    results.append({"programPath": path_key, "success": False, "error": "No native program handle"})
+                    continue
+                try:
+                    domain_file = program.getDomainFile()
+                    path = str(domain_file.getPathname())
+                    dirty = bool(program.isChanged()) or bool(domain_file.isChanged())
+                    if domain_file.isVersioned() and domain_file.isCheckedOut():
+                        dirty = dirty or bool(domain_file.modifiedSinceCheckout())
+                    if not dirty:
+                        results.append({"programPath": path, "success": True, "state": "unchanged"})
+                        continue
+                    blocks = await self._handle_checkin({**args, "programpath": path, "savedirtyonly": False}, program_info=info)
+                    receipt = json.loads(blocks[0].text)
+                    results.append({**receipt, "programPath": path})
+                except Exception as exc:
+                    results.append({"programPath": path_key, "success": False, "error": str(exc)})
+            complete = bool(results) and all(row.get("success") is True for row in results)
+            return create_success_response({"action": "save-project", "projectLocator": captured_locator,
+                                            "success": complete, "saved": False, "results": results,
+                                            "scope": "open-programs", "projectMetadataSaved": False})
+
         # Zero-arg: check in all open programs that are versioned and can be checked in
         if not program_path:
             session_id = get_current_mcp_session_id()
@@ -3925,17 +3986,14 @@ class ImportExportToolProvider(ToolProvider):
             if program_for_ops is None and program_path:
                 sid_fb = get_current_mcp_session_id()
                 session_fb = SESSION_CONTEXTS.get_or_create(sid_fb)
-                want_base = Path(program_path.replace("\\", "/")).name.lower()
+                wanted_path = "/" + program_path.replace("\\", "/").strip("/")
                 for path_key, info in list((session_fb.open_programs or {}).items()):
                     prog_fb = getattr(info, "program", None)
                     if prog_fb is None:
                         continue
-                    key_base = Path(str(path_key).replace("\\", "/")).name.lower()
-                    if want_base and key_base == want_base:
-                        program_for_ops = prog_fb
-                        break
                     try:
-                        if str(prog_fb.getName()).strip().lower() == want_base:
+                        candidate_file = prog_fb.getDomainFile()
+                        if candidate_file is not None and str(candidate_file.getPathname()) == wanted_path:
                             program_for_ops = prog_fb
                             break
                     except Exception:
@@ -3946,6 +4004,11 @@ class ImportExportToolProvider(ToolProvider):
             # flush to one handle while checkin consults another → "File has not been modified since checkout".
             # End program transactions and reclaim mismatched checkouts first; defer GhidraDomainFile consumer
             # transaction ends until after persist (see _save_domain_file_before_versioned_checkin below).
+            if captured_locator:
+                wanted = "/" + program_path.replace("\\", "/").strip("/")
+                owned_file = program_for_ops.getDomainFile() if program_for_ops is not None else None
+                if owned_file is None or str(owned_file.getPathname()) != wanted or str(domain_file.getPathname()) != wanted:
+                    return create_success_response({"success": False, "error": "Exact native program binding could not be established; save refused."})
             self._ensure_versioned_file_ready_for_checkin(
                 domain_file,
                 program_for_ops,
@@ -4083,6 +4146,8 @@ class ImportExportToolProvider(ToolProvider):
                                 "comment": comment,
                                 "keep_checked_out": keep_checked_out,
                                 "success": True,
+                                "localSaved": True,
+                                "sharedPublished": False,
                                 "note": "File is not versioned; saved locally.",
                             },
                             program_info=program_info,
@@ -4144,6 +4209,16 @@ class ImportExportToolProvider(ToolProvider):
             except Exception:
                 pass
 
+            server_version_before: int | None = captured_server_version
+            if repo_shared:
+                if server_version_before is None:
+                    server_version_before = self._shared_repository_item_version(
+                        (program_path or eff_path or "").strip() or program_display_name,
+                    )
+                if server_version_before is None:
+                    return create_success_response({"success": False, "sharedPublished": False,
+                        "publicationState": "unverified-baseline",
+                        "error": "Cannot establish the server revision before publication; retained changes were not checked in."}, program_info=program_info)
             self._save_domain_file_before_versioned_checkin(checkin_target, program_for_ops, program_info=program_info)
             self._end_open_transactions_on_domain_file_consumers(checkin_target)
             if eff_domain_file is not checkin_target:
@@ -4156,7 +4231,7 @@ class ImportExportToolProvider(ToolProvider):
                 need_vc_bump = checkin_target is not None and hasattr(checkin_target, "modifiedSinceCheckout") and not bool(checkin_target.modifiedSinceCheckout())
             except Exception:
                 need_vc_bump = False
-            if need_vc_bump:
+            if need_vc_bump and not captured_locator:
                 bump_prog = program_for_ops
                 if bump_prog is None:
                     gp_bump = getattr(self._manager, "ghidra_project", None) if self._manager else None
@@ -4188,12 +4263,6 @@ class ImportExportToolProvider(ToolProvider):
                             program_info=program_info,
                         )
 
-            # Retain the server revision check around the owner-aware save/check-in.
-            server_version_before: int | None = None
-            if repo_shared:
-                server_version_before = self._shared_repository_item_version(
-                    (program_path or eff_path or "").strip() or program_display_name,
-                )
             if program_for_ops is not None and checkin_target is not None:
                 logger.info(
                     "versioned checkin: owner save before checkin program=%s",
@@ -4365,6 +4434,10 @@ class ImportExportToolProvider(ToolProvider):
             try:
                 checkin_target.checkin(handler, GhidraTaskMonitor.DUMMY)  # pyright: ignore[reportOptionalMemberAccess]
             except Exception as checkin_exc:
+                if captured_locator:
+                    # Retain the uncertain attempt; project Save must not
+                    # synthesize annotations or blindly publish a second time.
+                    raise checkin_exc
                 if _versioned_checkin_in_use(checkin_exc):
                     logger.info(
                         "versioned checkin file-in-use; releasing consumer then retrying (program=%s)",
@@ -4388,6 +4461,8 @@ class ImportExportToolProvider(ToolProvider):
                     handler_in = GhidraDefaultCheckinHandler(comment, _keep, False)
                     checkin_target.checkin(handler_in, GhidraTaskMonitor.DUMMY)  # pyright: ignore[reportOptionalMemberAccess]
                 elif _versioned_checkin_not_modified(checkin_exc):
+                    if captured_locator:
+                        raise checkin_exc
                     logger.warning(
                         "versioned checkin reported not-modified; bumping on still-open program then retry (program=%s)",
                         program_display_name,
@@ -4550,14 +4625,11 @@ class ImportExportToolProvider(ToolProvider):
                     "comment": comment,
                     "keep_checked_out": keep_checked_out,
                     "version": local_latest,
-                    "serverVersion": (
-                        self._shared_repository_item_version(
-                            (program_path or eff_path or "").strip() or program_display_name,
-                        )
-                        if repo_shared
-                        else None
-                    ),
-                    "success": True,
+                    "serverVersion": server_version_after if repo_shared else None,
+                    "localSaved": True,
+                    "sharedPublished": bool(repo_shared and server_version_before is not None and server_version_after is not None and server_version_after > server_version_before),
+                    "publicationState": "unknown" if repo_shared and (server_version_before is None or server_version_after is None) else "verified" if repo_shared else "local-only",
+                    "success": not repo_shared or (server_version_before is not None and server_version_after is not None and server_version_after > server_version_before),
                 },
                 program_info=program_info,
             )

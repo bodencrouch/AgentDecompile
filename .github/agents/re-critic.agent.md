@@ -1,6 +1,6 @@
 ---
 name: "RE Critic"
-description: "Use when: validating reverse engineering findings, challenging function analysis, detecting inconsistencies in type inference, verifying cross-reference claims, adversarial review of decompilation artifacts. Forces justification and lowers confidence on unsupported claims."
+description: "Use when: challenging reverse-engineering evidence across related binaries, including cross-match identity, source claims, types/ABI, event arguments, and bounded function artifacts. Validate support and safety; reject unsupported certainty."
 tools: [read, search, agdec-mcp/*]
 user-invocable: false
 agents: []

@@ -595,10 +595,10 @@ class ProjectToolProvider(ToolProvider):
                         "mergeMode": {
                             "type": "string",
                             "enum": ["overwrite_existing", "skip_existing", "new_only"],
-                            "default": "overwrite_existing",
+                            "default": "skip_existing",
                             "description": (
-                                "overwrite_existing (default): copy all domain files, replacing existing程序 in the original; "
-                                "skip_existing: copy only files not already in the original; "
+                                "skip_existing (default): retain existing analysis as an unresolved alternative; "
+                                "overwrite_existing is no longer supported without native conflict reconciliation; "
                                 "new_only: alias for skip_existing."
                             ),
                         },
@@ -1065,13 +1065,10 @@ class ProjectToolProvider(ToolProvider):
     async def _handle_reintegrate_fallback_projects(self, args: dict[str, Any], *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
         """Merge fallback projects back into the original project."""
         logger.debug("diag.enter %s", "mcp_server/providers/project.py:ProjectToolProvider._handle_reintegrate_fallback_projects")
-        import shutil as _shutil  # noqa: PLC0415
-
         from datetime import datetime, timezone  # noqa: PLC0415
 
         from agentdecompile_cli.launcher import (  # noqa: PLC0415
             _iter_domain_items,
-            _patch_project_owner,
             _read_fallback_origins,
             _write_fallback_origins,
         )
@@ -1100,10 +1097,14 @@ class ProjectToolProvider(ToolProvider):
                 next_steps=["Pass originalProjectName='my_project' as an argument."],
             )
 
-        merge_mode: str = (self._get_str(args, "mergemode") or "overwrite_existing").lower()
+        merge_mode: str = (self._get_str(args, "mergemode") or "skip_existing").lower()
         if merge_mode in ("new_only", "newonly"):
             merge_mode = "skip_existing"
         delete_after: bool = self._get_bool(args, "deleteaftermerge", default=False)
+        if merge_mode != "skip_existing":
+            raise ValueError("Whole-program overwrite is unsafe; use conservative reconciliation instead.")
+        if delete_after:
+            raise ValueError("Fallback projects must be retained until reconciliation is independently verified.")
         dry_run: bool = self._get_bool(args, "dryrun", default=False)
         requested_fallbacks: list[str] = [str(v) for v in (self._get_list(args, "fallbackprojectnames") or []) if v]
 
@@ -1147,11 +1148,12 @@ class ProjectToolProvider(ToolProvider):
                 "skipped": 0,
                 "failed": 0,
                 "errors": [],
+                "alternatives": [],
             }
             try:
-                _patch_project_owner(str(projects_dir), fallback_name)
                 fb_proj = _GhidraProject.openProject(str(projects_dir), fallback_name, False)
             except Exception as exc:
+                fb_summary["failed"] += 1
                 fb_summary["errors"].append(f"Failed to open fallback project: {exc}")
                 summary.append(fb_summary)
                 continue
@@ -1176,6 +1178,11 @@ class ProjectToolProvider(ToolProvider):
 
                     if already_exists and merge_mode == "skip_existing":
                         fb_summary["skipped"] += 1
+                        fb_summary["alternatives"].append({
+                            "programPath": file_path,
+                            "sourceProject": fallback_name,
+                            "state": "native-comparison-required",
+                        })
                         continue
 
                     if dry_run:
@@ -1188,7 +1195,7 @@ class ProjectToolProvider(ToolProvider):
                     try:
                         domain_obj = domain_file.getDomainObject(None, True, False, TaskMonitor.DUMMY)
                         try:
-                            ghidra_project.saveAs(domain_obj, parent_path, file_name, True)
+                            ghidra_project.saveAs(domain_obj, parent_path, file_name, False)
                             fb_summary["copied"] += 1
                         finally:
                             try:
@@ -1206,21 +1213,12 @@ class ProjectToolProvider(ToolProvider):
 
             # Update manifest
             if not dry_run:
-                data[fallback_name]["reintegrated"] = True
-                data[fallback_name]["reintegrated_at"] = datetime.now(timezone.utc).isoformat()
+                complete = fb_summary["failed"] == 0 and fb_summary["skipped"] == 0
+                data[fallback_name]["reintegrated"] = complete
+                data[fallback_name]["reconciliation"] = fb_summary
+                if complete:
+                    data[fallback_name]["reintegrated_at"] = datetime.now(timezone.utc).isoformat()
                 _write_fallback_origins(projects_dir, data)
-
-                if delete_after and fb_summary["failed"] == 0:
-                    try:
-                        rep_path = projects_dir / f"{fallback_name}.rep"
-                        gpr_path = projects_dir / f"{fallback_name}.gpr"
-                        if rep_path.is_dir():
-                            _shutil.rmtree(rep_path, ignore_errors=True)
-                        if gpr_path.exists():
-                            gpr_path.unlink(missing_ok=True)
-                        fb_summary["deleted"] = True
-                    except Exception as exc:
-                        fb_summary["deleteError"] = str(exc)
 
             summary.append(fb_summary)
 

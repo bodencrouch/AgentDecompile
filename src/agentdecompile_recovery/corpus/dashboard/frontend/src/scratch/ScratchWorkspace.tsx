@@ -7,7 +7,7 @@ import { candidateHash, loadScratches, presetCompatible, resultBelongs, saveScra
 import "./scratch.css";
 import { ScratchEditor } from "./ScratchEditor";
 
-type Props = { selection: Selection; revision: number; catalog: Data[]; notify: Notify; onSelect: (patch: Partial<Selection>) => void; onMatchCandidate?: (params: Data, capturedSelection?: Selection) => void; matchingJobId?: string; createNonce?: number; active?: boolean };
+type Props = { selection: Selection; revision: number; catalog: Data[]; notify: Notify; onSelect: (patch: Partial<Selection>) => void; onMatchCandidate?: (params: Data, capturedSelection?: Selection) => void; matchingJobId?: string; createNonce?: number; active?: boolean; onCreatingChange?: (creating: boolean) => void };
 const terminal = new Set(["ok", "failed", "cancelled", "interrupted", "blocked"]);
 const message = (e: unknown) => e instanceof Error ? e.message : String(e);
 const sha = /^[a-f0-9]{64}$/;
@@ -17,21 +17,39 @@ function download(s: Scratch, c = false) {
   a.click(); window.setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 const blankForm = () => ({ title: "Untitled scratch", platform: "", preset: "", symbol: "", target: "", context: "", source: "", targetRevision: "", bind: false });
-export function ScratchWorkspace({ selection, revision, catalog, notify, onSelect, onMatchCandidate, matchingJobId = "", createNonce = 0, active: isActive = true }: Props) {
+export function ScratchWorkspace({ selection, revision, catalog, notify, onSelect, onMatchCandidate, matchingJobId = "", createNonce = 0, active: isActive = true, onCreatingChange }: Props) {
   const [scratches, setScratches] = useState<Scratch[]>([]), [selected, setSelected] = useState("");
   const [ready, setReady] = useState(false), [creating, setCreating] = useState(false), [tab, setTab] = useState("source");
   const [outputTab, setOutputTab] = useState("compilation");
   const [saving, setSaving] = useState("Loading local scratches…"), [error, setError] = useState("");
   const [storageWarnings, setStorageWarnings] = useState<string[]>([]);
   const [library, setLibrary] = useState<Data[]>([]), [providerError, setProviderError] = useState("");
+  const [autoTarget, setAutoTarget] = useState("");
+  const [autoTargetLoading, setAutoTargetLoading] = useState(false);
   const [attempt, setAttempt] = useState<{ id: string; revision: number; hash: string; previousJob: string } | null>(null);
   const [job, setJob] = useState<Data>({}), [hashing, setHashing] = useState(false);
   const saveSequence = useRef(0), nonce = useRef(createNonce), importSequence = useRef(0);
+  const titleInput = useRef<HTMLInputElement>(null);
+  const lastNotifiedCreating = useRef(creating);
   const active = scratches.find(s => s.id === selected);
   const current = useRef(active); current.current = active;
   const provider = matchingProvider(catalog);
   const [seed, setSeed] = useState<Selection>({ ...selection }), [form, setForm] = useState(blankForm);
+  useEffect(() => {
+    if (lastNotifiedCreating.current === creating) return;
+    lastNotifiedCreating.current = creating;
+    onCreatingChange?.(creating);
+  }, [creating, onCreatingChange]);
+  useEffect(() => {
+    if (creating) titleInput.current?.focus({ preventScroll: true });
+  }, [creating, createNonce]);
   const discoveryLocator = creating ? seed.locator : active?.binding?.selection.locator ?? seed.locator;
+  const seedBinary = library.find(binary => seed.binaryHash && binary.sha256 === seed.binaryHash)
+    || library.find(binary => seed.slug && binary.slug === seed.slug)
+    || library.find(binary => seed.program && binary.program === seed.program);
+  const seedHash = seed.binaryHash || String(seedBinary?.sha256 || "");
+  const seedPlatform = String(seedBinary?.platform || seedBinary?.architecture || seedBinary?.format || "");
+  const seedName = String(seedBinary?.name || seedBinary?.program || seed.program || seed.slug || "");
   function presets(hash: string): string[] {
     const matching = library.find(b => b.sha256 === hash)?.coverage?.matchingPreset;
     const ids = Array.isArray(matching?.ids) ? matching.ids.filter((id: unknown): id is string => typeof id === "string") : [];
@@ -45,23 +63,41 @@ export function ScratchWorkspace({ selection, revision, catalog, notify, onSelec
     return (preset?.targets || []).filter((t: Data) => t && typeof t.function === "string"
       && /^[A-Za-z_][A-Za-z0-9_@$?]*$/.test(t.function) && typeof t.targetRevision === "string" && sha.test(t.targetRevision));
   }
-  const selectedPreset = descriptors(seed.binaryHash || "").find(p => p.id === form.preset);
+  const selectedPreset = descriptors(seedHash).find(p => p.id === form.preset);
   const configuredTargets = targets(selectedPreset);
   const compatiblePresetIds = active?.binding ? presets(active.binding.artifactHash).filter(id => {
     const descriptor = descriptors(active.binding!.artifactHash).find(p => p.id === id);
     return descriptor ? presetCompatible(active, descriptor) : id === active.preset;
   }) : [];
   function choosePreset(id: string) {
-    const preset = descriptors(seed.binaryHash || "").find(p => p.id === id);
+    const preset = descriptors(seedHash).find(p => p.id === id);
     const matchingTarget = targets(preset).find(t => t.function === form.symbol || t.symbol === form.symbol);
     setForm(f => ({ ...f, preset: id, platform: typeof preset?.platform === "string" && preset.platform ? preset.platform : f.platform,
       symbol: preset ? matchingTarget?.function || "" : f.symbol,
       targetRevision: matchingTarget?.targetRevision || "" }));
   }
-  function begin() { importSequence.current++; setSeed({ ...selection }); setCreating(true); setError(""); setForm({ ...blankForm(), symbol: selection.logicalId || "" }); }
+  function begin() {
+    importSequence.current++;
+    setSeed({ ...selection });
+    setCreating(true);
+    setError("");
+    setAutoTarget("");
+    setAutoTargetLoading(false);
+    const binary = library.find(row => selection.binaryHash && row.sha256 === selection.binaryHash)
+      || library.find(row => selection.slug && row.slug === selection.slug)
+      || library.find(row => selection.program && row.program === selection.program);
+    const hash = selection.binaryHash || String(binary?.sha256 || "");
+    const ids = presets(hash);
+    setForm({ ...blankForm(),
+      title: selection.addr ? `Function at ${selection.addr}` : (binary?.name || binary?.program || selection.program || selection.slug) ? `${binary?.name || binary?.program || selection.program || selection.slug} scratch` : "Untitled scratch",
+      platform: String(binary?.platform || binary?.architecture || binary?.format || ""),
+      preset: ids.length === 1 ? ids[0] : "",
+      symbol: "",
+    });
+  }
   useEffect(() => {
     let live = true;
-    void loadScratches().then(({ scratches: rows, warnings }) => { if (live) { setScratches(rows); setStorageWarnings(warnings); setSelected(rows[0]?.id || ""); setCreating(!rows.length || createNonce > 0); setSaving(warnings.length ? "Storage warnings — review retained records" : "Saved locally"); } })
+    void loadScratches().then(({ scratches: rows, warnings }) => { if (live) { setScratches(rows); setStorageWarnings(warnings); setSelected(rows[0]?.id || ""); setCreating(!rows.length || createNonce > 0); if (!rows.length || createNonce > 0) begin(); setSaving(warnings.length ? "Storage warnings — review retained records" : "Saved locally"); } })
       .catch(e => { if (live) { setError(message(e)); setSaving("Storage unavailable — download drafts"); setCreating(true); } }).finally(() => { if (live) setReady(true); });
     return () => { live = false; };
   }, []);
@@ -73,6 +109,42 @@ export function ScratchWorkspace({ selection, revision, catalog, notify, onSelec
       .catch(e => { if (live) setProviderError(`Configured preset discovery unavailable: ${message(e)}`); });
     return () => { live = false; };
   }, [discoveryLocator, revision, isActive]);
+  useEffect(() => {
+    if (!creating || !seed.addr) return;
+    let live = true;
+    const sequence = ++importSequence.current;
+    setAutoTargetLoading(true);
+    void request(`${API}/function?${query(seed)}`).then(raw => {
+      if (!live || sequence !== importSequence.current) return;
+      const data = raw.listing ? { ...raw, ...raw.listing, function: raw.selected } : raw;
+      const assembly = data.assembly?.text || data.disassembly?.text;
+      if (!assembly) { setAutoTarget("Selected function has no recorded assembly yet; a draft can still be created."); return; }
+      const functionName = String(data.name || data.function?.name || "");
+      setForm(f => {
+        const preset = descriptors(seedHash).find(p => p.id === f.preset);
+        const matchingTarget = targets(preset).find(t => t.function === functionName || t.symbol === functionName);
+        return { ...f, target: f.target.trim() ? f.target : String(assembly),
+          symbol: f.symbol || (preset ? matchingTarget?.function || "" : functionName),
+          targetRevision: f.targetRevision || matchingTarget?.targetRevision || "" };
+      });
+      setAutoTarget(`Loaded assembly from ${functionName || seed.addr}.`);
+    }).catch(error => {
+      if (live && sequence === importSequence.current) setAutoTarget(`Assembly could not be loaded automatically: ${message(error)}`);
+    }).finally(() => { if (live && sequence === importSequence.current) setAutoTargetLoading(false); });
+    return () => { live = false; };
+  }, [creating, seed.addr, seed.binaryHash, seed.locator, seed.program, seed.slug, seedHash]);
+  useEffect(() => {
+    if (!creating) return;
+    setForm(current => {
+      const presetIds = presets(seedHash);
+      const preset = !current.preset && presetIds.length === 1 ? descriptors(seedHash).find(row => row.id === presetIds[0]) : undefined;
+      const target = targets(preset).find(row => row.function === current.symbol || row.symbol === current.symbol);
+      const platform = current.platform || (typeof preset?.platform === "string" ? preset.platform : seedPlatform);
+      if (current.preset || (!preset && platform === current.platform)) return current;
+      return { ...current, preset: preset?.id || current.preset, platform,
+        symbol: current.symbol || target?.function || "", targetRevision: current.targetRevision || target?.targetRevision || "" };
+    });
+  }, [creating, library, seedHash, seedPlatform]);
   useEffect(() => {
     if (!attempt || !matchingJobId || matchingJobId === attempt.previousJob) return;
     let live = true; let timer = 0;
@@ -102,7 +174,7 @@ export function ScratchWorkspace({ selection, revision, catalog, notify, onSelec
       if (!assembly) throw new Error("No recorded assembly. Paste target assembly to continue.");
       const functionName = String(data.name || data.function?.name || "");
       setForm(f => {
-        const preset = descriptors(seed.binaryHash || "").find(p => p.id === f.preset);
+        const preset = descriptors(seedHash).find(p => p.id === f.preset);
         const matchingTarget = targets(preset).find(t => t.function === functionName || t.symbol === functionName);
         return { ...f, target: String(assembly), symbol: preset ? f.symbol || matchingTarget?.function || "" : functionName || f.symbol,
           targetRevision: preset && f.symbol ? f.targetRevision : matchingTarget?.targetRevision || f.targetRevision };
@@ -110,15 +182,15 @@ export function ScratchWorkspace({ selection, revision, catalog, notify, onSelec
     } catch (e) { if (sequence === importSequence.current) setError(message(e)); }
   }
   function create() {
-    if (!form.title.trim() || !form.target.trim() || !form.platform.trim()) { setError("Title, platform, and target assembly are required."); return; }
+    if (!form.title.trim()) { setError("Give this scratch a title before creating it."); return; }
     const configuredTarget = configuredTargets.find(t => t.function === form.symbol);
     if (form.bind && selectedPreset && (!configuredTarget || configuredTarget.targetRevision !== form.targetRevision)) {
       setError("Select a valid configured target function from this preset before binding."); return;
     }
-    if (form.bind && (!sha.test(seed.binaryHash || "") || !seed.addr || !sha.test(form.targetRevision) || !presets(seed.binaryHash || "").includes(form.preset) || !/^[A-Za-z_][A-Za-z0-9_@$?]*$/.test(form.symbol))) {
+    if (form.bind && (!sha.test(seedHash) || !seed.addr || !sha.test(form.targetRevision) || !presets(seedHash).includes(form.preset) || !/^[A-Za-z_][A-Za-z0-9_@$?]*$/.test(form.symbol))) {
       setError("Binding requires a selected binary/function, configured preset, safe function symbol, and preset target-object SHA-256."); return;
     }
-    const s: Scratch = { schema: 1, id: crypto.randomUUID(), revision: 0, title: form.title.trim(), platform: form.platform, preset: form.preset, symbol: form.symbol, target: form.target, context: form.context, source: form.source, createdAt: new Date().toISOString(), binding: form.bind ? { selection: { ...seed }, artifactHash: seed.binaryHash!, targetRevision: form.targetRevision } : null };
+    const s: Scratch = { schema: 1, id: crypto.randomUUID(), revision: 0, title: form.title.trim(), platform: form.platform, preset: form.preset, symbol: form.symbol, target: form.target, context: form.context, source: form.source, createdAt: new Date().toISOString(), binding: form.bind ? { selection: { ...seed }, artifactHash: seedHash, targetRevision: form.targetRevision } : null };
     importSequence.current++; setScratches(rows => [...rows, s]); setSelected(s.id); setCreating(false); setTab("source"); setAttempt(null); setJob({}); persist(s);
   }
   const result = parseMatchPayload(job), sameDraft = active && attempt && active.id === attempt.id && active.revision === attempt.revision;
@@ -163,28 +235,33 @@ export function ScratchWorkspace({ selection, revision, catalog, notify, onSelec
     {error && <p role="alert">{error} {active && <button onClick={() => download(active)}>Download unsaved scratch</button>}</p>}
     {!error && jobStarted && (attributableError || validResult && result.error || job.error) && <p role="alert">{String(attributableError || validResult && result.error || job.error)}</p>}
     {storageWarnings.length > 0 && <details className="scratch-storage-warnings"><summary role="alert">Storage warnings ({storageWarnings.length}) — healthy drafts remain available</summary><ul>{storageWarnings.map((warning, i) => <li key={i}>{warning}</li>)}</ul></details>}
-    {creating ? <form className="scratch-create" onSubmit={e => { e.preventDefault(); create(); }}><h2>New scratch</h2>
-      <div className="scratch-fields">
-        <label>Title<input required value={form.title} onChange={e => setForm({ ...form, title: e.target.value })}/></label>
-        <label>Platform<input required list="scratch-platforms" value={form.platform} onChange={e => setForm({ ...form, platform: e.target.value })}/></label>
-        <datalist id="scratch-platforms">{[...new Set(library.map(b => b.platform).filter(v => typeof v === "string" && v))].map(p => <option key={p} value={p}/>)}</datalist>
-        <label>Compiler preset<select value={form.preset} onChange={e => choosePreset(e.target.value)}><option value="">No configured preset selected</option>{presets(seed.binaryHash || "").map(id => <option key={id} value={id}>{descriptors(seed.binaryHash || "").find(p => p.id === id)?.label || id}</option>)}</select></label>
-        {selectedPreset ? <label>Configured target function<select value={form.symbol} onChange={e => {
-          const target = configuredTargets.find(t => t.function === e.target.value);
-          setForm({ ...form, symbol: target?.function || "", targetRevision: target?.targetRevision || "" });
-        }}><option value="">Choose target function explicitly</option>{configuredTargets.map(t => <option key={t.function} value={t.function}>{t.function}{t.symbol && t.symbol !== t.function ? ` → ${t.symbol}` : ""}</option>)}</select></label>
-          : <label>Diff label / function symbol<input value={form.symbol} onChange={e => setForm({ ...form, symbol: e.target.value })}/></label>}
-      </div>
-      <p>Platform is descriptive metadata. A registered action alone does not mean a compiler is configured. Only presets advertised for the captured binary can compile. {providerError}</p>
-      <label className="scratch-check"><input type="checkbox" checked={form.bind} disabled={!sha.test(seed.binaryHash || "") || !seed.addr} onChange={e => setForm({ ...form, bind: e.target.checked })}/>Bind selected target function to captured binary {seed.program}</label>
-      {form.bind && <p>Analysis context: {seed.program} {seed.addr}. Compilation target: {form.symbol || "choose a configured function"}. Selecting a configured function explicitly chooses the compilation target, which may differ from this analysis context. Assembly below is reference text.</p>}
-      {form.bind && (selectedPreset ? <p>Target-object revision from configured preset: <code>{form.targetRevision || "Choose a target function"}</code></p>
-        : <details><summary>Advanced: legacy preset target revision</summary><label>Preset target-object SHA-256<input pattern="[a-f0-9]{64}" value={form.targetRevision} onChange={e => setForm({ ...form, targetRevision: e.target.value.trim().toLowerCase() })}/><small>This legacy server returned no target descriptors. Copy the configured preset target's SHA-256; the server validates it before compilation. Function evidence revisions are not target-object hashes.</small></label></details>)}
-      {seed.addr && <button type="button" onClick={() => void importTarget()}>Load captured function assembly</button>}
-      <label>Target assembly (required)<textarea required spellCheck={false} value={form.target} onChange={e => { importSequence.current++; setForm({ ...form, target: e.target.value }); }}/></label>
-      <label>Context (optional)<textarea spellCheck={false} value={form.context} onChange={e => setForm({ ...form, context: e.target.value })}/></label>
-      <label>Candidate C source<textarea spellCheck={false} value={form.source} onChange={e => setForm({ ...form, source: e.target.value })}/></label>
-      <div><button type="submit">Create scratch</button>{active && <button type="button" onClick={() => { importSequence.current++; setCreating(false); }}>Cancel</button>}</div>
+    {creating ? <form className="scratch-create" onSubmit={e => { e.preventDefault(); create(); }}>
+      <header className="scratch-create-heading"><div><p className="muted">Local draft · saved in this browser</p><h2>Start a scratch</h2></div><span>Comparison setup is optional</span></header>
+      <section className="scratch-start-summary" aria-label="Scratch starting context"><div><small>Starting from</small><strong>{seedName || "No binary selected"}</strong><span>{seed.addr ? `${seed.logicalId || "Selected function"} · ${seed.addr}` : "You can add a binary or function later"}</span></div><p>Write first, or attach a configured compiler target when you are ready to compare.</p></section>
+      <label>Scratch title<input ref={titleInput} required value={form.title} onChange={e => setForm({ ...form, title: e.target.value })}/></label>
+      <label className="scratch-primary-source">Candidate C source<textarea spellCheck={false} placeholder="Start writing C, or create the draft and use the editor." value={form.source} onChange={e => setForm({ ...form, source: e.target.value })}/></label>
+      <details className="scratch-target-setup" open={Boolean(seed.addr)}><summary>Set up target comparison <small>Optional · exact build and compiler configuration</small></summary>
+        <div className="scratch-fields">
+          <label>Platform metadata<input list="scratch-platforms" value={form.platform} placeholder={seedPlatform || "Auto-detected when available"} onChange={e => setForm({ ...form, platform: e.target.value })}/></label>
+          <datalist id="scratch-platforms">{[...new Set(library.map(b => b.platform).filter(v => typeof v === "string" && v))].map(p => <option key={p} value={p}/>)}</datalist>
+          <label>Compiler preset<select value={form.preset} onChange={e => choosePreset(e.target.value)}><option value="">Choose only if advertised for this binary</option>{presets(seedHash).map(id => <option key={id} value={id}>{descriptors(seedHash).find(p => p.id === id)?.label || id}</option>)}</select></label>
+          {selectedPreset ? <label>Configured target function<select value={form.symbol} onChange={e => {
+            const target = configuredTargets.find(t => t.function === e.target.value);
+            setForm({ ...form, symbol: target?.function || "", targetRevision: target?.targetRevision || "" });
+          }}><option value="">Choose a configured function</option>{configuredTargets.map(t => <option key={t.function} value={t.function}>{t.function}{t.symbol && t.symbol !== t.function ? ` → ${t.symbol}` : ""}</option>)}</select></label>
+            : <label>Diff label / function symbol<input value={form.symbol} onChange={e => setForm({ ...form, symbol: e.target.value })}/></label>}
+        </div>
+        <p>Platform is descriptive metadata. A compiler is usable only when a compatible preset is advertised for the exact captured binary. {providerError}</p>
+        <label className="scratch-check"><input type="checkbox" checked={form.bind} disabled={!sha.test(seedHash) || !seed.addr} onChange={e => setForm({ ...form, bind: e.target.checked })}/>Bind this selected function to its exact binary target{seed.program ? ` · ${seed.program}` : ""}</label>
+        {form.bind && <p>Analysis context: {seed.program || seed.slug} {seed.addr}. Compilation target: {form.symbol || "choose a configured function"}. This binding is what permits exact compiler comparison.</p>}
+        {form.bind && (selectedPreset ? <p>Target-object revision: <code>{form.targetRevision || "Choose a configured function"}</code></p>
+          : <details><summary>Advanced: legacy target-object revision</summary><label>Target-object SHA-256<input pattern="[a-f0-9]{64}" value={form.targetRevision} onChange={e => setForm({ ...form, targetRevision: e.target.value.trim().toLowerCase() })}/><small>Only use a configured target-object hash. Function-evidence revisions are not target-object hashes.</small></label></details>)}
+        {seed.addr && <p className="scratch-auto-target" role="status">{autoTargetLoading ? "Loading selected function assembly…" : autoTarget || (form.target ? "Selected function assembly is ready." : "You can paste assembly if it is not available." )} <button type="button" onClick={() => void importTarget()}>Load again</button></p>}
+        <label>Target assembly <small>Reference text; the captured target-object revision is the comparison authority.</small><textarea spellCheck={false} placeholder="Automatically loaded for a selected function, or paste it here." value={form.target} onChange={e => { importSequence.current++; setForm({ ...form, target: e.target.value }); }}/></label>
+        <label>Context to prepend (optional)<textarea spellCheck={false} value={form.context} onChange={e => setForm({ ...form, context: e.target.value })}/></label>
+      </details>
+      <p className="scratch-create-note">A draft can be created without platform, target assembly, or a compiler. Compile &amp; compare appears only after you explicitly bind a compatible configured target.</p>
+      <div className="scratch-create-actions"><button type="submit">Create scratch and open editor</button><button type="button" onClick={() => { importSequence.current++; setCreating(false); }}>{active ? "Keep current scratch" : "Return to match review"}</button></div>
     </form> : active ? <>
       <div className="scratch-toolbar scratch-settings-bar"><label>Platform<input value={active.platform} onChange={e => edit({ platform: e.target.value })}/></label>
         <label>Compiler preset<select value={active.preset} onChange={e => edit({ preset: e.target.value })}><option value="">No configured preset</option>{[...new Set([active.preset, ...compatiblePresetIds])].filter(Boolean).map(id => <option key={id} disabled={!compatiblePresetIds.includes(id)}>{id}</option>)}</select></label>

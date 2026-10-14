@@ -1,21 +1,34 @@
 # Recovery critical path
 
-Current operations use the existing 8080 workbench and `GET /api/v1/actions`
-under [AGENTS.md](../AGENTS.md). This page retains single-binary implementation
-CLI/checkpoint reference; do not use it to bypass catalog ownership, regenerate
-valid evidence, or run filesystem tests in the current recovery mission.
+Current recovery operations use the checkout-pinned
+`/home/brunner56/agentdecompile-nvme/AgentDecompile/.venv/bin/agentdecompile-cli`
+frontdoor. Static 8080 and Vite 5174 frontend work is deferred; do not use either
+as the recovery control surface. See [AGENTS.md](../AGENTS.md) for operation,
+resource and verification rules. This document retains the single-target
+implementation and checkpoint reference; do not regenerate valid evidence or
+run filesystem tests in the current recovery mission.
 [STRATEGY.md](../STRATEGY.md) owns matcher order, resource admission and terminal
 fresh whole-image acceptance for separately measured C+assembly-floor and max-C
 variants. [Runtime reuse](RUNTIME_REUSE.md) is a parallel capability, not source proof.
 
 The **main multi-binary recovery path** is the corpus pipeline
-([CORPUS_PIPELINE.md](CORPUS_PIPELINE.md)): extract → identify →
-calibrate-global → assembly-floor → recover-source → apply-cross-build →
-leftover-recover → verify → fresh whole-image identity (terminal goal, not a claimed checkpoint verb). CLI: `agentdecompile-corpus` (also
-`agentdecompile-cli corpus`). `--stop-after compile` still means
-stop after donor C compiles (`recover-source`). Open an already-analyzed
-Ghidra project and reuse that analysis. Do not re-run `analyze-program`
-unless the program has none.
+([CORPUS_PIPELINE.md](CORPUS_PIPELINE.md)): extract actual program bytes and
+existing analysis from the selected local/shared Ghidra project; identify builds
+and logical entities; calibrate compiler/ABI; establish an explicit assembly
+floor; recover and compile C/C++; cross-match and propagate only compatible
+findings; repair measured residue; then verify function and whole-image claims.
+Use the checkout-pinned `agentdecompile-cli corpus` commands. A local/shared
+Ghidra project is the primary target source when it contains the image; a
+detached executable is not a prerequisite. Reuse existing analysis; do not
+rerun `analyze-program` unless the selected program has none.
+
+Important distinction: `agentdecompile-cli corpus run` executes the snapshot
+contract and does not itself launch Ghidra bulk decompilation. It is not a
+complete substitute for Ghidra-backed `ghidra-bulk`/decompile, cross-pair
+matching, compile/objdiff verification, export branches or a fresh whole-image
+receipt. `--stop-after compile` aliases `recover-source`; it does not prove byte
+equality. Run only resumable stages whose inputs, outputs and resource owners
+have been checked.
 
 Packed Windows PE targets still use a **bounded checkpoint loop** inside
 `agentdecompile-cli reconstruct` for a single binary. There is no separate
@@ -64,6 +77,17 @@ That is not a `--stop-after` stage and there is no standalone `vacuum` command.
 | (autonomous) | `state/proof-campaign-history.jsonl` | One row per campaign iteration inside a loop |
 | `generate-source-candidates` | `source-generation/summary.json` | Decompiler-fact tasks |
 | `synthesize-source-tasks` | `source-synthesis/summary.json` | Compile + objdiff verification |
+
+For deliberate source-synthesis recovery, the canonical reconstruct pipeline
+accepts repeatable `--diagnostic-priority-state <byteexact-cache-v3.json>` inputs
+and binds them to its verified target image. Resume identity includes each
+state-file content hash. The lower-level `agentdecompile-recover source-parity-synthesize`
+verb also accepts this option, but requires explicit
+`--target-sha`. Only target-bound source-task rows with matching full-image
+hash, function address, target-region hash, and size can be prioritized.
+Historical local matches remain scheduling hints: they never skip a fresh
+compile/objdiff attempt or enter the accepted/match cache. Do not use a cache
+state from another binary identity.
 
 ## Generic dump walkthrough
 

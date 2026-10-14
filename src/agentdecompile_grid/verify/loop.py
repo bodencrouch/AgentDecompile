@@ -44,7 +44,7 @@ import secrets
 from dataclasses import dataclass, field, replace
 from typing import Any, Callable, Mapping, Sequence
 
-from ..core import TASK_KINDS, VERIFIERS, Frontier, LogStore, NodeIdentity, RecordType, Refused, TaskSpec, VerificationOutcome, canonical_json
+from ..core import TASK_KINDS, VERIFIERS, Frontier, GridError, LogStore, NodeIdentity, RecordType, Refused, TaskSpec, VerificationOutcome, canonical_json, check_basis_projection
 from ..worker.identity import ROLE_MAY_VERIFY
 from ..worker.loop import Candidate, Slot, StepEvent, StepMachine, WorkerConfig
 from ..worker.outbox import PendingRecord
@@ -134,6 +134,11 @@ class VerifierLoop(StepMachine):
                 self._skip("basis-not-admitted")
                 continue
             try:
+                check_basis_projection(kinds[spec.kind], spec)          # U158: verify refuses a projection mismatch by name
+            except Refused as exc:
+                self._skip(exc.reason.split(":", 1)[0])
+                continue
+            try:
                 deadline = deadline_for(spec, self.config.deadlines_s)
             except Refused:
                 self._skip("budget-unbounded")
@@ -220,7 +225,7 @@ class VerifierLoop(StepMachine):
             return StepEvent(note, {**detail, "status": outcome.status})
         try:
             verification = verification_from_record(outcome.payload)
-        except (KeyError, ValueError):
+        except (KeyError, ValueError, GridError):
             self._cooloff[key] = now + self.config.cooloff_s
             self._note(spec, "verify-error", {**detail, "error_class": "verification-unparseable"})
             return StepEvent("verify-error", {**detail, "status": "unparseable"})

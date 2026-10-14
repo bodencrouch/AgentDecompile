@@ -21,8 +21,8 @@ EOF
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 OUT="$ROOT/target/compiler-profile"
-VC71_ROOT="${VC71_ROOT:-$ROOT/target/toolchain-acquire/vctoolkit2003/msitools-extract/Program Files/Microsoft Visual C++ Toolkit 2003}"
-VC80_ROOT="${VC80_ROOT:-/run/media/brunner56/MyBook/Toolchains/msvc8.0-main}"
+VC71_ROOT="${VC71_ROOT:-$ROOT/target/toolchain-acquire/vctoolkit2003/installed-nvme/VC7.1}"
+VC80_ROOT="${VC80_ROOT:-}"
 WINEPREFIX="${WINEPREFIX:-$ROOT/target/toolchain-acquire/vctoolkit2003/wineprefix}"
 
 cases=()
@@ -72,10 +72,12 @@ if [[ -f "$VC71_ROOT/bin/cl.exe" ]]; then
 else
   echo "warning: skipping vc71; cl.exe not found at $VC71_ROOT/bin/cl.exe" >&2
 fi
-if [[ -f "$VC80_ROOT/bin/cl.exe" ]]; then
+if [[ -n "$VC80_ROOT" && -f "$VC80_ROOT/bin/cl.exe" ]]; then
   profiles+=("vc80|$VC80_ROOT")
-else
+elif [[ -n "$VC80_ROOT" ]]; then
   echo "warning: skipping vc80; cl.exe not found at $VC80_ROOT/bin/cl.exe" >&2
+else
+  echo "info: skipping vc80; set VC80_ROOT to opt in" >&2
 fi
 
 if [[ "${#profiles[@]}" -eq 0 ]]; then

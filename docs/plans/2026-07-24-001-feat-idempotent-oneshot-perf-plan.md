@@ -2,7 +2,7 @@
 title: "feat: One-shot recovery performance and proof gate fixes"
 status: completed
 date: 2026-07-24
-origin: docs/plans/2026-07-24-perf-recovery-one-shot-living-plan.md
+origin: STRATEGY.md and historical one-shot performance observations
 ---
 
 # One-shot recovery performance and proof gate fixes

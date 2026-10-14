@@ -15,7 +15,7 @@ def persist_status(result: dict, pair_class: str, src_key, dst_key, *, n_instr: 
     """Honor cascade-pinned status; otherwise recompute from score policy.
 
     PINNED means do not re-score — not ignore independent name contradictions.
-    Conflicting authentic canon_keys always demote to verify before bind.
+    Conflicting canonical keys remain review-only before binding.
     """
     ev = result.get("evidence") or {}
     if ev.get("quarantine") or ev.get("identity_claim") is False:
@@ -39,7 +39,7 @@ def persist_status(result: dict, pair_class: str, src_key, dst_key, *, n_instr: 
         proposed = "verify"
     if proposed == "verify" and not allows_verify(confidence, unique=True):
         return "review"
-    return "verify" if name_conflict and proposed == "auto" else proposed
+    return "review" if name_conflict else proposed
 
 
 def bid(con, path: str) -> int:
@@ -91,15 +91,31 @@ def run_pair(
             result, res["pair_class"], src_key, dst_key,
             n_instr=sa.funcs[addr].get("n_instr"),
         )
-        if src_key and dst_key and src_key != dst_key and status == "verify":
+        if src_key and dst_key and src_key != dst_key:
             from .correspondence import enrich_evidence
 
-            evidence = enrich_evidence(evidence, kind=result.get("kind"), status="verify", identity_claim=True)
+            status = "review"
+            evidence = enrich_evidence(evidence, kind=result.get("kind"), status=status, identity_claim=False, quarantine=True)
             evidence["reason"] = "authentic_name_conflict"
+            evidence["conflicting_canon_keys"] = {"src": src_key, "dst": dst_key}
+        # A producer may already mark an actionable veto review-only. Its
+        # descendants still need the exclusion token, regardless of that status.
+        from .correspondence import has_identity_contradiction
+
+        if has_identity_contradiction(evidence):
+            status = "review"
+            evidence["quarantine"] = True
+        elif status in {"auto", "verify"} and evidence.get("relation", "one_to_one") == "one_to_one":
+            from .correspondence import allows_identity_binding
+
+            if not allows_identity_binding(evidence, "one_to_one", set()):
+                status = "review"
+                evidence["quarantine"] = True
         if status not in {"auto", "verify"}:
             from .correspondence import enrich_evidence
 
-            evidence = enrich_evidence(evidence, kind=result.get("kind"), status=status, identity_claim=False)
+            evidence = enrich_evidence(evidence, kind=result.get("kind"), status=status, identity_claim=False,
+                                       quarantine=bool(evidence.get("quarantine")))
         from .channel_confidence import channel_confidence
         kind = str(evidence.get("kind") or result.get("kind") or "unknown")
         algorithm = str(evidence.get("primary_channel") or evidence.get("channel") or kind)
@@ -454,10 +470,10 @@ def dedupe_identity_addrs(con, *, commit: bool = True) -> int:
 
 
 def downgrade_named_conflicts(con, run: str | None = None, *, commit: bool = True) -> int:
-    """Demote stored auto matches when independent canonical names disagree."""
+    """Keep stored identity candidates review-only when canonical names disagree."""
     rows = con.execute(
         """SELECT match.rowid, match.evidence FROM match
-            WHERE status='auto'
+            WHERE status IN ('auto','verify')
               AND (? IS NULL OR run=?)
               AND EXISTS (
                   SELECT 1
@@ -477,9 +493,11 @@ def downgrade_named_conflicts(con, run: str | None = None, *, commit: bool = Tru
     ).fetchall()
     for row in rows:
         evidence = json.loads(row["evidence"] or "{}")
-        evidence["status_band"] = "verified"
+        evidence["status_band"] = "quarantined"
+        evidence["quarantine"] = True
+        evidence["identity_claim"] = False
         evidence["reason"] = "authentic_name_conflict"
-        con.execute("UPDATE match SET status='verify', evidence=? WHERE rowid=?", (json.dumps(evidence), row["rowid"]))
+        con.execute("UPDATE match SET status='review', evidence=? WHERE rowid=?", (json.dumps(evidence), row["rowid"]))
     if commit:
         con.commit()
     return len(rows)

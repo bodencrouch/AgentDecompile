@@ -234,7 +234,7 @@
    Jobs dock — status-line expander; compact idle, log pane when open
    ------------------------------------------------------------------------- */
 
-.workbench-page .wb-jobs-dock {
+.workbench-page .wb-log-dock {
   position: fixed;
   left: 0;
   right: 0;
@@ -249,15 +249,15 @@
   box-shadow: none;
 }
 
-.workbench-page .wb-jobs-dock:not(.open) {
+.workbench-page .wb-log-dock:not(.open) {
   max-height: 22px;
 }
 
-.workbench-page .wb-jobs-dock:not(.open) .wb-jobs-dock-body {
+.workbench-page .wb-log-dock:not(.open) .wb-jobs-dock-body {
   display: none;
 }
 
-.workbench-page .wb-jobs-dock.open {
+.workbench-page .wb-log-dock.open {
   max-height: 40vh;
   overflow: hidden;
   display: flex;
@@ -265,15 +265,15 @@
   background: var(--bg-panel);
 }
 
-.workbench-page .wb-jobs-dock.pinned:not(.open) {
+.workbench-page .wb-log-dock.pinned:not(.open) {
   box-shadow: none;
 }
 
-.workbench-page .wb-jobs-dock.pinned.open {
+.workbench-page .wb-log-dock.pinned.open {
   box-shadow: 0 -6px 20px rgba(0, 0, 0, .35);
 }
 
-.workbench-page .wb-jobs-dock-head {
+.workbench-page .wb-log-dock-head {
   display: flex;
   flex-wrap: nowrap;
   align-items: center;
@@ -288,7 +288,7 @@
   line-height: 22px;
 }
 
-.workbench-page .wb-jobs-dock-head .wb-hint {
+.workbench-page .wb-log-dock-head .wb-hint {
   overflow: hidden;
   color: var(--fg-max);
   font-size: var(--wb-type-kicker);
@@ -298,7 +298,7 @@
   white-space: nowrap;
 }
 
-.workbench-page .wb-jobs-dock-toggle {
+.workbench-page .wb-log-toggle {
   min-height: 22px;
   padding: 0;
   border: 0;
@@ -313,12 +313,12 @@
   cursor: pointer;
 }
 
-.workbench-page .wb-jobs-dock-toggle:hover {
+.workbench-page .wb-log-toggle:hover {
   color: var(--fg-max);
   background: transparent;
 }
 
-.workbench-page .wb-jobs-dock-toggle:focus-visible {
+.workbench-page .wb-log-toggle:focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: -2px;
 }
@@ -407,22 +407,22 @@
   white-space: nowrap;
 }
 
-.workbench-page .wb-jobs-dock .st-queued,
-.workbench-page .wb-jobs-dock .st-running,
-.workbench-page .wb-jobs-dock .st-unknown {
+.workbench-page .wb-log-dock .st-queued,
+.workbench-page .wb-log-dock .st-running,
+.workbench-page .wb-log-dock .st-unknown {
   color: var(--warning);
 }
 
-.workbench-page .wb-jobs-dock .st-failed,
-.workbench-page .wb-jobs-dock .st-error,
-.workbench-page .wb-jobs-dock .st-cancelled {
+.workbench-page .wb-log-dock .st-failed,
+.workbench-page .wb-log-dock .st-error,
+.workbench-page .wb-log-dock .st-cancelled {
   color: var(--danger);
 }
 
-.workbench-page .wb-jobs-dock .st-done,
-.workbench-page .wb-jobs-dock .st-finished,
-.workbench-page .wb-jobs-dock .st-complete,
-.workbench-page .wb-jobs-dock .st-ok {
+.workbench-page .wb-log-dock .st-done,
+.workbench-page .wb-log-dock .st-finished,
+.workbench-page .wb-log-dock .st-complete,
+.workbench-page .wb-log-dock .st-ok {
   color: var(--fg-head);
 }
 
@@ -450,6 +450,25 @@
 }
 
 @media (max-width: 720px) {
+  .workbench-page .wb-log-dock.open .wb-log-dock-head {
+    height: auto;
+    min-height: 36px;
+    max-height: none;
+    flex-wrap: wrap;
+    gap: 4px 8px;
+    padding: 4px 8px;
+    line-height: normal;
+  }
+
+  .workbench-page .wb-log-dock-head .wb-hint {
+    display: none;
+  }
+
+  .workbench-page .wb-log-dock-head .wb-btn-mini {
+    min-height: 32px;
+    white-space: nowrap;
+  }
+
   .workbench-page .wb-jobs-dock-body {
     grid-template-columns: 1fr;
   }
@@ -457,28 +476,29 @@
   .workbench-page .wb-jobs-dock-body > .wb-job-list {
     border-right: 0;
     border-bottom: 1px solid var(--border);
+    height: 8rem;
     max-height: 8rem;
   }
 }
 
 @media (min-width: 1280px) {
-  body.workbench-page.wb-jobs-rail .wb-jobs-dock.open {
+  body.workbench-page.wb-jobs-rail .wb-log-dock.open {
     background: var(--bg-panel);
     box-shadow: none;
   }
 
-  body.workbench-page.wb-jobs-rail .wb-jobs-dock.open .wb-jobs-dock-body {
+  body.workbench-page.wb-jobs-rail .wb-log-dock.open .wb-jobs-dock-body {
     grid-template-columns: 1fr;
     max-height: none;
   }
 
-  body.workbench-page.wb-jobs-rail .wb-jobs-dock.open .wb-jobs-dock-body > .wb-job-list {
+  body.workbench-page.wb-jobs-rail .wb-log-dock.open .wb-jobs-dock-body > .wb-job-list {
     border-right: 0;
     border-bottom: 1px solid var(--border);
     max-height: none;
   }
 
-  body.workbench-page.wb-jobs-rail .wb-jobs-dock.open .wb-job-log {
+  body.workbench-page.wb-jobs-rail .wb-log-dock.open .wb-job-log {
     max-height: min(40vh, 24rem);
   }
 }
@@ -633,3 +653,52 @@
 .workbench-page #wb-last-action {
   color: var(--addr);
 }
+
+/* Save project copy owns its compact sizing; other dialogs keep their layout. */
+.workbench-page .wb-modal:has(#wb-save-as-form) {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  width: min(42rem, calc(100vw - 2rem));
+  height: auto;
+  min-width: min(24rem, calc(100vw - 2rem));
+  min-height: 0;
+  max-width: calc(100vw - 2rem);
+  max-height: calc(100dvh - 2rem);
+  resize: both;
+  overflow: hidden;
+}
+.workbench-page .wb-modal:has(#wb-save-as-form) .wb-modal-body { min-height: 0; overflow: auto; }
+.workbench-page #wb-save-as-form.wb-save-project-form { display: grid; gap: 14px; }
+.workbench-page #wb-save-as-form .wb-save-fields { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; }
+.workbench-page #wb-save-as-form label { display: grid; gap: 6px; margin: 0; text-align: left; float: none; min-width: 0; }
+.workbench-page #wb-save-as-form small { color: var(--fg-dim); font-size: var(--wb-type-kicker); line-height: 1.4; }
+.workbench-page #wb-save-as-form .wb-save-source,
+.workbench-page #wb-save-as-form .wb-save-output { display: grid; gap: 5px; border: 1px solid var(--border); padding: 10px 12px; min-width: 0; background: var(--bg-sunken); }
+.workbench-page #wb-save-as-form .wb-save-source span { color: var(--fg-head); font-size: var(--wb-type-ui); }
+.workbench-page #wb-save-as-form code,
+.workbench-page #wb-save-as-form output { display: block; white-space: normal; overflow-wrap: anywhere; font: var(--wb-type-ui) var(--font-mono); color: var(--addr); }
+.workbench-page #wb-save-as-form .wb-save-format-note,
+.workbench-page #wb-save-as-form .wb-save-scope-note { margin: 0; line-height: 1.5; color: var(--fg-head); font-size: var(--wb-type-ui); }
+.workbench-page #wb-save-as-form .wb-save-path-control { display: flex; align-items: stretch; gap: 6px; min-width: 0; }
+.workbench-page #wb-save-as-form .wb-save-path-control input { flex: 1 1 0; min-width: 0; }
+.workbench-page #wb-save-as-form .wb-save-path-control button { flex: 0 0 auto; }
+.workbench-page #wb-save-as-form .wb-save-folder-picker { border: 1px solid var(--border); padding: 10px; min-width: 0; }
+.workbench-page #wb-save-as-form .wb-save-folder-picker header,
+.workbench-page #wb-save-as-form .wb-save-folder-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px; margin-bottom: 8px; }
+.workbench-page #wb-save-as-form .wb-save-folder-picker header code { flex: 1 1 14rem; }
+.workbench-page #wb-save-as-form .wb-save-folder-picker ul { max-height: 11rem; overflow: auto; list-style: none; margin: 0; padding: 0; }
+.workbench-page #wb-save-as-form .wb-save-folder-picker li button { display: block; width: 100%; padding: 7px; text-align: left; background: var(--bg-panel); color: var(--fg-max); border: 0; cursor: pointer; overflow-wrap: anywhere; }
+.workbench-page #wb-save-as-form .wb-save-folder-picker li button:hover { background: var(--wb-hover); }
+.workbench-page #wb-save-as-form .wb-save-folder-picker li button:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+@media (max-width: 600px) {
+  .workbench-page #wb-save-as-form .wb-save-fields { grid-template-columns: minmax(0, 1fr); }
+  .workbench-page .wb-modal:has(#wb-save-as-form) { resize: both; }
+  .workbench-page #wb-save-as-form button { min-height: 44px; }
+}
+.workbench-page .wb-panel-layout-list { display:grid; gap:.5rem; }
+.workbench-page .wb-panel-layout-list > div { display:flex; align-items:center; justify-content:space-between; gap:1rem; border-bottom:1px solid var(--border,#4b6577); padding:.4rem 0; }
+.workbench-page .wb-panel-layout-list label { display:flex; align-items:center; gap:.5rem; min-width:0; margin:0; }
+.workbench-page .wb-panel-layout-list input[type=checkbox] { width:18px; height:18px; min-height:0; flex:none; }
+.workbench-page .wb-panel-layout-list select { min-width:7rem; }
+.workbench-page .wb-project-source-download { flex:none; white-space:nowrap; }
+@media(max-width:600px) { .workbench-page .wb-panel-layout-list > div { flex-wrap:wrap; } .workbench-page .wb-project-source-download { font-size:.72rem; white-space:normal; max-width:11rem; } }

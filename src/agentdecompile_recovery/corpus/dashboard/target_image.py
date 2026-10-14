@@ -11,6 +11,7 @@ import hashlib
 import json
 import os
 import shutil
+import sqlite3
 import time
 from pathlib import Path
 from typing import Any
@@ -193,3 +194,108 @@ def materialize_original_target(
     }
     _atomic_json(receipt, data)
     return {"ok": True, **data, "receiptPath": str(receipt)}
+
+
+def materialize_ghidra_file_bytes_target(
+    database_path: str | Path,
+    binary_id: int,
+    output_root: str | Path,
+    *,
+    program: str,
+    locator: str = "",
+    program_fingerprint: str = "",
+    expected_sha256: str = "",
+    protection: dict[str, Any] | None = None,
+    deadline_s: float = 300.0,
+) -> dict[str, Any]:
+    """Extract the original image from the binary's bound Ghidra program.
+
+    The shared repository and local project resolvers both read the program's
+    single stored ``FileBytes`` entry.  This makes the selected Ghidra program
+    the source of truth; ``Program.getExecutablePath()`` is only historical
+    metadata and is not required to exist on this machine.
+    """
+    from agentdecompile_recovery.corpus.raw_images import (
+        last_misses,
+        resolve_raw_image,
+        row_context,
+    )
+
+    database = Path(database_path).expanduser().resolve()
+    try:
+        with sqlite3.connect(f"{database.as_uri()}?mode=ro", uri=True) as con:
+            con.row_factory = sqlite3.Row
+            found = con.execute("SELECT * FROM binary WHERE id=?", (int(binary_id),)).fetchone()
+            if found is None:
+                return {
+                    "ok": False,
+                    "state": "ghidra-binary-missing",
+                    "reason": "The selected program is not registered in the corpus database.",
+                    "authority": "none",
+                }
+            row = row_context(con, dict(found))
+    except (sqlite3.Error, OSError, ValueError) as exc:
+        return {
+            "ok": False,
+            "state": "ghidra-database-unavailable",
+            "reason": f"Could not read the selected program binding ({type(exc).__name__}).",
+            "authority": "none",
+        }
+
+    if locator:
+        binding = (locator, program)
+        if binding not in row["program_bindings"]:
+            row["program_bindings"].append(binding)
+
+    image = resolve_raw_image(
+        row,
+        order=("ghidra_store_file_bytes", "ghidra_repository", "ghidra_file_bytes"),
+        work_dir=Path(output_root).expanduser(),
+        deadline_s=deadline_s,
+        materialize=True,
+        expected_sha256=expected_sha256 or None,
+    )
+    if image is None:
+        misses = last_misses()
+        return {
+            "ok": False,
+            "state": "ghidra-file-bytes-unavailable",
+            "reason": "The bound Ghidra program did not provide one readable original FileBytes image.",
+            "misses": misses,
+            "authority": "none",
+        }
+    if expected_sha256 and image.sha256.lower() != expected_sha256.lower():
+        return {
+            "ok": False,
+            "state": "ghidra-file-bytes-hash-mismatch",
+            "reason": "The Ghidra program's original FileBytes do not match the registered binary identity.",
+            "sourceSha256": image.sha256,
+            "expectedSha256": expected_sha256.lower(),
+            "resolver": image.resolver,
+            "authority": "none",
+        }
+    if image.path is None or not image.path.is_file():
+        return {
+            "ok": False,
+            "state": "ghidra-file-bytes-not-materialized",
+            "reason": "Ghidra returned image bytes, but the internal comparison snapshot is unavailable.",
+            "sourceSha256": image.sha256,
+            "resolver": image.resolver,
+            "authority": "none",
+        }
+    return materialize_original_target(
+        image.path,
+        output_root,
+        program=program,
+        program_fingerprint=program_fingerprint,
+        expected_sha256=image.sha256,
+        protection=protection,
+        source_provenance={
+            "kind": "ghidra-file-bytes",
+            "resolver": image.resolver,
+            "sha256": image.sha256,
+            "size": image.size,
+            "binding": "corpus-program-binding",
+            "resolverProvenance": image.provenance,
+        },
+    )

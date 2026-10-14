@@ -2,13 +2,15 @@
 
 Consolidated 2026-09-20 from user messages in Claude, Cursor, Codex and Copilot,
 the current conversation, the supplied AIO research, and the **current canonical**
-[VISION.md](/run/media/brunner56/MyBook/Workspaces/ai-projects/AgentDecompile/VISION.md)
-and [STRATEGY.md](/run/media/brunner56/MyBook/Workspaces/ai-projects/AgentDecompile/STRATEGY.md).
+[VISION.md](../VISION.md)
+and [STRATEGY.md](../STRATEGY.md).
 
 This is the single reading entry point for what the user wants the product and
 frontends to do and feel like. It is a requirements consolidation, **not an
 implementation-completion report**. It does not replace the charter or create a
 competing recovery priority ladder. Source keys and limitations are at the end.
+For product purpose, binary inputs/outputs, proof requirements, and history
+authority, defer to the current [user-intent contract](USER_INTENT.md).
 The evidence-limited implementation ledger and prioritized remaining work are in
 [DELIVERY_STATUS.md](DELIVERY_STATUS.md).
 
@@ -17,16 +19,72 @@ practical outcomes, deterministic pipeline, optional AI, donated compute and
 concrete static/Vite workflows against all four recovery diagrams. It separates
 intended capabilities, inspected source and observed results.
 
+## Current session corrections — October 10, 2026
+
+These direct user corrections supersede conflicting earlier layout proposals.
+They specify behavior, not completed delivery:
+
+- Organize project tabs → binaries → functions. Open a project in a new tab or
+  activate its existing tab. Keep all related binaries available together;
+  binary/function focus is a drill-in, not a new project or a repeated setup step.
+- Keep Functions and Correspondence/call graph as separate docks with shared
+  focus. The request to merge those widgets was explicitly withdrawn.
+- Make every analysis work area dockable/resizable, with stable drag geometry,
+  precise landing previews, keyboard alternatives and persistent layout. Remove
+  dock-position dropdowns and close buttons from widget headers; retain those
+  actions in View and context menus, including restoration of hidden panels.
+- Put code/listing/diffs in the central work area and compact relationship and
+  inspection panels around it. Draw real cross-build and caller/callee relations;
+  never substitute large binary cards, spinners or explanatory text for the data.
+- Rank/select permitted correspondences automatically using the documented
+  evidence-fusion and call-neighborhood policy. Overrides are optional. Show
+  observed alternatives, quantities and uncertainty without treating retrieval
+  scores as identity probabilities or missing observations as tool unavailability.
+- Provide responsive function search and relevant multi-binary filters, with
+  bounded queries. Browsing scope must not silently remove comparison peers.
+- Reduce duplicate views, nested menus, category tabs and normal-result
+  collapsers. Generate tools/parameters from their authoritative capabilities;
+  defaults are implicit and optional overrides are explicit.
+- Offer Download project source in the application controls and File menu,
+  outside widgets and independent of selected function previews. Include every
+  project member and explicit coverage gaps; retain available source/assembly.
+  Advisory snapshots, readable max-C and byte-accurate C/assembly-floor builds
+  are different outputs. Missing assembly fallback is a gap, not an invented
+  complete build. Export never proves compiler or whole-image byte parity.
+- Project root buttons open recognized projects with one click; ordinary folders
+  browse, and multiple local projects expose an explicit choice. File picking
+  must produce a usable server-side import path. Save As explains source,
+  destination and actual format without claiming unsupported publication.
+- Static8080 expensive aggregation is user-triggered, not periodic polling.
+  Local interaction and bounded selection reads remain responsive. The optional
+  Vite application provides richer real-time presentation through the same
+  backend; it is not another recovery engine or permission to disturb8080.
+- Project-level start/pause/resume must reuse valid work. A panel move, tab change
+  or tool selection must not enqueue analysis, compilation or duplicate reads.
+  Save/check-in ownership survives tab changes; connected-server synchronization
+  is a project capability, not dependent on which panel is visible.
+- Preserve the ambitious higher-level scope: Ghidra-grade navigation plus
+  evidence-bound matching C, compiler/objdiff, WASM/GL, Lua, event/argument,
+  shim/DLL, hook/cave and memory workflows. Fix repeated workflow failure classes,
+  not only individual screenshots. Never call source presence full parity.
+
+Implementation order follows ownership/correctness, the common analysis loop,
+automation and visual evidence, then advanced controls. Validate the real8080
+consumer with Playwright; respect the mission's no-filesystem-test/no-restart
+constraints. This section is the concise contract, not another living plan.
+
 ## 1. The product in one paragraph
 
-Open compiled software as naturally as a source repository. See its packages,
-resources, code, types and relationships; compare related builds as implementations
-of a shared codebase; improve understanding once and reuse eligible knowledge
-everywhere. Browse, edit, recover, compile, compare and inspect runtime behavior in
-one coherent workspace. Watch actual evidence and transformations as work happens.
-Do not make the operator manage internal stages, repeat configuration, rediscover
-prior work, or infer meaning from a spinner. Every name, relationship, candidate,
-source file and proof must retain its origin and exact scope.
+Open compiled software as naturally as a source repository. Treat related builds
+as one navigable codebase while retaining their real addresses, bytes, ABIs and
+divergences. Use Ghidra-backed analysis to recover C/C++ that matches the actual
+target, then inspect and act on supported functions, events, arguments, parameters,
+memory and graphics behavior through evidence-bound Lua/native adapters, shims,
+DLLs, hooks or caves. Browse, edit, compile, compare and inspect runtime behavior
+in one coherent workspace. Animate and explain real work; do not make the operator
+manage internal stages, repeat configuration, rediscover prior work, or infer
+meaning from a spinner. Every name, relationship, candidate, source file and
+runtime action must retain its origin and exact target scope.
 
 The immediate recovery mission is the BioWare corpus, with K1 GOG first. The design
 must also work for another game's multiple releases/platforms, and for non-game
@@ -94,11 +152,15 @@ Do not call a requirement complete merely because an assistant once said “done
   binaries and supported project/context material; manage existing entries. Preserve
   imported members and selection when saving. A `.gpr` export must contain the
   promised project data, not merely a plausible filename or skeleton.
-- **F03 — One active project context:** the library may contain many projects, but
-  there is one active project and mutation context. Opening another offers explicit
-  switch or merge with both projects identified. Tabs represent views/entities,
-  not silently competing active writers. No duplicate project rows caused by path,
-  slug or refresh races.
+- **F03 — Project tabs and captured write ownership (October 9 correction):**
+  each tab represents a project. Opening a project adds its tab or activates the
+  existing canonical tab; it never overwrites another project. Analysis views
+  default to the members of the open projects, showing related binaries together.
+  A build/function focus is a drill-in, not the owner of Import, Save or Check-in.
+  Native writes retain their captured project/program and serialized ownership;
+  changing or closing a browser tab cannot redirect or discard them. This
+  supersedes the earlier views/entities-tab and implicit switch-or-merge wording.
+  No duplicate project rows caused by path, slug or refresh races.
 - **F04 — Merge:** show a file-manager-like merge review. Match actual artifact
   identity, retain richer compatible fields, preserve conflicts and human edits.
   Afterwards show which binaries, names, types, comments and relationships were
@@ -139,10 +201,11 @@ C5:26,33–34; C6:11; H1:1721–1726.
 - **F11 — Selection versus batch scope:** retain an inspectable primary item and a
   separately visible checked set with range/select-all support. Changing the active
   program cannot silently carry dangerous checked addresses into another binary.
-- **F12 — Persistent activity dock:** Jobs, logs, diagnostics and notifications live
-  together at the bottom (resizable/collapsible). Relevant active work remains
-  perceptible while reading code; historical unrelated jobs do not dominate it.
-  Refreshes do not steal focus, scroll or editor drafts.
+- **F12 — One activity owner:** Jobs, logs, diagnostics and notifications stay
+  together, with relevant active work perceptible while reading code. The latest
+  October 9 consolidation instruction places them in Work/contextual detail;
+  an always-open duplicate dock is not mandatory. Historical unrelated jobs do
+  not dominate it. Refreshes do not steal focus, scroll or editor drafts.
 
 The earlier prototype called cross-match a secondary panel. The current user
 explicitly makes it the organizing relationship of the workspace. Likewise, the
@@ -219,7 +282,7 @@ not the whole workspace. Do not silently remove these requirements to ship a she
 | F22 | Expert operations | Catalog/MCP/API parity, scripts/console, capability-derived controls and optional overrides. Preserve low-level tools without exposing each automatic recovery stage as a normal workflow button. No separate hand-maintained argument/default/alias lists per frontend. |
 | F23 | Durable workspace | Save/check-in semantic changes, drafts, selection, layout, filters, snapshots and job receipts; expose conflict/revision state. Crash/reconnect resumes acknowledged work. Never promise arbitrary unsaved RAM survives a kill; make durable acknowledgement observable. |
 | F24 | Exports | Download a complete named source variant as ZIP with manifest, provenance, build instructions and precise verification status; project/snapshot/evidence/report/hook-pack exports where supported. Export without pretending missing files or ASM floors are recovered C. |
-| F25 | Runtime reuse | KotorPhasor-style portable signatures, typed adapters, codecave/call plans, preflight and controlled invocation against original binaries; observe behavior and feed eligible evidence back. Original-byte calls are not source recovery. |
+| F25 | Runtime inspection and intervention | Discover per-build callable functions, events/callbacks, typed arguments/parameters/returns and relevant state; prepare portable signatures, Lua/native shim/DLL adapters, code-cave/detour/call/memory plans; preflight, activate, observe, disable/undo and feed eligible evidence back. Original-code calls and runtime success are not recovered-source proof. |
 | F26 | Distributed contribution | Optional explicit opt-in for other machines/browser visitors to contribute suitable compute. Show leased work, resource limits, ownership, cancellation and returned evidence. A browser visit is not consent to consume resources or upload proprietary data. Native toolchain/Ghidra writers require appropriate workers and serialized ownership, not arbitrary browser execution. |
 | F27 | Collaboration and CI | Retain requested linkable analysis/scratch, annotation collaboration, project event/history and Git/CI-report direction. Sharing/publishing is opt-in; no automatic upstream PR, public binary upload or public service exposure. |
 | F28 | Language/engine extensibility | C/C++ is the current recovery target, not a universal language assumption. Normalize actual provider outputs behind existing contracts; expose supported operations and gaps without forcing one engine or an entirely new generic framework. |
@@ -387,6 +450,30 @@ No remote binaries, code, evidence or credentials were uploaded in this research
 This section translates requirements into design; it is not a mandate to build a
 new framework. Inspect and reuse existing owners first.
 
+Latest October 9 priority: represent the project binaries and their relationships
+visually, with significantly fewer tabs/widgets/views. The normal destinations
+are Compare (membership map, function search and aligned code/calls), Recover
+(source/output/proof paths) and Work (actual pipeline/activity). Project tabs
+remain project tabs; optional focused entities do not replace cross-project
+scope. The older sketch below is historical composition guidance, not a mandate
+for persistent trees, a permanent log dock, or separate Code/Calls/Functions tabs.
+Direct labels and evidence-backed lanes take precedence over statistic tables;
+no inferred equivalence links, simulated throughput or invented verification.
+
+The visual grammar has one home per question:
+
+| Destination | Primary representation | Contextual detail, not another global view |
+| --- | --- | --- |
+| Compare | Project containment before selection; aligned binary/counterpart lanes around a recorded logical function after selection | Code/listing, directed callers → function → callees, individual identity receipts |
+| Recover | Aligned per-binary source and proof evidence columns, with unknowns visibly distinct | Actual export artifacts and WASM/hook/runtime readiness on explicit expansion |
+| Work | Recorded ordered stages with the active or blocked boundary visible | Job ownership, queue reasons, diagnostics and logs |
+
+Multiple counterparts within one binary remain visible and individually evidenced.
+Directory membership is not correspondence; correspondence is not byte equality.
+Source availability, compilation, historical exactness and fresh whole-image proof
+are independent evidence, never automatic successive green steps. Bound initial
+marks and receipt details, retaining explicit access to all returned records.
+
 ```text
 Active project / related-build scope · search / goto · one workflow control
 ┌────────────────────┬────────────────────────────────────┬──────────────────┐
@@ -441,7 +528,7 @@ simplification after accepting diminishing returns. [D2:35561–36106]
 | Two left trees including Functions | Current explicit duplicate-widget removal wins; retain functionality once in the main workspace. |
 | Numeric bars/ETA and “Running” as main feedback | Current user requires drawing actual work. Preserve numbers as secondary detail, not primary experience. |
 | 24-hour default workflow budget | D1:10121 explicitly changes default to unlimited. Resource limits and bounded per-attempt behavior remain. |
-| Eight named stages versus user shorthand “priorities1–9” | STRATEGY has eight named stages; don't invent a ninth or reorder it. Minimize priority-zero friction. |
+| Recovery dependency stages versus user priorities 1–9 | STRATEGY's numeric stages are not the product-priority map; do not infer that P9 is absent. P0 stays a narrow safe-resume mechanism and must not block independent mission priorities. |
 | No assembly whatsoever | Current strategy and Sep15 user allow honest intermediary assembly floor. It never counts toward recovered C or substitutes for final readable-source work. |
 | “Only code matters, not data” in June | Current whole-image contract includes data, placement and headers; function-only equality is insufficient. |
 | Global metadata donor / forced1↔1 matching | Strongest per field with compatibility/provenance; ambiguity and split/merged regions remain first-class. |

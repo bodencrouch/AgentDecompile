@@ -28,6 +28,36 @@ def _object(value: Any) -> dict:
     return parsed if isinstance(parsed, dict) else {}
 
 
+def recorded_signals(evidence):
+    """Describe recorded comparisons, including disagreements, not probabilities.
+
+    Legacy scorer rows predate channel receipts. Their typed values are still
+    useful evidence; histogram similarity is not an instruction-byte hash, and
+    a structural comparison is not proof of anchored call-graph propagation.
+    """
+    import math
+
+    ev = _object(evidence)
+    definitions = (
+        ("struct", "Control-flow shape", "G"),
+        ("neighbors", "Mapped call-neighborhood overlap", "G"),
+        ("strings", "String-reference overlap", "X"),
+        ("consts", "Constant-reference overlap", "X"),
+        ("ext", "External-call overlap", "X"),
+        ("mnem", "Instruction-profile similarity", None),
+        ("fuzzy_hash", "Approximate fingerprint similarity", None),
+        ("decomp", "Decompiler-structure similarity", "K"),
+        ("pcode_fingerprint", "P-code fingerprint comparison", "K"),
+        ("bsim", "BSim comparison", "S"),
+        ("abi", "ABI compatibility comparison", "T"),
+        ("arity", "Parameter-count comparison", "T"),
+        ("compunit", "Compilation-unit comparison", None),
+    )
+    return [{"key": key, "label": label, "channel": channel, "value": ev[key]}
+            for key, label, channel in definitions
+            if type(ev.get(key)) in (int, float) and math.isfinite(ev[key])]
+
+
 def project_channels(evidence: Mapping[str, Any] | str | None) -> list[dict]:
     """Project one row without converting availability into a success claim."""
     ev = _object(evidence)
@@ -39,10 +69,11 @@ def project_channels(evidence: Mapping[str, Any] | str | None) -> list[dict]:
             observed.add(value)
     if isinstance(ev.get("channels"), list):
         observed.update(value for value in ev["channels"] if isinstance(value, str) and value in METHODS)
-    # Old rows may identify the algorithm only by their typed evidence field.
-    for key, channel in (("bsim", "S"), ("pcode_fingerprint", "K"), ("abi", "T")):
-        if isinstance(ev.get(key), (int, float)) and ev[key] > 0:
-            observed.add(channel)
+    # A zero comparison is an executed disagreement, not an absent method.
+    signals = recorded_signals(ev)
+    compared = {signal["channel"] for signal in signals if signal["channel"]}
+    if ev.get("propagation_kind") in ("caller", "callee"):
+        observed.add("G")
     rows = []
     for channel, label in METHODS.items():
         receipt = _object(optional.get(OPTIONAL.get(channel, "")))
@@ -50,6 +81,8 @@ def project_channels(evidence: Mapping[str, Any] | str | None) -> list[dict]:
         row = {"channel": channel, "label": label, "state": "unavailable", "reason": reason}
         if channel in observed:
             row.update(state="ran", reason="recorded_match_evidence")
+        elif channel in compared:
+            row.update(state="ran", reason="recorded_feature_comparison")
         elif reason in NOT_BUILT:
             row.update(state="not-built")
         elif receipt.get("state") == "unavailable" or receipt.get("available") is False:
@@ -58,18 +91,22 @@ def project_channels(evidence: Mapping[str, Any] | str | None) -> list[dict]:
             row.update(state="skipped")
         elif receipt.get("available") is True:
             row.update(state="skipped", availability="available", reason="available_without_execution_receipt")
-        if channel == "S" and receipt.get("ok") is True and channel not in observed:
+        if channel == "S" and receipt.get("ok") is True and channel not in observed and channel not in compared:
             row.update(state="skipped", availability="available",
                        reason="pair_query_recorded_without_function_evidence", pairReason=reason)
+        if channel == "contract" and (_object(ev.get("contract")) or _object(ev.get("contract_shadow"))):
+            row.update(state="ran", reason="recorded_contract_evaluation")
         if channel == "contract" and receipt:
             enabled = receipt.get("enabled") is True
             provider = _object(receipt.get("provider"))
             row.update(enabled=enabled, shadowEvaluated=int(receipt.get("evaluated") or 0),
                        changedDecisions=int(receipt.get("changed_decisions") or 0))
-            if not enabled:
-                row.update(state="skipped", reason="operator_disabled", availability="available")
-            elif _object(ev.get("contract_shadow")):
+            if _object(ev.get("contract")) or _object(ev.get("contract_shadow")):
+                # A disabled enforcement switch does not erase an actual
+                # shadow comparison. Keep execution and enforcement separate.
                 row.update(state="ran", reason="recorded_contract_evaluation")
+            elif not enabled:
+                row.update(state="skipped", reason="operator_disabled", availability="available")
             elif receipt.get("evaluated", 0):
                 row.update(state="skipped", reason="pair_shadow_has_no_function_receipt")
             if provider.get("state") == "unavailable":
@@ -78,6 +115,12 @@ def project_channels(evidence: Mapping[str, Any] | str | None) -> list[dict]:
             metadata = _object(optional.get("cpp_metadata"))
             if metadata:
                 row["metadata"] = metadata
+        row["signals"] = [signal for signal in signals if signal["channel"] == channel]
+        row["summary"] = ("Recorded comparison; not identity or byte-parity proof."
+                          if row["state"] == "ran" else
+                          "No result recorded for this candidate; this does not establish tool unavailability."
+                          if row["reason"] == "no_method_execution_receipt" else
+                          str(row["reason"]).replace("_", " "))
         rows.append(row)
     return rows
 

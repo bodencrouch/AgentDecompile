@@ -16,6 +16,7 @@ import os
 import re
 import shutil
 import signal
+import struct
 import subprocess
 import sys
 import tempfile
@@ -28,7 +29,7 @@ from typing import Any
 from agentdecompile_recovery.languages import SourceLanguage, compiler_lane_for, parse_source_language
 
 from .objdiff_verification import is_objdiff_match
-from .package_verify import build_shim, compile_with_msvc, resolve_msvc_root
+from .package_verify import build_recovered_c_shim, build_shim, compile_with_msvc, resolve_msvc_root
 from .decode_x86 import (
     X86_64_SIGNED_COMPARE_SETCC,
     X86_64_UNSIGNED_COMPARE_SETCC,
@@ -74,6 +75,7 @@ from .tools import inspect_tool
 ROOT = Path.cwd()
 DEFAULT_VC_ROOT: Path | None = None
 DEFAULT_WINEPREFIX: Path | None = None
+COMPILE_FAILURE_CIRCUIT_BREAKER_THRESHOLD = 2
 
 
 @dataclass(frozen=True)
@@ -18049,7 +18051,12 @@ def _infer_callee_return_type(callee_source: str, callee_name: str) -> str:
     return rettype or "int"
 
 
-def infer_callee_prototype(callee_name: str, source_generation_root: Path) -> str | None:
+def infer_callee_prototype(
+    callee_name: str,
+    source_generation_root: Path,
+    *,
+    candidate_paths: list[Path] | None = None,
+) -> str | None:
     """Infer a calling-convention-correct extern prototype for a callee by
     reusing its own packaged-source candidate (a sibling directory under the
     same source-generation root) and running it through the same
@@ -18062,10 +18069,17 @@ def infer_callee_prototype(callee_name: str, source_generation_root: Path) -> st
     spurious `add esp, N` stack-cleanup instruction that the real compiled
     binary never has (the real callee already cleaned the stack itself).
     """
-    matches = sorted(source_generation_root.glob(f"{callee_name}_*/candidate.c"))
-    if not matches:
+    if candidate_paths is None:
+        matches = sorted(source_generation_root.glob(f"{callee_name}_*/candidate.c"))
+        candidate_path = matches[0] if matches else None
+    else:
+        candidate_path = next(
+            (path for path in candidate_paths if path.parent.name.startswith(f"{callee_name}_")),
+            None,
+        )
+    if candidate_path is None:
         return None
-    callee_source = matches[0].read_text(encoding="utf-8", errors="replace")
+    callee_source = candidate_path.read_text(encoding="utf-8", errors="replace")
     callconv = infer_packaged_callconv(callee_source, ".c")
     if callconv not in {"stdcall", "fastcall"}:
         return None
@@ -18088,9 +18102,16 @@ def infer_callee_prototype(callee_name: str, source_generation_root: Path) -> st
 
 def infer_callee_prototypes(source: str, self_name: str, source_generation_root: Path) -> str:
     names = sorted({name for name in _CALLEE_CALL_RE.findall(source) if name != self_name})
+    if not names:
+        return ""
+    candidate_paths = sorted(source_generation_root.glob("*_*/candidate.c"))
     prototypes = []
     for name in names:
-        prototype = infer_callee_prototype(name, source_generation_root)
+        prototype = infer_callee_prototype(
+            name,
+            source_generation_root,
+            candidate_paths=candidate_paths,
+        )
         if prototype:
             prototypes.append(prototype)
     return "\n".join(prototypes)
@@ -18123,7 +18144,7 @@ def packaged_source_candidate(row: dict[str, Any]) -> GeneratedCandidate | None:
         c_name=c_name,
         symbol=infer_packaged_symbol(row, source, c_name, suffix),
         source=compile_source,
-        callconv=infer_packaged_callconv(source, suffix),
+        callconv=infer_packaged_callconv(source, suffix, c_name),
         return_type="unknown",
         extra_flags=tuple(),
         evidence={
@@ -18144,30 +18165,50 @@ def infer_packaged_c_name(row: dict[str, Any], source: str) -> str:
     expected = safe_c_name(str(row.get("name") or row.get("entry") or "function"))
     if re.search(rf"\b{re.escape(expected)}\s*\(", source):
         return expected
-    matches = list(re.finditer(
-        r"(?:__declspec\s*\(\s*naked\s*\)\s*)?(?:[A-Za-z_][A-Za-z0-9_\s\*]+?\s+)?(?:__(?:cdecl|stdcall|fastcall)\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*\(",
-        source,
-    ))
-    for match in matches:
-        line_start = source.rfind("\n", 0, match.start()) + 1
-        line = source[line_start:match.start()]
-        if "extern" in line or "typedef" in line:
-            continue
-        candidate = match.group(1)
-        if candidate not in {"if", "for", "while", "switch", "return", "sizeof"}:
-            return candidate
+    # Search actual function definitions, not any identifier followed by `(`.
+    # Ghidra output frequently defines helpers such as CONCAT11 before the
+    # recovered function; treating a function-like macro as the entry symbol
+    # makes the synthetic target COFF name disagree with MSVC's real symbol.
+    # Prototypes and calls are excluded by requiring a function body.
+    match = packaged_function_definition(source)
+    if match:
+        return match.group("name")
     return expected
 
 
-def infer_packaged_callconv(source: str, suffix: str) -> str:
+_PACKAGED_FUNCTION_DEFINITION_RE = re.compile(
+    r"(?m)^[ \t]*(?:(?:__declspec\s*\([^)]*\)|"
+    r"(?P<callingConvention>__(?:cdecl|stdcall|fastcall|thiscall))|"
+    r"(?:static|inline|extern|virtual|__forceinline))\s+)*"
+    r"[A-Za-z_][A-Za-z0-9_\s*&:<>,\[\]]*?\s+"
+    r"(?P<name>[A-Za-z_][A-Za-z0-9_]*)\s*"
+    r"\((?P<parameters>[^;{}]*)\)\s*(?:const\s*)?\{"
+)
+
+
+def packaged_function_definition(source: str, c_name: str | None = None) -> re.Match[str] | None:
+    """Find a function body, excluding preprocessor macros and prototypes."""
+
+    definition_source = "\n".join(
+        "" if line.lstrip().startswith("#") else line
+        for line in source.splitlines()
+    )
+    matches = list(_PACKAGED_FUNCTION_DEFINITION_RE.finditer(definition_source))
+    if c_name:
+        for match in matches:
+            if match.group("name") == c_name:
+                return match
+    return matches[0] if matches else None
+
+
+def infer_packaged_callconv(source: str, suffix: str, c_name: str | None = None) -> str:
     if suffix in {".asm", ".s"}:
         return "assembly"
-    if "__fastcall" in source:
-        return "fastcall"
-    if "__stdcall" in source:
-        return "stdcall"
-    if "__cdecl" in source:
-        return "cdecl"
+    definition = packaged_function_definition(source, c_name)
+    if definition:
+        convention = re.search(r"__(cdecl|stdcall|fastcall|thiscall)\b", definition.group(0))
+        if convention:
+            return convention.group(1)
     return "cdecl"
 
 
@@ -18177,7 +18218,7 @@ def infer_packaged_symbol(row: dict[str, Any], source: str, c_name: str, suffix:
         if match:
             return match.group(1)
         return c_name
-    callconv = infer_packaged_callconv(source, suffix)
+    callconv = infer_packaged_callconv(source, suffix, c_name)
     stack_bytes = packaged_stack_bytes(row, c_name, source=source)
     if callconv == "stdcall" and stack_bytes is not None:
         return f"_{c_name}@{stack_bytes}"
@@ -18205,7 +18246,7 @@ def _count_stack_bytes_from_parameter_list(params_text: str) -> int:
     return total
 
 
-_AUTO_DECOMPILER_NAME_RE = re.compile(r"^(?:sub|FUN)_[0-9a-fA-F]+$")
+_AUTO_DECOMPILER_NAME_RE = re.compile(r"^(?:sub|FUN|F)_[0-9a-fA-F]+$")
 
 
 def packaged_stack_bytes(row: dict[str, Any], c_name: str, *, source: str | None = None) -> int | None:
@@ -18398,6 +18439,162 @@ def load_matched(paths: list[Path]) -> set[tuple[str, str]]:
     return matched
 
 
+def load_diagnostic_priority_states(paths: list[Path], target_sha256: str) -> tuple[dict, list[dict]]:
+    """Load stale function results as queue hints only, never as match receipts.
+
+    State rows are admitted only when the pinned target digest and source digest
+    are explicit. Their incomplete toolchain basis remains diagnostic; they do
+    not enter the accepted/match cache and cannot skip compilation or objdiff.
+    """
+    if len(target_sha256) != 64 or any(c not in "0123456789abcdef" for c in target_sha256.lower()):
+        raise ValueError("diagnostic-priority-state-requires-target-sha256")
+    target_sha256 = target_sha256.lower()
+    hints: dict[tuple[int, str], dict[str, Any]] = {}
+    metadata: list[dict] = []
+    for path in paths:
+        raw = path.read_bytes()
+        if len(raw) > 512 * 1024 * 1024:
+            raise ValueError(f"diagnostic-priority-state-too-large: {path}")
+        document = json.loads(raw)
+        entries = document.get("entries") if isinstance(document, dict) else None
+        if (not isinstance(document, dict)
+                or document.get("schema") != "agentdecompile.byteexact-cache/v3"
+                or not isinstance(entries, dict)):
+            raise ValueError(f"unsupported-diagnostic-priority-state: {path}")
+        state_sha = hashlib.sha256(raw).hexdigest()
+        eligible = 0
+        for item in entries.values():
+            if not isinstance(item, dict):
+                continue
+            result = item.get("result")
+            if not isinstance(result, dict) or result.get("ok") is not True:
+                continue
+            snapshot = result.get("targetSnapshot")
+            region = result.get("targetRegion")
+            source_sha = result.get("sourceSha256")
+            if (not isinstance(snapshot, dict) or snapshot.get("sha256") != target_sha256
+                    or not isinstance(region, dict)
+                    or not isinstance(source_sha, str) or len(source_sha) != 64
+                    or any(c not in "0123456789abcdef" for c in source_sha.lower())
+                    or result.get("comparisonScope") != "local-function"
+                    or result.get("comparisonPolicy") != "raw-region-v1"
+                    or result.get("maskedEqual") is not True):
+                continue
+            result_address = optional_int(result.get("addr"))
+            region_address = optional_int(region.get("address"))
+            # Older records may omit one field, but contradictory identities
+            # are not safe scheduling evidence.
+            if (result_address is not None and region_address is not None
+                    and result_address != region_address):
+                continue
+            address = result_address if result_address is not None else region_address
+            region_sha = region.get("sha256")
+            if (address is None or address < 0 or type(region.get("size")) is not int
+                    or region["size"] <= 0 or not isinstance(region_sha, str)
+                    or len(region_sha) != 64
+                    or any(c not in "0123456789abcdef" for c in region_sha.lower())):
+                continue
+            raw_equal = result.get("rawEqual") is True and result.get("relocs") == 0
+            hint = {
+                "schema": "agentdecompile.diagnostic-priority-hint/v1",
+                "tier": "raw-equal-no-relocations" if raw_equal else "relocation-masked-match",
+                "targetSha256": target_sha256,
+                "targetRegionSha256": region_sha.lower(),
+                "targetRegionSize": region["size"],
+                "priorSourceSha256": source_sha.lower(),
+                "stateSha256": state_sha,
+                "priorToolchainBasisComplete": item.get("complete_toolchain_basis") is True,
+                "claim": "Same target function had a prior local match; scheduling hint only. Fresh source compilation and objdiff are still required.",
+            }
+            key = (address, region_sha.lower())
+            previous = hints.get(key)
+            if previous is None or (hint["tier"] == "raw-equal-no-relocations"
+                                    and previous["tier"] != "raw-equal-no-relocations"):
+                hints[key] = hint
+            eligible += 1
+        metadata.append({"path": str(path.resolve()), "sha256": state_sha,
+                         "eligibleDiagnosticRows": eligible,
+                         "claim": "Diagnostic queue priority only; never accepted or cached as a match."})
+    return hints, metadata
+
+
+def apply_diagnostic_priorities(rows: list[dict[str, Any]], hints: dict,
+                                target_sha256: str) -> int:
+    """Annotate rows only when target-image and exact function-byte identity agree."""
+    target_sha256 = target_sha256.lower()
+    matched = 0
+    for row in rows:
+        generator = row.get("automaticGenerator")
+        if (row.get("sourceTask") is True
+                and isinstance(generator, dict)
+                and "targetByteSpan" in generator):
+            # A source task's span is only slice-level evidence; it cannot be
+            # promoted to the full-function identity used by these hints.
+            continue
+        target_slice = row.get("targetSlice")
+        if isinstance(target_slice, dict) and "packagedSpan" in target_slice:
+            # Packaged slice hashes identify the clipped artifact, not the
+            # original complete function region.
+            continue
+        row_target = str(row.get("targetSha256") or row.get("analysisBinarySha256") or "").lower()
+        # The state file's target digest cannot bind an otherwise-unbound row:
+        # identical slices can occur in different binaries at the same address.
+        if not row_target or row_target != target_sha256:
+            continue
+        address = row_address(row)
+        if address is None:
+            continue
+        if not isinstance(target_slice, dict):
+            continue
+        region_sha = target_slice.get("bytesSha256")
+        region_size = target_slice.get("size")
+        encoded_bytes = row.get("bytes")
+        if isinstance(encoded_bytes, bytes):
+            actual_bytes = encoded_bytes
+        elif isinstance(encoded_bytes, str):
+            try:
+                actual_bytes = bytes.fromhex(encoded_bytes)
+            except ValueError:
+                continue
+        else:
+            continue
+        actual_sha = hashlib.sha256(actual_bytes).hexdigest()
+        if (not isinstance(region_sha, str) or len(region_sha) != 64
+                or type(region_size) is not int or region_size != len(actual_bytes)
+                or region_sha.lower() != actual_sha):
+            continue
+        hint = hints.get((address, actual_sha))
+        if (hint is None or hint["targetSha256"] != target_sha256
+                or hint["targetRegionSize"] != len(actual_bytes)):
+            continue
+        row["priorDiagnosticPriority"] = dict(hint)
+        matched += 1
+    return matched
+
+
+def _bounded_diagnostic_text(result: dict[str, Any], *, limit: int = 8192) -> str:
+    """Capture bounded stdout/stderr evidence without retaining stale paths."""
+    fragments = [str(result.get("stderrTail") or result.get("reason") or "")]
+    seen_paths: set[str] = set()
+    for key in ("stdout", "objectStdout"):
+        value = result.get(key)
+        if not value:
+            continue
+        path_text = str(value)
+        if path_text in seen_paths:
+            continue
+        seen_paths.add(path_text)
+        try:
+            with Path(path_text).open("rb") as handle:
+                handle.seek(0, os.SEEK_END)
+                size = handle.tell()
+                handle.seek(max(0, size - limit))
+                fragments.append(handle.read(limit).decode("utf-8", errors="replace"))
+        except OSError:
+            continue
+    return "\n".join(fragment for fragment in fragments if fragment)[-limit:]
+
+
 def candidate_id(row: dict[str, Any], candidate: GeneratedCandidate) -> str:
     digest = hashlib.sha256(candidate.source.encode("utf-8")).hexdigest()[:12]
     return safe_dir_name(f"{row.get('entry')}_{row.get('name')}_{candidate.rule}_{candidate.variant}_{digest}")
@@ -18418,7 +18615,9 @@ def attempt_candidate(
     timeout: int,
     dry_run: bool,
     source_shape_search: bool = False,
+    cache_toolchain_identity: str | None = None,
     pending_rewrite_result: dict[str, Any] | None = None,
+    diagnostic_cache_root: Path | None = None,
 ) -> list[dict[str, Any]]:
     case_dir = out_dir / "cases" / candidate_id(row, candidate)
     case_dir.mkdir(parents=True, exist_ok=True)
@@ -18503,7 +18702,9 @@ def attempt_candidate(
             wineprefix=wineprefix,
             timeout=timeout,
             source_shape_search=source_shape_search,
+            cache_toolchain_identity=cache_toolchain_identity,
             pending_rewrite_result=pending_rewrite_result,
+            diagnostic_cache_root=diagnostic_cache_root,
         )
 
     slice_proc = run(
@@ -18717,7 +18918,9 @@ def attempt_candidate_with_msvc_synthetic_slice(
     wineprefix: Path | None,
     timeout: int,
     source_shape_search: bool = False,
+    cache_toolchain_identity: str | None = None,
     pending_rewrite_result: dict[str, Any] | None = None,
+    diagnostic_cache_root: Path | None = None,
 ) -> list[dict[str, Any]]:
     data = parse_bytes(row)
     if not data:
@@ -18738,13 +18941,66 @@ def attempt_candidate_with_msvc_synthetic_slice(
     # Compiler diagnostics repeat across profile variants and resumed runs.
     # Cache only the result metadata; successful objects are always rebuilt so
     # objdiff paths remain local to this attempt.
-    from .compile_cache import diagnostic_key, diagnostic_lookup, diagnostic_store
-    diagnostic_root = case_dir.parent.parent / "compile-cache"
-    try:
-        vc_stat = (vc_root / "bin" / "cl.exe").stat() if vc_root else None
-        toolchain = f"{vc_stat.st_size}:{vc_stat.st_mtime_ns}" if vc_stat else "unknown"
-    except OSError:
-        toolchain = "unavailable"
+    from .compile_cache import (
+        diagnostic_key,
+        diagnostic_lookup,
+        diagnostic_store,
+        is_deterministic_compiler_diagnostic,
+    )
+    diagnostic_root = (
+        diagnostic_cache_root.expanduser().resolve()
+        if diagnostic_cache_root is not None
+        else case_dir.parent.parent / "compile-cache"
+    )
+    toolchain = cache_toolchain_identity or ""
+    candidate_bytes = candidate_source.read_bytes()
+    candidate_text = candidate_bytes.decode("utf-8", errors="replace")
+    candidate_sha256 = hashlib.sha256(candidate_bytes).hexdigest()
+    source_language = candidate.source_suffix.lower()
+    if source_language == ".c":
+        compiler_source_text = build_recovered_c_shim(candidate_text) + "\n\n" + candidate_text
+        preamble_path = Path(__file__).with_name("corpus") / "recovered_c_preamble.py"
+        preamble_sha256 = hashlib.sha256(preamble_path.read_bytes()).hexdigest()
+        compiler_source_name = "candidate.verify.c"
+    else:
+        compiler_source_text = candidate_text
+        preamble_sha256 = None
+        compiler_source_name = candidate_source.name
+    compiler_source_sha256 = hashlib.sha256(compiler_source_text.encode("utf-8")).hexdigest()
+    # The synthetic target object depends on the candidate's symbol/relocation
+    # metadata and target bytes, but not on MSVC optimization flags. Build it
+    # once per candidate and reuse it across the profile sweep.
+    target_data = strip_alignment_padding(data) if candidate.semantic_source else data
+    target_asm = case_dir / "target.S"
+    target_obj = case_dir / "target.obj"
+    target_render = render_target_coff_for_candidate(candidate, target_data)
+    target_asm.write_text(target_render["asm"], encoding="utf-8")
+    target_compile = compile_asm_to_coff(
+        clang="clang",
+        source=target_asm,
+        object_path=target_obj,
+        timeout=attempt_timeout,
+    )
+    if target_compile.get("status") != "ok":
+        return [
+            {
+                **base_record,
+                "status": "slice-failed",
+                "differences": -1,
+                "stderr": str(target_compile.get("stderrTail") or target_compile.get("reason") or "")[-2000:],
+                "attemptDir": str(case_dir),
+                "compilerProfileName": "target-slice-compile-failed",
+                "compilerProfiles": [name for name, _ in resolved_profiles],
+                "targetObject": str(target_obj),
+                "targetObjectOrigin": target_render["origin"],
+                "targetObjectRelocations": target_render["relocations"],
+                "targetCompile": target_compile,
+                "toolchainLaunchFailure": target_compile.get("status") == "launcher-failed",
+                "targetCompileReuseScope": "compiled once for this candidate; no MSVC profile was attempted",
+                "verificationTier": "synthetic-target-coff-objdiff",
+                "claimBoundary": target_render["claimBoundary"],
+            },
+        ]
     for profile_index, (profile_name, profile_args) in enumerate(resolved_profiles):
         merged_flags = normalize_profile_flags(profile_args, list(candidate.extra_flags))
         merged_key = tuple(merged_flags)
@@ -18753,29 +19009,56 @@ def attempt_candidate_with_msvc_synthetic_slice(
         seen_merged_flags.add(merged_key)
         attempt_dir = case_dir / f"profile_{profile_index:02d}_{safe_dir_name(profile_name)}"
         attempt_dir.mkdir(parents=True, exist_ok=True)
-        target_data = strip_alignment_padding(data) if candidate.semantic_source else data
-        target_asm = attempt_dir / "target.S"
-        target_obj = attempt_dir / "target.obj"
+        compiler_source = attempt_dir / compiler_source_name if source_language == ".c" else candidate_source
+        if source_language == ".c":
+            compiler_source.write_text(compiler_source_text, encoding="utf-8")
         candidate_obj = attempt_dir / "candidate.obj"
-        target_render = render_target_coff_for_candidate(candidate, target_data)
-        target_asm.write_text(target_render["asm"], encoding="utf-8")
-        target_compile = compile_asm_to_coff(
-            clang="clang",
-            source=target_asm,
-            object_path=target_obj,
-            timeout=attempt_timeout,
-        )
         diagnostic_cache_key = diagnostic_key(
-            source_sha=hashlib.sha256(candidate.source.encode("utf-8")).hexdigest(),
+            source_sha=compiler_source_sha256,
             compiler="msvc",
             flags=merged_flags,
             toolchain=toolchain,
         )
-        diagnostic_hit = diagnostic_lookup(diagnostic_root, diagnostic_cache_key)
-        candidate_compile = (diagnostic_hit or {}).get("result") if diagnostic_hit else None
-        if not isinstance(candidate_compile, dict) or candidate_compile.get("status") == "ok":
+        diagnostic_hit = (
+            diagnostic_lookup(diagnostic_root, diagnostic_cache_key)
+            if cache_toolchain_identity is not None
+            else None
+        )
+        cached_diagnostic = (diagnostic_hit or {}).get("result") if diagnostic_hit else None
+        cached_text = (
+            str(cached_diagnostic.get("diagnosticText") or "")
+            if isinstance(cached_diagnostic, dict)
+            else ""
+        )
+        if not isinstance(cached_diagnostic, dict) or not is_deterministic_compiler_diagnostic(
+            cached_diagnostic,
+            cached_text,
+        ):
+            diagnostic_hit = None
+        cached_diagnostic = (diagnostic_hit or {}).get("result") if diagnostic_hit else None
+        if isinstance(cached_diagnostic, dict):
+            # Construct an attempt-local failure receipt; cached stdout/object
+            # paths point into a prior candidate directory and must not leak.
+            candidate_compile = {
+                "status": cached_diagnostic.get("status"),
+                "compilerInvoked": cached_diagnostic.get("compilerInvoked") is True,
+                "returnCode": cached_diagnostic.get("returnCode"),
+                "diagnosticText": cached_text,
+                "diagnosticCacheHit": True,
+            }
+            cache_receipt = {
+                "schema": diagnostic_hit.get("schema"),
+                "cacheKey": diagnostic_cache_key,
+                "diagnosticCacheHit": True,
+                "attemptDir": str(attempt_dir),
+                "result": candidate_compile,
+            }
+            (attempt_dir / "compile.cache.json").write_text(
+                json.dumps(cache_receipt, sort_keys=True) + "\n", encoding="utf-8"
+            )
+        else:
             candidate_compile = compile_with_msvc(
-                source=candidate_source,
+                source=compiler_source,
                 object_path=candidate_obj,
                 out_dir=attempt_dir,
                 stem="candidate",
@@ -18785,24 +19068,29 @@ def attempt_candidate_with_msvc_synthetic_slice(
                 wine=wine,
                 wineprefix=wineprefix,
             )
-            if candidate_compile.get("status") != "ok":
-                diagnostic_store(diagnostic_root, diagnostic_cache_key, candidate_compile)
-        elif diagnostic_hit:
-            (attempt_dir / "compile.cache.json").write_text(json.dumps(diagnostic_hit, sort_keys=True) + "\n", encoding="utf-8")
-        stdout_path = candidate_compile.get("stdout") if isinstance(candidate_compile, dict) else None
-        diagnostic_text = str(candidate_compile.get("stderrTail") or "") if isinstance(candidate_compile, dict) else ""
-        if stdout_path:
-            try:
-                diagnostic_text += Path(stdout_path).read_text(encoding="utf-8", errors="replace")
-            except OSError:
-                pass
-        # MSVC writes diagnostics to the object wrapper's stdout path.
-        object_stdout = candidate_compile.get("objectStdout") if isinstance(candidate_compile, dict) else None
-        if object_stdout and object_stdout != stdout_path:
-            try:
-                diagnostic_text += Path(object_stdout).read_text(encoding="utf-8", errors="replace")
-            except OSError:
-                pass
+        diagnostic_text = (
+            cached_text
+            if diagnostic_hit
+            else _bounded_diagnostic_text(candidate_compile)
+        )
+        if not diagnostic_hit:
+            candidate_compile["diagnosticText"] = diagnostic_text
+        if (
+            not diagnostic_hit
+            and cache_toolchain_identity is not None
+            and isinstance(candidate_compile, dict)
+            and is_deterministic_compiler_diagnostic(candidate_compile, diagnostic_text)
+        ):
+            diagnostic_store(
+                diagnostic_root,
+                diagnostic_cache_key,
+                {
+                    "status": candidate_compile.get("status"),
+                    "compilerInvoked": candidate_compile.get("compilerInvoked") is True,
+                    "returnCode": candidate_compile.get("returnCode"),
+                    "diagnosticText": diagnostic_text,
+                },
+            )
         profile_independent_failure = (
             isinstance(candidate_compile, dict)
             and candidate_compile.get("status") != "ok"
@@ -18817,35 +19105,43 @@ def attempt_candidate_with_msvc_synthetic_slice(
             "compilerProfileName": profile_name,
             "compilerProfileArgs": merged_flags,
             "compilerProfiles": [name for name, _ in resolved_profiles],
+            "compilerDiagnostic": diagnostic_text[-2000:],
+            "compilerInput": {
+                "candidateSource": str(candidate_source),
+                "candidateSourceSha256": candidate_sha256,
+                "compilerSource": str(compiler_source),
+                "compilerSourceSha256": compiler_source_sha256,
+                "preparation": "recovered-c-preamble" if source_language == ".c" else "unchanged",
+                "preambleImplementationSha256": preamble_sha256,
+            },
             "targetObject": str(target_obj),
             "targetObjectOrigin": target_render["origin"],
             "targetObjectRelocations": target_render["relocations"],
+            "targetCompileReuseScope": "compiled once for this candidate; reused across its MSVC profile sweep",
             "verificationTier": "synthetic-target-coff-objdiff",
             "claimBoundary": target_render["claimBoundary"],
         }
-        if target_compile.get("status") != "ok":
-            attempts.append(
-                {
-                    **record,
-                    "status": "slice-failed",
-                    "differences": -1,
-                    "stderr": str(target_compile.get("stderrTail") or target_compile.get("reason") or "")[-2000:],
-                    "targetCompile": target_compile,
-                }
-            )
-            continue
         if candidate_compile.get("status") != "ok":
             attempts.append(
                 {
                     **record,
                     "status": "compile-failed",
                     "differences": -1,
-                    "stderr": str(candidate_compile.get("stderrTail") or candidate_compile.get("reason") or "")[-2000:],
+                    "stderr": diagnostic_text[-2000:],
                     "targetCompile": target_compile,
                     "candidateCompile": candidate_compile,
                 }
             )
             if profile_independent_failure:
+                break
+            if candidate_compile.get("compilerInvoked") is not True:
+                # Compiler profile flags cannot affect a failure that happened
+                # before the compiler process was entered (e.g. Wine/prefix or
+                # launcher setup). Remaining profiles would repeat that failure.
+                attempts[-1]["profileSweepStopped"] = {
+                    "reason": "compiler-not-invoked",
+                    "unattemptedProfiles": [name for name, _ in resolved_profiles[profile_index + 1 :]],
+                }
                 break
             continue
         report = run_objdiff(target_obj, candidate_obj, attempt_dir, timeout=timeout)
@@ -19107,13 +19403,30 @@ def compile_asm_to_coff(*, clang: str, source: Path, object_path: Path, timeout:
         "-o",
         str(object_path),
     ]
-    proc = run(command, timeout=timeout)
     stdout_path = object_path.with_suffix(".clang.stdout.txt")
     stderr_path = object_path.with_suffix(".clang.stderr.txt")
+    try:
+        proc = run(command, timeout=timeout)
+    except OSError as exc:
+        message = f"unable to launch target assembler: {exc}"
+        stdout_path.write_text("", encoding="utf-8")
+        stderr_path.write_text(message, encoding="utf-8")
+        return {
+            "status": "launcher-failed",
+            "compilerInvoked": False,
+            "reason": message,
+            "returnCode": None,
+            "command": command,
+            "object": None,
+            "stdout": str(stdout_path),
+            "stderr": str(stderr_path),
+            "stderrTail": message,
+        }
     stdout_path.write_text(proc.stdout, encoding="utf-8")
     stderr_path.write_text(proc.stderr, encoding="utf-8")
     return {
         "status": "ok" if proc.returncode == 0 and object_path.exists() else "failed",
+        "compilerInvoked": True,
         "returnCode": proc.returncode,
         "command": command,
         "object": str(object_path) if object_path.exists() else None,
@@ -20856,6 +21169,55 @@ def render_relocation_aware_coff_asm(candidate: GeneratedCandidate, data: bytes)
                 },
             }
         )
+    # A source-task may carry an independently recorded Ghidra callee identity
+    # for a direct branch in the target bytes. Reconstruct the target COFF
+    # relocation only when the encoded rel32 resolves to that exact function
+    # address. This lets objdiff compare a candidate's external symbol against
+    # the real callee identity instead of treating a linked PE call as an
+    # unrelocated numeric operand. It does not relax the byte-comparison gate.
+    raw_target_relocations = candidate.evidence.get("targetRelocations")
+    if isinstance(raw_target_relocations, list):
+        for item in raw_target_relocations:
+            if not isinstance(item, dict):
+                continue
+            offset = item.get("offset")
+            symbol = item.get("symbol")
+            entry = optional_int(item.get("entry"))
+            target_address = optional_int(item.get("targetAddress"))
+            instruction = str(item.get("instruction") or "call").lower()
+            opcode = {"call": 0xE8, "jmp": 0xE9}.get(instruction)
+            if (
+                type(offset) is not int
+                or not isinstance(symbol, str)
+                or not re.fullmatch(r"[A-Za-z_.$?@][A-Za-z0-9_.$?@]*", symbol)
+                or entry is None
+                or target_address is None
+                or opcode is None
+                or item.get("type") != "IMAGE_REL_I386_REL32"
+                or offset < 0
+                or offset + 5 > len(data)
+                or data[offset] != opcode
+            ):
+                continue
+            encoded_target = entry + offset + 5 + struct.unpack_from("<i", data, offset + 1)[0]
+            if encoded_target != target_address:
+                continue
+            replacements.append(
+                {
+                    "offset": offset,
+                    "length": 5,
+                    "asm": f"{instruction} {symbol}",
+                    "symbols": [symbol],
+                    "relocation": {
+                        "offset": offset + 1,
+                        "type": "IMAGE_REL_I386_REL32",
+                        "symbol": symbol,
+                        "decodedTarget": f"0x{target_address:08x}",
+                        "instruction": instruction,
+                        "authority": "Ghidra function identity plus verified target rel32",
+                    },
+                }
+            )
     for relocation in absolute_address_relocations(candidate, data):
         offset = int(relocation["offset"])
         replacements.append(
@@ -21106,16 +21468,26 @@ def filter_candidates_by_explicit_rule_strategies(
 
 
 def generated_candidate_source_quality(candidate: GeneratedCandidate) -> str:
+    # Source metadata is a hint, not authority: older task manifests called
+    # byte-emission fallbacks "high-level-c" even though the source is only a
+    # naked function whose body emits the target bytes. Inspect source shape
+    # before honoring that label so objdiff cannot promote an assembly floor
+    # into apparent semantic C recovery.
+    source = candidate.source
+    source_lower = source.lower()
+    tier = str(candidate.evidence.get("sourceTier") or "").lower()
+    if (candidate.source_suffix.lower() in {".asm", ".s"}
+            or "compile-only-asm" in source_lower
+            or re.search(r"\b_emit\s+0x[0-9a-f]+", source_lower)
+            or "byte-emission" in tier or "byte emission" in tier):
+        return "byte-emission-asm"
+    if ("__asm" in source_lower or "__declspec(naked)" in source_lower
+            or "__attribute__((naked))" in source_lower
+            or "inline-assembly" in tier or "inline assembly" in tier):
+        return "inline-asm-c"
     explicit_quality = str(candidate.evidence.get("sourceQuality") or "")
     if explicit_quality in {"high-level-c", "inline-asm-c", "byte-emission-asm", "nonsemantic-bootstrap"}:
         return explicit_quality
-    tier = str(candidate.evidence.get("sourceTier") or "").lower()
-    if "byte-emission" in tier or "byte emission" in tier:
-        return "byte-emission-asm"
-    if "inline-assembly" in tier or "inline assembly" in tier or "__declspec(naked)" in candidate.source or "__attribute__((naked))" in candidate.source:
-        return "inline-asm-c"
-    if candidate.source_suffix.lower() in {".asm", ".s"}:
-        return "byte-emission-asm"
     if candidate.semantic_source:
         return "high-level-c"
     return "nonsemantic-bootstrap"
@@ -21613,6 +21985,13 @@ def main(argv: list[str] | None = None) -> int:
         action="append",
         default=[],
     )
+    parser.add_argument(
+        "--diagnostic-priority-state",
+        type=Path,
+        action="append",
+        default=[],
+        help="Legacy byteexact cache used only to prioritize identical source/target rows; never a match or cache receipt.",
+    )
     parser.add_argument("--out-dir", type=Path, default=ROOT / "target/source-parity-synthesis/default")
     parser.add_argument("--limit", type=int, default=25, help="Maximum queued functions to inspect.")
     parser.add_argument("--offset", type=int, default=0, help="Eligible queued functions to skip before inspecting.")
@@ -21668,7 +22047,26 @@ def main(argv: list[str] | None = None) -> int:
         default="",
         help="Analysis-image SHA-256 required for match-cache skip keys.",
     )
+    parser.add_argument(
+        "--source-task-target-sha",
+        default="",
+        help=argparse.SUPPRESS,
+    )
+    parser.add_argument(
+        "--diagnostic-cache-dir",
+        type=Path,
+        default=None,
+        help=argparse.SUPPRESS,
+    )
     args = parser.parse_args(argv)
+
+    if args.source_task_target_sha:
+        if not args.diagnostic_priority_state or not args.target_sha:
+            parser.error("--source-task-target-sha is only valid with --diagnostic-priority-state and --target-sha")
+        if not args.source_tasks_only or not args.source_tasks:
+            parser.error("--source-task-target-sha requires source-task-only input; queue rows are never rebound")
+        if args.source_task_target_sha.lower() != args.target_sha.lower():
+            parser.error("--source-task-target-sha must equal the verified --target-sha")
 
     if args.clean and args.out_dir.exists():
         shutil.rmtree(args.out_dir)
@@ -21677,8 +22075,17 @@ def main(argv: list[str] | None = None) -> int:
     accepted_path = args.out_dir / "accepted.jsonl"
     code_slice_matches_path = args.out_dir / "code-slice-matches.jsonl"
     source_shape_matches_path = args.out_dir / "source-shape-matches.jsonl"
-    # Always reset attempts for this run; preserve match artifacts unless --clean.
-    clean_jsonl(attempts_path)
+    # A deliberate compiler-circuit pause is resumable; retain its diagnostic
+    # trail when the same output directory is continued without --clean.
+    preserve_paused_attempts = False
+    previous_summary = args.out_dir / "summary.json"
+    if not args.clean and attempts_path.is_file() and previous_summary.is_file():
+        try:
+            preserve_paused_attempts = json.loads(previous_summary.read_text(encoding="utf-8")).get("status") == "paused-compiler-failure-circuit"
+        except (OSError, json.JSONDecodeError, AttributeError):
+            pass
+    if not preserve_paused_attempts:
+        clean_jsonl(attempts_path)
     if args.clean:
         clean_jsonl(accepted_path)
         clean_jsonl(code_slice_matches_path)
@@ -21698,35 +22105,60 @@ def main(argv: list[str] | None = None) -> int:
     # instead of rebuilding the default set inside every candidate worker.
     default_profiles = default_profile_set(args.compiler) if not compiler_profiles else []
     default_profile_name = (compiler_profiles or default_profiles or [("default", {})])[0][0]
-    if args.compiler == "msvc":
-        compiler_path = resolve_msvc_root(args.vc_root).expanduser().resolve() / "bin" / "cl.exe"
-    else:
-        compiler_path = Path(shutil.which(args.clang) or args.clang).expanduser().resolve()
-    try:
-        compiler_stat = compiler_path.stat()
-        compiler_file_identity = {
-            "path": str(compiler_path),
-            "size": compiler_stat.st_size,
-            "mtimeNs": compiler_stat.st_mtime_ns,
-        }
-    except OSError:
-        compiler_file_identity = {"path": str(compiler_path), "unavailable": True}
-    toolchain_identity = json.dumps(
-        {
-            "compiler": args.compiler,
-            "compilerFile": compiler_file_identity,
-            "wine": args.wine if args.compiler == "msvc" else None,
-            "wineprefix": str(args.wineprefix.expanduser().resolve()) if args.wineprefix else None,
-        },
-        sort_keys=True,
-        separators=(",", ":"),
+    compiler_root = resolve_msvc_root(args.vc_root).expanduser().resolve() if args.compiler == "msvc" else None
+    compiler_path = (
+        compiler_root / "bin" / "cl.exe"
+        if compiler_root is not None
+        else Path(shutil.which(args.clang) or args.clang).expanduser().resolve()
     )
+    configured_clang_path = Path(shutil.which(args.clang) or args.clang).expanduser().resolve()
+    target_slice_clang_path = Path(shutil.which("clang") or "clang").expanduser().resolve()
+    objdiff_path = inspect_tool("objdiff").get("path")
+    objdump_path = inspect_tool("objdump").get("path")
+    wine_path = shutil.which(args.wine) or args.wine
+    from .compile_cache import (
+        advisory_toolchain_identity,
+        cache_dir as compile_cache_dir,
+        cache_key as compile_cache_key,
+        has_stable_compile_objdiff_result,
+        lookup as compile_cache_lookup,
+        source_has_bounded_compile_inputs,
+        store as compile_cache_store,
+        target_slice_sha256,
+    )
+
+    toolchain_files: dict[str, Path | None] = {
+        "candidate-compiler": compiler_path,
+        "target-slice-clang": target_slice_clang_path,
+        "objdiff": Path(objdiff_path) if objdiff_path else None,
+        "objdump-fallback": Path(objdump_path) if objdump_path else None,
+        "source-synthesizer": Path(__file__),
+        "compile-cache-identity": Path(__file__).with_name("compile_cache.py"),
+        "objdiff-verifier": Path(__file__).with_name("objdiff_verification.py"),
+        "package-compiler-adapter": Path(__file__).with_name("package_verify.py"),
+        "recovered-c-preamble": Path(__file__).with_name("corpus") / "recovered_c_preamble.py",
+    }
+    if args.compiler != "msvc":
+        toolchain_files["configured-clang"] = configured_clang_path
+    if compiler_root is not None:
+        for tool in ("c1.dll", "c1xx.dll", "c2.dll", "ml.exe"):
+            path = compiler_root / "bin" / tool
+            toolchain_files[f"msvc-{tool}"] = path if path.is_file() else None
+        toolchain_files["wine"] = Path(wine_path)
     strategy_by_name = load_strategy(args.remaining_features)
     retrieval_by_name = load_retrieval(args.retrieval)
     matched = load_matched(args.matched_summary)
-    from .compile_cache import cache_dir as compile_cache_dir, cache_key as compile_cache_key, lookup as compile_cache_lookup, store as compile_cache_store, target_slice_sha256
-    from .match_cache import MatchCache, source_sha256
-    from .verify_pool import get_worker_index, map_parallel, resolve_workers
+    diagnostic_hints: dict[tuple[int, str], dict[str, Any]] = {}
+    diagnostic_priority_metadata: list[dict] = []
+    diagnostic_priority_matches = 0
+    if args.diagnostic_priority_state:
+        try:
+            diagnostic_hints, diagnostic_priority_metadata = load_diagnostic_priority_states(
+                args.diagnostic_priority_state, args.target_sha)
+        except (OSError, ValueError, json.JSONDecodeError) as exc:
+            parser.error(f"invalid diagnostic priority state: {exc}")
+    from .match_cache import MatchCache
+    from .verify_pool import get_worker_index, iter_parallel, resolve_workers
 
     cache_path = args.match_cache or (args.out_dir / "match-cache.json")
     match_cache = MatchCache()
@@ -21756,7 +22188,7 @@ def main(argv: list[str] | None = None) -> int:
             return {"WINEPREFIX": str(prefix.resolve())}
 
     print(
-        f"source-parity-synthesize: workers={workers} force_rematch={bool(args.force_rematch)} cached_entries={len(match_cache.by_entry)}",
+        f"source-parity-synthesize: workers={workers} force_rematch={bool(args.force_rematch)} cached_entries={len(match_cache.by_entry)} diagnostic_hints={len(diagnostic_hints)}",
         file=sys.stderr,
         flush=True,
     )
@@ -21801,15 +22233,30 @@ def main(argv: list[str] | None = None) -> int:
     code_slice_matched_by_recovery_scope: dict[str, int] = {}
     semantic_code_slice_matched_by_recovery_scope: dict[str, int] = {}
     promotion_stats: dict[tuple[str, str], dict[str, Any]] = {}
+    deterministic_compile_failures = 0
+    compile_failure_circuit: dict[str, Any] | None = None
 
     input_rows = [] if args.source_tasks_only else [*iter_jsonl(args.queue)]
     for source_tasks in args.source_tasks:
         input_rows.extend(iter_source_task_rows(source_tasks))
+    if args.source_task_target_sha:
+        for row in input_rows:
+            if row.get("sourceTask") is True and not (
+                row.get("targetSha256") or row.get("analysisBinarySha256")
+            ):
+                row["targetSha256"] = args.source_task_target_sha.lower()
     if args.source_tasks:
         input_rows = deduplicate_synthesis_rows(input_rows)
+    if args.diagnostic_priority_state:
+        diagnostic_priority_matches = apply_diagnostic_priorities(
+            input_rows, diagnostic_hints, args.target_sha)
+        input_rows.sort(key=synthesis_row_priority)
+    elif args.source_tasks:
         input_rows.sort(key=synthesis_row_priority)
 
     for row in input_rows:
+        if compile_failure_circuit is not None:
+            break
         if inspected >= args.limit:
             break
         if (str(row.get("name")), str(row.get("entry"))) in matched:
@@ -21944,23 +22391,92 @@ def main(argv: list[str] | None = None) -> int:
             pending_candidates.append(candidate)
 
         def _run_one(candidate: GeneratedCandidate) -> list[dict[str, Any]]:
+            wineprefix = args.wineprefix
+            if wineprefix is None and os.environ.get("WINEPREFIX"):
+                wineprefix = Path(os.environ["WINEPREFIX"])
+            effective_profiles = resolve_profiles(
+                row,
+                compiler_profiles,
+                args.compiler,
+                source_shape_search=args.source_shape_search,
+            )
+            profile_flags = json.dumps(
+                {"profiles": effective_profiles, "candidateFlags": candidate.extra_flags},
+                sort_keys=True,
+                separators=(",", ":"),
+            )
+            compiler_input = candidate.source
+            if candidate.source_suffix.lower() == ".c":
+                compiler_input = build_recovered_c_shim(candidate.source) + "\n\n" + candidate.source
+            compiler_input_sha256 = hashlib.sha256(compiler_input.encode("utf-8")).hexdigest()
+            source_cacheable = source_has_bounded_compile_inputs(
+                compiler_input,
+                [flag for _, flags in effective_profiles for flag in flags] + list(candidate.extra_flags),
+            )
+            effective_env = dict(os.environ)
+            if compiler_root is not None:
+                try:
+                    from .package_verify import msvc_environment
+
+                    effective_env = msvc_environment(compiler_root, wineprefix)
+                except (OSError, RuntimeError, ValueError):
+                    source_cacheable = False
+            files_for_candidate = dict(toolchain_files)
+            if compiler_root is not None:
+                effective_prefix = effective_env.get("WINEPREFIX")
+                if not effective_prefix:
+                    source_cacheable = False
+                else:
+                    prefix_root = Path(effective_prefix).expanduser().resolve()
+                    for registry_name in ("system.reg", "user.reg", "userdef.reg"):
+                        files_for_candidate[f"wine-prefix-{registry_name}"] = prefix_root / registry_name
+            environment_names = (
+                "PATH", "INCLUDE", "CPATH", "C_INCLUDE_PATH", "CPLUS_INCLUDE_PATH", "SDKROOT",
+                "CCC_OVERRIDE_OPTIONS", "CLANG_CONFIG_FILE_USER_DIR", "CLANG_CONFIG_FILE_SYSTEM_DIR",
+                "SOURCE_DATE_EPOCH", "TMP", "TEMP", "TMPDIR", "LANG", "LC_ALL", "WINEPREFIX",
+                "WINEDEBUG", "WINEARCH", "WINEDLLOVERRIDES", "WINEPATH",
+            )
+            profile_identity = advisory_toolchain_identity(
+                files=files_for_candidate,
+                settings={
+                    "compiler": args.compiler,
+                    "compilerPath": str(compiler_path),
+                    "targetSliceClangPath": str(target_slice_clang_path),
+                    "configuredClangPath": str(configured_clang_path) if args.compiler != "msvc" else None,
+                    "compilerProfile": default_profile_name,
+                    "compilerFlags": profile_flags,
+                    "sourceSuffix": candidate.source_suffix,
+                    "sourceShapeSearch": bool(args.source_shape_search),
+                    "candidateRule": candidate.rule,
+                    "candidateVariant": candidate.variant,
+                    "candidateSymbol": candidate.symbol,
+                    "candidateCName": candidate.c_name,
+                    "candidateCallConvention": candidate.callconv,
+                    "candidateSemanticSource": candidate.semantic_source,
+                    "candidateEvidenceSha256": hashlib.sha256(
+                        json.dumps(candidate.evidence, sort_keys=True, separators=(",", ":"), default=str).encode("utf-8")
+                    ).hexdigest(),
+                },
+                environment={name: effective_env[name] for name in environment_names if name in effective_env},
+            ) if source_cacheable else None
             cache_key_value = compile_cache_key(
                 target_slice_sha=target_slice_sha256(row),
-                source_sha=source_sha256(candidate.source),
+                source_sha=compiler_input_sha256,
                 compiler_profile=default_profile_name,
                 compiler_lane="cxx" if candidate.source_suffix.lower() in {".cpp", ".cc", ".cxx"} else "c",
-                flags=json.dumps(compiler_profiles, sort_keys=True, separators=(",", ":")),
-                toolchain_identity=toolchain_identity,
+                flags=profile_flags,
+                toolchain_identity=profile_identity or "cache-disabled",
             )
-            if not args.force_rematch:
+            if profile_identity is not None and not args.force_rematch and not args.source_shape_search:
                 hit = compile_cache_lookup(compile_cache_root, cache_key_value)
-                if hit is not None:
+                if hit is not None and has_stable_compile_objdiff_result(hit.get("records") or []):
                     nonlocal compile_cache_hits
                     compile_cache_hits += 1
                     return [
                         {
                             **record,
                             "compileCacheHit": True,
+                            "compileCacheClaim": "advisory reuse of a prior function-slice result; not a fresh compile, objdiff run, or full-image proof",
                             "workerIndex": get_worker_index(),
                             "workerPrefix": os.environ.get("WINEPREFIX"),
                         }
@@ -21968,9 +22484,6 @@ def main(argv: list[str] | None = None) -> int:
                         if isinstance(record, dict)
                     ]
 
-            wineprefix = args.wineprefix
-            if wineprefix is None and os.environ.get("WINEPREFIX"):
-                wineprefix = Path(os.environ["WINEPREFIX"])
             records = attempt_candidate(
                 row,
                 candidate,
@@ -21985,6 +22498,8 @@ def main(argv: list[str] | None = None) -> int:
                 timeout=args.timeout,
                 dry_run=args.dry_run,
                 source_shape_search=args.source_shape_search,
+                cache_toolchain_identity=profile_identity,
+                diagnostic_cache_root=args.diagnostic_cache_dir,
             )
             worker_index = get_worker_index()
             worker_prefix = os.environ.get("WINEPREFIX")
@@ -22000,12 +22515,21 @@ def main(argv: list[str] | None = None) -> int:
                     )
                 else:
                     stamped.append(record)
-            if not args.dry_run and stamped:
+            if (
+                profile_identity is not None
+                and not args.dry_run
+                and not args.source_shape_search
+                and has_stable_compile_objdiff_result(stamped)
+            ):
                 compile_cache_store(
                     compile_cache_root,
                     cache_key_value,
                     records=stamped,
-                    metadata={"name": row.get("name"), "entry": row.get("entry")},
+                    metadata={
+                        "name": row.get("name"),
+                        "entry": row.get("entry"),
+                        "identityClaim": "bounded advisory cache identity; not complete toolchain provenance or full-image proof",
+                    },
                 )
             return stamped
 
@@ -22023,18 +22547,71 @@ def main(argv: list[str] | None = None) -> int:
                 }
             ]
 
+        def _stop_after_repeated_compile_failure(
+            candidate: GeneratedCandidate, records: list[dict[str, Any]]
+        ) -> bool:
+            nonlocal deterministic_compile_failures, compile_failure_circuit
+            successful_profile = any(
+                record.get("candidateCompileInvoked") is True
+                and (
+                    record.get("status") in {"matched", "mismatched", "code-slice-matched"}
+                    or (
+                        isinstance(record.get("candidateCompile"), dict)
+                        and record["candidateCompile"].get("status") == "ok"
+                    )
+                )
+                for record in records
+            )
+            compile_failures = [
+                record
+                for record in records
+                if record.get("status") == "compile-failed"
+                and record.get("candidateCompileInvoked") is True
+                and re.search(
+                    r"\b(?:fatal\s+)?error\s*(?:[CA]\d{4}\s*:|:)",
+                    str(record.get("compilerDiagnostic") or record.get("stderr") or ""),
+                    re.IGNORECASE,
+                )
+            ]
+            if compile_failures and not successful_profile:
+                deterministic_compile_failures += 1
+                if deterministic_compile_failures >= COMPILE_FAILURE_CIRCUIT_BREAKER_THRESHOLD:
+                    first = compile_failures[0]
+                    first_text = str(first.get("compilerDiagnostic") or first.get("stderr") or "")
+                    diagnostic = re.search(
+                        r"(?m)^.*?\b(?:fatal\s+)?error\s*(?:[CA]\d{4}\s*:|:).*?$",
+                        first_text,
+                        re.IGNORECASE,
+                    )
+                    compile_failure_circuit = {
+                        "status": "paused",
+                        "reason": "repeated deterministic compiler diagnostics; stopped submitting new candidates",
+                        "threshold": COMPILE_FAILURE_CIRCUIT_BREAKER_THRESHOLD,
+                        "deterministicCandidateFailures": deterministic_compile_failures,
+                        "candidate": getattr(candidate, "rule", None),
+                        "function": {"name": row.get("name"), "entry": row.get("entry")},
+                        "compiler": args.compiler,
+                        "compilerProfile": first.get("compilerProfileName"),
+                        "diagnostic": diagnostic.group(0)[-500:] if diagnostic else first_text[-500:],
+                        "unsubmittedCandidatesRemainEligibleOnResume": True,
+                    }
+                    return True
+            return False
+
         record_batches = (
-            map_parallel(
+            iter_parallel(
                 pending_candidates,
                 _run_one,
                 workers=workers,
                 on_error=_candidate_error,
                 worker_env_factory=worker_env_factory,
+                max_in_flight=workers,
+                should_stop=_stop_after_repeated_compile_failure,
             )
             if pending_candidates
             else []
         )
-        for records in record_batches:
+        for _, records in record_batches:
             for record in records:
                 record["strategyClass"] = strategy_by_name.get(str(row.get("name")))
                 record["nearestMatchedExamples"] = retrieval_by_name.get(str(row.get("name")), [])[:3]
@@ -22106,13 +22683,21 @@ def main(argv: list[str] | None = None) -> int:
                     file=sys.stderr,
                     flush=True,
                 )
+        if compile_failure_circuit is not None:
+            break
 
     promotion_targets_path = args.out_dir / "high-level-promotion-targets.json"
     summary = {
         "schema": "agentdecompile.source-parity-synthesis-summary.v1",
-        "status": "generated-only" if args.dry_run else "complete",
+        "status": "generated-only" if args.dry_run else ("paused-compiler-failure-circuit" if compile_failure_circuit else "complete"),
+        "compileFailureCircuit": compile_failure_circuit,
+        "attemptsPreservedFromPausedRun": preserve_paused_attempts,
         "queue": str(args.queue),
         "sourceTasks": [str(path) for path in args.source_tasks],
+        "diagnosticPriorityStates": diagnostic_priority_metadata,
+        "diagnosticPriorityHintCount": len(diagnostic_hints),
+        "diagnosticPriorityMatchedQueueRows": diagnostic_priority_matches,
+        "diagnosticPriorityClaim": "Scheduling hints only; no historical row is accepted, cached, or substituted for fresh compiler and objdiff evidence.",
         "verifyPackagedSource": bool(args.verify_packaged_source),
         "upgradePackagedSource": bool(args.upgrade_packaged_source),
         "inventory": str(args.inventory),
@@ -22207,10 +22792,10 @@ def main(argv: list[str] | None = None) -> int:
     write_high_level_promotion_targets(args.out_dir, promotion_stats=promotion_stats, summary=summary)
     write_json(args.out_dir / "summary.json", summary)
     print(json.dumps(summary, indent=2, sort_keys=True))
-    return 0
+    return 2 if compile_failure_circuit is not None else 0
 
 
-def synthesis_row_priority(row: dict[str, Any]) -> tuple[int, int, int, int, str]:
+def synthesis_row_priority(row: dict[str, Any]) -> tuple[int, int, int, int, int, int, str]:
     generator = row.get("automaticGenerator")
     rule = str(generator.get("rule") or "") if isinstance(generator, dict) else ""
     target_slice = row.get("targetSlice") if isinstance(row.get("targetSlice"), dict) else {}
@@ -22222,7 +22807,11 @@ def synthesis_row_priority(row: dict[str, Any]) -> tuple[int, int, int, int, str
     # Previous near misses are the highest-value repair targets: they already
     # established a valid source shape and only need a focused correction.
     near_miss = row_has_near_miss(row)
+    diagnostic = row.get("priorDiagnosticPriority")
+    diagnostic_tier = str(diagnostic.get("tier") or "") if isinstance(diagnostic, dict) else ""
+    diagnostic_rank = {"raw-equal-no-relocations": 0, "relocation-masked-match": 1}.get(diagnostic_tier, 2)
     return (
+        diagnostic_rank,
         0 if str(row.get("sourceOrigin") or "").startswith("acquired source context from ") else 1,
         0 if near_miss else 1,
         0 if is_semantic else 1,

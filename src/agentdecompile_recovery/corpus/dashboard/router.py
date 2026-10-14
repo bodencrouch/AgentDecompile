@@ -478,6 +478,16 @@ def create_dashboard_router() -> APIRouter:
 
     @router.get("/dashboard/api/workbench/corpus-status")
     async def workbench_corpus_status(request: Request) -> JSONResponse:
+        if request.query_params.get("scope") == "projects":
+            from agentdecompile_recovery.corpus.dashboard.project_universe import project_universe
+
+            payload = await asyncio.to_thread(
+                project_universe,
+                q=request.query_params.get("q") or "",
+                offset=request.query_params.get("offset") or 0,
+                limit=request.query_params.get("limit") or 100,
+            )
+            return JSONResponse(payload, status_code=200 if payload.get("ok") else 400)
         from agentdecompile_recovery.corpus.dashboard.recovery_status import corpus_status
 
         payload = await asyncio.to_thread(
@@ -533,7 +543,20 @@ def create_dashboard_router() -> APIRouter:
                 con.close()
             except sqlite3.Error as exc:
                 return {"ok": False, "error": f"not a readable sqlite db: {exc}"}
-            set_runtime_db_path(candidate)
+            from agentdecompile_recovery.corpus.dashboard.common import root_for_database, _REVIEW_SELECTION_LOCK
+            from agentdecompile_recovery.corpus.dashboard.actions import jobs as scope_jobs
+            from functools import partial
+            # Review transactions and job allocation share this ordering.
+            # The selection is not committed until both receipt scopes pass
+            # ownership checks and the target's reservations are restored.
+            try:
+                with _REVIEW_SELECTION_LOCK:
+                    workspace = root_for_database(candidate)
+                    if workspace is None:
+                        raise OSError('Selected corpus has no authoritative workspace')
+                    scope_jobs.STORE.select_receipt_scope(workspace, partial(set_runtime_db_path, candidate))
+            except (OSError, ValueError) as exc:
+                return {"ok": False, "error": str(exc), "selectionCommitted": False}
             current = live_db()
             return {
                 "ok": True,
@@ -865,12 +888,28 @@ def create_dashboard_router() -> APIRouter:
 
     @router.get("/dashboard/api/actions")
     async def dashboard_api_actions(request: Request) -> JSONResponse:
-        from agentdecompile_recovery.corpus.dashboard.actions.catalog import list_actions
+        from pathlib import Path
+        from agentdecompile_recovery.corpus.dashboard.actions import catalog as action_catalog
         from agentdecompile_recovery.corpus.dashboard.actions.context import workbench_context
+
+        # Keep the public action surface aligned with in-process Python edits.
+        # The catalog cache was historically invalidated only by CLI parser
+        # changes, leaving UI-visible fields/admission contracts stale.
+        catalog_path = Path(action_catalog.__file__).resolve()
+        catalog_stat = catalog_path.stat()
+        catalog_stamp = (catalog_stat.st_dev, catalog_stat.st_ino,
+                         catalog_stat.st_size, catalog_stat.st_mtime_ns)
+        refresh_lock = getattr(action_catalog.list_actions, "_refresh_lock", None)
+        if refresh_lock is None:
+            action_catalog._ACTIONS = None
+        else:
+            with refresh_lock:
+                if getattr(action_catalog.list_actions, "_catalog_stamp", None) != catalog_stamp:
+                    action_catalog._ACTIONS = None
 
         page = (request.query_params.get("page") or "").strip()
         actions, context = await asyncio.gather(
-            asyncio.to_thread(list_actions), asyncio.to_thread(workbench_context),
+            asyncio.to_thread(action_catalog.list_actions), asyncio.to_thread(workbench_context),
         )
         if page and page not in {"home", "work"}:
             actions = [item for item in actions if page in item.pages]
@@ -907,9 +946,40 @@ def create_dashboard_router() -> APIRouter:
             return JSONResponse({"ok": False, "error": f"unknown job {job_id}"}, status_code=404)
         return JSONResponse({"ok": True, "job": job.to_dict()})
 
+    @router.post("/dashboard/api/approvals")
+    async def dashboard_api_issue_approval(request: Request) -> JSONResponse:
+        from agentdecompile_recovery.corpus.dashboard.actions import approval
+
+        try:
+            body = await request.json()
+        except Exception:
+            body = {}
+        if not isinstance(body, dict) or body.get("confirm") is not True:
+            return JSONResponse({"ok": False, "error": "explicit review confirmation is required"}, status_code=400)
+        params = body.get("params")
+        if not isinstance(params, dict):
+            return JSONResponse({"ok": False, "error": "action parameters must be an object"}, status_code=400)
+        try:
+            actor = approval.local_actor(
+                request.client.host if request.client else None,
+                request.headers.get("origin"),
+                str(request.base_url).rstrip("/"),
+            )
+            record = await asyncio.to_thread(
+                approval.issue,
+                str(body.get("action") or ""),
+                params,
+                str(body.get("operationKey") or ""),
+                actor,
+            )
+        except approval.ApprovalError as exc:
+            return JSONResponse({"ok": False, "error": str(exc)}, status_code=exc.status)
+        return JSONResponse({"ok": True, "approval": record})
+
     @router.post("/dashboard/api/jobs")
     async def dashboard_api_start_job(request: Request) -> JSONResponse:
         from agentdecompile_recovery.corpus.dashboard.actions.jobs import start_job
+        from agentdecompile_recovery.corpus.dashboard.actions import approval
 
         try:
             body = await request.json()
@@ -917,13 +987,39 @@ def create_dashboard_router() -> APIRouter:
             body = {}
         if not isinstance(body, dict):
             return JSONResponse({"ok": False, "error": "JSON object required"}, status_code=400)
+        action_id = str(body.get("action") or body.get("actionId") or "")
+        params = body.get("params") if isinstance(body.get("params"), dict) else {}
+        context = body.get("context") if isinstance(body.get("context"), dict) else {}
+        confirm = bool(body.get("confirm"))
+        dry_run = bool(body.get("dryRun") or body.get("dry_run"))
+        if action_id == approval.ACTION_ID and not dry_run:
+            try:
+                actor = approval.local_actor(
+                    request.client.host if request.client else None,
+                    request.headers.get("origin"),
+                    str(request.base_url).rstrip("/"),
+                )
+                payload, status = await asyncio.to_thread(
+                    approval.submit,
+                    action_id,
+                    params,
+                    context=context,
+                    confirm=confirm,
+                    dry_run=False,
+                    approval_id=str(body.get("approvalId") or "") or None,
+                    operation_key=str(body.get("operationKey") or "") or None,
+                    actor=actor,
+                )
+            except approval.ApprovalError as exc:
+                return JSONResponse({"ok": False, "error": str(exc)}, status_code=exc.status)
+            return JSONResponse(payload, status_code=status)
         payload, status = await asyncio.to_thread(
             start_job,
-            str(body.get("action") or body.get("actionId") or ""),
-            body.get("params") if isinstance(body.get("params"), dict) else {},
-            context=body.get("context") if isinstance(body.get("context"), dict) else {},
-            confirm=bool(body.get("confirm")),
-            dry_run=bool(body.get("dryRun") or body.get("dry_run")),
+            action_id,
+            params,
+            context=context,
+            confirm=confirm,
+            dry_run=dry_run,
         )
         return JSONResponse(payload, status_code=status)
 

@@ -199,10 +199,10 @@ def generate_source_candidates(
             generated_candidate = generated_candidate_from_target_bytes(task, target_slice_bytes)
             if fact and fact.get("decompiled"):
                 case_dir.mkdir(parents=True, exist_ok=True)
-                # A curated `__thiscall` prototype reaches the decompiler and
-                # comes back as a signature MSVC will not compile in either C or
-                # C++; `__fastcall` with a dead EDX argument is the same 32-bit
-                # ABI and does compile. No-op for every other candidate.
+                # Apply only the limited explicit-this x86 C declaration proxy.
+                # Native C++ members, unsupported types and unresolved caller
+                # uses stay unchanged for visible refusal, not guessed ABI.
+                # Acquired source is never rewritten by this proxy.
                 acquired_source = is_context_source_fact(fact)
                 source = str(fact["decompiled"]).rstrip() + "\n"
                 if not acquired_source:
@@ -245,6 +245,15 @@ def generate_source_candidates(
                         "verificationTier": verification_tier_for_task(task, has_source=True),
                         "acceptanceGate": "compile with selected compiler profile and objdiff-zero against target object; target-slice checks remain pre-acceptance evidence",
                     }
+                )
+                attach_target_relocation_evidence(
+                    task,
+                    target=target,
+                    candidate_source=source,
+                    target_bytes=target_slice_bytes,
+                    caller_fact=fact,
+                    function_facts=facts,
+                    image_base=coerce_int((inventory or {}).get("imageBase")),
                 )
                 if source_witness:
                     task["sourceWitness"] = source_witness
@@ -308,6 +317,15 @@ def generate_source_candidates(
                         "acceptanceGate": "compile with selected compiler profile and objdiff-zero against target object; target-slice checks remain pre-acceptance evidence",
                     }
                 )
+                attach_target_relocation_evidence(
+                    task,
+                    target=target,
+                    candidate_source=source,
+                    target_bytes=target_slice_bytes,
+                    caller_fact=fact,
+                    function_facts=facts,
+                    image_base=coerce_int((inventory or {}).get("imageBase")),
+                )
                 task.setdefault("automaticInputs", [])
                 for item in ["target-slice-bytes", str(generated_candidate["generator"].get("rule") or "byte-pattern-generator")]:
                     if item not in task["automaticInputs"]:
@@ -335,6 +353,15 @@ def generate_source_candidates(
                         "verificationTier": verification_tier_for_task(task, has_source=True),
                         "acceptanceGate": "compile with selected compiler profile and objdiff-zero against target object; target-slice checks remain pre-acceptance evidence",
                     }
+                )
+                attach_target_relocation_evidence(
+                    task,
+                    target=target,
+                    candidate_source=source,
+                    target_bytes=target_slice_bytes,
+                    caller_fact=fact,
+                    function_facts=facts,
+                    image_base=coerce_int((inventory or {}).get("imageBase")),
                 )
                 task.setdefault("automaticInputs", ["function-facts"])
                 if "existing-candidate-file" not in task["automaticInputs"]:
@@ -1637,7 +1664,18 @@ def canonical_fact_key(fact: dict[str, Any]) -> str:
 
 def normalize_function_fact(fact: dict[str, Any]) -> dict[str, Any]:
     prototype = fact.get("prototype") if isinstance(fact.get("prototype"), dict) else {}
-    calls = fact.get("calls") if isinstance(fact.get("calls"), list) else []
+    # Ghidra's function-detail provider records callsite-level references under
+    # `outboundReferences`; `callees` is only a function summary and loses the
+    # instruction address needed to reconstruct a COFF call relocation.
+    outbound_references = fact.get("outboundReferences")
+    raw_calls = fact.get("calls")
+    calls = (
+        outbound_references
+        if isinstance(outbound_references, list)
+        else raw_calls
+        if isinstance(raw_calls, list)
+        else []
+    )
     globals_ = fact.get("globals") if isinstance(fact.get("globals"), list) else []
     locals_ = fact.get("locals") if isinstance(fact.get("locals"), list) else []
     stack = fact.get("stack") if isinstance(fact.get("stack"), dict) else {}
@@ -1802,6 +1840,13 @@ def infer_candidate_sizes(candidates: list[dict[str, Any]], inventory: dict[str,
     image_base = int(inventory.get("imageBase") or 0)
     rows: list[dict[str, Any]] = []
     for candidate in candidates:
+        if candidate.get("bodyBoundaryStatus") in {
+            "missing",
+            "noncontiguous",
+            "entry-not-at-body-start",
+            "outside-file-backed-code",
+        }:
+            continue
         rva = coerce_int(candidate.get("rva"))
         address = coerce_int(candidate.get("address"))
         if rva is None and address is not None and image_base:
@@ -16538,6 +16583,223 @@ def class_fields_for_offsets(max_offset: int) -> list[str]:
     return [field_name(index * 4) for index in range(last_index + 1)]
 
 
+def attach_target_relocation_evidence(
+    task: dict[str, Any],
+    *,
+    target: dict[str, Any],
+    candidate_source: str,
+    target_bytes: bytes | None,
+    caller_fact: dict[str, Any] | None,
+    function_facts: dict[str, dict[str, Any]],
+    image_base: int | None,
+) -> None:
+    """Attach only relocations justified by target bytes and Ghidra identities.
+
+    This is evidence for synthetic-object comparison, not a claim that the
+    recovered source or target object has been verified.  Unknown call-record
+    shapes, ambiguous function entries, non-cdecl ABIs, and non-identifiers are
+    deliberately omitted rather than inferred.
+    """
+
+    normalized_facts = {
+        key: normalize_function_fact(fact)
+        for key, fact in function_facts.items()
+        if isinstance(fact, dict)
+    }
+    normalized_caller = normalize_function_fact(caller_fact) if isinstance(caller_fact, dict) else None
+    caller_address = coerce_int((task.get("targetSlice") or {}).get("address"))
+    if caller_address is None:
+        caller_address = coerce_int(task.get("address"))
+    relocations = derive_target_relocations(
+        target=target,
+        candidate_source=candidate_source,
+        target_bytes=target_bytes,
+        caller_fact=normalized_caller,
+        function_facts=normalized_facts,
+        caller_address=caller_address,
+        image_base=image_base,
+    )
+    if not relocations:
+        return
+    task["targetRelocations"] = relocations
+    task["targetRelocationProvenance"] = {
+        "schema": "agentdecompile.target-relocation-evidence.v1",
+        "authority": "exact target E8 rel32 bytes plus structured Ghidra call and unique callee-function identity",
+        "claimBoundary": "relocation reconstruction assists object-slice comparison; it is not source-parity or full-image proof",
+    }
+    # source_parity_synthesize consumes this optional field from the existing
+    # automaticGenerator envelope.  Keep the envelope optional for task rows
+    # that have no other generator metadata.
+    generator = task.get("automaticGenerator")
+    if not isinstance(generator, dict):
+        generator = {}
+        task["automaticGenerator"] = generator
+    generator["targetRelocations"] = relocations
+    generator["targetRelocationProvenance"] = task["targetRelocationProvenance"]
+
+
+def derive_target_relocations(
+    *,
+    target: dict[str, Any],
+    candidate_source: str,
+    target_bytes: bytes | None,
+    caller_fact: dict[str, Any] | None,
+    function_facts: dict[str, dict[str, Any]],
+    caller_address: int | None,
+    image_base: int | None,
+) -> list[dict[str, Any]]:
+    """Resolve direct x86-32 calls only when bytes and Ghidra agree exactly."""
+
+    if (
+        target_bytes is None
+        or caller_fact is None
+        or caller_address is None
+        or not is_x86_32_target(target)
+    ):
+        return []
+    calls = caller_fact.get("calls")
+    if not isinstance(calls, list):
+        return []
+    if caller_address not in function_fact_virtual_entries(caller_fact, image_base=image_base):
+        return []
+
+    facts_by_entry: dict[int, dict[str, Any]] = {}
+    ambiguous_entries: set[int] = set()
+    unique_facts: dict[str, dict[str, Any]] = {}
+    ambiguous_facts: set[str] = set()
+    for fact in function_facts.values():
+        if not isinstance(fact, dict):
+            continue
+        key = canonical_fact_key(fact)
+        existing = unique_facts.get(key)
+        if existing is not None and (
+            existing.get("name") != fact.get("name")
+            or has_explicit_cdecl(existing) != has_explicit_cdecl(fact)
+        ):
+            ambiguous_facts.add(key)
+        else:
+            unique_facts[key] = fact
+    for fact in unique_facts.values():
+        if canonical_fact_key(fact) in ambiguous_facts:
+            continue
+        for entry in function_fact_virtual_entries(fact, image_base=image_base):
+            previous = facts_by_entry.get(entry)
+            if previous is not None and canonical_fact_key(previous) != canonical_fact_key(fact):
+                ambiguous_entries.add(entry)
+            else:
+                facts_by_entry[entry] = fact
+
+    call_edges = {
+        edge
+        for call in calls
+        if isinstance(call, dict)
+        for edge in [structured_call_edge(call)]
+        if edge is not None
+    }
+    source_without_directives = "\n".join(
+        "" if line.lstrip().startswith("#") else line
+        for line in candidate_source.splitlines()
+    )
+    found: list[dict[str, Any]] = []
+    for offset in range(max(0, len(target_bytes) - 4)):
+        if target_bytes[offset] != 0xE8:
+            continue
+        displacement = int.from_bytes(target_bytes[offset + 1 : offset + 5], "little", signed=True)
+        destination = rel32_call_target(caller_address, call_offset=offset, rel32=displacement)
+        callsite = caller_address + offset
+        if destination is None or (callsite, destination) not in call_edges or destination in ambiguous_entries:
+            continue
+        callee = facts_by_entry.get(destination)
+        if callee is None or not has_explicit_cdecl(callee):
+            continue
+        callee_name = str(callee.get("name") or "")
+        if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", callee_name):
+            continue
+        # Require the actual candidate to call this exact recorded C identifier;
+        # otherwise decorating a different source-level name would be a guess.
+        if not re.search(rf"\b{re.escape(callee_name)}\s*\(", source_without_directives):
+            continue
+        found.append(
+            {
+                "offset": offset,
+                "entry": caller_address,
+                "targetAddress": destination,
+                "calleeName": callee_name,
+                "symbol": f"_{callee_name}",
+                "instruction": "call",
+                "type": "IMAGE_REL_I386_REL32",
+                "calleeCallingConvention": "cdecl",
+            }
+        )
+    return found
+
+
+def is_x86_32_target(target: dict[str, Any]) -> bool:
+    architecture = str(target.get("architectureHint") or "").strip().lower()
+    return architecture in {"x86", "i386", "i486", "i586", "i686", "x86-32", "x86_32"}
+
+
+def function_fact_virtual_entries(fact: dict[str, Any], *, image_base: int | None) -> set[int]:
+    entries: set[int] = set()
+    for key in ("entry", "address"):
+        value = coerce_int(fact.get(key))
+        if value is not None:
+            entries.add(value)
+    offset = coerce_int(fact.get("entryOffset"))
+    if offset is not None:
+        # Ghidra's entryOffset is an image-relative offset.  Do not also treat
+        # it as a VA; that ambiguity is exactly why this enrichment is optional.
+        if image_base is not None:
+            entries.add(image_base + offset)
+    return entries
+
+
+def structured_call_edge(call: dict[str, Any]) -> tuple[int, int] | None:
+    # Require explicit source and destination fields.  A generic `address`
+    # could be the caller or callsite and is not sufficient authority here.
+    # Ghidra Address.__str__ is hexadecimal even when its digits happen to be
+    # decimal-only (for example "00401000").  The general fact parser accepts
+    # decimal strings, so use an adapter-specific parser at this boundary.
+    if call.get("isCall") is not True:
+        return None
+    source = coerce_ghidra_address(call.get("fromAddress"))
+    values = [coerce_ghidra_address(call.get(key)) for key in ("toAddress", "targetAddress", "calleeAddress")]
+    values = [value for value in values if value is not None]
+    if source is None or not values or any(value != values[0] for value in values[1:]):
+        return None
+    return source, values[0]
+
+
+def coerce_ghidra_address(value: Any) -> int | None:
+    """Parse Ghidra Address strings as hexadecimal, preserving numeric VAs."""
+
+    if isinstance(value, int):
+        return value
+    if not isinstance(value, str):
+        return coerce_int(value)
+    text = value.strip()
+    if not text:
+        return None
+    if ":" in text:
+        text = text.rsplit(":", 1)[-1]
+    if text.lower().startswith("0x"):
+        text = text[2:]
+    if re.fullmatch(r"[0-9a-fA-F]+", text):
+        return int(text, 16)
+    return coerce_int(value)
+
+
+def has_explicit_cdecl(fact: dict[str, Any]) -> bool:
+    prototype = fact.get("prototype") if isinstance(fact.get("prototype"), dict) else {}
+    hints = fact.get("compilerHints") if isinstance(fact.get("compilerHints"), dict) else {}
+    convention = first_non_empty(
+        fact.get("callingConvention"),
+        prototype.get("callingConvention"),
+        hints.get("callingConvention"),
+    )
+    return str(convention or "").strip().lower() in {"cdecl", "__cdecl"}
+
+
 def build_task(
     target: dict[str, Any],
     candidate: dict[str, Any],
@@ -16603,6 +16865,24 @@ def build_target_slice(inventory: dict[str, Any], candidate: dict[str, Any], fac
     if address is None and rva is not None and image_base:
         address = image_base + rva
     size = coerce_int((fact or {}).get("bodyBytes")) or coerce_int(candidate.get("size")) or 0
+    boundary_status = str(candidate.get("bodyBoundaryStatus") or "")
+    if boundary_status in {
+        "missing",
+        "noncontiguous",
+        "entry-not-at-body-start",
+        "outside-file-backed-code",
+    }:
+        return {
+            "status": "unsupported-recorded-function-body",
+            "reason": f"Ghidra recorded function body is {boundary_status}; refusing a contiguous inferred slice",
+            "analysisBinaryPath": str(binary_path),
+            "address": address,
+            "rva": rva,
+            "size": size,
+            "bodyBoundaryStatus": boundary_status,
+            "bodyRanges": candidate.get("bodyRanges") or [],
+            "claimBoundary": "discontiguous or incomplete analysis bodies are not flattened into a compiler target slice",
+        }
     if not binary_path.exists():
         return {
             "status": "missing-binary",

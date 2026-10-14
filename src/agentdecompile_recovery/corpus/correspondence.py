@@ -102,6 +102,30 @@ def ambiguity_group(candidates: list[dict[str, Any]]) -> dict[str, Any]:
     )
 
 
+def has_identity_contradiction(evidence):
+    """Recorded actionable exclusions, independent of candidate review status."""
+    ev = evidence or {}
+    # Recorded contradictions are exclusions, not weaker positive evidence.
+    # Inspect the selected destination's actionable contract. Disabled shadow
+    # inference is not applicability-qualified across platforms and cannot
+    # become a new hard veto here. A vetoed original best does not veto a
+    # compatible promoted destination; unknown ABI facts do not imply conflict.
+    if ev.get("reason") == "authentic_name_conflict":
+        return True
+    shadow = ev.get("contract_shadow")
+    actionable = not isinstance(shadow, Mapping) or shadow.get("enabled") is True
+    contract = ev.get("contract")
+    if actionable and isinstance(contract, Mapping):
+        if contract.get("veto") or contract.get("verdict") == "incompatible":
+            return True
+    if isinstance(shadow, Mapping) and shadow.get("enabled") is True:
+        contract = shadow.get("contract")
+        if isinstance(contract, Mapping):
+            if contract.get("veto") or contract.get("verdict") == "incompatible":
+                return True
+    return False
+
+
 def allows_identity_binding(
     evidence: Mapping[str, Any] | None,
     relation: str,
@@ -109,6 +133,8 @@ def allows_identity_binding(
 ) -> bool:
     """One identity gate shared by direct and dashboard bind paths."""
     ev = evidence or {}
+    if has_identity_contradiction(ev):
+        return False
     dependencies = set(ev.get("dependencies") or ())
     # Generation-aware propagation stores direct parents. Walk stored ancestry
     # too, so quarantining an intermediate invalidates every descendant.

@@ -1,12 +1,28 @@
 ---
 name: AgentDecompile
-last_updated: 2026-09-20
+last_updated: 2026-10-09
 charter: VISION.md
 ---
 
 # AgentDecompile Methodology
 
-Charter: [VISION.md](VISION.md). Near-term investment map: [STRATEGY.md](STRATEGY.md). This file is the durable how — principles that should survive pipeline rewrites, plus the mechanisms we use today.
+Current user contract: [docs/USER_INTENT.md](docs/USER_INTENT.md). Charter:
+[VISION.md](VISION.md). Near-term investment map and acceptance policy:
+[STRATEGY.md](STRATEGY.md). This file is the durable how — principles that
+should survive pipeline rewrites, plus mechanisms we use today.
+
+The mission's expected input is a related family of binaries with existing
+Ghidra or other analysis, plus an explicitly selected runtime target when needed.
+Its output is readable per-build C/C++, cross-build equivalence and divergence
+evidence, and independently verified recovery—then a usable model of functions,
+data, types, ABI, events, arguments, memory and graphics for supported runtime
+inspection or intervention. AgentDecompile is the higher-level workbench around
+Ghidra, not a thin decompiler wrapper or a replacement analysis engine. Partial
+analysis is valuable but does not finish a requested recovery. Whole-image fresh
+zero-diff is the terminal source-recovery proof; runtime behavior has separate
+evidence. Models may propose work; tools establish claims. WASM and graphics
+surfaces should be used for concrete supported operations without replacing the
+Ghidra-backed analysis or native compile/objdiff proof path.
 
 Operations follow [AGENTS.md](AGENTS.md); mechanisms below describe implementation,
 not permission to bypass the existing 8080 catalog. [Unfinished outcomes](docs/PROTOTYPE_OUTCOMES.md)
@@ -42,21 +58,41 @@ Useful information and proven information are different.
 
 Readability does not imply parity. Compilation does not imply parity. Job completion does not imply parity. Model confidence does not imply parity.
 
-### 5. Compose capabilities; do not funnel
+### 5. Compose capabilities without forking the evidence contract
 
-Dismantling, triage, analysis, decompilation, matching, type recovery, synthesis, compilation, verification, and export stay independently useful. Recovery is one recipe over the substrate, not the product identity.
+Dismantling, triage, Ghidra-backed analysis, decompilation, cross-matching, type
+recovery, source synthesis, compilation, verification, runtime inspection,
+event/argument capture, Lua/native adapters, hook/cave planning and export stay
+composable through shared contracts. Exploratory callers may stop early; source
+recovery and runtime intervention remain connected product paths with distinct
+acceptance evidence. Early or runtime evidence must not be mislabeled as completed
+source recovery.
 
 ### 6. Partial work must pay
 
-A failed or incomplete stage narrows evidence and lowers the claim tier. It does not erase prior useful output. Legitimate partials include package trees, section layout, function inventory, call graphs, typed decompilation, advisory source, partial logical matching, or a named blocker.
+A failed, interrupted, stale, or incomplete stage is not a reason to reset or recompute everything. First inventory its persisted outputs, validate each artifact and its bindings independently, and reuse every tier that remains sound; rerun only missing, changed, or unverifiable work needed for the next claim. A weaker proof basis narrows the claim tier, not the value of the underlying work. Legitimate partials include package trees, section layout, function inventory, call graphs, typed decompilation, advisory source, partial logical matching, or a named blocker.
+
+An incomplete historical toolchain basis is a limit on cache trust, not a blanket
+rejection of prior work. Keep the state and classify its contents individually:
+revalidate source identity and artifact/target binding where possible; retain
+historical exact-region byte evidence, readable max-C output, and compiler
+diagnostics under their honest labels. Use those diagnostics to avoid blind
+repetition, and run a small fresh probe only where changed or unknown dependencies
+could alter the next decision. Rerun affected work rather than resetting an entire
+pass. None of this converts historical evidence into a fresh compiler receipt or
+whole-image acceptance.
 
 ### 7. Escalate analysis only when necessary
 
 Use the cheapest method that answers the question. Do not pay for deep Ghidra analysis when static inspection suffices. Do not re-run `analyze-program` on a program that already has analysis; open that project and use the functions already there. Do not mutate analysis state when read-only evidence suffices. Do not invoke semantic recovery when structure already answers the task.
 
-### 8. Recover knowledge once, then propagate
+### 8. Recover and describe knowledge once, then propagate
 
-When several binaries share logical code, recovery targets the shared logical entity — not every address in isolation. Names, types, annotations, source, and verified knowledge propagate through stable identity when the evidence allows.
+When several binaries share logical code or behavior, work targets the shared
+logical entity—not every address in isolation. Names, types, annotations,
+matching source, ABI/argument layouts, event observations and verified knowledge
+propagate through stable identity when the evidence allows. Concrete addresses,
+layouts and runtime permissions remain per-build.
 
 ### 9. Solve global uncertainty before local uncertainty
 
@@ -69,6 +105,17 @@ A failed comparison is not a scalar “wrong.” Diff shape should drive the nex
 ### 11. Spend compute where convergence is plausible
 
 Not every unresolved function deserves equal effort. Near-complete candidates get focused work before wholesale divergences. Prioritize by expected value, not inventory order alone.
+
+Continuously measure accepted, proof-relevant output per wall-clock time and
+resource cost. Break down queues, repeated scans, external-tool handoffs,
+compiler startup versus compilation, comparison, persistence and dashboard
+feedback. Remove the largest measured source of wasted effort before adding
+workers; reuse shared intermediate artifacts only when their full source,
+target, ABI and toolchain basis matches. Where a toolchain interface forces
+repeated setup or hides actionable failures, build a deterministic,
+versioned AgentDecompile adapter and preserve each failure as input to the next
+attempt. Use a minimal discriminating probe before expensive broad batches, and
+keep before/after receipts. Speed is not a reason to weaken proof or safety.
 
 ### 12. Deterministic methods before creative search
 
@@ -160,6 +207,19 @@ evidence gates; successful calls never become source-parity credit.
 ### Compiling substrate
 
 A donor workspace may use `_emit` or equivalent assembly as a temporary compilation floor so the project links before every function has readable C. Real C replaces substrate on success; assembly fallback remains on failure. Scaffolding — not source-recovery credit.
+
+### Original C++ reconstruction gate
+
+C++ recovery is a source-recovery lane, not a search over arbitrary C++ spellings
+for one that emits target bytes. Pursue it only when original-source provenance
+or sufficiently discriminating evidence supports the original C++ constructs and
+build context, and a bounded probe indicates that both the recovered source form
+and emitted C/object bytes are attainable. If the available binary/project
+evidence cannot recover the authored C++ form, stop rather than fabricate a
+source claim; preserve useful diagnostics, prioritize readable C, and retain
+unrecovered machine code in the assembly floor. A compiler match—even a
+relocation-masked function match—does not establish original C++ source. Keep
+such experiments labeled diagnostic-only and out of recovered-C++ coverage.
 
 ### Compiler calibration
 

@@ -147,56 +147,21 @@ THISCALL_RE = re.compile(r"\b__thiscall\b")
 
 
 def _fix_one_thiscall(code: str) -> str:
-    m = THISCALL_RE.search(code)
-    if not m:
-        return code
-    chunk = code[m.end():]
-    stop = re.search(r"[{;]", chunk)
-    chunk = chunk[:stop.start()] if stop else chunk[:200]
-    paren_rel = chunk.find("(")
-    if paren_rel == -1:
-        return code[:m.start()] + "__fastcall" + code[m.end():]
-    paren_start = m.end() + paren_rel
-    depth, i = 0, paren_start
-    while i < len(code):
-        if code[i] == "(":
-            depth += 1
-        elif code[i] == ")":
-            depth -= 1
-            if depth == 0:
-                break
-        i += 1
-    if i >= len(code):
-        return code[:m.start()] + "__fastcall" + code[m.end():]
-    paren_end = i
-    params = code[paren_start + 1:paren_end].strip()
-    parts = [p.strip() for p in params.split(",")] if params else []
-    if not parts:
-        return code[:m.start()] + "__fastcall" + code[m.end():]
-    new_params = ", ".join([parts[0], "int edx_unused"] + parts[1:])
-    return (code[:m.start()] + "__fastcall" + code[m.end():paren_start + 1]
-            + new_params + code[paren_end:])
+    """Compatibility wrapper for the shared conservative declaration owner."""
+    from .ctxtypes import fix_thiscall_signatures
+
+    return fix_thiscall_signatures(code)
 
 
 def fix_thiscall(code: str) -> str:
-    """`__thiscall` is a C2065/C4234 hard error in this C-only toolkit (Visual
-    C++ Toolkit 2003 has no C++ front end, and this keyword needs one). This
-    is the exact same problem `kx/genproject.py`'s prompt already solves for
-    LLM-written functions -- `this` in ECX has no plain-C spelling, so the
-    fix is the same `__fastcall(void *this_ecx, int edx_unused, ...)` proxy,
-    applied here to Ghidra's own signature line instead of an LLM's.
+    """Explicit x86 C proxy only; unsupported members and uses stay unchanged.
 
-    Measured cause of 179 of 300 (60%) sample failures before this existed.
-    One search was not enough: a body can name the definition and several
-    callees as `__thiscall`. The leftover keyword is C4234, and the model
-    puts it back -- both measured on the 2026-08-30 leftover log.
+    Callee calls require fact-bound ctxtypes.repair_thiscall_calls separately.
+    Compilation refusal is preferable to silently changing an unknown ABI.
     """
-    for _ in range(32):
-        nxt = _fix_one_thiscall(code)
-        if nxt == code:
-            break
-        code = nxt
-    return THISCALL_RE.sub("__fastcall", code)
+    from .ctxtypes import fix_thiscall_signatures
+
+    return fix_thiscall_signatures(code)
 
 
 # Exact intrinsic set measured present in a live PE decompilation corpus.
@@ -555,46 +520,14 @@ def load_functions(program: str, sample: int | None):
 
 
 def declare_callee_bulk(info: dict, known: set[str]) -> str | None:
-    """`extern` for a callee, param count matching Ghidra's OWN call site.
-
-    `kx.ctxtypes.declare_callee` inserts a dummy EDX parameter for a
-    `__thiscall` callee (the ECX-passing proxy the LLM prompt path also
-    uses) -- correct ABI, but Ghidra's own decompiled call sites were never
-    written with that dummy in mind, so they pass one argument fewer than the
-    proxy declares (C2198, measured 28 of a 300-sample's failures). This
-    binary's own body is the thing being compiled here, not new code, so the
-    call site wins: declare with the NATURAL argument count instead. For a
-    single-argument `__thiscall` method (by far the common case -- getters,
-    destructors) `__fastcall` with just `this` already matches the real ABI
-    exactly, since fastcall and thiscall agree until a second real argument
-    exists. For a multi-argument `__thiscall` callee this trades ABI
-    precision for a callable compile; that function's cross-call is not
-    proven runtime-correct and stays a candidate for the byte-accurate pass.
-    """
-    name = ctxtypes.c_name(info["name"])
-    if not name or name.startswith(("FUN_", "SUB_", "thunk_")):
-        return None
-
-    def render(t: str) -> str | None:
-        t = t.strip()
-        if not t or "<" in t or "::" in t:
-            return None
-        base = t.replace("*", "").replace("const", "").strip()
-        if not base or base in ctxtypes.PRIMITIVE or base in known:
-            return t
-        return "void *" if "*" in t else None
-
-    ret = render(info["return_type"]) or "void"
-    args = []
-    for p in info["params"]:
-        r = render(p)
-        if r is None:
-            return None
-        args.append(r)
-
-    conv = info["convention"]
-    kw = "__fastcall" if conv == "__thiscall" else conv if conv in ("__stdcall", "__fastcall") else ""
-    return f"{ret} {kw} {name}({', '.join(args) or 'void'});".replace("  ", " ")
+    """Shared prototype owner; multiargument proxies require repaired calls."""
+    if (NORMALIZE_MODE is not NormalizeMode.COMPILE_ONLY
+            and info.get("convention") == "__thiscall" and len(info.get("params", [])) > 1):
+        return None  # semantic mode needs native member declarations, not an ABI approximation
+    return ctxtypes.declare_callee(
+        info, known, thiscall_dummy_edx=(NORMALIZE_MODE is NormalizeMode.COMPILE_ONLY
+                                       and len(info.get("params", [])) > 1)
+    )
 
 
 _IDENT_RE = re.compile(r"\b[A-Za-z_]\w*\b")
@@ -697,7 +630,7 @@ def build_header(con, binary_id: int, addr: int, sig: dict | None,
         parts.extend([INTRINSIC_MACROS, STUB_TYPES])
     fn = {"addr": addr, "signature": (sig or {}).get("signature", ""),
           "class": None}
-    callees = callee_map.get(addr, [])
+    callees = list(dict.fromkeys(callee_map.get(addr, [])))
     wanted: set[str] = set()
     for text in (fn["signature"],):
         for t in ctxtypes.type_names(text):
@@ -752,9 +685,10 @@ def build_header(con, binary_id: int, addr: int, sig: dict | None,
         d = declare_callee_bulk(info, set(types))
         if d:
             decls.append(d)
-            for t in ctxtypes.type_names(info["signature"]):
-                if t in types:
-                    wanted.add(t)
+            for signature_part in [info["signature"], info["return_type"], *info["params"]]:
+                for t in ctxtypes.type_names(signature_part):
+                    if t in types:
+                        wanted.add(t)
     wanted = _expand_wanted(wanted, types)
     emitted: set[str] = set()
     for tname in KNOWN_GLOBALS.values():
@@ -1832,6 +1766,7 @@ def main(argv: list[str] | None = None) -> int:
     tmp_kw = {"dir": tmp_parent} if tmp_parent and pathlib.Path(tmp_parent).is_dir() else {}
     with tempfile.TemporaryDirectory(**tmp_kw) as tmpdir:
         jobs = []
+        refused_jobs = []
         receipts: list[dict] = []
         for r in rows:
             addr = int(r["entry_hex"], 16)
@@ -1842,6 +1777,23 @@ def main(argv: list[str] | None = None) -> int:
                 fallback=compile_only_fallback if NORMALIZE_MODE is NormalizeMode.COMPILE_ONLY else None,
             )
             body = nr.text
+            callees = [sigs[a] for a in list(dict.fromkeys(callee_map.get(addr, [])))[:ctxtypes.MAX_CALLEES]
+                       if a in sigs and ctxtypes.c_name(sigs[a]["name"]) != self_name]
+            repaired_body, abi_refusals = ctxtypes.repair_thiscall_calls(body, callees,
+                                                                      known_types=set(types))
+            if NORMALIZE_MODE is not NormalizeMode.COMPILE_ONLY and repaired_body != body:
+                abi_refusals.append("semantic mode requires native thiscall member declarations")
+            if NORMALIZE_MODE is NormalizeMode.COMPILE_ONLY:
+                body = repaired_body
+                nr.clang["thiscallProxy"] = {"recipe": "direct-call-edx-slot/v1",
+                                             "changed": body != nr.text,
+                                             "claim": "calling-convention repair only; not SEH/layout/parity"}
+            nr.refused.extend(abi_refusals)
+            if abi_refusals:
+                receipts.append(nr.receipt())
+                refused_jobs.append({"entry_hex": r["entry_hex"], "name": self_name,
+                                     "ok": False, "error": "ABI repair refused: " + "; ".join(abi_refusals)})
+                continue
             receipts.append(nr.receipt())
             header = build_header(
                 con, bid, addr, sigs.get(addr), types, sigs, callee_map, body,
@@ -1850,7 +1802,11 @@ def main(argv: list[str] | None = None) -> int:
             jobs.append((r["entry_hex"], self_name, header, body, tmpdir,
                          prog_dir if args.write else None, args.repo))
 
-        results = []
+        results = list(refused_jobs)
+        if fail_log is not None:
+            with fail_log.open("a") as fh:
+                for res in refused_jobs:
+                    fh.write(f"{res['entry_hex']}\t{res['name']}\t{res['error']}\n")
         job_ai_state = resolve_targeted_ai()
         def compile_with_job_policy(job):
             with targeted_ai_job(job_ai_state):

@@ -31,6 +31,19 @@ carry it.  The holder is the highest fence seen; an equal fence from the same ke
 another key is a forgery and ignored.  A lease is live at ``now`` iff ``ttl_s > 0`` and
 ``issued_at + ttl_s > now``.
 
+Record filters (U126).  ``derive``/``states_of``/``fold_partition`` take ``filters``: a chain of
+``RecordFilter`` objects (``core.RECORD_FILTERS``) asked, per record in seq order, whether the
+frontier should *see* it.  A dropped record still advances the chain position (``through_seq`` /
+``through_digest``: it is in the chain) but folds into no task.  ``RevocationFilter`` drops every
+record of a revoked key; ``RateLimitFilter`` drops a key's (N+1)-th record inside a window of M
+seqs (defaults 64 per 1000 — the 65th is refused by name ``rate-limit:records-per-window:64/1000``),
+counting in log seq so it is clock-free and identical on every node *given the same start
+position*: a reader resuming from a checkpoint starts its window at the checkpoint's seq (the
+filter state is not part of a summary), so it may admit records a full-replay reader dropped.
+``GeoFilter`` and ``QuotaFilter`` are declared slots.  Filter verdicts are kept in
+``PartitionState.filtered`` (transient; never part of a checkpoint summary, because filters are a
+reader's policy).
+
 Acceptance tests (named here, written in the verification phase):
   U122 (e) the frontier over a partition is identical on two nodes given the same objects;
   U123 a node bootstrapping from checkpoint + tail derives the same frontier as a full replay;
@@ -44,10 +57,10 @@ Acceptance tests (named here, written in the verification phase):
 from __future__ import annotations
 
 from dataclasses import dataclass, field, replace
-from typing import Any
+from typing import Any, Callable, Protocol
 from collections.abc import Iterable, Iterator, Mapping, Sequence
 
-from agentdecompile_grid.core import Frontier, GridError, LogStore, ObjectRef, ObjectStore, Record, RecordType, ResultStatus, TaskSpec
+from agentdecompile_grid.core import RECORD_FILTERS, Frontier, GridError, LogStore, NotConfigured, ObjectRef, ObjectStore, Record, RecordType, ResultStatus, TaskSpec
 from agentdecompile_grid.log.heads import partition_family
 from agentdecompile_grid.log.signing import Keyring, refusal_reason
 
@@ -223,6 +236,7 @@ class PartitionState:
     through_digest: str = ""
     tasks: dict[str, TaskState] = field(default_factory=dict)
     checkpoint_seqs: list[int] = field(default_factory=list)
+    filtered: dict[int, str] = field(default_factory=dict, compare=False)   # seq -> filter reason (transient, not checkpointed)
 
     def task(self, task_id: str) -> TaskState:
         state = self.tasks.get(task_id)
@@ -236,24 +250,35 @@ class PartitionState:
         if record.seq <= self.through_seq:
             raise FoldOrder(f"record {record.partition!r}#{record.seq} folded after through_seq {self.through_seq}")
 
-    def skip(self, record: Record) -> None:
+    def skip(self, record: Record, reason: str = "") -> None:
         """Move past a record without folding it (a reader refused its signer)."""
         self._check_order(record)
+        if reason:
+            self.filtered[record.seq] = reason
         self.through_seq = record.seq
         self.through_digest = record.digest()
 
-    def fold(self, record: Record) -> None:
+    def fold(self, record: Record, *, skip: str = "") -> None:
         self._check_order(record)
-        if record.type is RecordType.CHECKPOINT:
+        if skip:
+            self.filtered[record.seq] = skip
+        elif record.type is RecordType.CHECKPOINT:
             self.checkpoint_seqs = (self.checkpoint_seqs + [record.seq])[-MAX_CHECKPOINT_SEQS:]
-        elif record.type is not RecordType.NOTE:
+        elif record.type not in (RecordType.NOTE, RecordType.KEY_ANNOUNCE):
             self.task(str(record.body["task_id"])).fold(record)
         self.through_seq = record.seq
         self.through_digest = record.digest()
 
-    def fold_all(self, records: Iterable[Record]) -> PartitionState:
+    def fold_all(self, records: Iterable[Record], *, filters: Sequence["RecordFilter"] = ()) -> PartitionState:
+        for f in filters:
+            f.begin(self.partition)
         for record in records:
-            self.fold(record)
+            reason = ""
+            for f in filters:
+                reason = f.admit(record)
+                if reason:
+                    break
+            self.fold(record, skip=reason)
         return self
 
     def copy(self) -> PartitionState:
@@ -293,6 +318,106 @@ def fold(records: Iterable[Record], state: PartitionState | None = None, *, part
         else:
             state = PartitionState(partition)
     return state.fold_all(iterator)
+
+
+# --------------------------------------------------------------------------- record filters
+class RecordFilter(Protocol):
+    """Asked per record in seq order; returns ``""`` to admit or a named reason to drop.  ``begin`` resets
+    per-partition state so one filter instance serves many derives."""
+
+    name: str
+
+    def begin(self, partition: str) -> None: ...
+    def admit(self, record: Record) -> str: ...
+
+
+class RevocationFilter:
+    """Drops every record whose signer is revoked (``log.keys.RevocationList`` / a ``Keyring`` / any ``is_revoked``)."""
+
+    name = "revocation"
+
+    def __init__(self, revoked: Any) -> None:
+        self.is_revoked: Callable[[str], bool] = revoked if callable(revoked) else revoked.is_revoked
+
+    def begin(self, partition: str) -> None:
+        return None
+
+    def admit(self, record: Record) -> str:
+        return f"revoked:{record.signer_key}" if self.is_revoked(record.signer_key) else ""
+
+    def describe(self) -> dict[str, Any]:
+        return {"name": self.name, "status": "working", "rule": "signer on the revocation list -> dropped"}
+
+
+class RateLimitFilter:
+    """Per key at most ``records_per_window`` records inside any ``window_seq`` consecutive seqs of one
+    partition; the next one is dropped as ``rate-limit:records-per-window:<n>/<m>``.  Seq-based, so
+    pure and identical on every node (no clock)."""
+
+    name = "rate-limit"
+
+    def __init__(self, records_per_window: int = 64, window_seq: int = 1000) -> None:
+        if int(records_per_window) < 1 or int(window_seq) < 1:
+            raise ValueError("records_per_window and window_seq must be >= 1")
+        self.records_per_window = int(records_per_window)
+        self.window_seq = int(window_seq)
+        self._seqs: dict[str, list[int]] = {}
+
+    def begin(self, partition: str) -> None:
+        self._seqs = {}
+
+    def admit(self, record: Record) -> str:
+        seqs = self._seqs.setdefault(record.signer_key, [])
+        floor = record.seq - self.window_seq
+        while seqs and seqs[0] <= floor:
+            seqs.pop(0)
+        if len(seqs) >= self.records_per_window:
+            return f"rate-limit:records-per-window:{self.records_per_window}/{self.window_seq}"
+        seqs.append(record.seq)
+        return ""
+
+    def describe(self) -> dict[str, Any]:
+        return {"name": self.name, "status": "working", "records_per_window": self.records_per_window, "window_seq": self.window_seq}
+
+
+class GeoFilter:
+    """Slot: admit only signers whose announced region is allowed (needs a region claim on KEY_ANNOUNCE)."""
+
+    name = "geo"
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        raise NotConfigured("GeoFilter is declared, not implemented: it needs a region field on KEY_ANNOUNCE bodies and frontier.geo.allow")
+
+    def begin(self, partition: str) -> None: ...   # pragma: no cover
+    def admit(self, record: Record) -> str: ...    # pragma: no cover
+
+
+class QuotaFilter:
+    """Slot: per-key byte/object quotas read from the object store's accounting."""
+
+    name = "quota"
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        raise NotConfigured("QuotaFilter is declared, not implemented: it needs per-key byte accounting in the object store (frontier.quota.*)")
+
+    def begin(self, partition: str) -> None: ...   # pragma: no cover
+    def admit(self, record: Record) -> str: ...    # pragma: no cover
+
+
+for _flt in (RevocationFilter, RateLimitFilter, GeoFilter, QuotaFilter):
+    RECORD_FILTERS.register(_flt.name, _flt, replace=True)
+
+
+def filters_from_config(config: Mapping[str, Any], *, revoked: Any = None) -> list[RecordFilter]:
+    """``{"records_per_window": 64, "window_seq": 1000}`` (``GridConfig.limits``) plus a revocation
+    source -> the default filter chain; ``records_per_window = 0`` disables the rate limit."""
+    out: list[RecordFilter] = []
+    if revoked is not None:
+        out.append(RevocationFilter(revoked))
+    n = int(config.get("records_per_window", 64))
+    if n > 0:
+        out.append(RateLimitFilter(n, int(config.get("window_seq", 1000))))
+    return out
 
 
 # --------------------------------------------------------------------------- policy and report
@@ -457,6 +582,7 @@ def derive(
     checkpoints: Mapping[str, PartitionState] | None = None,
     policy: FrontierPolicy | None = None,
     keyring: Keyring | None = None,
+    filters: Sequence[RecordFilter] = (),
 ) -> FrontierReport:
     """The frontier over ``partitions`` (default: all) at ``now``.  Pure: no clock, sorted outputs.
 
@@ -471,7 +597,7 @@ def derive(
     if proposal_cap is not None:
         effective = replace(effective, proposal_cap=int(proposal_cap))
     untrusted: list[Untrusted] = []
-    states = states_of(log, partitions, checkpoints, keyring=keyring, untrusted=untrusted)
+    states = states_of(log, partitions, checkpoints, keyring=keyring, filters=filters, untrusted=untrusted)
     report = classify(states, objects, now, policy=effective, kinds=kinds)
     return replace(report, untrusted=tuple(sorted(untrusted)))
 
@@ -489,7 +615,8 @@ def expand_partitions(log: LogStore, partitions: Iterable[str] | None) -> list[s
 
 
 def fold_partition(log: LogStore, partition: str, base: PartitionState | None = None, *,
-                   keyring: Keyring | None = None, untrusted: list[Untrusted] | None = None) -> PartitionState:
+                   keyring: Keyring | None = None, filters: Sequence[RecordFilter] = (),
+                   untrusted: list[Untrusted] | None = None) -> PartitionState:
     """Fold one partition from ``base`` (copied) or from nothing; ``PrefixPruned`` when the stored
     records start after the base position, so no reader ever folds a hole silently.  Each record
     is authorised against ``keyring`` first (``None`` = empty keyring); a refused one is skipped
@@ -502,22 +629,31 @@ def fold_partition(log: LogStore, partition: str, base: PartitionState | None = 
         if stored_from > state.through_seq:
             raise PrefixPruned(f"{partition!r}: stored records start after seq {stored_from} but the reader is at "
                                f"{state.through_seq}; start from a checkpoint (compaction.latest_checkpoint)")
+    for record_filter in filters:
+        record_filter.begin(partition)
     for record in log.read(partition, since_seq=state.through_seq):
         reason = refusal_reason(record, ring)
-        if reason is None:
-            state.fold(record)
-        else:
-            state.skip(record)
+        if reason is not None:
+            state.skip(record, reason)
             if untrusted is not None:
                 untrusted.append((record.partition, record.seq, reason))
+            continue
+        for record_filter in filters:
+            reason = record_filter.admit(record)
+            if reason:
+                state.skip(record, reason)
+                break
+        else:
+            state.fold(record)
     return state
 
 
 def states_of(log: LogStore, partitions: Iterable[str] | None = None,
-              checkpoints: Mapping[str, PartitionState] | None = None, *,
-              keyring: Keyring | None = None, untrusted: list[Untrusted] | None = None) -> dict[str, PartitionState]:
+              checkpoints: Mapping[str, PartitionState] | None = None, *, keyring: Keyring | None = None,
+              filters: Sequence[RecordFilter] = (), untrusted: list[Untrusted] | None = None) -> dict[str, PartitionState]:
     """Fold without classifying; what ``derive``, ``compaction`` and ``intents`` use."""
-    return {partition: fold_partition(log, partition, (checkpoints or {}).get(partition), keyring=keyring, untrusted=untrusted)
+    return {partition: fold_partition(log, partition, (checkpoints or {}).get(partition), keyring=keyring,
+                                      filters=filters, untrusted=untrusted)
             for partition in expand_partitions(log, partitions)}
 
 
@@ -528,7 +664,7 @@ def iter_tasks(states: Mapping[str, PartitionState]) -> Iterator[tuple[str, Task
 
 
 __all__ = [
-    "DEFAULT_POLICY", "DEFAULT_PROPOSAL_CAP", "FoldOrder", "FrontierPolicy", "FrontierReport", "IntentState", "PartitionState",
-    "MAX_CHECKPOINT_SEQS", "PrefixPruned", "TaskState", "Untrusted", "classify", "derive", "expand_partitions", "fold",
-    "fold_partition", "iter_tasks", "states_of",
+    "DEFAULT_POLICY", "DEFAULT_PROPOSAL_CAP", "FoldOrder", "FrontierPolicy", "FrontierReport", "GeoFilter", "IntentState", "PartitionState",
+    "MAX_CHECKPOINT_SEQS", "PrefixPruned", "QuotaFilter", "RateLimitFilter", "RecordFilter", "RevocationFilter", "TaskState", "classify",
+    "Untrusted", "derive", "expand_partitions", "filters_from_config", "fold", "fold_partition", "iter_tasks", "states_of",
 ]

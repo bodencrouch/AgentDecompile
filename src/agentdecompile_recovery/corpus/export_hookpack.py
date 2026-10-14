@@ -27,67 +27,9 @@ from .hookpack_policy import (
     load_site_policy,
     lookup_site,
 )
-from .operation_contract import bind_operations, load_operation_contract
 
 
 FORMAT = "agentdecompile.hookpack/v1"
-FORMAT_V2 = "agentdecompile.hookpack/v2"
-
-
-def function_abi(con, binary_id: int, addr: int) -> dict:
-    """Observed ABI for v2 consumers; never infer storage from a type name.
-
-    v1 emission intentionally does not call this helper, keeping its bytes and
-    consumer contract unchanged. Legacy captures remain explicitly uncertain.
-    Confidence describes captured metadata, not successful runtime invocation.
-    """
-    columns = {row[1] for row in con.execute("PRAGMA table_info(func)")}
-    if not {"return_storage", "function_properties"} <= columns:
-        return {"confidence": 0.0, "reason": "ABI storage was not collected", "parameters": [], "returnStorage": None}
-    row = con.execute(
-        "SELECT calling_convention, return_type, param_count, return_storage, function_properties "
-        "FROM func WHERE binary_id=? AND addr=?", (binary_id, addr),
-    ).fetchone()
-    if row is None:
-        return {"confidence": 0.0, "reason": "Function is absent from the capture", "parameters": [], "returnStorage": None}
-    convention, return_type, count, return_json, props_json = row
-    properties = json.loads(props_json) if props_json is not None else {}
-    returned = json.loads(return_json) if return_json is not None else None
-    parameters = [
-        {"ordinal": ordinal, "name": name, "dataType": type_name,
-         "storage": json.loads(pieces) if pieces is not None else None}
-        for ordinal, name, type_name, pieces in con.execute(
-            "SELECT ordinal,name,type,pieces_json FROM func_param WHERE binary_id=? AND addr=? ORDER BY ordinal",
-            (binary_id, addr),
-        )
-    ]
-    def known_pieces(pieces):
-        return isinstance(pieces, list) and bool(pieces) and all(
-            isinstance(piece, dict) and isinstance(piece.get("size"), int)
-            and not isinstance(piece["size"], bool) and piece["size"] > 0
-            and (bool(piece.get("register")) != (isinstance(piece.get("stackOffset"), int)
-                                                   and not isinstance(piece.get("stackOffset"), bool)))
-            for piece in pieces
-        )
-    complete = (
-        count is not None and count == len(parameters)
-        and [p["ordinal"] for p in parameters] == list(range(count))
-        and all(p["dataType"] and known_pieces(p["storage"]) for p in parameters)
-        and bool(return_type)
-        and (known_pieces(returned) or (return_type == "void" and returned == []))
-        and convention not in (None, "", "unknown", "__unknown")
-        and isinstance(properties, dict) and not properties.get("varArgs")
-    )
-    trusted_signature = isinstance(properties, dict) and properties.get("signatureSource") in {"USER_DEFINED", "IMPORTED"}
-    confidence = 1.0 if complete and trusted_signature else 0.5 if complete else 0.0
-    return {
-        "callingConvention": convention, "returnType": return_type,
-        "returnStorage": returned, "parameters": parameters,
-        "properties": properties, "confidence": confidence,
-        "reason": "Captured explicit signature and storage" if confidence == 1.0 else
-                  "Analyzer-derived signature; runtime ABI unverified" if complete else
-                  "ABI storage incomplete or unsupported; typed calls refused",
-    }
 
 
 def _preferred_signature(best: str | None, member_sigs: list[str]) -> dict:
@@ -180,36 +122,15 @@ def _binary_entry(b: dict, image_for) -> dict:
     return entry
 
 
-def export_hookpack(con, out: Path, *, site_policy=None, adapter_map=None,
-                    operation_contract=None, cave_evidence=None, format="v1",
-                    verify_cave_receipt=None) -> dict:
+def export_hookpack(con, out: Path, *, site_policy=None, adapter_map=None) -> dict:
     """Write the pack for *con* to *out*.
 
     *site_policy* and *adapter_map* are optional file paths; see
     :mod:`hookpack_policy` for their shapes. With neither given the pack
     carries default site kinds and no adapter keys.
     """
-    if format not in ("v1", "v2", FORMAT, FORMAT_V2):
-        raise ValueError(f"Unsupported hook pack format: {format}")
-    if format in ("v2", FORMAT_V2):
-        from .hookpack_v2 import build_hookpack_v2
-        pack = build_hookpack_v2(con, site_policy=site_policy, adapter_map=adapter_map,
-                                 operation_contract=operation_contract,
-                                 cave_evidence=cave_evidence,
-                                 verify_cave_receipt=verify_cave_receipt)
-        out = Path(out)
-        out.parent.mkdir(parents=True, exist_ok=True)
-        try:
-            payload = json.dumps(pack, indent=2, sort_keys=True) + "\n"
-        except RecursionError as exc:
-            from .hookpack_v2 import _nesting_error
-            raise _nesting_error() from exc
-        out.write_text(payload, encoding="utf-8")
-        return {"wrote": str(out), "format": FORMAT_V2, "entities": len(pack["entities"]),
-                "binaries": len(pack["binaries"]), "pack_sha256": pack["pack_sha256"]}
     policy = load_site_policy(site_policy)
     amap = load_adapter_map(adapter_map)
-    operations = load_operation_contract(operation_contract)
     # Basis first: it refuses in about a millisecond, and the site loop
     # below can take minutes on a real store (A5). A store that cannot
     # declare its basis has no pack to build.
@@ -355,21 +276,6 @@ def export_hookpack(con, out: Path, *, site_policy=None, adapter_map=None,
         ),
         "sites": sites,
     }
-    if operations:
-        by_slug = {
-            entry["slug"]: entry
-            for entry in pack["binaries"]
-        }
-        raw_images = {
-            str(binary.get("slug") or bid): image_for(bid)
-            for bid, binary in binaries.items()
-        }
-        pack["operations"] = bind_operations(
-            operations,
-            binaries=by_slug,
-            sites=sites,
-            raw_images=raw_images,
-        )
     if site_policy is not None or adapter_map is not None:
         pack["policy_hashes"] = {
             "site_policy": file_sha256(site_policy),
@@ -383,4 +289,4 @@ def export_hookpack(con, out: Path, *, site_policy=None, adapter_map=None,
     out = Path(out)
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(pack, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    return {"wrote": str(out), "sites": len(sites), "binaries": len(binaries), "operations": len(pack.get("operations", []))}
+    return {"wrote": str(out), "sites": len(sites), "binaries": len(binaries)}

@@ -56,7 +56,7 @@ from typing import Any, Callable, Mapping, Sequence
 from .. import __version__
 from ..core import AlreadyOwned, Frontier, GridError, LogStore, NodeIdentity, NotConfigured, ObjectStore, Registry, Transport
 from .canaries import CanaryReport, run_canaries
-from .identity import ROLE_MAY_VERIFY, Invite, NodeKey, NodeKeyStore, NodeSigner, bind_identity, parse_invite_url, verify_invite
+from .identity import ROLE_MAY_VERIFY, Invite, NodeKey, NodeKeyStore, NodeSigner, bind_identity, parse_invite_url
 from .loop import FLEET_BUDGETS_ALLOWED, IdlePolicy, StepEvent, StepMachine, Upstream, WorkLoop, WorkerConfig
 from .outbox import Outbox
 from .sandbox import SubprocessSandbox
@@ -637,7 +637,6 @@ class JoinPlan:
     clock: Callable[[], float]
     wall: Callable[[], float]
     rng: random.Random
-    keyring: Any
     store_locator: Mapping[str, Any] = field(default_factory=dict)
     local_objects: ObjectStore | None = None
     lineage_lookup: Callable[[str], Sequence[str] | None] | None = None     # key id -> attested lineage; the fabric's enrolment records (cross-slice)
@@ -721,14 +720,13 @@ def build_loops(plan: JoinPlan) -> tuple[StepMachine | None, StepMachine | None]
         return plan.derive(log, objects, plan.wall())
 
     work = WorkLoop(identity=plan.identity, sandbox=sandbox, outbox=outbox, objects=local_objects, upstream=upstream, frontier=frontier, store_locator=locator,
-                    config=plan.config, log=log, idle_policy=plan.idle_policy, clock=plan.clock, wall=plan.wall, rng=plan.rng,
-                    lineage_lookup=plan.lineage_lookup, keyring=plan.keyring)
+                    config=plan.config, log=log, idle_policy=plan.idle_policy, clock=plan.clock, wall=plan.wall, rng=plan.rng, lineage_lookup=plan.lineage_lookup)
     verifier: StepMachine | None = None
     if plan.run_verifier and plan.identity.role in ROLE_MAY_VERIFY:
         vconfig = plan.verifier_config or VerifierConfig(worker=WorkerConfig(cores=1, lanes=plan.config.lanes, deadlines_s=plan.config.deadlines_s, import_modules=plan.config.import_modules, budgets_allowed=plan.config.budgets_allowed))
-        verifier = VerifierLoop(identity=plan.identity, task_lookup=LogTaskIndex(log, keyring=plan.keyring), log=log, config=vconfig, penalties=PenaltyLedger.load(objects), revocations=RevocationList.load(objects),
+        verifier = VerifierLoop(identity=plan.identity, task_lookup=LogTaskIndex(log), log=log, config=vconfig, penalties=PenaltyLedger.load(objects), revocations=RevocationList.load(objects),
                                 sandbox=sandbox, outbox=outbox, objects=local_objects, upstream=upstream, frontier=frontier, store_locator=locator, clock=plan.clock, wall=plan.wall, rng=plan.rng,
-                                lineage_lookup=plan.lineage_lookup, keyring=plan.keyring)
+                                lineage_lookup=plan.lineage_lookup)
     return work, verifier
 
 
@@ -738,7 +736,7 @@ def join(invite_url: str | None = None, *, state_dir: str | os.PathLike[str], en
          canary_only: Sequence[str] | None = None, env: Mapping[str, str] | None = None, probe_deadline_s: float = DEFAULT_PROBE_DEADLINE_S, rejoin_on_attach: bool = False,
          clock: Callable[[], float] = time.monotonic, wall: Callable[[], float] = time.time, rng: random.Random | None = None,
          build: Callable[[JoinPlan], tuple[StepMachine | None, StepMachine | None]] = build_loops, local_objects: ObjectStore | None = None,
-         lineage_lookup: Callable[[str], Sequence[str] | None] | None = None, keyring: Any = None) -> JoinResult:
+         lineage_lookup: Callable[[str], Sequence[str] | None] | None = None) -> JoinResult:
     """Attach-first join.  Returns ``attached`` (status of the running agent) or ``bootstrapped``
     (a bound, running ``LocalAgent`` the caller drives with ``run()``/``start()``)."""
     env = os.environ if env is None else env
@@ -747,11 +745,6 @@ def join(invite_url: str | None = None, *, state_dir: str | os.PathLike[str], en
     if not invite_url:
         raise GridError("no invite: pass the invite url or set ADGRID_INVITE (never put it in argv on shared hosts)")
     invite = parse_invite_url(invite_url, now=wall())
-    if keyring is None:
-        from ..log.signing import Keyring as SigningKeyring
-
-        keyring = SigningKeyring()
-    verify_invite(invite, keyring)
     endpoint = endpoint or Endpoint.default(env)
     endpoint.validate()
     state_path = Path(state_dir)
@@ -799,6 +792,9 @@ def join(invite_url: str | None = None, *, state_dir: str | os.PathLike[str], en
     try:
         keystore = NodeKeyStore(state_path)
         key = keystore.load_or_create(algorithm=key_algorithm, now=now)
+        signer = NodeSigner(key)
+        if invite.issuer_algorithm and invite.issuer_public:
+            invite = parse_invite_url(invite_url, now=now, verifier=signer)
         provisional = NodeIdentity(key.key_id, (), invite.joiner_lineage, invite.role)
         worker_config = config or WorkerConfig(cores=cores or max(1, (os.cpu_count() or 2) // 2), lanes=tuple(lanes), budgets_allowed=FLEET_BUDGETS_ALLOWED if invite.role in ROLE_MAY_VERIFY else WorkerConfig.budgets_allowed)
         agent = LocalAgent(endpoint, identity=provisional, clock=clock, wall=wall, lanes=lanes, cores=worker_config.cores, idle_only=idle_only)
@@ -823,8 +819,7 @@ def join(invite_url: str | None = None, *, state_dir: str | os.PathLike[str], en
         agent.rejoin_hook = reprove
         plan = JoinPlan(invite=invite, endpoint=endpoint, state_dir=state_path, transport=transport, derive=derive, lanes=tuple(lanes), cores=worker_config.cores, idle_only=idle_only,
                         idle_policy=policy, config=worker_config, verifier_config=verifier_config, key=key, identity=identity, canary_report=report,
-                        run_verifier=(invite.role in ROLE_MAY_VERIFY) if run_verifier is None else run_verifier, clock=clock, wall=wall, rng=rng,
-                        keyring=keyring, local_objects=local_objects, lineage_lookup=lineage_lookup)
+                        run_verifier=(invite.role in ROLE_MAY_VERIFY) if run_verifier is None else run_verifier, clock=clock, wall=wall, rng=rng, local_objects=local_objects, lineage_lookup=lineage_lookup)
         work, verifier = build(plan)
         agent.attach_loops(work, verifier, canary_report=report)
     except BaseException:

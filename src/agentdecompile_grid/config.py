@@ -315,27 +315,10 @@ class SigningConfig:
 class KeyringConfig:
     """Whose records a reader trusts."""
 
-    allow_null: bool = field(default=False, metadata=_doc(
-        "Accept null-signed records (key_id null or null:<label>): hash chain only, no authorship, so anyone "
-        "who can append to the log can write them. Off by default; turn it on only for a one-host dev grid "
-        "(a null key then counts as an operator key). Also the worker's trust_unsigned_records."))
-    key_dir: str = field(default="", metadata=_doc(
-        "The trust root: *.pub raw ed25519 operator public keys and *.json node key public records "
-        "(keys/node.json of each trusted node, optionally with role and lineage). Empty = paths.keys/trusted. "
-        "Readers refuse, by name, every record whose signer is not here."))
-    trust_local_nodes: bool = field(default=False, metadata=_doc(
-        "Also trust every node key under <root>/nodes/*/keys (one-host dev grid only; explicit opt-in)."))
-
-
-@dataclass(frozen=True)
-class AdmissionConfig:
-    """Owner pin for read-only current observations; unset does not admit anything."""
-
-    snapshot_path: str = field(default="", metadata=_doc(
-        "Absolute public snapshot file, selected only by owner configuration; no writer or default pin."))
-    snapshot_sha256: str = field(default="", metadata=_doc("Exact lowercase SHA-256 of the canonical public snapshot bytes."))
-    policy_id: str = field(default="", metadata=_doc("Exact nonempty owner policy ID in the pinned snapshot."))
-    generation: int = field(default=-1, metadata=_doc("Exact nonnegative owner generation; -1 means unset."))
+    allow_null: bool = field(default=True, metadata=_doc(
+        "Accept null-signed records (key_id null or null:<label>): hash chain only, no authorship. "
+        "Also the worker's trust_unsigned_records: null-signed RESULT bodies count as proposals."))
+    key_dir: str = field(default="", metadata=_doc("Directory of *.pub ed25519 public keys to trust. Empty = paths.keys/trusted."))
 
 
 @dataclass(frozen=True)
@@ -463,7 +446,6 @@ class GridConfig:
     heads: HeadsConfig = field(default_factory=HeadsConfig, metadata=_doc("heads"))
     signing: SigningConfig = field(default_factory=SigningConfig, metadata=_doc("signing"))
     keyring: KeyringConfig = field(default_factory=KeyringConfig, metadata=_doc("keyring"))
-    admission: AdmissionConfig = field(default_factory=AdmissionConfig, metadata=_doc("current observation admission"))
     frontier: FrontierConfig = field(default_factory=FrontierConfig, metadata=_doc("frontier"))
     outbox: OutboxConfig = field(default_factory=OutboxConfig, metadata=_doc("outbox"))
     backoff: BackoffConfig = field(default_factory=BackoffConfig, metadata=_doc("backoff"))
@@ -532,8 +514,7 @@ class GridConfig:
 
     def keyring_locator(self) -> dict[str, Any]:
         paths = self.resolved_paths()
-        return {"allow_null": self.keyring.allow_null, "key_dir": self.keyring.key_dir or os.path.join(paths.keys, "trusted"),
-                "trust_local_nodes": self.keyring.trust_local_nodes, "nodes_dir": os.path.join(paths.root, "nodes")}
+        return {"allow_null": self.keyring.allow_null, "key_dir": self.keyring.key_dir or os.path.join(paths.keys, "trusted")}
 
     def to_mapping(self, section: str) -> dict[str, Any]:
         """One section as the plain mapping the log layer's ``*.from_config`` take (``backoff.max_attempts``
@@ -579,15 +560,6 @@ class GridConfig:
 
     def validate(self) -> "GridConfig":
         """Raise ``ConfigError`` naming the first unusable field; return self when everything is usable."""
-        a = self.admission
-        _require(type(a.generation) is int and a.generation >= -1, "admission.generation", "must be an int >= -1")
-        for name in ("snapshot_path", "snapshot_sha256", "policy_id"):
-            _require(type(getattr(a, name)) is str, f"admission.{name}", "must be a string")
-        if a.snapshot_path or a.snapshot_sha256 or a.policy_id or a.generation != -1:
-            _require(os.path.isabs(a.snapshot_path), "admission.snapshot_path", "must be an absolute path")
-            _require(len(a.snapshot_sha256) == 64 and all(c in "0123456789abcdef" for c in a.snapshot_sha256),
-                     "admission.snapshot_sha256", "must be a lowercase SHA-256 digest")
-            _require(bool(a.policy_id.strip()) and a.generation >= 0, "admission", "policy_id and generation must both be set")
         o, b, t, lg, w = self.objects, self.budgets, self.tasks, self.log, self.worker
         _require(o.hash_algorithm == HASH_ALGORITHM, "objects.hash_algorithm",
                  f"core pins {HASH_ALGORITHM!r}; got {o.hash_algorithm!r}")
@@ -948,7 +920,7 @@ __all__ = [
     "FLOAT_POLICIES", "PORTABILITY_POLICIES", "CAPTURE_POLICIES",
     "ConfigError", "PathsConfig", "AdaptersConfig", "LocalStoreConfig", "S3StoreConfig",
     "MirrorStoreConfig", "PeerStoreConfig", "LayeredStoreConfig", "ObjectsConfig", "BudgetsConfig",
-    "TasksConfig", "S3LogConfig", "HttpLogConfig", "LogConfig", "HeadsConfig", "SigningConfig", "KeyringConfig", "AdmissionConfig",
+    "TasksConfig", "S3LogConfig", "HttpLogConfig", "LogConfig", "HeadsConfig", "SigningConfig", "KeyringConfig",
     "FrontierConfig", "BackoffConfig", "OutboxConfig", "IntentsConfig", "PartitionsConfig", "RetentionConfig",
     "CompactionConfig", "WorkerConfig", "VerifierConfig", "FleetConfig", "GridConfig", "ROLES",
     "to_dict", "from_dict", "load", "default", "describe", "to_toml", "config_file_path", "budgets_with_overrides",

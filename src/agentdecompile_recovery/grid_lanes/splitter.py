@@ -15,9 +15,7 @@ What a snapshot is, per kind:
   puts it as one ``restricted`` object per publish, and derives ``basis_hash`` from *that copy*
   with ``determinism_basis.basis_hash`` (never from the live store, never from the
   environment).  A caller-supplied ``basis_hash`` that differs from the copy's is refused: a task
-  under a foreign basis is the hive's ``derive_unit_id`` collision (§1.5 graft a).  The exception
-  is a repair kind such as ``corpus-backfill-pass``: an incomplete store is its input, so its task
-  id combines the snapshot ref with a lane-specific current-package basis instead.
+  under a foreign basis is the hive's ``derive_unit_id`` collision (§1.5 graft a).
 * ``compile-attempt`` takes a directory of ``.c`` translation units or a JSONL manifest; each TU
   becomes one object and one task.  No store, so ``basis_hash`` must be given (or ``store=``
   pointed at a store to derive it from).
@@ -61,7 +59,7 @@ from agentdecompile_grid.core import (
     TaskSpec,
 )
 
-from . import analysis, cascade, compile as compile_lane, parity, parity_region, target, verbs
+from . import analysis, cascade, compile as compile_lane, parity, verbs
 from ._common import Locked, hashed_slug, put_file, translate_refusal
 
 PLANNERS = Registry("task planner")
@@ -94,11 +92,6 @@ SHARD_ALTERNATIVES: Mapping[str, Sequence[Mapping[str, str]]] = {
 PREFIX_HEX: Mapping[str, int] = {"compile-attempt": 2, "parity-check": 2, "match-score-shard": 1}
 
 SQLITE_MAGIC = b"SQLite format 3\x00"
-
-#: These kinds exist to make an incomplete store valid, so deriving their basis from that store
-#: would reject exactly the input they repair.  The immutable snapshot ref is already a TaskSpec
-#: input; ``repair_basis_hash`` adds current package-policy invalidation to that content identity.
-REPAIR_KINDS = frozenset({verbs.CorpusBackfillPass.name})
 
 
 def planner(kind: str, *, replace: bool = False) -> Callable[[Planner], Planner]:
@@ -196,20 +189,6 @@ def derive_basis_hash(store_path: str | Path) -> str:
         con.close()
 
 
-def repair_basis_hash(kind: str) -> str:
-    """Current package basis for a lane that repairs an incomplete store.
-
-    The analyzer-version value is a namespaced sentinel, not a claim about any binary row.  It
-    lets the existing package-basis serializer cover policy/constants while the snapshot object
-    itself covers the exact pre-repair database bytes.
-    """
-    if kind not in REPAIR_KINDS:
-        raise ValueError(f"not a repair kind: {kind}")
-    from ..corpus.determinism_basis import basis_hash_for
-
-    return basis_hash_for(f"repair:{kind}")
-
-
 # --------------------------------------------------------------------------- chokepoint
 def assign_partition(spec: TaskSpec, subject: str) -> TaskSpec:
     width = PREFIX_HEX.get(spec.kind, 0)
@@ -232,18 +211,16 @@ def plan_tasks(
 ) -> list[TaskSpec]:
     """Plan *kind* over *store_snapshot* into tasks whose budget is at most *max_budget*.
 
-    ``basis_hash=None`` derives it from the snapshot (stores only), except that repair kinds use
-    :func:`repair_basis_hash` because an incomplete store cannot yet declare its own basis.  A
-    given value must equal the derived basis.  Returns specs with partitions assigned.  Raises
-    ``Refused`` (no planner, budget above the cap, basis mismatch) or the named refusals of the
-    store.
+    ``basis_hash=None`` derives it from the snapshot (stores only); a given value must equal the
+    snapshot's.  Returns specs with partitions assigned.  Raises ``Refused`` (no planner, budget
+    above the cap, basis mismatch) or the named refusals of the store.
     """
     if kind not in PLANNERS:
         raise Refused(f"no-planner:{kind}", candidates=[{"kind": name} for name in PLANNERS.names()])
     snapshot = resolve_snapshot(objects, store_snapshot, scratch)
     try:
         if snapshot.flavour == "store" and snapshot.path is not None:
-            derived = repair_basis_hash(kind) if kind in REPAIR_KINDS else derive_basis_hash(snapshot.path)
+            derived = derive_basis_hash(snapshot.path)
             if basis_hash and basis_hash != derived:
                 raise Refused(f"basis-mismatch:given-{basis_hash[:12]}!=snapshot-{derived[:12]}")
             basis_hash = derived
@@ -406,17 +383,6 @@ def plan_parity_checks(objects, snapshot, basis_hash, shard_size, **options):
             params=params, basis_hash=basis_hash, capabilities=(verifier_id,), budget=parity.ParityCheck.budget,
         ))
     return specs
-
-
-@planner(parity_region.ParityRegionCheck.name)
-def plan_parity_regions(objects, snapshot, basis_hash, shard_size, **options):
-    return parity_region.plan_parity_regions(objects, snapshot, basis_hash, shard_size, **options)
-
-
-# --------------------------------------------------------------------------- planners: bounded target object
-@planner(target.MkobjTarget.name)
-def plan_mkobj_target(objects, snapshot, basis_hash, shard_size, **options):
-    return target.plan_mkobj_target(objects, snapshot, basis_hash, shard_size, **options)
 
 
 # --------------------------------------------------------------------------- planners: cascade

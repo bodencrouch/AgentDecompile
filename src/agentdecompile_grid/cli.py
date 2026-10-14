@@ -178,17 +178,13 @@ class Grid:
         """The operator signer (``adapters.signer`` / ``signing.*``): ``null`` on a laptop grid."""
         return _import("agentdecompile_grid.log.signing").signer_from_config(self.cfg.signing_locator())
 
-    def keyring(self):
-        """The configured trust root shared by every log reader this process builds."""
-        return _import("agentdecompile_grid.log.signing").Keyring.from_locator(self.cfg.keyring_locator())
-
     def frontier_policy(self):
         return _import("agentdecompile_grid.log.frontier").FrontierPolicy.from_config(self.cfg.to_mapping("frontier"))
 
     def derive(self, *, partitions: Sequence[str] | None = None, kinds: Sequence[str] | None = None, now: float | None = None):
         frontier = _import("agentdecompile_grid.log.frontier")
         return frontier.derive(self.log(), self.objects(), time.time() if now is None else now, policy=self.frontier_policy(),
-                               partitions=partitions, kinds=kinds, keyring=self.keyring())
+                               partitions=partitions, kinds=kinds)
 
     def appender(self, signer=None):
         outbox = _import("agentdecompile_grid.log.outbox")
@@ -314,14 +310,12 @@ def cmd_join(args: argparse.Namespace) -> int:
     loop_mod = _import("agentdecompile_grid.worker.loop")
     frontier = _import("agentdecompile_grid.log.frontier")
     policy = grid.frontier_policy()
-    keyring = grid.keyring()
     pool, only, lanes = _canary_plan(args)
     worker_config = loop_mod.WorkerConfig.from_grid_config(grid.cfg, lanes=lanes or None, import_modules=import_modules_for_children(grid.cfg), cores=args.cores)
     result = agent.join(
         args.url or None, state_dir=grid.cfg.node_state_dir(args.node), lanes=lanes, cores=args.cores, idle_only=bool(args.idle_only),
-        transport=grid.transport, derive=lambda log, objects, now: frontier.derive(log, objects, now, policy=policy, keyring=keyring),
+        transport=grid.transport, derive=lambda log, objects, now: frontier.derive(log, objects, now, policy=policy),
         config=worker_config, key_algorithm=grid.cfg.worker.key_algorithm, canaries=pool, canary_only=only,
-        keyring=keyring,
     )
     emit({"mode": result.mode, "lanes_loaded": lanes_loaded, **dict(result.status)}, as_json=args.json)
     if result.mode == "bootstrapped" and result.agent is not None and not args.no_run:
@@ -435,19 +429,18 @@ def _node_loop(grid: Grid, *, kind: str, node: str | None, role: str | None, kin
     outbox = outbox_mod.Outbox(state_dir / "outbox", max_entries=cfg.outbox.max_entries)
     sandbox = sandbox_mod.SubprocessSandbox(state_dir / "work")
     policy = grid.frontier_policy()
-    keyring = grid.keyring()
     frontier = _import("agentdecompile_grid.log.frontier")
     wanted = list(kinds) or None
     common = dict(identity=identity, sandbox=sandbox, outbox=outbox, objects=objects, upstream=upstream,
-                  frontier=lambda: frontier.derive(log, objects, time.time(), policy=policy, kinds=wanted, keyring=keyring),
-                  store_locator=grid.transport.locator(), log=log, keyring=keyring)
+                  frontier=lambda: frontier.derive(log, objects, time.time(), policy=policy, kinds=wanted),
+                  store_locator=grid.transport.locator(), log=log)
     imports = import_modules_for_children(cfg)
     if verifying:
         verify_loop = _import("agentdecompile_grid.verify.loop")
         policy_mod = _import("agentdecompile_grid.verify.policy")
         records = _import("agentdecompile_grid.worker.records")
         vconfig = verify_loop.VerifierConfig.from_grid_config(cfg, lanes=wanted, import_modules=imports)
-        loop = verify_loop.VerifierLoop(task_lookup=records.LogTaskIndex(log, keyring=keyring), config=vconfig,
+        loop = verify_loop.VerifierLoop(task_lookup=records.LogTaskIndex(log), config=vconfig,
                                         penalties=policy_mod.PenaltyLedger.load(objects), revocations=policy_mod.RevocationList.load(objects), **common)
     else:
         config = loop_mod.WorkerConfig.from_grid_config(cfg, lanes=wanted, import_modules=imports, cores=1)
@@ -507,7 +500,7 @@ def cmd_view(args: argparse.Namespace) -> int:
         applier.apply([], grid.objects())   # declared appliers refuse here by name
         return 0
     report = view_pkg.materialize(grid.root, args.db, partitions=args.partition or None, resume=bool(args.resume),
-                                  objects=grid.objects(), log=grid.log(), keyring=grid.keyring())
+                                  objects=grid.objects(), log=grid.log())
     emit(report, as_json=args.json)
     # a stale partition or a skipped VERIFIED record (contract mismatch with the log slice) is
     # a non-zero exit, never a quietly empty view
@@ -664,9 +657,9 @@ def cmd_describe(args: argparse.Namespace) -> int:
 
 
 # --------------------------------------------------------------------------- parser
-def build_parser(*, prog: str = "adgrid") -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog=prog, description="agentdecompile grid: content-addressed, log-structured distributed compute")
-    parser.add_argument("--version", action="version", version=f"{parser.prog} {__version__}")
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(prog="adgrid", description="agentdecompile grid: content-addressed, log-structured distributed compute")
+    parser.add_argument("--version", action="version", version=f"adgrid {__version__}")
     parser.add_argument("--root", help=f"grid root directory (default: ${ROOT_ENV} or GridConfig paths.root)")
     parser.add_argument("--json", action="store_true", help="machine-readable output")
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -750,8 +743,8 @@ def build_parser(*, prog: str = "adgrid") -> argparse.ArgumentParser:
     return parser
 
 
-def main(argv: Sequence[str] | None = None, *, prog: str = "adgrid") -> int:
-    parser = build_parser(prog=prog)
+def main(argv: Sequence[str] | None = None) -> int:
+    parser = build_parser()
     args = parser.parse_args(list(argv) if argv is not None else None)
     try:
         load_builtin_kinds()

@@ -48,7 +48,6 @@ from dataclasses import dataclass, field
 from typing import Any, Callable, Iterable, Mapping, Protocol, Sequence
 
 from ..core import TASK_KINDS, BudgetClass, Frontier, LogStore, NodeIdentity, NotConfigured, ObjectRef, ObjectStore, RecordType, Refused, ResultStatus, TaskResult, TaskSpec
-from ..log.signing import Keyring
 from ..verify.policy import DEFAULT_INDEPENDENCE_POLICY, KeyRateLimiter, TokenBucket, independent_groups
 from .outbox import Outbox, PendingRecord, RecordWriter
 from .records import LineageLookup, has_poison, intent_body, note_body, poison_body, read_timeouts, result_body, results_pointer, task_result_from_record, task_result_to_bytes
@@ -205,7 +204,7 @@ class StepMachine:
     def __init__(self, *, identity: NodeIdentity, sandbox: Sandbox, outbox: Outbox, objects: ObjectStore, upstream: Upstream, frontier: Callable[[], Frontier],
                  store_locator: Mapping[str, Any], config: WorkerConfig | None = None, log: LogStore | None = None, idle_policy: IdlePolicy | None = None,
                  limiter: KeyRateLimiter | None = None, clock: Callable[[], float] = time.monotonic, wall: Callable[[], float] = time.time, rng: random.Random | None = None,
-                 lineage_lookup: LineageLookup | None = None, keyring: Keyring | None = None) -> None:
+                 lineage_lookup: LineageLookup | None = None) -> None:
         signer_key = getattr(getattr(upstream.writer, "signer", None), "key_id", None)
         if signer_key is not None and signer_key != identity.key_id:
             # the producer/verifier identity *is* the record signer (log.records binds body key == signer_key)
@@ -221,7 +220,6 @@ class StepMachine:
         self.log = log
         self.idle_policy = idle_policy
         self.lineage_lookup = lineage_lookup           # key id -> attested lineage (signed enrolment record); None = trust the body's claim
-        self.keyring = keyring if keyring is not None else Keyring()
         self.limiter = limiter
         self.clock = clock
         self.wall = wall
@@ -388,19 +386,7 @@ class StepMachine:
         self._skipped = {}
         self._eligible = self._candidates(frontier, now)
         self._bump("pulls")
-        untrusted = getattr(frontier, "untrusted", ())
-        detail = {"ready": len(frontier.ready), "awaiting_verification": len(frontier.awaiting_verification), "poisoned": len(frontier.poisoned), "eligible": len(self._eligible), "skipped": dict(self._skipped)}
-        if untrusted:
-            # A record the frontier folded past without trusting it (signer not in the keyring, bad
-            # signature, or a TASK/CHECKPOINT signed by a non-operator key -- see
-            # log.signing.refusal_reason).  ready/eligible can be 0 forever with a healthy log if
-            # every TASK record is untrusted, so this is surfaced rather than left for the operator
-            # to rediscover by reading records by hand (the grid-of-one regression this closes: a
-            # null-signed TASK published under the laptop-grid default signer is invisible to a
-            # keyring that does not set keyring.allow_null / keyring.trust_local_nodes).
-            detail["untrusted"] = len(untrusted)
-            detail["untrusted_sample"] = [{"partition": p, "seq": s, "reason": r} for p, s, r in list(untrusted)[:5]]
-        return StepEvent("pulled", detail)
+        return StepEvent("pulled", {"ready": len(frontier.ready), "awaiting_verification": len(frontier.awaiting_verification), "poisoned": len(frontier.poisoned), "eligible": len(self._eligible), "skipped": dict(self._skipped)})
 
     def _launch(self, now: float) -> StepEvent | None:
         if self.stopping or len(self.slots) >= self.cores or not self._eligible:
@@ -643,11 +629,7 @@ class WorkLoop(StepMachine):
         seen: dict[str, tuple[str, ...]] = dict(local)
         if self.log is not None:
             try:
-                for key, lineage in read_timeouts(
-                    self.log, spec.partition_key, spec.task_id,
-                    trust_unsigned=self.config.trust_unsigned_records,
-                    lineage_lookup=self.lineage_lookup, keyring=self.keyring,
-                ):
+                for key, lineage in read_timeouts(self.log, spec.partition_key, spec.task_id, trust_unsigned=self.config.trust_unsigned_records, lineage_lookup=self.lineage_lookup):
                     seen.setdefault(key, tuple(lineage))
             except Exception:
                 self._bump("log_read_errors")

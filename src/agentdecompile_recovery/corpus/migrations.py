@@ -9,9 +9,8 @@ Two records describe a store's schema state:
 * ``schema_migration`` -- the ledger. One row per applied migration with the
   version, the name, when it was applied, and a hash of the determinism
   basis at that moment. ``applied_at`` and ``basis_supersession.recorded_at``
-  are recovery metadata; match-review UUIDs and audit times are separate
-  control-plane metadata excluded from deterministic recovery content.
-  ``basis_hash`` is NULL when the basis cannot be computed; a
+  are the only clock-derived values in the store; nothing else may derive
+  from them. ``basis_hash`` is NULL when the basis cannot be computed; a
   re-baseline (``corpus rebaseline``) records its supersession in
   ``basis_supersession`` rather than rewriting this ledger.
 
@@ -164,215 +163,10 @@ def _basis_supersession(con: sqlite3.Connection) -> None:
     con.execute(SUPERSESSION_INDEX_SQL)
 
 
-def _match_review(con: sqlite3.Connection) -> None:
-    """Version 4: durable per-entity review freshness and atomic decision audit."""
-    from .match_review_schema import install
-
-    install(con)
-
-
-def _function_storage(con: sqlite3.Connection) -> None:
-    """Version 5: lossless observed ABI storage; existing rows remain unknown."""
-    columns = {row[1] for row in con.execute("PRAGMA table_info(func)")}
-    for name in ("return_storage", "function_properties"):
-        if name not in columns:
-            con.execute(f"ALTER TABLE func ADD COLUMN {name} TEXT")
-    con.execute("""CREATE TABLE IF NOT EXISTS func_param (
-        binary_id INTEGER NOT NULL,
-        addr INTEGER NOT NULL,
-        ordinal INTEGER NOT NULL,
-        name TEXT,
-        type TEXT,
-        pieces_json TEXT,
-        PRIMARY KEY(binary_id, addr, ordinal),
-        FOREIGN KEY(binary_id, addr) REFERENCES func(binary_id, addr) ON DELETE CASCADE
-    )""")
-
-
-def _typed_fields(con: sqlite3.Connection) -> None:
-    """Version 6: typed layout witnesses alongside byte-accurate headers."""
-    con.execute("""CREATE TABLE IF NOT EXISTS ghidra_field (
-        binary_id INTEGER NOT NULL REFERENCES binary(id),
-        type_name TEXT NOT NULL,
-        ordinal INTEGER NOT NULL,
-        offset INTEGER NOT NULL,
-        size INTEGER NOT NULL,
-        name TEXT NOT NULL,
-        dt_kind TEXT NOT NULL,
-        pointee_type TEXT,
-        composite_type TEXT,
-        element_type TEXT,
-        array_count INTEGER,
-        type_json TEXT NOT NULL,
-        PRIMARY KEY(binary_id, type_name, ordinal)
-    )""")
-
-
-def _matching_evidence(con: sqlite3.Connection) -> None:
-    """Version 7: optional BSim evidence with explicit query provenance."""
-    con.execute("""CREATE TABLE IF NOT EXISTS bsim_query (
-        src_binary INTEGER NOT NULL REFERENCES binary(id),
-        dst_binary INTEGER NOT NULL REFERENCES binary(id),
-        database_id TEXT NOT NULL, src_digest TEXT NOT NULL, dst_digest TEXT NOT NULL,
-        state TEXT NOT NULL, reason TEXT NOT NULL,
-        PRIMARY KEY(src_binary, dst_binary)
-    )""")
-    con.execute("""CREATE TABLE IF NOT EXISTS bsim_hit (
-        src_binary INTEGER NOT NULL REFERENCES binary(id), src_addr INTEGER NOT NULL,
-        dst_binary INTEGER NOT NULL REFERENCES binary(id), dst_addr INTEGER NOT NULL,
-        database_id TEXT NOT NULL, similarity REAL NOT NULL,
-        significance REAL NOT NULL, self_significance REAL,
-        PRIMARY KEY(src_binary, src_addr, dst_binary, dst_addr)
-    )""")
-    con.execute("CREATE INDEX IF NOT EXISTS ix_bsim_pair ON bsim_hit(src_binary,dst_binary)")
-
-
-def _pcode_channel(con: sqlite3.Connection) -> None:
-    """Version 8: correct the algorithm label, retaining historical decisions."""
-    import json
-    for row in con.execute("SELECT id,evidence FROM match ORDER BY id").fetchall():
-        try:
-            evidence = json.loads(row[1] or "{}")
-        except (ValueError, TypeError):
-            continue
-        if not isinstance(evidence, dict) or evidence.get("stage") != "pcode_il_ast" or evidence.get("primary_channel") != "M":
-            continue
-        evidence["primary_channel"] = "K"
-        evidence["channels"] = sorted({"K" if c == "M" else c for c in evidence.get("channels", ["M"])})
-        # Historical confidence and operator decisions are immutable evidence.
-        # Explicitly require review rather than silently promoting on +4 base.
-        evidence["algorithm_relabel"] = {"from": "M", "to": "K", "base_delta": 4,
-                                        "confidence_review_required": True}
-        con.execute("UPDATE match SET evidence=? WHERE id=?", (json.dumps(evidence, sort_keys=True), row[0]))
-
-
-def _match_metadata(con: sqlite3.Connection) -> None:
-    """Version 9: queryable projection of recorded evidence, no rescoring."""
-    import json
-    _store.ensure_match_columns(con)
-    for row in con.execute("SELECT id,evidence FROM match ORDER BY id").fetchall():
-        try:
-            evidence = json.loads(row[1] or "{}")
-        except (ValueError, TypeError):
-            continue
-        if not isinstance(evidence, dict):
-            continue
-        confidence = evidence.get("confidence")
-        if isinstance(confidence, bool) or not isinstance(confidence, (int, float)):
-            confidence = None
-        con.execute("UPDATE match SET kind=?,confidence=?,algorithm=? WHERE id=?",
-                    (evidence.get("kind"), confidence,
-                     evidence.get("primary_channel") or evidence.get("channel"), row[0]))
-    con.execute("CREATE INDEX IF NOT EXISTS ix_match_algorithm_confidence ON match(algorithm,confidence)")
-
-
-def _stabs_schema_ownership(con: sqlite3.Connection) -> None:
-    """Version 10: adopt existing STABS attribution without inventing values."""
-    if not con.in_transaction:
-        raise ValueError("STABS migration requires an owned transaction")
-    version = user_version(con)
-    if version == 10:
-        require_ledger(con, version=10)
-        _store._require_stabs_shape(con, complete=True)
-        return
-    require_ledger(con, version=9)
-    _store._require_stabs_shape(con, complete=False)
-    columns = {row[1] for row in con.execute("PRAGMA main.table_xinfo(func)")}
-    for name in ("stabs_name", "stabs_type"):
-        if name not in columns:
-            con.execute(f"ALTER TABLE main.func ADD COLUMN {name} TEXT")
-    for sql in (*_store.STABS_INDEX_SQL.values(), _store.STABS_FUNC_INDEX_SQL):
-        con.execute(sql)
-    _store._require_stabs_shape(con, complete=True)
-
-def _decomp_schema_ownership(con: sqlite3.Connection) -> None:
-    """Version 11: preserve preexisting global witness/selector semantics."""
-    if not con.in_transaction:
-        raise ValueError("decomp migration requires an owned transaction")
-    _store._decomp_objects(con)
-    if user_version(con) == 11:
-        require_ledger(con, version=11)
-        _store._require_stabs_shape(con, complete=True)
-        _store._require_decomp_shape(con, complete=True)
-        return
-    require_ledger(con, version=10)
-    _store._require_stabs_shape(con, complete=True)
-    mode = _store._require_decomp_shape(con, complete=False)
-    if mode is None:
-        con.execute(_store.DECOMP_TABLE_DDL)
-    elif mode == "skeleton_hash":
-        con.execute("ALTER TABLE main.decomp ADD COLUMN ast_fingerprint TEXT")
-    if "ix_decomp_bin" not in _store._decomp_objects(con):
-        con.execute(_store.DECOMP_INDEX_SQL)
-    con.execute(_store.DECOMP_COMPAT_STATE_DDL)
-    con.execute("INSERT INTO main.decomp_schema_state(singleton,mode) VALUES (1,?)",
-                (mode or "absent",))
-    _store._require_decomp_shape(con, complete=True)
-
-
-def _convention_schema_ownership(con: sqlite3.Connection) -> None:
-    """Version 12: own derived storage without changing rows or donor meaning."""
-    if not con.in_transaction:
-        raise ValueError("convention migration requires an owned transaction")
-    version = user_version(con)
-    _store._require_convention_shape(con, complete=version == 12)
-    if version == 12:
-        require_ledger(con, version=12)
-        _store._require_stabs_shape(con, complete=True)
-        _store._require_decomp_shape(con, complete=True)
-        return
-    require_ledger(con, version=11)
-    _store._require_stabs_shape(con, complete=True)
-    _store._require_decomp_shape(con, complete=True)
-    if con.execute(
-        "SELECT 1 FROM main.sqlite_schema WHERE name='func_convention_derived'"
-    ).fetchone() is None:
-        con.execute(_store.CONVENTION_TABLE_DDL)
-    _store._require_convention_shape(con, complete=True)
-
-
-def _type_schema_ownership(con: sqlite3.Connection) -> None:
-    """Version 13: own type storage, retaining original inventory availability."""
-    if not con.in_transaction:
-        raise ValueError("type migration requires an owned transaction")
-    version = user_version(con)
-    if version == 13:
-        require_ledger(con, version=13)
-        _store._require_stabs_shape(con, complete=True)
-        _store._require_decomp_shape(con, complete=True)
-        _store._require_convention_shape(con, complete=True)
-        _store._require_type_shape(con, complete=True)
-        return
-    require_ledger(con, version=12)
-    _store._require_stabs_shape(con, complete=True)
-    _store._require_decomp_shape(con, complete=True)
-    _store._require_convention_shape(con, complete=True)
-    mode = _store._require_type_shape(con, complete=False)
-    if mode == "absent":
-        con.execute(_store.TYPE_TABLE_DDL)
-    elif not any(row[1] == "origin" for row in con.execute("PRAGMA main.table_xinfo(ghidra_type)")):
-        con.execute("ALTER TABLE main.ghidra_type ADD COLUMN origin TEXT")
-    con.execute(_store.TYPE_ORIGIN_DDL)
-    con.execute(_store.TYPE_INDEX_SQL)
-    con.execute(_store.TYPE_INVENTORY_STATE_DDL)
-    con.execute("INSERT INTO main.type_inventory_state(singleton,mode) VALUES (1,?)", (mode,))
-    _store._require_type_shape(con, complete=True)
-
-
 MIGRATIONS: list[Migration] = [
     Migration(1, "baseline", _baseline),
     Migration(2, "analyzer_identity", _analyzer_identity),
     Migration(3, "basis_supersession", _basis_supersession),
-    Migration(4, "match_review", _match_review),
-    Migration(5, "function_storage", _function_storage),
-    Migration(6, "typed_fields", _typed_fields),
-    Migration(7, "matching_evidence", _matching_evidence),
-    Migration(8, "pcode_channel", _pcode_channel),
-    Migration(9, "match_metadata", _match_metadata),
-    Migration(10, "stabs_schema_ownership", _stabs_schema_ownership),
-    Migration(11, "decomp_schema_ownership", _decomp_schema_ownership),
-    Migration(12, "convention_schema_ownership", _convention_schema_ownership),
-    Migration(13, "type_schema_ownership", _type_schema_ownership),
 ]
 
 SCHEMA_VERSION = MIGRATIONS[-1].version
@@ -393,35 +187,6 @@ _check_registry(MIGRATIONS)
 
 def user_version(con: sqlite3.Connection) -> int:
     return int(con.execute("PRAGMA user_version").fetchone()[0])
-
-
-def require_ledger(con: sqlite3.Connection, *, version: int) -> None:
-    """Inspect an exact supported ledger prefix, including its column shape.
-
-    NULL historic basis hashes remain valid. SQL/I/O errors propagate unchanged.
-    This helper never initializes schema or takes transaction ownership.
-    """
-    if version not in {step.version for step in MIGRATIONS} or user_version(con) != version:
-        raise ValueError(f"incompatible schema version; expected {version}")
-    if con.execute("SELECT 1 FROM temp.sqlite_schema WHERE name COLLATE NOCASE = ?", (LEDGER_TABLE,)).fetchone():
-        raise ValueError("shadowing migration ledger")
-    obj = con.execute(
-        "SELECT type,sql FROM main.sqlite_schema WHERE name=?", (LEDGER_TABLE,)
-    ).fetchone()
-    expected_columns = [
-        (0, "version", "INTEGER", 0, None, 1, 0),
-        (1, "name", "TEXT", 1, None, 0, 0),
-        (2, "applied_at", "TEXT", 1, None, 0, 0),
-        (3, "basis_hash", "TEXT", 0, None, 0, 0),
-    ]
-    if obj is None or obj[0] != "table" or [tuple(row) for row in con.execute(
-        "PRAGMA main.table_xinfo(schema_migration)"
-    )] != expected_columns:
-        raise ValueError("missing or malformed migration ledger")
-    rows = con.execute("SELECT version, name FROM main.schema_migration ORDER BY version").fetchall()
-    expected = [(step.version, step.name) for step in MIGRATIONS if step.version <= version]
-    if [tuple(row) for row in rows] != expected:
-        raise ValueError("inconsistent migration ledger")
 
 
 def ledger_rows(con: sqlite3.Connection) -> list[dict]:

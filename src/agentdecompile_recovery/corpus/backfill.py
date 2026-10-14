@@ -100,6 +100,30 @@ def _pass_analyzer_identity(con: sqlite3.Connection, binary_row: dict, raw: byte
     }
 
 
+def _pass_reloc_table(con: sqlite3.Connection, binary_row: dict, raw: bytes | None) -> dict:
+    """Record ``binary.reloc_table_present`` (1, 0 or NULL for unknown) from the image (U52)."""
+    from .reloc_presence import relocation_table
+    assert raw is not None  # needs_raw_image=True; the frame skips otherwise
+    columns = {r[1] for r in con.execute("PRAGMA table_info(binary)")}
+    for column, kind in (("reloc_table_present", "INTEGER"), ("reloc_table_reason", "TEXT")):
+        if column not in columns:
+            con.execute(f"ALTER TABLE binary ADD COLUMN {column} {kind}")
+    found = relocation_table(raw)
+    value = None if found["present"] is None else int(found["present"])
+    current = con.execute("SELECT reloc_table_present, reloc_table_reason FROM binary WHERE id=?",
+                          (int(binary_row["id"]),)).fetchone()
+    result = {"reloc_table_present": value, "reloc_table_reason": found["reason"], "format": found["format"]}
+    if current is not None and tuple(current) == (value, found["reason"]):
+        return {"status": "unchanged", **result}
+    con.execute("UPDATE binary SET reloc_table_present=?, reloc_table_reason=? WHERE id=?",
+                (value, found["reason"], int(binary_row["id"])))
+    return {"status": "updated", **result}
+
+
+def _reloc_table_satisfied(row: dict, result: dict) -> bool:
+    return row.get("reloc_table_reason") == result.get("reloc_table_reason")
+
+
 def _content_sha256_satisfied(row: dict, result: dict) -> bool:
     digest = result.get("content_sha256")
     return bool(digest) and row.get("content_sha256") == digest
@@ -114,6 +138,7 @@ PASSES: dict[str, BackfillPass] = {
     "analyzer_identity": BackfillPass(
         "analyzer_identity", False, _pass_analyzer_identity, _analyzer_identity_satisfied
     ),
+    "reloc_table": BackfillPass("reloc_table", True, _pass_reloc_table, _reloc_table_satisfied),
 }
 
 

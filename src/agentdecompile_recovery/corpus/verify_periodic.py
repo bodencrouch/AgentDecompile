@@ -15,6 +15,34 @@ from pathlib import Path
 from . import verify_recovered_byteexact as vbx
 
 
+def _arg(rest: list[str], name: str) -> str | None:
+    return rest[rest.index(name) + 1] if name in rest and rest.index(name) + 1 < len(rest) else None
+
+
+def audit_basis(rest: list[str]) -> str | None:
+    """Digest of everything a full audit reads, or None when that cannot be proven (FP-26).
+
+    Combines the verifier's own compiler-closure basis, which only counts with a declared
+    complete input manifest, and the digests of every source under ``--verified-dir``.
+    None never suppresses anything.
+    """
+    import hashlib
+    manifest, compiler = _arg(rest, "--cache-input-manifest"), _arg(rest, "--compiler")
+    raw, verified = _arg(rest, "--raw"), _arg(rest, "--verified-dir")
+    if not (manifest and compiler and raw and verified):
+        return None
+    try:
+        closure, complete = vbx._cache_basis(Path(raw).read_bytes(), compiler, {}, manifest)
+        if not complete:
+            return None
+        root = Path(verified)
+        sources = sorted((str(f.relative_to(root)), hashlib.sha256(f.read_bytes()).hexdigest())
+                         for f in root.rglob("*") if f.is_file())
+    except (OSError, ValueError):
+        return None
+    return hashlib.sha256(json.dumps([closure, sources]).encode()).hexdigest()
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--full-every", type=int, default=0,
@@ -74,6 +102,13 @@ def main(argv: list[str] | None = None) -> int:
             legacy = args.full_every > 0 and state["count"] % args.full_every == 0
             elapsed = args.full_interval_seconds > 0 and (last is None or now - last >= args.full_interval_seconds)
             full = explicit or legacy or elapsed
+            basis = audit_basis(rest)
+            suppressed = (full and not explicit and basis is not None
+                          and basis == state.get("last_full_basis"))
+            if suppressed:
+                # Unchanged inputs: a repeated automatic full audit adds no evidence (FP-26).
+                # An explicit request, or any input change, still runs a fresh full audit.
+                full = False
             if args.full_every:
                 print("[verify-periodic] --full-every is deprecated and explicitly enabled", flush=True)
             if full:
@@ -81,10 +116,14 @@ def main(argv: list[str] | None = None) -> int:
                 if "--no-incremental" not in rest:
                     rest.append("--no-incremental")
             vbx._write_json_atomic(state_path, state)
-            reason = "explicit" if explicit else "legacy-count" if legacy else "elapsed" if elapsed else "incremental"
+            reason = ("explicit" if explicit else "suppressed-unchanged-inputs" if suppressed
+                      else "legacy-count" if legacy else "elapsed" if elapsed else "incremental")
             print(f"[verify-periodic] pass #{state['count']}: {'FULL' if full else 'incremental'} ({reason})", flush=True)
             start = time.monotonic()
             rc = vbx.main(rest)
+            if full and rc == 0 and basis is not None:
+                state["last_full_basis"] = basis  # only a completed full audit makes inputs "audited"
+                vbx._write_json_atomic(state_path, state)
             print(f"[verify-periodic] pass #{state['count']} done in {time.monotonic() - start:.0f}s rc={rc}", flush=True)
             return rc
     except (OSError, ValueError, TypeError) as exc:

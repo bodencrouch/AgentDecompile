@@ -259,6 +259,23 @@ def build_object(
     return bytes(out)
 
 
+def verify_roundtrip(original: bytes, obj: bytes, origin: int) -> dict:
+    """Independent check (U1 RC-01): the object, placed at its origin, must reproduce the slice.
+
+    Uses the separate COFF fixup reader, not this module's writer, so a wrong reconstructed
+    addend or target cannot certify itself. Raises ``MkobjRefusal`` on any refusal or mismatch.
+    """
+    from .coff_fixup_roundtrip import mkobj_external_symbols, roundtrip_region
+
+    receipt = roundtrip_region(original, obj, origin, mkobj_external_symbols(obj, origin))
+    if receipt["refusal"]:
+        raise MkobjRefusal("roundtrip_refused", receipt["refusal"])
+    if not receipt["byte_equal_at_origin"]:
+        raise MkobjRefusal("roundtrip_mismatch",
+                           f"first mismatch at +{receipt['first_mismatch']}, {receipt['mismatch_count']} bytes differ")
+    return receipt
+
+
 def write_object(
     *,
     binary: pathlib.Path | str,
@@ -287,7 +304,7 @@ def write_object(
     if offset < 0 or end > len(raw):
         raise ValueError(f"mkobj: slice {offset}..{end} outside {binary} ({len(raw)} bytes)")
 
-    code = raw[offset:end]
+    code = original = raw[offset:end]
     machine = MACHINE[format]
     call_targets = find_call_targets(code, machine, reference_free_only=reference_free_only)
     if call_targets:
@@ -296,6 +313,7 @@ def write_object(
             code[disp_off : disp_off + 4] = b"\0\0\0\0"
         code = bytes(code)
     obj = build_object(code, symbol_prefix + name, machine, call_targets)
+    verify_roundtrip(original, obj, offset)
     dest = pathlib.Path(output)
     dest.parent.mkdir(parents=True, exist_ok=True)
     dest.write_bytes(obj)

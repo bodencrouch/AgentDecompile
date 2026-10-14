@@ -469,9 +469,24 @@ def _register_path_binary(
             return {"ok": False, "error": "This source path now contains different bytes. Register a separate preserved copy so existing evidence keeps its original identity."}
         if digest:
             con.execute("INSERT OR IGNORE INTO binary_content_identity VALUES(?,?)", (repo, digest))
-        candidates = con.execute("SELECT slug,repo_path FROM binary ORDER BY COALESCE(func_count,0) DESC,id").fetchall()
+        candidates = con.execute("SELECT slug,repo_path,md5,content_sha256 FROM binary ORDER BY COALESCE(func_count,0) DESC,id").fetchall()
         if digest:
             identical = next((item for item in candidates if binary_sha256(item[1] or "") == digest), None)
+            if identical is None:
+                virtual = [item for item in candidates if not Path(item[1] or '').is_file()
+                           and (item[3] or '').lower() == digest]
+                if not virtual and any(not Path(item[1] or '').is_file() and item[2] for item in candidates):
+                    with Path(repo).open('rb') as stream:
+                        md5 = hashlib.file_digest(stream, 'md5').hexdigest()
+                    if binary_sha256(repo) != digest:
+                        return {"ok": False, "error": "The source changed while its identity was being read."}
+                    virtual = [item for item in candidates if not Path(item[1] or '').is_file()
+                               and (item[2] or '').lower() == md5]
+                if len(virtual) > 1:
+                    virtual = [item for item in virtual if item[0] == name]
+                    if len(virtual) != 1:
+                        return {"ok": False, "error": "Several virtual corpus binaries match these bytes; select one exact existing slug."}
+                identical = virtual[0] if virtual else None
             if identical:
                 name = identical[0]
                 con.execute("CREATE TABLE IF NOT EXISTS binary_source_alias (source_path TEXT PRIMARY KEY, binary_slug TEXT NOT NULL, sha256 TEXT NOT NULL)")
@@ -484,9 +499,9 @@ def _register_path_binary(
         if collision:
             # A same-basename historical row may have unavailable bytes (moved,
             # deleted, or otherwise unreadable source). That must not block
-            # importing different, available bytes under this name: give the
-            # new entry a distinct, hash-qualified identity instead of erroring.
-            # binary_sha256(collision path) can legitimately be empty here.
+            # importing different available bytes under this name: give the
+            # new entry a distinct, hash-qualified identity and leave the
+            # historical row untouched. Its source may no longer be readable.
             recorded = con.execute("SELECT content_sha256 FROM binary WHERE slug=?", (name,)).fetchone()
             if recorded and str(recorded[0] or "").lower() == digest:
                 # The historical row records these exact bytes: reuse its
@@ -1440,10 +1455,7 @@ def workbench_context_payload(
         "locator": locator.strip(),
     }
     if session["slug"] and not session["program"]:
-        rows, _ = query_db(
-            "SELECT repo_path FROM binary WHERE slug=? LIMIT 1", (session["slug"],),
-            ignore_missing=True,
-        )
+        rows, _ = query_db("SELECT repo_path FROM binary WHERE slug=? LIMIT 1", (session["slug"],), ignore_missing=True)
         if rows and rows[0][0]:
             session["program"] = str(rows[0][0])
     if not any(session.values()):

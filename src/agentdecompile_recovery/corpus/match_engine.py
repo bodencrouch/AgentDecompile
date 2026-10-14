@@ -376,6 +376,19 @@ class FeatureIndex:
         return {hit for hit in votes if hit in self.funcs}
 
 
+def reverse_ties(scored, eps: float = 1e-9) -> dict:
+    """Destinations whose best score is shared by more than one source: ``{dst: {sources}}``."""
+    top: dict = {}
+    for row in scored:
+        best, sid, bid = row[0], row[2], row[3]
+        held = top.get(bid)
+        if held is None or best > held[0] + eps:
+            top[bid] = (best, {sid})
+        elif abs(best - held[0]) <= eps:
+            held[1].add(sid)
+    return {bid: sids for bid, (best, sids) in top.items() if len(sids) > 1}
+
+
 def match_binaries(
     left: list[dict[str, Any]],
     right: list[dict[str, Any]],
@@ -550,9 +563,21 @@ def match_binaries(
                 scored.append((best, margin, sid, best_b, best_ev))
 
         scored.sort(key=lambda row: (-row[0], -row[1], row[2], row[3]))
+        tied_destinations = reverse_ties(scored)
         new = 0
         for best, margin, sid, bid, ev in scored:
             if sid in mapping or bid in taken:
+                continue
+            if bid in tied_destinations:
+                # Several sources score equally for this destination. Order must not pick one
+                # (U1 RC-07): keep every tied source unresolved and leave the destination free.
+                results.setdefault(sid, {
+                    "left_id": left_index.funcs[sid].get("id"), "right_id": index.funcs[bid].get("id"),
+                    "score": round(best, 4), "margin": round(margin, 4), "content": int(ev.get("_content") or 0),
+                    "pair_class": pair_class, "status": "unresolved", "ambiguity": "tied_sources",
+                    "tied_with": sorted(str(left_index.funcs[x].get("id")) for x in tied_destinations[bid]),
+                    "signals": {k: v for k, v in ev.items() if not k.startswith("_")}, "kind": "identity",
+                })
                 continue
             content = int(ev.get("_content") or 0)
             left_key = left_index.funcs[sid].get("canon_key")

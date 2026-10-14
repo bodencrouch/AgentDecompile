@@ -1,8 +1,8 @@
 import * as monaco from 'monaco-editor/esm/vs/editor/editor.api.js';
 import EditorWorker from 'monaco-editor/esm/vs/editor/editor.worker.js?worker';
-import 'monaco-editor/esm/vs/editor/contrib/find/browser/findController.js';
-import 'monaco-editor/esm/vs/editor/contrib/folding/browser/folding.js';
-import 'monaco-editor/esm/vs/editor/contrib/bracketMatching/browser/bracketMatching.js';
+// Register editor services before language setup initializes the service container.
+// Basic-language contributions load this same editor feature set asynchronously.
+import 'monaco-editor/esm/vs/editor/editor.all.js';
 
 const contributionByMonacoId: Record<string, () => Promise<unknown>> = {
   c: () => import('monaco-editor/esm/vs/basic-languages/cpp/cpp.contribution.js'),

@@ -7,7 +7,9 @@ candidate set and what a collected outcome means:
 * candidates come from ``frontier.awaiting_verification``; the task's spec is looked up
   (``task_lookup``), its proposals are read from RESULT records in the partition log
   (``records.read_results``; a body whose ``producer_key`` is not the record's signer is not a
-  proposal), capped at ``proposal_cap`` in seq order (later ones are ignored as ``over-cap``),
+  proposal), capped at ``proposal_cap`` in content order -- ``(result_ref, producer_key)``, never
+  arrival order, so the capped set and the tie-break are the same however the log interleaved
+  (A20: arrival order is not a tie-breaker) -- the rest are ignored as ``over-cap``,
   reduced to claims (status OK) without a verdict, whose signer is not this key, not revoked, and
   **independent** under the configured policy (lineage-disjoint by default; the lineage comes
   from ``lineage_lookup`` when the fabric attests it, else from the body — see ``records``);
@@ -55,6 +57,11 @@ from .policy import DEFAULT_INDEPENDENCE_POLICY, PenaltyLedger, RevocationList, 
 
 DEFAULT_PROPOSAL_CAP = 4              # design §2.6 / Q8
 INLINE_EVIDENCE_LIMIT = 8 * 1024      # larger evidence becomes an object referenced by evidence_ref
+
+
+def _content_key(proposal: Proposal) -> tuple[str, str]:
+    """Arrival-independent order for proposals of one task (A20)."""
+    return (str(proposal.result_ref), str(proposal.producer_key))
 
 
 @dataclass(frozen=True)
@@ -146,8 +153,11 @@ class VerifierLoop(StepMachine):
             proposals = by_task.get(task_id, [])
             decided = set(decided_by_task.get(task_id, set())) | {ref for tid, ref in self._verdicts_local if tid == task_id}
             method = self._method_for(spec)
-            choices: list[tuple[float, int, Proposal]] = []
-            for index, proposal in enumerate(proposals):
+            choices: list[tuple[float, tuple[str, str], Proposal]] = []
+            # Content order, not log/arrival order: which proposals fit under the cap and which
+            # one is verified first must not depend on who happened to log first (A20).
+            ordered = sorted(proposals, key=_content_key)
+            for index, proposal in enumerate(ordered):
                 ref = str(proposal.result_ref)
                 if index >= self.vconfig.proposal_cap:
                     self._skip("over-cap")
@@ -166,7 +176,7 @@ class VerifierLoop(StepMachine):
                     if not verdict.ok:
                         self._skip(f"not-independent:{verdict.reason.split(':', 1)[0]}")
                         continue
-                    choices.append((-self.penalties.weight(proposal.producer_key), proposal.seq, proposal))
+                    choices.append((-self.penalties.weight(proposal.producer_key), _content_key(proposal), proposal))
             if not choices:
                 continue
             choices.sort(key=lambda c: (c[0], c[1]))

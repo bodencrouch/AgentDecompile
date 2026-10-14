@@ -15,7 +15,7 @@ generation reader provided here is the cross-place identity-graph digest.
 """
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
 import hashlib
 import json
 import re
@@ -101,11 +101,16 @@ def _intact(record, current: Mapping) -> list:
             if all(versions.get(d) is not None and current.get(d) == versions[d] for d in root)]
 
 
-def commit(ledger: tuple, proposal: dict, verification: dict, read: Reader):
+def commit(ledger: tuple, proposal: dict, verification: dict, read: Reader, *,
+           active_policy: Callable[[], str] | None = None):
     """Evaluate outside the append, recheck the basis, then append one record.
 
     Returns ``(ledger, record)``. Rejections are retained as negative records.
     A matching current acceptance is returned unchanged (idempotency).
+
+    *active_policy*, when given, returns the currently active policy revision. It is read
+    at the same short recheck as the dependency generations: a proposal verified under a
+    revision that is no longer active becomes a ``stale`` refusal (A17), report retained.
     """
     _validate(proposal, verification)
     ledger = tuple(ledger)
@@ -149,6 +154,8 @@ def commit(ledger: tuple, proposal: dict, verification: dict, read: Reader):
         if changed:
             outcome, reasons = 'stale', ['dependency_generation_changed_during_verification']
             body['changedDependencies'] = changed
+        elif active_policy is not None and active_policy() != proposal['policyRevision']:
+            outcome, reasons = 'stale', ['policy_revision_changed_during_verification']
     body.update(outcome=outcome, reasonCodes=reasons, satisfiedRootSets=satisfied)
     if outcome == 'accepted':
         ordinal = sum(1 for r in ledger if r.get('idempotencyKey') == key and r['kind'] == 'acceptance')
@@ -208,3 +215,17 @@ def current_for(ledger, recipient: dict, claim_kind: str):
         if row['scope'] == {'recipient': recipient, 'claimKind': claim_kind}:
             return row
     return None
+
+
+def policy_activation_check(evaluate: Callable[[dict], bool], known_false: Sequence[dict],
+                            known_good: Sequence[dict]) -> dict:
+    """Gate a new acceptance policy before activation (FP-21).
+
+    *evaluate* returns whether the candidate policy would accept a sample. The policy is
+    blocked if it admits any sample already known to carry a false label, or rejects a
+    sample known to be valid; the report names each offending sample.
+    """
+    admitted = [s.get('proposalId') for s in known_false if evaluate(s)]
+    rejected = [s.get('proposalId') for s in known_good if not evaluate(s)]
+    return {'activate': not admitted and not rejected, 'admittedKnownFalse': admitted,
+            'rejectedKnownGood': rejected}

@@ -7,6 +7,8 @@ later, separate stage.
 
 from __future__ import annotations
 
+import hashlib
+import json
 import os
 import shutil
 import subprocess
@@ -53,15 +55,30 @@ def compile_unit_msvc(cl: str, source: Path, obj: Path, *, timeout: int = 60) ->
     }
 
 
+def _staged_object(obj: Path) -> Path:
+    handle, name = tempfile.mkstemp(dir=obj.parent, prefix=".agentdecompile-", suffix=obj.suffix or ".obj")
+    os.close(handle)
+    staged = Path(name)
+    staged.unlink(missing_ok=True)
+    return staged
+
+
 def compile_unit(compiler: str, source: Path, obj: Path, *, timeout: int = 60) -> dict[str, Any]:
+    """Compile into a private name and rename on success: a killed compiler leaves no object."""
     obj.parent.mkdir(parents=True, exist_ok=True)
-    proc = subprocess.run(
-        [compiler, "-c", str(source), "-o", str(obj)],
-        capture_output=True,
-        text=True,
-        timeout=timeout,
-        check=False,
-    )
+    staged = _staged_object(obj)
+    try:
+        proc = subprocess.run(
+            [compiler, "-c", str(source), "-o", str(staged)],
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            check=False,
+        )
+        if proc.returncode == 0 and staged.is_file() and staged.stat().st_size > 0:
+            os.replace(staged, obj)
+    finally:
+        staged.unlink(missing_ok=True)
     return {
         "ok": proc.returncode == 0 and obj.is_file(),
         "source": str(source),
@@ -93,12 +110,70 @@ def iter_compile_units(root: Path) -> list[Path]:
 
 
 def object_is_current(source: Path, obj: Path) -> bool:
-    """True when a prior object is newer than its source and non-empty."""
+    """Legacy mtime check, kept for callers outside the tree compile; receipts decide reuse there."""
     if not obj.is_file():
         return False
     try:
         return obj.stat().st_size > 0 and obj.stat().st_mtime >= source.stat().st_mtime
     except OSError:
+        return False
+
+
+UNIT_RECEIPT_SCHEMA = "agentdecompile.compile-unit-receipt.v1"
+
+
+def _sha256(path: Path) -> str:
+    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+
+
+def toolchain_identity(compiler: str, preamble: str = "", vcroot: Path | str | None = None) -> dict[str, Any]:
+    """What a unit receipt is bound to besides its source: the compiler and any preamble."""
+    path = Path(shutil.which(compiler) or compiler).resolve()
+    ident: dict[str, Any] = {"compiler": str(path)}
+    try:
+        info = path.stat()
+        if info.st_size < 1 << 20:  # wrapper scripts and small drivers: content
+            ident["compilerSha256"] = _sha256(path)
+        else:
+            ident["compilerStat"] = [info.st_size, info.st_mtime_ns]
+    except OSError:
+        ident["compilerMissing"] = True
+    if preamble:
+        ident["preambleSha256"] = hashlib.sha256(preamble.encode()).hexdigest()
+    if vcroot:
+        cl = Path(vcroot) / "bin" / "cl.exe"
+        ident["vcroot"] = str(Path(vcroot).resolve())
+        try:
+            ident["clStat"] = [cl.stat().st_size, cl.stat().st_mtime_ns]
+        except OSError:
+            ident["clStat"] = None
+    return ident
+
+
+def unit_receipt_path(obj: Path) -> Path:
+    return obj.with_name(obj.name + ".receipt.json")
+
+
+def write_unit_receipt(source: Path, obj: Path, toolchain: dict[str, Any]) -> None:
+    """Durable per-unit receipt, written only after the object itself was renamed into place."""
+    receipt = unit_receipt_path(obj)
+    body = json.dumps({"schema": UNIT_RECEIPT_SCHEMA, "sourceSha256": _sha256(source),
+                       "objectSha256": _sha256(obj), "toolchain": toolchain}, sort_keys=True)
+    handle, name = tempfile.mkstemp(dir=obj.parent, prefix=".receipt-", suffix=".tmp")
+    with os.fdopen(handle, "w") as out:
+        out.write(body)
+        out.flush()
+        os.fsync(out.fileno())
+    os.replace(name, receipt)
+
+
+def unit_receipt_current(source: Path, obj: Path, toolchain: dict[str, Any]) -> bool:
+    """A unit is reusable only with a receipt matching its source, object and toolchain (A03)."""
+    try:
+        row = json.loads(unit_receipt_path(obj).read_text())
+        return (row.get("schema") == UNIT_RECEIPT_SCHEMA and row.get("toolchain") == toolchain
+                and row.get("sourceSha256") == _sha256(source) and row.get("objectSha256") == _sha256(obj))
+    except (OSError, ValueError):
         return False
 
 
@@ -192,16 +267,8 @@ def compile_unit_script(
         else:
             shutil.copy2(source, staged_source)
         compile_source = staged_source
-    if staged_source is not None or any(char in obj.name for char in win32_illegal):
-        handle, temp_name = tempfile.mkstemp(
-            dir=obj.parent,
-            prefix=".agentdecompile-",
-            suffix=obj.suffix or ".obj",
-        )
-        os.close(handle)
-        staged_obj = Path(temp_name)
-        staged_obj.unlink(missing_ok=True)
-        compile_obj = staged_obj
+    # Always compile into a private name: a killed compiler must not leave an object.
+    staged_obj = compile_obj = _staged_object(obj)
 
     try:
         proc = subprocess.run(
@@ -236,6 +303,12 @@ def _win_z_path(path: Path) -> str:
     return text
 
 
+def _staged_image(output: Path) -> Path:
+    """Private link target; the stamp goes first so a killed linker can never look current."""
+    link_stamp_path(output).unlink(missing_ok=True)
+    return output.with_name(f".{output.stem}.linking{output.suffix}")
+
+
 def link_msvc(
     objects: list[Path],
     output: Path,
@@ -264,6 +337,8 @@ def link_msvc(
     link = Path(vcroot) / "bin" / "link.exe"
     if not link.is_file():
         return {"ok": False, "reason": f"no link.exe at {link}", "output": str(output)}
+    staged = _staged_image(output)
+    staged.unlink(missing_ok=True)
     rsp = output.parent / "objects.rsp"
     rsp.write_text("\n".join(_win_z_path(p) for p in objects) + "\n", encoding="utf-8")
     env = os.environ.copy()
@@ -280,7 +355,7 @@ def link_msvc(
             f"/LIBPATH:{_win_z_path(libdir)}",
             "kernel32.lib",
             "libc.lib",
-            f"/OUT:{_win_z_path(output)}",
+            f"/OUT:{_win_z_path(staged)}",
             f"@{_win_z_path(rsp)}",
         ],
         capture_output=True,
@@ -289,9 +364,11 @@ def link_msvc(
         check=False,
         env=env,
     )
-    ok = proc.returncode == 0 and output.is_file() and output.stat().st_size > 0
+    ok = proc.returncode == 0 and staged.is_file() and staged.stat().st_size > 0
     if ok:
+        os.replace(staged, output)
         write_link_stamp(output, LINK_FLAGS)
+    staged.unlink(missing_ok=True)
     return {
         "ok": ok,
         "output": str(output),
@@ -332,6 +409,8 @@ def compile_and_link_tree(
         write_entrypoint(main_c)
         units = [main_c, *units]
     script = Path(cc).suffix == ".sh" or Path(cc).name.startswith("compile-")
+    vc = Path(vcroot or os.environ.get("AGENT_DECOMPILE_VCROOT") or "")
+    toolchain = toolchain_identity(str(cc), PREAMBLE if script else "", vc if script and vc.is_dir() else None)
 
     def _one(src: Path) -> tuple[Path, dict[str, Any]]:
         try:
@@ -339,7 +418,7 @@ def compile_and_link_tree(
         except ValueError:
             rel = Path(src.name)
         obj = work / rel.with_suffix(".obj")
-        if object_is_current(src, obj):
+        if unit_receipt_current(src, obj, toolchain):
             return obj, {
                 "ok": True,
                 "source": str(src),
@@ -359,6 +438,10 @@ def compile_and_link_tree(
                                          preamble=PREAMBLE)
         else:
             result = compile_unit(str(cc), src, obj, timeout=timeout)
+        if result.get("ok"):
+            write_unit_receipt(src, obj, toolchain)
+        else:
+            unit_receipt_path(obj).unlink(missing_ok=True)
         return obj, result
 
     objects: list[Path] = []
@@ -381,7 +464,6 @@ def compile_and_link_tree(
                     flush=True,
                 )
 
-    vc = Path(vcroot or os.environ.get("AGENT_DECOMPILE_VCROOT") or "")
     prefix = wineprefix or os.environ.get("WINEPREFIX") or ""
     out = Path(output)
     if objects and image_is_current(objects, out):
@@ -443,16 +525,20 @@ def link_executable(
             ),
         }
     output.parent.mkdir(parents=True, exist_ok=True)
+    staged = _staged_image(output)
+    staged.unlink(missing_ok=True)
     proc = subprocess.run(
-        [compiler, *[str(path) for path in objects], "-o", str(output)],
+        [compiler, *[str(path) for path in objects], "-o", str(staged)],
         capture_output=True,
         text=True,
         timeout=timeout,
         check=False,
     )
-    ok = proc.returncode == 0 and output.is_file() and output.stat().st_size > 0
+    ok = proc.returncode == 0 and staged.is_file() and staged.stat().st_size > 0
     if ok:
+        os.replace(staged, output)
         write_link_stamp(output, LINK_FLAGS)
+    staged.unlink(missing_ok=True)
     return {
         "ok": ok,
         "output": str(output),

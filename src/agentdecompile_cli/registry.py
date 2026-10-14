@@ -26,7 +26,7 @@ from dataclasses import dataclass
 from enum import Enum
 from functools import lru_cache
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 logger = logging.getLogger(__name__)
 
@@ -250,6 +250,9 @@ class ToolMetadata:
     analysis_tier: int
     replacement: tuple[str, ...] = ()
     long_running: bool = False
+    # Unknown tools retain conservative admission until their resources are declared.
+    corpus_db_access: Literal["unknown", "none"] = "unknown"
+    ghidra_session_access: Literal["unknown", "query"] = "unknown"
 
 
 # Backward-compat alias
@@ -1663,6 +1666,8 @@ def get_tool_metadata(tool_name: Tool | str) -> ToolMetadata | None:
         analysis_tier=get_tool_analysis_tier(tool),
         replacement=_TOOL_REPLACEMENTS.get(tool, ()),
         long_running=tool in _LONG_RUNNING_TOOLS,
+        corpus_db_access="none" if tool is Tool.GET_REFERENCES else "unknown",
+        ghidra_session_access="query" if tool is Tool.GET_REFERENCES else "unknown",
     )
 
 

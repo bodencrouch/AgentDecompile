@@ -8,30 +8,36 @@
 
 ## 1. Motif
 
-**Work with compiled binary data as rich, high-quality context that an agent can understand almost as seamlessly as straight source code.**
+**Turn related binaries and their analysis into matching source, a trustworthy shared-code model, and usable ways to inspect and modify the running program.**
 
-That is the permanent center of gravity. Everything else — extraction, lifting, decompilation, matching, verification, packaging, agent loops — exists to serve it.
+That is the permanent center of gravity. AgentDecompile takes executable binaries and existing Ghidra or other analysis projects, connects equivalent code, data, types, ABI, calls and events across releases/platforms, and drives source recovery through measurable compiler and binary comparisons. It then makes that recovered knowledge usable for target-specific runtime inspection and intervention.
 
-AgentDecompile is a **context substrate for machine code and packaged software**, not a single-purpose decompiler and not a fixed recovery funnel. It turns opaque artifacts into structured, provenance-anchored evidence that language models and humans can reason over fluently. Verification and rebuildability are the strongest forms of that evidence — not the only forms, and not the only valid uses of the system.
+AgentDecompile is a **higher-level reverse-engineering workbench built around Ghidra**. Ghidra remains a core low-level analysis engine; AgentDecompile's role is to coordinate it and other tools across a binary family, recover C/C++ whose compiled output matches concrete targets, and expose the shared and divergent program model—including functions, data, types, ABI, arguments, events, memory and runtime behavior—as evidence-backed capabilities. This is more than an MCP wrapper or decompiler pane, but it is not a claim that AgentDecompile replaces Ghidra or that every capability is available for every target. It is not an AI asked to guess source from pseudocode: models may propose hypotheses or candidates, but deterministic tools and comparison receipts decide what is established.
 
 ```mermaid
 flowchart TD
-  raw[Opaque artifacts: executables, installers, packages, libraries, assets] --> dismantle[Dismantle and acquire]
-  dismantle --> evidence[Provenance-anchored evidence]
-  evidence --> assemble[Context assembly for agents]
-  assemble --> agent[Human or autonomous agent]
-  agent --> compose[Compose capabilities as needed]
-  compose --> evidence
-  evidence --> outs[Useful partial or complete outs: trees, facts, source, claims]
+  binaries[Related compiled binaries + existing Ghidra projects] --> inventory[Inventory and bind each build]
+  inventory --> match[Cross-match functions, data, types, names, signatures]
+  inventory --> calibrate[Calibrate ABI and toolchain]
+  match --> source[Recover readable C/C++ with provenance]
+  calibrate --> source
+  source --> compile[Compile and compare with target]
+  compile --> repair[Classify mismatch; repair, re-match, or defer]
+  repair --> source
+  compile --> target[Fresh whole-image build and zero-difference receipt]
+  match --> runtime[Build-specific call, event, memory and graphics model]
+  runtime --> adapters[Supported Lua, native shim/DLL, hook and cave workflows]
+  adapters --> observe[Preflight, observe, disable/undo, feed evidence back]
+  observe --> runtime
 ```
 
 ---
 
 ## 2. Charter
 
-AgentDecompile exists to close the gap between **binaries as opaque blobs** and **binaries as intelligible working material**.
+AgentDecompile exists to close the gap between **a family of opaque binaries** and **recoverable, comparable source**.
 
-The system should let even a small model move — with assistance from tooling, retrieval, and structure — between source, binary, and recovered understanding. Full automated round-tripping of arbitrary applications is a multi-decade horizon: exhaustive, meticulous, and never finished. The durable bet is the **design**: a substrate where every partial capability is immediately useful, accretes over time, and never requires the whole machine to be complete before any of it pays off.
+The system should let agents and humans traverse the same tool-backed workflow: inspect binaries, reuse analysis, match related implementations, recover source, and verify the result. A useful partial result may be delivered at any point, but a target is not “recovered” or “complete” until the current source freshly rebuilds and matches the complete original image byte for byte. Arbitrary-application round-tripping is a long horizon; the current concrete corpus is BioWare/KOTOR, starting with K1 GOG and K2 Aspyr while sibling binaries are imported and cross-matched.
 
 **One product name. One honesty model. An open capability surface.**
 
@@ -40,11 +46,12 @@ The system should let even a small model move — with assistance from tooling, 
 | **Acquisition and dismantling** | Unpack, section, rip, and layout opaque delivery formats into inspectable trees and facts. |
 | **Analysis and lifting** | Decompile, disassemble, type, name, and relate code with citations back to bytes. |
 | **Interactive RE** | Stable sessions so agents and operators share the same program state. |
-| **Runtime context and reuse** | Supported adapters can observe or call original code and return provenance-bearing behavior evidence before complete recovery; runtime success does not establish recovered-source parity. |
-| **Recovery and verification** | Optional, powerful loops that turn candidates into rebuildable claims when the caller wants that bar. |
+| **Runtime inspection and intervention** | Discover and inspect supported call sites, events, arguments, parameters, returns, memory and graphics behavior; prepare target-bound Lua/native shim/DLL, hook, detour, code-cave and memory workflows. Runtime success does not establish recovered-source parity. |
+| **WASM and graphics surfaces** | Use browser-portable execution and graphics/GL capabilities for concrete analysis, comparison, visualization or target instrumentation when supported. Keep target graphics observations separate from browser rendering and name unsupported operations explicitly. |
+| **Recovery and verification** | The completion path for a recovered target: readable source, fresh compilation/link, and whole-image zero-difference comparison. Earlier partial evidence remains useful but is not completion. |
 | **Context assembly** | Progressive, budgeted, provenance-preserving presentation so models work from evidence instead of inventing it. |
 
-**North star:** compiled reality in; agent-usable understanding out — as seamless as source, as honest as the bytes allow.
+**North star:** a related binary family and its existing analysis in; exact-matching C/C++, an explainable cross-build model, and evidence-backed ways to inspect or modify supported runtime behavior out—with every target, capability and claim scoped to its real evidence.
 
 ---
 
@@ -117,12 +124,12 @@ Provenance is a data-model property, not a prompting tip. When the chain breaks,
 
 Agents (and operators) compose the substrate as they see fit.
 
-The design must **not** hardcode a single gate sequence or privilege one recovery story as the only valid path. Capabilities are independently addressable: dismantle, inventory, enrich, decompile, search, mutate analysis state, compile, compare objects, repair, dump trees, assemble prompts. Callers choose the policy.
+The design must keep capabilities independently addressable without fragmenting the project into competing pipelines. Inventory, Ghidra access, cross-match, source recovery, compile, compare, repair, and export have shared contracts and state. A requested recovery run follows the shared recovery policy; other callers may stop at the evidence they need, but may not call that target recovered.
 
 That includes powerful **imperative** tooling — live analysis engines, compilers, object differs, permuters, and similar — exposed as richly configurable, introspectable capabilities with stable contracts. The agent orchestrates; the tools execute. Configuration around those tools should be deep and honest, not papered over by a one-size-fits-all workflow.
 
-**Claim tiers stay non-negotiable; acceptance thresholds are the caller’s.**  
-Verified, advisory, context-hint, and byte-authoritative meanings never blur. Whether a given task *requires* a hard verify step is a policy choice, not a product religion.
+**Claim tiers stay non-negotiable.**
+Advisory, readable, compiling, function-exact, and whole-image-exact evidence never blur. A caller may ask a non-recovery question and stop early; the acceptance threshold for declaring a requested recovery complete is the strategy’s fresh whole-image zero-difference receipt.
 
 ---
 
@@ -132,7 +139,7 @@ The long-horizon invariant is **source → binary → source** (and the reverse)
 
 That horizon is multi-decade because real software is exhaustively rich: native and managed code, installers, plugins, resources, drivers, scripts, data. AgentDecompile advances it by making every intermediate form — section trees, package graphs, typed inventories, advisory lifts, verified functions — a durable, usable stepping stone rather than a failed attempt at perfection.
 
-Forward compilation and object-level comparison belong in the architecture because they are oracles for reverse understanding. They are not mandatory for every question an agent asks.
+Forward compilation and object-level comparison are required to prove recovered source, even though they are not required for every exploratory question. The whole-image comparison is the terminal acceptance, not an optional display tier.
 
 ---
 
@@ -147,6 +154,14 @@ The product should use everything known to be effective in:
 - **Agentic tooling** — session-stable tools, flexible arguments, named terminals, repair loops, background work, MCP-native workflows.
 
 If a small model with excellent binary context outperforms a large model staring at an unprovenanced dump, the design is working.
+
+AI is an interface and candidate-generation aid, not a prerequisite for running
+the deterministic pipeline or a source of proof. WASM and graphics/GL support are
+part of the product's high-level analysis and runtime surface wherever a concrete
+provider can deliver them; specify the operation and target rather than treating
+the acronym as a capability. Target-side graphics instrumentation is distinct
+from browser-side rendering. Neither one replaces Ghidra's analysis engine or
+native compiler/objdiff proof, and neither establishes whole-image parity.
 
 ---
 
@@ -237,7 +252,7 @@ These name investment themes, not a delivery checklist and not a privileged orde
 - **Structural legibility** — consistent trees and manifests for sections, install layouts, packages, plugins, and assets.  
 - **Evidence and provenance** — address- and path-keyed facts, conflict retention, citation in every agent-facing bundle.  
 - **Interactive analysis reliability** — session-stable tooling so agents see real program state.  
-- **Composable recovery** — candidate generation, repair, and optional hard verification as capabilities, not as the only story.  
+- **Composable recovery** — expose candidate generation, repair, and verification as shared capabilities; exploratory callers may stop early, but a completed recovery still requires the hard proof in STRATEGY.md.
 - **Context assembly** — retrieval, budgeting, progressive disclosure, prompt-ready evidence packs.  
 - **Honest export** — layered outs with claim documentation; useful dumps even when verification is out of scope for the run.
 
@@ -245,11 +260,11 @@ These name investment themes, not a delivery checklist and not a privileged orde
 
 ## 15. Scope Boundaries
 
-- Do not hardcode commercial product identities into generic defaults; profiles and layouts derive from formats and structure.  
+- Do not hardcode commercial product identities into generic defaults; profiles and layouts derive from formats and structure. Named targets and profiles are valid in corpus configuration and mission documentation.
 - Do not treat decompiler text or model prose as proof without an explicit hard check when a proof claim is made.  
 - Do not call byte copies or embedded blobs recovered source.  
-- Do not require full one-shot recovery for the system to be useful.  
-- Do not force every task through a single verify ritual.  
+- Do not require full one-shot recovery for the system to be useful; partial outputs remain valuable.
+- Do not label a target fully recovered without the whole-image acceptance in STRATEGY.md.
 - Do not present stale artifacts as fresh work when production of new context was requested.  
 - Do not silently overwrite contested analysis state.
 
@@ -294,6 +309,6 @@ The codebase succeeds when it is cited as the reference for **how to give agents
 - **Composition contract:** Section 7 defines *how agents may use the system without hardcoded funnels*.  
 - **Drift detection:** If a change hard-codes product identities, severs provenance, forces a single gate ritual, voids partial usefulness, or blurs claim tiers — it violates this vision regardless of passing tests.
 
-Implementation details, module maps, open defect lists, and measured snapshots belong elsewhere. This file answers: **What was AgentDecompile meant to become, and what obligations does that place on everyone who touches it?**
+The current user-intent consolidation is [docs/USER_INTENT.md](docs/USER_INTENT.md); it defines inputs, outputs, authority, and scope. Implementation details, module maps, open defects, and measured snapshots belong elsewhere. This file answers: **What was AgentDecompile meant to become, and what obligations does that place on everyone who touches it?**
 
 Near-term map: [STRATEGY.md](STRATEGY.md). Operators: [README.md](README.md).

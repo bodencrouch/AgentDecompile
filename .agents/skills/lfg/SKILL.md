@@ -11,7 +11,9 @@ Read [AGENTS](../../../AGENTS.md), [STRATEGY](../../../STRATEGY.md), the
 
 Resume the actual requested outcome from current evidence and ownership, select
 the next bounded useful action, and retain unresolved outcomes across handoffs.
-Use the existing 8080 catalog for recovery. Continue safe independent lanes when
+Active recovery uses the checkout-pinned `.venv/bin/agentdecompile-cli` from the
+repository root; frontends are deferred. Reuse existing local or shared Ghidra
+project bytes and analysis when available. Continue safe independent lanes when
 one fails; never duplicate writers or bypass the current validation restrictions.
 
 This project-local command does not start the historical live harness or an

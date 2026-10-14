@@ -67,24 +67,12 @@ REPLAN is scoped to the affected phase and its dependents; it runs the workflow 
 areas only; it ends when that round is dry; BUILD resumes at the same Recommended-order step.
 Hindsight is expected, not a failure: the plan is rewritten as often as building teaches.
 
-## 5. Living plan — maintenance rules (skill `maintain-living-plan`)
+## 5. Status tracking (superseded)
 
-- The dated plan **is** the living plan. Each loop iteration writes a `### Delta Update`
-  block at the top of the plan: **Landed** (units + commits), **Partial** (validated but
-  uncertain, with what would settle it), **Next** (recommended changes). Minimal churn;
-  decision-oriented; the Revision log keeps the audit history.
-- Unit bullets carry status marks in place (✔ landed `<commit>`, ⏳ in flight, ⛔ blocked
-  `<reason>`); "what exists today" sentences are rewritten to "landed at …" when they land.
-- **STRATEGY.md** is the program-level authority. It is **not edited while the plan, design and
-  diagram are still converging** (user directive 2026-09-21); it is rewritten from them once
-  they converge and building has changed the pipeline's policy: the cross-build substrate as a stage-parallel lane, the Autonomy rule,
-  the determinism basis, the closed status set, the surfaces rule (no Start; one admission-
-  scoped pause/resume). Each such change is one STRATEGY commit citing the plan unit that
-  caused it; STRATEGY never contradicts the plan and the plan never restates STRATEGY.
-- Superseded plans are marked at their top ("superseded by …") and left in place as history;
-  the 2026-09-08 portable-signatures plan is superseded by this plan and is renamed under U21a.
-- Companions (audit files, risk register, this charter, the goal) are inputs, not competing
-  plans.
+The rolling-plan maintenance mechanism previously specified here is removed by the
+2026-10-09 user directive. The master plan owns scope; the todo owns execution state;
+task reports and durable receipts own evidence. No separate rolling status document or
+maintenance skill is used.
 
 ## 6. Cadence and limits — grill sparingly
 

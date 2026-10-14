@@ -1,19 +1,20 @@
 #!/usr/bin/env bash
-# agentdecompile compilerScript backend: compile a candidate .c with the real MSVC
-# cl.exe (portable VC8, run under wine) to a COFF .obj. This is what makes the
+# agentdecompile compiler backend: compile a candidate .c with the real MSVC
+# cl.exe (VC++ Toolkit 2003, run under wine) to a COFF .obj. This is what makes the
 # article's objdiff gate meaningful for x86/MSVC targets. gcc/clang cannot
 # reproduce MSVC codegen; this wrapper has produced byte-exact output for small
 # target accessors/wrappers, but it is not proof of the whole compiler profile.
 #
 # Usage: cl-compile.sh <in.c> <out.obj> [extra cl flags...]
 # Env:
-#   VC_ROOT     portable MSVC dir (contains bin/cl.exe)   default: /tmp/msvc80/msvc8.0-main
-#   WINEPREFIX  wine prefix                                default: /tmp/vctk2003/wineprefix
+#   VC_ROOT     portable MSVC dir (contains bin/cl.exe)   default: NVMe VC7.1
+#   WINEPREFIX  wine prefix                                default: NVMe VC7.1 prefix
 #   CL_OPT      optimization flag                          default: /O2
 set -euo pipefail
 
-VC_ROOT="${VC_ROOT:-/run/media/brunner56/MyBook/Toolchains/msvc8.0-main}"
-export WINEPREFIX="${WINEPREFIX:-/tmp/vctk2003/wineprefix}"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+VC_ROOT="${VC_ROOT:-${ROOT}/target/toolchain-acquire/vctoolkit2003/installed-nvme/VC7.1}"
+export WINEPREFIX="${WINEPREFIX:-${ROOT}/target/toolchain-acquire/vctoolkit2003/wineprefix}"
 export WINEDEBUG="${WINEDEBUG:--all}"
 CL_OPT="${CL_OPT:-/O2}"
 

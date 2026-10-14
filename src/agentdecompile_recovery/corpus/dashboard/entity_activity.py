@@ -85,7 +85,10 @@ class ActivityBroadcaster:
         queue: asyncio.Queue[tuple[str, dict, int]] = asyncio.Queue(maxsize=1)
         async with self._lock:
             if self._observer_count >= self._max_observers:
-                raise ActivityObserverLimitError(f'Activity observer limit ({self._max_observers}) reached.')
+                raise ActivityObserverLimitError(
+                    f'Activity observer limit ({self._max_observers}) reached: '
+                    f'{self._observer_count} observers, {len(self._tasks)} producer scopes.'
+                )
             observers = self._observers.setdefault(scope, set())
             was_empty = not observers
             observers.add(queue)
@@ -103,7 +106,10 @@ class ActivityBroadcaster:
                     self._observer_count -= 1
                     if not observers:
                         self._observers.pop(scope, None)
-                    raise ActivityObserverLimitError(f'Activity observer limit ({self._max_observers}) reached.')
+                    raise ActivityObserverLimitError(
+                        f'Activity producer limit ({self._max_observers}) reached: '
+                        f'{self._observer_count} observers, {len(self._tasks)} producer scopes.'
+                    )
                 self._wakeups[scope] = asyncio.Event()
                 self._tasks[scope] = asyncio.create_task(self._produce(scope), name=f'activity-broadcast:{scope[1]}')
             elif was_empty:
@@ -115,7 +121,7 @@ class ActivityBroadcaster:
 
     async def read(self, locator: str, slug: str, program: str) -> dict:
         """Return a shared snapshot without letting polling bypass admission."""
-        queue = await self.subscribe(locator, slug, program, include_latest=False)
+        queue = await self.subscribe(locator, slug, program, include_latest=True)
         try:
             event, payload, _generation = await queue.get()
             if event == 'unavailable':
@@ -127,14 +133,18 @@ class ActivityBroadcaster:
     async def replay(self, locator: str, slug: str, after: int, program: str) -> list[dict] | None:
         """Bound uncancellable journal reads before they reach the executor."""
         await self._replay_gate.acquire()
-        task = asyncio.create_task(asyncio.to_thread(_replay, locator, slug, after, program))
+        task: asyncio.Task[list[dict] | None] | None = None
         try:
+            task = asyncio.create_task(asyncio.to_thread(_replay, locator, slug, after, program))
             return await asyncio.shield(task)
-        except asyncio.CancelledError:
-            task.add_done_callback(lambda _task: self._replay_gate.release())
-            raise
-        else:
-            self._replay_gate.release()
+        finally:
+            if task is None or task.done():
+                self._replay_gate.release()
+            else:
+                # Cancelling the request does not stop asyncio.to_thread().
+                # Retain the gate until that worker actually finishes, so a
+                # replacement replay cannot exceed the intended I/O bound.
+                task.add_done_callback(lambda _task: self._replay_gate.release())
 
     async def unsubscribe(self, locator: str, slug: str, program: str, queue: asyncio.Queue[tuple[str, dict, int]]) -> None:
         scope = (locator, slug, program)
@@ -201,9 +211,20 @@ class ActivityBroadcaster:
                         async with self._lock:
                             self._latest[scope] = (latest, generation)
                         await self._broadcast(scope, event, latest, generation)
-                except (ValueError, OSError, sqlite3.Error) as exc:
+                except Exception as exc:
                     must_republish = True
-                    await self._broadcast(scope, 'unavailable', {'error': str(exc)}, self._generations.get(scope, 0))
+                    try:
+                        await self._broadcast(scope, 'unavailable', {'error': str(exc)}, self._generations.get(scope, 0))
+                    except Exception as broadcast_exc:
+                        # Keep the scope producer alive even if delivery of
+                        # the error event also fails. The next cycle retries
+                        # the snapshot after the normal interval; it does not
+                        # launch a second thread while this one is in flight.
+                        asyncio.get_running_loop().call_exception_handler({
+                            'message': 'Activity failure could not be broadcast',
+                            'exception': broadcast_exc,
+                            'scope': scope,
+                        })
                 wakeup = self._wakeups[scope]
                 try:
                     await asyncio.wait_for(wakeup.wait(), timeout=self._interval_seconds)

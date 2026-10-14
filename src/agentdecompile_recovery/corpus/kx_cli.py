@@ -415,7 +415,17 @@ def dispatch(args: argparse.Namespace) -> int | None:
         manifest = args.out_dir / "_manifest.json"
         manifest.write_text(json.dumps(meta, indent=1), encoding="utf-8")
         print(json.dumps({"manifest": str(manifest), "entries": len(meta)}, indent=2))
-        return 0
+        # An export manifest is also the result record. Do not return success
+        # when some programs failed to open or a FileBytes read stopped short;
+        # callers must not mistake a partial project extraction for a complete
+        # target snapshot.
+        failed = any(
+            "error" in row
+            or "skipped" in row
+            or ("size" in row and "written" in row and row["size"] != row["written"])
+            for row in meta
+        )
+        return 1 if failed else 0
 
     if cmd == "export-c":
         from . import export_c as ec

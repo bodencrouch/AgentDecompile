@@ -109,6 +109,107 @@ def sha256_file(path: str | os.PathLike) -> str:
     return h.hexdigest()
 
 
+def observe_input_files(files, trees, environment, roots, configuration, unknowns):
+    """Fingerprint bounded known inputs without executing any tool.
+
+    This is an observation, not ``capture``'s executable identity and not a
+    compiler dependency-closure declaration. Even a complete directory walk
+    cannot establish which dynamically loaded files influenced compilation.
+    """
+    import time
+
+    stop = time.monotonic() + 5
+    forms = _root_forms(roots)
+    gaps = set(unknowns)
+    records = []
+    candidates = dict(files)
+    partial = False
+    for role, root in sorted(trees.items()):
+        root = Path(root)
+        if not root.is_dir():
+            gaps.add('input_tree_missing:' + role)
+            partial = True
+            continue
+        for folder, directories, names in os.walk(root, followlinks=False):
+            directories.sort()
+            for name in list(directories):
+                if (Path(folder) / name).is_symlink():
+                    directories.remove(name)
+                    gaps.add('symlinked_tree_unobserved:' + role)
+                    partial = True
+            for name in sorted(names):
+                if len(candidates) >= 4096 or time.monotonic() >= stop:
+                    gaps.add('input_observation_budget_exhausted')
+                    partial = True
+                    break
+                path = Path(folder) / name
+                if path.is_symlink():
+                    gaps.add('symlinked_tree_unobserved:' + role)
+                    partial = True
+                    continue
+                candidates[role + '/' + path.relative_to(root).as_posix()] = path
+            if partial and 'input_observation_budget_exhausted' in gaps:
+                break
+    consumed = 0
+    for role, value in sorted(candidates.items()):
+        if time.monotonic() >= stop:
+            gaps.add('input_observation_budget_exhausted')
+            partial = True
+            break
+        path = Path(value).resolve()
+        try:
+            before = path.stat()
+            if not path.is_file() or before.st_size > 128 * 1024 * 1024 - consumed:
+                gaps.add('input_missing_or_exceeds_budget:' + role)
+                partial = True
+                continue
+            digest = hashlib.sha256()
+            with path.open('rb') as stream:
+                while True:
+                    chunk = stream.read(65536)
+                    if not chunk:
+                        break
+                    consumed += len(chunk)
+                    if consumed > 128 * 1024 * 1024 or time.monotonic() >= stop:
+                        raise TimeoutError('input_observation_budget_exhausted')
+                    digest.update(chunk)
+            after = path.stat()
+            stamp_before = (before.st_dev, before.st_ino, before.st_size, before.st_mtime_ns, before.st_ctime_ns)
+            stamp_after = (after.st_dev, after.st_ino, after.st_size, after.st_mtime_ns, after.st_ctime_ns)
+            if stamp_before != stamp_after:
+                gaps.add('input_changed_during_observation:' + role)
+                partial = True
+                continue
+            records.append({'role': role, 'path': str(path),
+                            'sha256': digest.hexdigest(), 'size': after.st_size})
+        except (OSError, TimeoutError) as exc:
+            gaps.add('input_observation_budget_exhausted' if isinstance(exc, TimeoutError)
+                     else 'input_unreadable:' + role)
+            partial = True
+    normalized_environment = {key: _relocate(str(value), forms)
+                              for key, value in sorted(environment.items())}
+    environment_sha = _sha(canonical_bytes(normalized_environment))
+    # Relocate structured configuration without escaping path separators first.
+    normalized_configuration = _relocate_configuration(configuration, forms)
+    payload = {'schema': 'agentdecompile.compiler-input-observation/v1',
+               'files': [{'role': row['role'], 'sha256': row['sha256'], 'size': row['size']}
+                         for row in records],
+               'environmentSha256': environment_sha,
+               'configuration': normalized_configuration, 'unknowns': sorted(gaps),
+               'partial': partial}
+    return {**payload, 'files': records, 'observedInputSha256': _sha(canonical_bytes(payload)),
+            'complete': False,
+            'claimBoundary': 'Fingerprint of observed known inputs; dynamic compiler/runtime closure is not established.'}
+
+
+def _relocate_configuration(value, forms):
+    if isinstance(value, dict):
+        return {key: _relocate_configuration(item, forms) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_relocate_configuration(item, forms) for item in value]
+    return _relocate(value, forms) if isinstance(value, str) else value
+
+
 def canonical_bytes(obj) -> bytes:
     """The one serialization every hash here uses."""
     return json.dumps(obj, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode("ascii")

@@ -9,7 +9,8 @@ metadata:
 
 # MCP debugging
 
-Read [AGENTS](../../../AGENTS.md) and [server environment](../agentdecompile-server-env/SKILL.md).
+Read [AGENTS](../../../AGENTS.md), the current product contract
+([USER_INTENT](../../../docs/USER_INTENT.md)), and the owning MCP/server docs.
 Diagnose the existing 8080 backend without restarting it or switching ports.
 
 Check the configured endpoint/transport, advertised tool schema, session ID,

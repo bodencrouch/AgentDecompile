@@ -4,10 +4,14 @@ Initial assessment: 2026-09-20; source reconciliation: 2026-09-27. [STRATEGY.md]
 [AGENTS.md](../AGENTS.md) owns operations. This is an integration contract and
 source-based assessment, not a completed runtime delivery claim.
 
-KotorPhasor already consumes original binaries and can provide observations to
-the shared corpus. It is not a replacement recovery engine. Runtime reuse may
-branch after sufficient identity and ABI evidence, before whole-image recovery.
-Calling original code never counts its bytes as recovered source.
+AgentDecompile's intended product includes target-bound runtime inspection and
+intervention as a first-class branch beside source recovery—not merely as an
+export for another product. KotorPhasor is an important existing consumer and
+implementation reference for original-binary calls, hooks and caves. Runtime
+reuse can proceed once sufficient identity and ABI evidence exists, before
+whole-image recovery. Calling original code never counts its bytes as recovered
+source; this document separates the intended capability from what has actually
+been implemented or observed.
 
 ```mermaid
 flowchart LR
@@ -64,10 +68,10 @@ precedes hookpack resolution in `src/runtime/runtime.cpp`; generated binding mus
 follow admitted-pack validation. A hardcoded fallback cannot count as generated use.
 
 The [generated-operation contract increment](verification/2026-09-27-generated-operation-contract.md)
-now implements the exporter-side exact raw-image/role checks and the KotorPhasor
+implements exporter-side exact raw-image/role checks and the KotorPhasor
 parser/runtime-side selected digest plus adapter-key/alias support. Model binding
-now waits for an admitted generated operation and uses its resolved role addresses;
-compiled profile data remains the distinct ABI/layout guard. Independent generated
+waits for an admitted generated operation and uses its resolved role addresses;
+compiled profile data remains a distinct ABI/layout guard. Independent generated
 layout evidence, lifetime evidence and live runtime acceptance remain open.
 
 Qualify one owned, stationary fixture first. Existing captures check epoch,

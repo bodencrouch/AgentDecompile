@@ -1,21 +1,44 @@
 ---
 name: AgentDecompile
-last_updated: 2026-09-28
+last_updated: 2026-10-10
 charter: VISION.md
-active_living_plan: docs/plans/agentdecompile-living-plan.md
-governing_design_scope: docs/plans/2026-09-27-weekend-design-scope.md
+current_user_intent: docs/USER_INTENT.md
 ---
 
 # AgentDecompile Strategy
 
 Charter lives in [VISION.md](VISION.md). Operators start at [README.md](README.md). This file is the investment bet under that charter, not a second north star.
 
-The consolidated delivery contract is [the comprehensive master plan](docs/plans/2026-09-28-comprehensive-agentdecompile-plan.md), with one [living plan](docs/plans/agentdecompile-living-plan.md) and one [todo list](docs/plans/agentdecompile-todo.md). Earlier plans below remain source history; the consolidation preserves their requirements and explicit supersessions.
+The consolidated, current user contract is [docs/USER_INTENT.md](docs/USER_INTENT.md).
+It controls product inputs/outputs, the BioWare-first order, Ghidra's role, the
+WASM/graphics/runtime capability surfaces, and how historical proposals are
+interpreted. This strategy owns recovery stages, cross-match integration,
+concurrency/resource rules, and terminal proof.
+If an older plan conflicts with either current document, preserve it as history;
+do not let it silently widen or replace the active mission.
 
-## Governing design scope: September 18–21, 2026
+## Active recovery execution mode (2026-10-10)
 
-This strategy and the [living implementation plan](docs/plans/agentdecompile-living-plan.md)
-represent the user's September 18–21 designs, diagrams, plans and brainstorms.
+Run current recovery through this checkout's pinned
+`.venv/bin/agentdecompile-cli` / corpus CLI and its durable receipts. The static
+8080 dashboard and Vite 5174 frontend are deferred; neither is a recovery surface
+for the active work. This is an execution-mode decision, not a reduction of the
+long-term product scope. Do not start recovery jobs through either frontend.
+
+The selected local Ghidra project or shared-project repository may supply the
+target program image and its existing analysis. Do not require a detached
+executable if the project can provide and materialize the program bytes. Bind
+those bytes to the exact program/build identity and retain project provenance;
+reuse valid labels, types, debug/source metadata, analysis and receipts instead
+of repeating work.
+
+The [comprehensive master plan](docs/plans/2026-09-28-comprehensive-agentdecompile-plan.md) owns scope and acceptance; the [todo list](docs/plans/agentdecompile-todo.md) owns the execution queue. Record evidence in the owning task report, durable receipt, or linked acceptance artifact. Neither document supersedes the current user contract or makes historical requirements active by itself.
+
+## Historical design sources and current scope
+
+The following source plans preserve the user's September 18–21 designs, diagrams,
+and brainstorms. They are historical design evidence, not higher authority than
+the current user contract.
 The [scope index](docs/plans/2026-09-27-weekend-design-scope.md) preserves the full
 [September 21 portable-substrate plan](docs/plans/2026-09-21-portable-signatures-codecaves-generic-plan.md),
 its Phases 0–15 and named units, the [distributed design](docs/plans/2026-09-21-distributed-compute-design.md),
@@ -26,24 +49,39 @@ The [weekend unit delivery ledger](docs/plans/2026-09-27-weekend-unit-delivery.j
 preserves 193 source-qualified identifiers and their definition/acceptance spans,
 including explicit withdrawals and absorbed aliases. Its initial unverified states
 require current evidence; historical checkmarks do not establish delivery.
-Changes to either this strategy or the living plan must retain traceability to
-that baseline: name the affected original plan units and diagram views, record
-any explicit supersession, and keep remaining requirements visible. A narrower
-implementation slice or newer summary cannot silently redefine completion.
+Changes to this strategy or the master plan must retain traceability to that
+baseline: name affected original units and diagram views, record explicit
+supersession, and keep remaining requirements visible. A narrower implementation
+slice or newer summary cannot silently redefine completion.
 
-Carry these commitments through delivery:
+Carry only commitments still consistent with the current contract through delivery:
 
 - A deterministic, model-free path produces usable exports; bounded model help may
   accelerate diagnosed residue but cannot be the only mechanism for continuation.
 - Cross-match every supported entity kind and data-access path, preserving per-build
   layouts, divergence and ordered locator fallbacks; pursue applicable strategies
   and learn new builds rather than treating an initial miss as the endpoint.
-- Deliver the complete export bundle: portable `hookpack/v2`, generated Lua,
-  per-build headers, readiness/divergence and evidence, alongside recovered projects.
-  Ambiguous or contested records remain structured outputs and refuse unsafe use;
-  they do not wait indefinitely for human triage before the rest can advance.
-- Make the dense shared workspace show actual work and its evidence in both the
-  static workbench and full React app. Explicit project open/add/resume admits
+- Treat runtime inspection and modding as a first-class branch of the same
+  product: expose supported call/event/argument/memory/graphics evidence and make
+  Lua, native shim/DLL, hook, detour, code-cave and memory workflows consume the
+  shared cross-build identity and ABI model. Hook-pack/header artifacts are
+  integration outputs, not the whole capability. Keep runtime-use evidence
+  separate from source and whole-image proof; ambiguous or contested records
+  remain structured outputs and refuse unsafe use.
+- Keep every unresolved function in the byte-accurate variant on an explicit
+  architecture-qualified `.S` floor, or the target toolchain's equivalent
+  assembly/object representation when `.S` is unsupported. Replace it only
+  after matching C is available and passes the relevant compile and comparison
+  gates; never count floor bytes as recovered C.
+- Generate deterministic code-cave candidate plans only for a concrete build
+  and architecture with sufficient image, instruction/decode, relocation,
+  reference, capacity, anchor, ABI and runtime-safety evidence. Missing or
+  ambiguous evidence fails closed. A candidate plan is not an installable cave,
+  a universal locator, or a promise that every function has a safe cave.
+- Keep the dense shared workspace and both frontends in the long-term product
+  scope, but defer them as recovery surfaces under the active execution directive
+  above. When resumed, they must show actual work and evidence. Explicit project
+  open/add/resume admits
   eligible work automatically; ordinary browsing remains read-only. Preserve the
   September 21 pause/resume control model and readiness/review/residue views.
   Keep F01–F28, Phase 14 U104–U112 and both guide/donor workflow inventories:
@@ -62,7 +100,31 @@ authorization. Current ownership/catalog constraints still govern execution.
 Useful qualified RE/cross-match work and implementation proceed together; missing
 unrelated milestones cannot become global gates.
 
-## Purpose
+## Purpose and target order
+
+Inputs are related executable binaries and their existing Ghidra analysis, with
+symbols, types, source fragments, compiler/toolchain facts, and a selected live
+target when a runtime workflow is requested. Outputs are per-build C/C++ that
+can match the target bytes, a provenance-preserving cross-match of equivalent and
+divergent functions/data/types/events, separate compile/objdiff receipts, and
+build-bound evidence and plans for supported runtime inspection or intervention.
+The current corpus begins with K1 GOG, then K2 Aspyr, while other BioWare builds
+are imported and cross-matched so they can share evidence. This is a pilot order,
+not a product limit.
+
+AgentDecompile is the higher-level reverse-engineering workbench around Ghidra:
+it coordinates Ghidra and other providers across related builds, then turns
+their evidence into matching C/C++, cross-build differences and usable runtime
+knowledge. AI may operate the tools or propose candidates, but it is optional
+and cannot prove its own output. WASM and graphics/GL capabilities are first-class
+surfaces where a concrete operation is supported; they do not automatically
+replace Ghidra's JVM analysis or native compiler/objdiff proof. The current user
+prompt names “GL” without expanding the term; interpret it as graphics-related
+target and workbench capability, keep target instrumentation distinct from
+browser rendering, and do not claim a specific provider from the acronym alone.
+Lua/native shim/DLL, call/event, hook/detour, code-cave and memory workflows use
+the same per-build identity and ABI facts. They can return runtime evidence to
+the corpus, but runtime behavior is not recovered-source or whole-image proof.
 
 A Ghidra project holds dozens of builds of the same codebase. Each build has its own addresses and may share logical functions and fields while changing their behavior, layout, or physical representation. Without cross-build identity and a propagation path, every recovery pass repeats work and metadata edits on one binary never reach the others. The crux is telling honest source from a wrapper that only compiles because it still contains the original bytes.
 
@@ -72,7 +134,9 @@ The end state is not per-function byte parity — it is a **whole-image byte-ide
 
 Recover from the best available evidence, reuse only what transfers, and verify each result at the level where it will be used. Distinguish logical entities, implementation variants and physical instances. Similarity, logical identity, code equality and behavioral test agreement are separate claims. Prefer authoritative debug/provenance and unique exact evidence, then rare references and neighborhood propagation, structure/BSim, and applicable second opinions on diagnosed residue. Every matching method stays available. Each has an ordered fallback, and an unavailable method narrows the evidence instead of stopping identity. No single method, BSim included, gates the pipeline. Operators see which methods ran, which were unavailable and why. Preserve ambiguity, absent entities, folded bodies, inline occurrences and split regions. A `logical_id` never establishes source interchangeability or ABI/layout compatibility.
 
-Reuse valid unchanged analysis and receipts. Revisit only affected dependencies when bytes, types, callees, toolchain or analysis evidence changes, or when a recorded uncertainty warrants an independent view. Establish minimum platform facts first; identity and calibration refine each other. Start reconstruction infrastructure during scaffolding and verify candidates continuously. Keep one operational catalog on 8080. The [design package](docs/plans/2026-09-22-design-package.md), [recovery contracts](docs/plans/2026-09-22-recovery-contracts-and-validation-plan.md) and [editable diagram](docs/dashboard-design/pipeline-diagram/README.md) carry the concrete contracts and current delivery limits.
+Reuse valid unchanged analysis and receipts. Revisit only affected dependencies when bytes, types, callees, toolchain or analysis evidence changes, or when a recorded uncertainty warrants an independent view. A missing historical toolchain basis blocks only the stronger cache/verification claim that depends on it; it is not a reason to discard the checkpoint or repeat every operation. Salvage source-bound artifacts, exact target-region comparisons, readable output and failure diagnostics at their own evidence tiers. Use a small fresh probe to resolve material toolchain uncertainty, then widen only when it changes the decision. Preserve provenance and label historical/reused evidence; never upgrade it into fresh compiler or full-image proof. Establish minimum platform facts first; identity and calibration refine each other. Start reconstruction infrastructure during scaffolding and verify candidates continuously. Keep one operational catalog on 8080. The [design package](docs/plans/2026-09-22-design-package.md), [recovery contracts](docs/plans/2026-09-22-recovery-contracts-and-validation-plan.md) and [editable diagram](docs/dashboard-design/pipeline-diagram/README.md) carry the concrete contracts and current delivery limits.
+
+Continuously optimize the end-to-end path by measuring elapsed time and resource use per useful, proof-relevant output—not by counting jobs, tool calls or raw compiled candidates. Attribute delay to queueing, repeated discovery, context transfer, external interfaces, compiler startup/compile time, comparison, database writes and UI feedback. Remove the largest demonstrated source of wasted work first: reuse unchanged validated evidence, share expensive intermediate results only when their full source/target/toolchain basis matches, isolate the smallest fresh probe that resolves a blocker, and cache/version AgentDecompile-owned adapters around slow or awkward external tools. Fix correctness and retry/idempotency traps before raising concurrency; compare a fresh before/after receipt and retain the failure diagnostics so any mistake becomes cheaper to correct next time. No speedup is claimed without a measured receipt, and no optimization may weaken recipient-specific or full-image proof.
 
 ### Failure containment and acceptance
 
@@ -168,7 +232,7 @@ Runtime reuse is a parallel branch after sufficient identity/ABI evidence, not a
 
 ### Native decompiler tier (JVM-free replay)
 
-Export a program once from Ghidra as per-function decompiler savefiles with a manifest. Re-decompile those savefiles with Ghidra's own native engine and no JVM. Use that for option sweeps, engine-upgrade regression checks, and consumers that cannot host Java. The export itself still needs one Java decompile per function. Native output is checked against the Java decompile of the same program on the same engine version. A mismatch is a bug, not a tolerance. The priority ladder below is unchanged. This tier feeds stage 4 (readable C) and sits at Tier 1 next to `ghidrecomp` in the tiered-re-analysis skill. Living plan: `docs/plans/2026-09-08-2330-feat-ghidra-native-sdk-plan.md`.
+Export a program once from Ghidra as per-function decompiler savefiles with a manifest. Re-decompile those savefiles with Ghidra's own native engine and no JVM. Use that for option sweeps, engine-upgrade regression checks, and consumers that cannot host Java. The export itself still needs one Java decompile per function. Native output is checked against the Java decompile of the same program on the same engine version. A mismatch is a bug, not a tolerance. The priority ladder below is unchanged. This tier feeds stage 4 (readable C) and sits at Tier 1 next to `ghidrecomp` in the tiered re-analysis skill. The retained requirement is described in `docs/brainstorms/2026-09-08-ghidra-native-sdk-requirements.md`.
 
 _Why it serves the approach:_ Bulk C is the step the corpus repeats most. Decompiling from a saved snapshot lets a worker run without Ghidra and lets an engine change be checked before it touches the corpus.
 
@@ -193,18 +257,20 @@ Mizuchi and other recovery plugins address measured residue under cheap-first,
 LLM-last policy. Continue safe independent lanes when one tool/provider fails;
 never let orchestration consume the recovery work or relax acceptance.
 
-The user's “priorities 1–9” describes continuing the complete mission. This stage
-list has eight named stages; no ninth stage is inferred from that shorthand.
+The user also refers to a broader priority sequence 1–9. The recovery stages
+below are a dependency model, not a renumbering or replacement for that product
+priority sequence. Keep P0 narrowly focused on safe continuity; do not use this
+local stage list to claim that a user priority is absent, completed, or blocked.
 [Unfinished outcomes](docs/PROTOTYPE_OUTCOMES.md) preserves the requested results
 and evidence gaps without becoming a separate priority authority.
 
-### Stages
+### Recovery stages (dependency model, not the product priority map)
 
-0. **Open/resume:** reconcile bindings and actual ownership; reuse receipts with unchanged relevant dependencies. No blanket reanalysis.
+0. **Select and resume safely:** bind the chosen target, inspect durable work and actual owners, then resume only compatible work. This is a small continuity check—not a full-corpus preflight, global readiness gate, or extra pipeline. Do not reanalyze unchanged projects, overwrite stale/contested state, or duplicate a live writer; unrelated blocked work must not stop eligible independent stages.
 1. **Identity:** evidence-fusion cascade; logical entity → implementation variant → physical instance relationships. Similarity proposes; independent evidence accepts. Quarantine bad seeds and invalidate unsupported descendants.
 2. **Calibration:** establish format, architecture and ABI minima, then refine toolchain/layout hypotheses with stage 1 and function evidence. Record build/library/translation-unit/function scope.
 3. **Scaffolding:** reconstruct linkable regions with bytes, boundaries, external references, reconstructed fixups, associated data, exception/unwind metadata and provenance. Image base relocations are not original COFF relocations. Preserve larger regions when splitting is uncertain. Use architecture-appropriate objects or external assembly, not universal inline asm. Prove an unchanged extract → emit → place → compare round trip early, then prove a compiled replacement actually contributes.
-4. **Readable C/C++:** admit compiling candidates; preserve the floor until the required acceptance checks pass. Repairs explain preserved machine behavior. Compilation is not source verification.
+4. **Readable source:** prioritize recoverable C. Pursue C++ reconstruction only when source/provenance evidence supports recovering the original C++ form and a bounded feasibility check shows a path to matching emitted C/object bytes. Do not invent C++ merely to coerce a compiler into target bytes. If original C++ form is not recoverable from available evidence, stop that lane, record the limitation, and use the C+assembly floor while improving max-C. A byte-matching C++ hypothesis is not original-source recovery. Preserve the floor until required acceptance checks pass; compilation alone is not source verification.
 5. **Propagation:** distribute compiled candidates only to compatible recipient implementation variants. Each recipient has its own compile, ABI, local and linked checks; identity alone is insufficient.
 6. **Targeted AI:** bounded diagnosed tasks after cheaper applicable methods, leaves before callers where useful. Record exact proposals, limits and evidence; outputs never establish trusted identity or parity by assertion.
 7. **Parity:** run as candidates arrive. Separate compilation, ABI checks, tested behavior, local relocation-aware match and linked-region match. Validate reconstructed comparison objects independently against the original linked image. reccmp is an optional diagnostic companion to objdiff; neither a similarity percentage nor ReAgent GREEN is whole-file equality.
@@ -222,4 +288,4 @@ Maintain two separately measured variants: **byte-accurate C+assembly-floor**, w
 
 ## Brand
 
-**Key message:** Recover from the best available evidence, reuse only what transfers, and verify each result at the level where it will be used. One catalog; separate source, identity and runtime claims.
+**Key message:** Recover from the best available evidence, reuse only what transfers, measure and remove repeated high-cost work, and verify each result at the level where it will be used. One catalog; separate source, identity and runtime claims.

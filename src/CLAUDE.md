@@ -2,6 +2,13 @@
 
 This file provides guidance for Claude Code when working with the AgentDecompile source code. This is the top-level documentation for the `src/` directory structure.
 
+Product purpose and authority are defined in the repository's
+[user-intent contract](../docs/USER_INTENT.md) and [operational guide](../AGENTS.md).
+AgentDecompile is the higher-level, multi-binary reverse-engineering workbench
+around Ghidra—not merely an MCP wrapper. Source recovery, cross-build identity,
+and supported runtime/event/memory workflows share evidence but keep their
+proof claims separate.
+
 ## Quick Reference
 
 | Item | Value |

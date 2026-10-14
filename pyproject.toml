@@ -101,6 +101,7 @@ semantic = [
 ]
 unity = [
   "UnityPy>=1.25.2",
+  "fsb5>=1.0",
 ]
 test = [
     "pytest>=9.0.3",

@@ -349,6 +349,9 @@ def submit_batch(body: dict) -> tuple[dict, int]:
     if not isinstance(key, str) or not 1 <= len(key) <= 128:
         return {"error": "A submission key is required."}, 400
     action = str(body.get("action") or "")
+    from .actions.approval import ACTION_ID as BYTE_VERIFIER_ACTION
+    if action == BYTE_VERIFIER_ACTION:
+        return {"error": "Byte verification requires its single-target durable approval flow; batch dispatch is disabled."}, 400
     params = body.get("params") or {}
     if not isinstance(params, dict):
         return {"error": "params must be an object"}, 400

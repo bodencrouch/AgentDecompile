@@ -62,7 +62,7 @@ flowchart LR
 
 **Target repo:** AgentDecompile
 
-**Product Contract preservation:** authored in this plan (`ce-plan-bootstrap`). Strategy already updated in `STRATEGY.md` (2026-09-08). Living plan `docs/plans/2026-08-30-corpus-semantic-pipeline-living-plan.md` stays historical. Portable signatures / Phasor export: `docs/plans/2026-09-08-0225-feat-portable-signatures-phasor-export-plan.md`.
+**Product Contract preservation:** authored in this plan (`ce-plan-bootstrap`). Strategy already updated in `STRATEGY.md` (2026-09-08). The earlier corpus-pipeline proposal was historical input; this ladder and current `STRATEGY.md` define sequencing. Portable signatures / Phasor export: `docs/plans/2026-09-08-0225-feat-portable-signatures-phasor-export-plan.md`.
 
 ## Goal Capsule
 
@@ -134,7 +134,7 @@ Three vocabularies describe eight steps and they disagree. `contract.PIPELINE_ST
 - Byte-exactness is a final separate audit. (session-settled: user-directed — chosen over treating compile as a match.) Governs R11, R12, R13.
 - One React workbench on 8080 over JSON. (session-settled: user-directed — chosen over static HTML pages and a second port.) Governs R14, R15.
 - Ghidra Server is RMI, not HTTP. (session-settled: user-directed — chosen over "Shared HTTP" copy.) Governs R16.
-- New implementation plan, not an in-place rewrite of the living corpus plan. (session-settled: user-directed — chosen over updating `docs/plans/2026-08-30-corpus-semantic-pipeline-living-plan.md`.) Governs sequencing only.
+- New implementation plan, not an in-place rewrite of the historical corpus-pipeline proposal. (Session-settled: user-directed.) Governs sequencing only.
 - Skip work that is already done. (session-settled: user-directed — chosen over always re-analyzing on open: existing Ghidra analysis and receipts are the source of truth.) Governs R19, R1, R8.
 
 ### Actors
@@ -496,4 +496,4 @@ Do not treat leftover HTML routes or CSS screenshots as proof. Reclaim port 8080
 - `src/agentdecompile_recovery/corpus/dashboard/actions/jobs.py` `MAX_CONCURRENT = 4`.
 - `src/agentdecompile_recovery/corpus/ingest_recovered.py` `recovered_function` schema (`real_c` only).
 - `docs/solutions/architecture-patterns/decomp-matching-toolchain.md`, `tiered-re-analysis-knowledgebase.md`, `auditable-prompt-design.md`.
-- Historical only: `docs/plans/2026-08-30-corpus-semantic-pipeline-living-plan.md`, `docs/solutions/workflow-learnings/2026-07-25-proof-scale-smoke-swkotor.md`.
+- Historical context only: the superseded corpus-pipeline proposal and `docs/solutions/workflow-learnings/2026-07-25-proof-scale-smoke-swkotor.md`.

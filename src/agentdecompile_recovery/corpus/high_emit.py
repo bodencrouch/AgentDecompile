@@ -211,35 +211,10 @@ def _emit_ident(tok: TokenFact, facts: HighFacts) -> str:
 
 
 def _thiscall_to_fastcall(text: str) -> str:
-    """Compile-only ABI proxy. Semantic mode never adds edx_unused."""
-    key = "__thiscall"
-    for _ in range(32):
-        idx = text.find(key)
-        if idx < 0:
-            return text
-        paren = text.find("(", idx)
-        if paren < 0:
-            return text[:idx] + "__fastcall" + text[idx + len(key):]
-        end = _match_paren(text, paren)
-        if end < 0:
-            return text[:idx] + "__fastcall" + text[idx + len(key):]
-        params = text[paren + 1 : end].strip()
-        parts = [p.strip() for p in params.split(",")] if params else []
-        if not parts:
-            text = text[:idx] + "__fastcall" + text[idx + len(key):]
-            continue
-        if any("edx_unused" in p for p in parts):
-            text = text[:idx] + "__fastcall" + text[idx + len(key):]
-            continue
-        new_params = ", ".join([parts[0], "int edx_unused"] + parts[1:])
-        text = (
-            text[:idx]
-            + "__fastcall"
-            + text[idx + len(key) : paren + 1]
-            + new_params
-            + text[end:]
-        )
-    return text.replace("__thiscall", "__fastcall")
+    """Limited explicit-this x86 C proxy; semantic mode never calls this."""
+    from .ctxtypes import fix_thiscall_signatures
+
+    return fix_thiscall_signatures(text)
 
 
 def _match_paren(text: str, paren: int) -> int:

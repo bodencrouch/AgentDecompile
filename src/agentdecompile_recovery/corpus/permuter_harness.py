@@ -91,18 +91,18 @@ WIN32_TYPES = (
 # VC8 rejects __thiscall on a free function in C. __fastcall with a dummy second
 # argument is ABI-identical to __thiscall: thiscall puts `this` in ECX and the
 # rest on the stack; fastcall puts arg1 in ECX, arg2 in EDX, rest on the stack.
-# Inserting an unused EDX argument therefore reproduces thiscall exactly, and
-# both conventions clean up in the callee.
+# The shared declaration owner supports only explicit this/this_ecx free-C
+# signatures with modeled scalar/pointer types. Calls need independent ABI
+# facts; this compile-only spelling recipe does not prove general equivalence.
 THISCALL_RE = re.compile(
     r"^(\w[\w \t\*]*?)\b__thiscall\s+(\w+)\s*\(", re.M)
 
 
 def fix_thiscall(src: str) -> str:
-    def sub(m):
-        return f"{m.group(1)}__fastcall {m.group(2)}(int __edx_pad, "
-    out = THISCALL_RE.sub(sub, src)
-    # A no-argument thiscall becomes `(int __edx_pad, )` — drop the comma.
-    return re.sub(r"\(int __edx_pad, \s*\)", "(int __edx_pad)", out)
+    """Explicit x86 C proxy only; ambiguous declarations/calls stay unchanged."""
+    from .ctxtypes import fix_thiscall_signatures
+
+    return fix_thiscall_signatures(src)
 
 
 IDENT_RE = re.compile(r"[A-Za-z_]\w*")

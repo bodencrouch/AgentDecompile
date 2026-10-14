@@ -143,8 +143,9 @@ def run_vacuum_prompt(
     config = apply_playbook_to_run_config(base_config, routed_playbook, force_shape_search=source_shape_search)
     summary = run_source_plugin_pipeline(config)
     succeeded = int(summary.get("successfulFunctions") or 0)
-    exit_code = 0 if succeeded > 0 else 1
-    status = "matched" if succeeded > 0 else "unmatched"
+    paused = str(summary.get("status") or "").startswith("paused-")
+    exit_code = 2 if paused else 0 if succeeded > 0 else 1
+    status = str(summary.get("status")) if paused else "matched" if succeeded > 0 else "unmatched"
 
     # Best-effort promote first match row into verified/ for reconstruct layout.
     if succeeded > 0:
@@ -240,7 +241,8 @@ def main(argv: list[str] | None = None) -> int:
         source_shape_search=args.source_shape_search,
     )
     print(json.dumps(result, indent=2, sort_keys=True))
-    return int(result.get("exitCode") or 2)
+    exit_code = result.get("exitCode")
+    return exit_code if isinstance(exit_code, int) and not isinstance(exit_code, bool) else 2
 
 
 if __name__ == "__main__":

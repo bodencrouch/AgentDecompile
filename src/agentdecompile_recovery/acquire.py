@@ -56,16 +56,19 @@ def _dedupe_paths(paths: list[Path]) -> list[Path]:
     return out
 
 
-def prior_context_inputs(prior_bundle: Path) -> list[Path]:
+def prior_context_inputs(prior_bundle: Path, *, include_source_paths: bool = True) -> list[Path]:
     """Collect durable prior context inputs for mid-run merge.
 
-    Prefers still-existing original source files, and always includes prior
-    function-facts / context-items projections so entities survive deleted notes.
+    Prefers still-existing original source files when requested, and always
+    includes prior function-facts / context-items projections so entities
+    survive deleted notes. Explicit bundle reuse can omit original paths: the
+    bundle projections are self-contained, while source paths may be stale or
+    point at storage the caller did not authorize for this run.
     """
 
     paths: list[Path] = []
     sources_path = prior_bundle / "sources.jsonl"
-    if sources_path.is_file():
+    if include_source_paths and sources_path.is_file():
         for line in sources_path.read_text(encoding="utf-8").splitlines():
             if not line.strip():
                 continue
@@ -117,6 +120,7 @@ def acquire_context(
     ghidra: Path | None = None,
     project: Path | None = None,
     project_program: str | None = None,
+    prior_bundle: Path | None = None,
     register: bool = True,
     max_files: int = 500,
     merge_prior: bool = True,
@@ -163,12 +167,45 @@ def acquire_context(
     repo_root = repo_root or Path.cwd()
     target = _target_json(target_input, preferred_name)
 
-    prior_bundle: Path | None = None
     prior_paths: list[Path] = []
-    if merge_prior and _has_target_identity(target):
+    if prior_bundle is not None:
+        from .acquisition_bundle import canonical_target, load_bundle, target_fingerprint, validate_bundle_target
+
+        explicit_bundle = prior_bundle.expanduser()
+        if not (explicit_bundle / "manifest.json").is_file():
+            nested_bundle = explicit_bundle / "acquisition-bundle"
+            if (nested_bundle / "manifest.json").is_file():
+                explicit_bundle = nested_bundle
+        prior_manifest, _, _ = load_bundle(explicit_bundle)
+        prior_manifest_target = prior_manifest.get("target") if isinstance(prior_manifest.get("target"), dict) else {}
+        if target_fingerprint(prior_manifest_target) != str(prior_manifest.get("targetFingerprint") or ""):
+            raise ValueError("explicit acquisition bundle target fingerprint is internally inconsistent")
+        try:
+            prior_bundle_validation = validate_bundle_target(prior_manifest, target)
+        except ValueError:
+            expected_identity = canonical_target(prior_manifest_target)
+            actual_identity = canonical_target(target)
+            exact_bytes_alias = bool(expected_identity.get("sha256")) and all(
+                expected_identity.get(key) == actual_identity.get(key)
+                for key in ("sha256", "analysisImageSha256", "format", "architecture", "imageBase")
+            )
+            if not exact_bytes_alias:
+                raise
+            prior_bundle_validation = {
+                "status": "complete",
+                "targetMatched": True,
+                "stableIdAlias": True,
+                "expectedStableId": expected_identity.get("stableId"),
+                "actualStableId": actual_identity.get("stableId"),
+                "claimBoundary": "bundle reuse is authorized by exact target SHA-256 and matching image identity; stableId is a naming alias",
+            }
+        prior_bundle = explicit_bundle
+        prior_paths = prior_context_inputs(prior_bundle, include_source_paths=False)
+    elif merge_prior and _has_target_identity(target):
         prior_bundle = registry.find_bundle(target=target, repo_root=repo_root)
         if prior_bundle is not None:
             prior_paths = prior_context_inputs(prior_bundle)
+            prior_bundle_validation = {"status": "complete", "targetMatched": True, "registryFingerprintMatch": True}
 
     inputs: list[Path] = list(context_paths or [])
     has_prior_ghidra_facts = reuse_ghidra_acquisition and any(
@@ -301,6 +338,7 @@ def acquire_context(
         "bundleDir": str(bundle_dir),
         "snapshotDir": str(snapshot_dir),
         "priorBundleDir": str(prior_bundle) if prior_bundle is not None else None,
+        "priorBundleValidation": prior_bundle_validation if prior_bundle is not None else None,
         "mergedPriorSourceCount": len(prior_paths),
         "mergedInputCount": len(merged_inputs),
         "registered": registry_entry is not None,

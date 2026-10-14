@@ -858,6 +858,7 @@
       state.entities = data.activity.entities;
       if (Number.isSafeInteger(data.activity.revision)) state.revision = data.activity.revision;
       if (data.activity.ok) {
+        activityHasSnapshot = true;
         state.activityError = "";
         if (state.connection === "connecting") state.connection = "polling";
       } else {
@@ -1035,103 +1036,198 @@
   }
 
   var activityGeneration = 0, activityPoll = null;
-  function watchActivity() {
-    var generation = ++activityGeneration;
-    if (state.reconnectTimer) {
-      clearTimeout(state.reconnectTimer);
+  var activityRetryAttempt = 0, activityRetryAt = 0, activityRetryAction = null, activityLastSignal = Date.now();
+  var activityHasSnapshot = false, activityScope = selectionKey();
+
+  function clearActivityRetry() {
+    if (state.reconnectTimer) clearTimeout(state.reconnectTimer);
+    state.reconnectTimer = 0;
+    activityRetryAt = 0;
+    activityRetryAction = null;
+  }
+
+  function retryAfterMs(value) {
+    if (!value) return 0;
+    var seconds = Number(value);
+    if (Number.isFinite(seconds) && seconds >= 0) return seconds * 1000;
+    var date = Date.parse(value);
+    return Number.isFinite(date) ? Math.max(0, date - Date.now()) : 0;
+  }
+
+  function armActivityRetry(delay) {
+    if (state.reconnectTimer) clearTimeout(state.reconnectTimer);
+    state.reconnectTimer = setTimeout(function () {
       state.reconnectTimer = 0;
+      // Preserve the due action while hidden; visibility restore re-arms it.
+      if (document.hidden) return;
+      var action = activityRetryAction;
+      activityRetryAt = 0;
+      activityRetryAction = null;
+      if (action === "connect" && typeof EventSource !== "undefined") watchActivity();
+      else pollActivity(typeof EventSource !== "undefined");
+    }, Math.max(0, delay));
+  }
+
+  function scheduleActivityRetry(message, serverDelayMs, nextAction) {
+    if (state.reconnectTimer) return;
+    var backoff = Math.min(60000, 1000 * Math.pow(2, Math.min(activityRetryAttempt, 6)));
+    activityRetryAttempt += 1;
+    var delay = Math.round(Math.max(serverDelayMs || 0, backoff * (0.85 + Math.random() * 0.3)));
+    activityRetryAt = Date.now() + delay;
+    activityRetryAction = nextAction || "fallback";
+    activityGeneration += 1;
+    if (activityPoll && activityPoll.controller) activityPoll.controller.abort();
+    activityPoll = null;
+    if (state.source) state.source.close();
+    state.source = null;
+    state.connection = activityHasSnapshot ? "polling" : "disconnected";
+    state.activityError = (message || "Activity temporarily unavailable") + ". Retrying in " + Math.ceil(delay / 1000) + "s.";
+    renderFeed();
+    armActivityRetry(delay);
+  }
+
+  function watchActivity() {
+    var scope = selectionKey();
+    if (scope !== activityScope) {
+      activityScope = scope;
+      activityRetryAttempt = 0;
+      clearActivityRetry();
+      if (activityPoll && activityPoll.controller) activityPoll.controller.abort();
+      activityPoll = null;
+      activityHasSnapshot = false;
     }
+    var generation = ++activityGeneration;
+    if (state.reconnectTimer) clearActivityRetry();
     var query = activityQuery();
     if (state.revision) query.set("after", String(state.revision));
     if (state.source) {
       state.source.close();
       state.source = null;
     }
+    if (document.hidden) return;
+    if (typeof EventSource === "undefined") {
+      pollActivity();
+      return;
+    }
     try {
       var source = new EventSource(API.activityEvents + "?" + query.toString());
       state.source = source;
+      activityLastSignal = Date.now();
+      function current() { return state.source === source && generation === activityGeneration; }
+      function receive(ev) {
+        if (!current()) return;
+        try {
+          var data = JSON.parse(ev.data);
+          if (acceptActivity(data, ev.type === "snapshot" || ev.type === "reset")) {
+            activityLastSignal = Date.now();
+            activityRetryAttempt = 0;
+            clearActivityRetry();
+          }
+        } catch (_err) { scheduleActivityRetry("Live activity could not be read"); }
+      }
+      source.onopen = function () {
+        if (current()) activityLastSignal = Date.now();
+      };
       source.addEventListener("snapshot", function (ev) {
-        if (state.source !== source || generation !== activityGeneration) return;
-        try { var data = JSON.parse(ev.data); if (data && data.ok !== false && Array.isArray(data.entities) && Number.isSafeInteger(data.revision)) { generation = ++activityGeneration; acceptActivity(data, true); } } catch (_err) { /* Keep last entities. */ }
+        if (!current()) return;
+        generation = ++activityGeneration;
+        receive(ev);
       });
       source.addEventListener("activity", function (ev) {
-        if (state.source !== source || generation !== activityGeneration) return;
-        try { acceptActivity(JSON.parse(ev.data), false); } catch (_err) { /* Keep last entities. */ }
+        receive(ev);
       });
       source.addEventListener("heartbeat", function () {
-        if (state.source !== source || generation !== activityGeneration) return;
-        state.connection = "live";
+        if (!current()) return;
+        activityLastSignal = Date.now();
+        activityRetryAttempt = 0;
+        if (activityHasSnapshot) {
+          state.connection = "live";
+          state.activityError = "";
+        }
         renderFeed();
       });
       source.addEventListener("unavailable", function (ev) {
-        if (state.source !== source || generation !== activityGeneration) return;
-        state.connection = "polling";
+        if (!current()) return;
         try {
           var data = JSON.parse(ev.data);
-          state.activityError = (data && data.error) || "Activity unavailable";
+          scheduleActivityRetry((data && data.error) || "Activity unavailable");
         } catch (_err) {
-          state.activityError = "Activity unavailable";
+          scheduleActivityRetry("Activity unavailable");
         }
-        renderFeed();
-        pollActivity();
       });
       source.addEventListener("reset", function (ev) {
-        if (state.source !== source || generation !== activityGeneration) return;
+        if (!current()) return;
         ++activityGeneration; generation = activityGeneration;
         state.entities = []; state.revision = 0;
-        try { acceptActivity(JSON.parse(ev.data), true); } catch (_err) { renderTrees(); }
+        receive(ev);
       });
       source.onerror = function () {
-        if (state.source !== source) return;
-        state.connection = "polling";
-        source.close();
-        state.source = null;
-        renderFeed();
-        pollActivity();
-        state.reconnectTimer = setTimeout(function () {
-          state.reconnectTimer = 0;
-          if (!state.source) watchActivity();
-        }, 2000);
+        if (!current()) return;
+        // Close native auto-retries; use one jittered, bounded retry path.
+        scheduleActivityRetry("Live activity feed disconnected");
       };
     } catch (_err) {
-      pollActivity();
+      scheduleActivityRetry("Live activity feed could not be opened");
     }
   }
 
   function acceptActivity(data, reset) {
-    if (!data || data.ok === false || !Array.isArray(data.entities) || !Number.isSafeInteger(data.revision)) return;
-    if (!reset && Number.isSafeInteger(data.revision) && data.revision < state.revision) return;
+    if (!data || data.ok === false || !Array.isArray(data.entities) || !Number.isSafeInteger(data.revision) || data.revision < 0) return false;
+    if (!reset && data.revision < state.revision) return false;
     state.entities = data.entities;
     if (Number.isSafeInteger(data.revision)) state.revision = data.revision;
+    activityHasSnapshot = true;
     state.connection = "live";
     state.activityError = data.error || "";
     renderTrees();
     renderFeed();
+    return true;
   }
 
-  function pollActivity() {
+  function pollActivity(reconnectAfterFallback) {
     var scope = selectionKey(), generation = activityGeneration;
+    if (document.hidden || Date.now() < activityRetryAt || (state.source && state.source.readyState !== EventSource.CLOSED)) return;
     if (activityPoll && activityPoll.generation === generation) return;
-    var token = {generation: generation}; activityPoll = token;
-    fetch(API.activity + "?" + activityQuery().toString(), { signal: AbortSignal.timeout(8000) })
-      .then(function (res) { return res.json(); })
+    if (activityPoll && activityPoll.controller) activityPoll.controller.abort();
+    var controller = new AbortController();
+    var token = {generation: generation, controller: controller, reconnectAfterFallback: reconnectAfterFallback}; activityPoll = token;
+    fetch(API.activity + "?" + activityQuery().toString(), { signal: AbortSignal.any([controller.signal, AbortSignal.timeout(8000)]) })
+      .then(function (res) {
+        return res.text().then(function (body) {
+          var data;
+          try { data = body.trim() ? JSON.parse(body) : null; }
+          catch (_err) { data = null; }
+          if (!res.ok || !data || data.ok === false) {
+            var failure = new Error((data && data.error) || ("Activity unavailable (HTTP " + res.status + ")"));
+            failure.retryAfterMs = retryAfterMs(res.headers.get("Retry-After"));
+            throw failure;
+          }
+          return data;
+        });
+      })
       .then(function (data) {
         if (scope !== selectionKey() || generation !== activityGeneration) return;
-        if (data && data.ok !== false && Array.isArray(data.entities) && Number.isSafeInteger(data.revision) && data.revision >= 0 && (data.revision >= state.revision || state.connection !== "live")) {
-          state.entities = data.entities;
-          if (Number.isSafeInteger(data.revision)) state.revision = data.revision;
-          if (state.connection !== "live") state.connection = "polling";
-          state.activityError = data.error || "";
-          renderTrees();
+        if (acceptActivity(data, data.revision < state.revision)) {
+          state.connection = "polling";
+          // Snapshot success does not imply the live endpoint recovered.
+          if (!token.reconnectAfterFallback) activityRetryAttempt = 0;
           renderFeed();
         }
       })
       .catch(function (err) {
-        if (scope !== selectionKey() || generation !== activityGeneration) return;
-        state.activityError = String(err && err.message || err);
-        if (state.connection !== "live") state.connection = "disconnected";
-        renderFeed();
-      }).finally(function () { if (activityPoll === token) activityPoll = null; });
+        if (scope !== selectionKey() || generation !== activityGeneration || controller.signal.aborted) return;
+        scheduleActivityRetry(
+          String(err && err.message || err),
+          Number(err && err.retryAfterMs) || 0,
+          typeof EventSource === "undefined" ? "fallback" : "connect"
+        );
+      }).finally(function () {
+        if (activityPoll === token) activityPoll = null;
+        if (token.reconnectAfterFallback && activityPoll !== null && activityPoll !== token) return;
+        if (token.reconnectAfterFallback && scope === selectionKey() && generation === activityGeneration) {
+          scheduleActivityRetry("Reconnecting live activity feed", 0, "connect");
+        }
+      });
   }
 
   function bindResize() {
@@ -1275,6 +1371,21 @@
 
   bindControls();
   bindResize();
+  document.addEventListener("visibilitychange", function () {
+    if (document.hidden) {
+      if (state.source) state.source.close();
+      state.source = null;
+      if (activityPoll && activityPoll.controller) activityPoll.controller.abort();
+      activityPoll = null;
+      activityGeneration += 1;
+      if (state.connection !== "live") state.connection = "disconnected";
+      renderFeed();
+      return;
+    }
+    if (state.reconnectTimer) return;
+    if (activityRetryAt > 0) armActivityRetry(Math.max(0, activityRetryAt - Date.now()));
+    else watchActivity();
+  });
   writeSelection(state.selection);
   renderAll();
   watchActivity();
@@ -1283,6 +1394,8 @@
   setInterval(function () {
     loadSnapshot();
     loadPreparations();
-    if (state.connection !== "live") pollActivity();
+    if (state.source && Date.now() - activityLastSignal > 20000) {
+      scheduleActivityRetry("Activity updates have not supplied a recent snapshot");
+    } else if (state.connection !== "live") pollActivity();
   }, 5000);
 })();

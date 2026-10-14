@@ -35,6 +35,7 @@ has to supply it; here a hole is zeros.
 from __future__ import annotations
 
 import struct
+from collections.abc import Iterator
 
 from .buffer_file import BufferFile, BufferFileError
 
@@ -93,6 +94,12 @@ def deobfuscate(data: bytes, start_offset: int = 0) -> bytes:
 def read_chained_buffer(buffer_file: BufferFile, buffer_id: int) -> bytes:
     """Read the full logical contents of the chained buffer rooted at `buffer_id`."""
 
+    return b"".join(iter_chained_buffer_chunks(buffer_file, buffer_id))
+
+
+def iter_chained_buffer_chunks(buffer_file: BufferFile, buffer_id: int) -> Iterator[bytes]:
+    """Yield logical chained-buffer data incrementally, preserving sparse zeros."""
+
     root = buffer_file.read_buffer(buffer_id)
     node_type = root[0]
     if node_type not in (CHAINED_BUFFER_DATA_NODE, CHAINED_BUFFER_INDEX_NODE):
@@ -111,21 +118,21 @@ def read_chained_buffer(buffer_file: BufferFile, buffer_id: int) -> bytes:
             raise BufferFileError(
                 f"chained buffer {buffer_id}: declared length {total_length} exceeds buffer payload"
             )
-        return deobfuscate(payload) if obfuscated else payload
+        yield deobfuscate(payload) if obfuscated else payload
+        return
 
     # ChainedBuffer.allocateIndex: every data buffer holds `data_space` logical
     # bytes, so the chain is a fixed number of equal slices of the record.
     data_space = buffer_file.header.buffer_size - _DATA_BASE_OFFSET_INDEXED
     data_ids = _collect_data_buffer_ids(buffer_file, buffer_id, root, total_length, data_space)
 
-    chunks: list[bytes] = []
     remaining = total_length
     for data_id in data_ids:
         chunk_length = min(data_space, remaining)
         if data_id < 0:
             # ChainedBuffer.getBytes: a never-written data node reads as zeros,
             # and the XOR mask is not applied to them.
-            chunks.append(bytes(chunk_length))
+            yield bytes(chunk_length)
             remaining -= chunk_length
             continue
         node = buffer_file.read_buffer(data_id)
@@ -137,12 +144,8 @@ def read_chained_buffer(buffer_file: BufferFile, buffer_id: int) -> bytes:
         # Indexed data nodes carry no length word -- the index node owns the total.
         chunk = node[_DATA_BASE_OFFSET_INDEXED : _DATA_BASE_OFFSET_INDEXED + chunk_length]
         # The mask restarts here: this byte is at offset 0 of *its* data buffer.
-        chunks.append(deobfuscate(chunk) if obfuscated else chunk)
+        yield deobfuscate(chunk) if obfuscated else chunk
         remaining -= len(chunk)
-
-    # No short-read check: the slot count is derived from `total_length` rather
-    # than discovered, so a chain that cannot supply it fails in the walk above.
-    return b"".join(chunks)
 
 
 def _collect_data_buffer_ids(

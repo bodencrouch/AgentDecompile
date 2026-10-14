@@ -1,7 +1,7 @@
 ---
 date: 2026-07-25
 topic: proof-ladder-scale-up
-origin: STRATEGY.md, docs/plans/2026-07-24-perf-recovery-one-shot-living-plan.md
+origin: STRATEGY.md, historical Ghidra benchmark summarized in docs/brainstorms/2026-09-08-ghidra-native-sdk-requirements.md
 ---
 
 # Proof Ladder Scale-Up

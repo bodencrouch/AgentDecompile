@@ -347,6 +347,7 @@ export function ActionRunner({
         return;
       }
       const requiresApproval = Boolean(action.mutating || action.danger);
+      const isByteVerifier = action.id === "corpus.verify-byteexact";
       const approval = requiresApproval
         ? validApproval(
             approvalRecords,
@@ -355,7 +356,7 @@ export function ActionRunner({
             context.targetRevision || context.revisionId || context.revision,
           )
         : undefined;
-      if (!dryRun && requiresApproval && !approval) {
+      if (!dryRun && requiresApproval && !approval && !isByteVerifier) {
         setApprovalId("");
         setError(
           "No current durable approval record covers this action, its exact parameters, and its target revision. Browser confirmation alone cannot submit a mutation.",
@@ -363,21 +364,50 @@ export function ActionRunner({
         return;
       }
       if (approval) setApprovalId(approval.id);
+      const requestSignature = JSON.stringify({
+        action: String(action.id),
+        params,
+        context,
+        targets,
+      });
+      let activeApprovalId = isByteVerifier ? approvalId : approval?.id || "";
+      if (submission.current.signature !== requestSignature) {
+        submission.current = { signature: requestSignature, key: crypto.randomUUID() };
+        activeApprovalId = "";
+        if (isByteVerifier) setApprovalId("");
+      }
       setBusy(true);
       setError("");
+      if (!dryRun && isByteVerifier && !activeApprovalId) {
+        const issued = await apiRequest("/dashboard/api/approvals", {
+          method: "POST",
+          body: JSON.stringify({
+            action: action.id,
+            params,
+            operationKey: submission.current.key,
+            confirm: true,
+          }),
+        });
+        activeApprovalId = String(issued.approval?.id || "");
+        if (!activeApprovalId)
+          throw new Error("The server did not return a durable approval record.");
+        setApprovalId(activeApprovalId);
+      }
       const payload = {
         action: action.id,
         params,
         context,
-        // The approval record is a client-side preflight until the action API
-        // advertises durable approval enforcement. Never treat confirm alone as
-        // authorization in this UI.
-        confirm: Boolean((confirm && approval) || dryRun),
+        // Byte verification carries a durable record that the server reserves
+        // atomically before dispatch; other actions retain their current gate.
+        confirm: Boolean((confirm && (approval || isByteVerifier)) || dryRun),
         dryRun,
+        ...(isByteVerifier && !dryRun
+          ? {
+              approvalId: activeApprovalId,
+              operationKey: submission.current.key,
+            }
+          : {}),
       };
-      const signature = JSON.stringify({ ...payload, targets });
-      if (submission.current.signature !== signature)
-        submission.current = { signature, key: crypto.randomUUID() };
       const result = await apiRequest(
         batch ? "/api/v1/batches" : "/dashboard/api/jobs",
         {

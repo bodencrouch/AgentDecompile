@@ -41,41 +41,25 @@ def _cached(key: str, fn):
 
 
 def _bsim_datadir() -> Path:
-    """Preferred BSim datadir. Missing path is a reportable state, not a corpus."""
+    """Only an explicit optional PostgreSQL provider may be probed."""
     for key in ("GHIDRA_BSIM_DATADIR", "AGENT_DECOMPILE_BSIM_DATADIR"):
         raw = (os.environ.get(key) or "").strip()
         if raw:
             return Path(raw).expanduser()
-    home = Path.home()
-    candidates = [
-        home / "biodecompwarehouse" / "bsim_datadir",
-        Path(os.environ.get("AGENT_DECOMPILE_CORPUS_WORK_DIR") or "").expanduser() / "bsim_datadir",
-        as_root() / "bsim_datadir",
-    ]
-    for cand in candidates:
-        if cand and str(cand) != "bsim_datadir" and cand.is_dir():
-            return cand
-    return candidates[0]
+    from .project_universe import read_json
+    root = live_root()
+    state = read_json(root / "workbench-workspace-state.json", []) if root else {}
+    raw = str((state.get("meta") or {}).get("bsimDatadir") or "").strip()
+    if not raw:
+        raise ValueError("Optional PostgreSQL provider is not configured.")
+    return Path(raw).expanduser()
 
 
 def match_status() -> dict[str, Any]:
-    """Honest BSim/match state for the Match pane. Never invents a populated corpus."""
-    from agentdecompile_recovery.corpus import bsim_ops as bo
+    """Recorded methods and optional BSim receipts, never guessed readiness."""
+    from .project_universe import recorded_match_status
 
-    datadir = _bsim_datadir()
-    try:
-        payload = bo.report(datadir=datadir)
-    except Exception as exc:
-        return {
-            "ok": True,
-            "state": "database_unreachable",
-            "summary": str(exc)[:400],
-            "datadir": str(datadir),
-            "executables": 0,
-            "exes": [],
-        }
-    payload["datadir"] = str(datadir)
-    return payload
+    return recorded_match_status()
 
 
 def recover_status(*, program: str = "", slug: str = "") -> dict[str, Any]:
@@ -2245,14 +2229,49 @@ def program_workspace(
 
 
 def function_detail(slug: str, raw_addr: str, *, locator: str = "", program: str = "") -> dict[str, Any]:
-    from agentdecompile_recovery.corpus.dashboard.function_evidence import read, ensure_observation
-    request_state = ensure_observation(locator, program, raw_addr)
-    observed = read(locator, program, raw_addr)
+    import json
+    from agentdecompile_recovery.corpus.dashboard.function_evidence import read, evidence_path
     addr = parse_address(raw_addr)
     if addr is None:
         return {"ok": False, "error": "bad address"}
+    # Browsing reads observations and retained acquisition status only. Missing
+    # evidence belongs to an explicit catalog read or the project pipeline;
+    # selecting a function must not create another acquisition job or receipt.
+    request_state = {'status': 'not_requested', 'readOnly': True,
+        'reason': 'No complete native observation is recorded. Use an explicit function read or the project pipeline to acquire missing evidence.'}
+    observed = read(locator, program, raw_addr)
+    path = evidence_path(locator, program, raw_addr)
+    if path is not None:
+        try:
+            retained = json.loads(path.with_suffix('.request.json').read_text(encoding='utf-8'))
+        except (OSError, ValueError):
+            retained = None
+        if isinstance(retained, dict):
+            request_state.update(retained)
+            request_state['readOnly'] = True
+            if retained.get('jobId'):
+                from .actions.jobs import get_job
+                job = get_job(retained['jobId'])
+                if job is not None:
+                    request_state.update(status=job.status,
+                        reason=job.error or ('A previously requested native read remains queued; browsing did not submit another job.'
+                            if job.status == 'queued' else 'A previously requested native read is running.'
+                            if job.status in {'running', 'cancelling'} else
+                            'The retained native read finished without a complete observation; inspect its recorded result.'),
+                        job={'id': job.id, 'status': job.status, 'error': job.error,
+                             'finishedAt': job.finished_at})
+                else:
+                    request_state.update(status='interrupted',
+                        reason='The retained function-read job is unavailable. Its request is preserved; browsing did not resubmit it.')
+    if observed and observed.get('evidenceComplete'):
+        request_state.update(status='available', cached=True,
+            recordedRevision=observed.get('evidenceRevision') or '',
+            reason=(observed.get('decompile') or {}).get('reason', ''))
     def with_source_witness(payload: dict[str, Any]) -> dict[str, Any]:
         payload['evidenceRequest'] = request_state
+        payload['evidenceReadPolicy'] = 'recorded-only; acquisition requires an explicit catalog action or project pipeline'
+        request_state['storedWitnessAvailable'] = bool((payload.get('decompile') or {}).get('text')
+            or (payload.get('assembly') or {}).get('text'))
         if observed and observed.get('evidenceComplete'):
             # A current Ghidra observation can explicitly report an import,
             # thunk, or decompiler failure. Do not fill that absence with an
@@ -2272,6 +2291,8 @@ def function_detail(slug: str, raw_addr: str, *, locator: str = "", program: str
             if not (payload.get(field) or {}).get("text") and (witness.get(field) or {}).get("text"):
                 payload[field] = witness[field]
                 payload["sourceWitnessProvenance"] = witness.get("provenance")
+        request_state['storedWitnessAvailable'] = bool((payload.get('decompile') or {}).get('text')
+            or (payload.get('assembly') or {}).get('text'))
         return payload
     if observed and observed.get('evidenceComplete'):
         # A completed Ghidra read is already the richest source/assembly view
@@ -2383,15 +2404,20 @@ def render_workbench(*, static_mode: bool = False) -> str:
 <link rel="stylesheet" href="/dashboard/static/workbench-controls.css?v=onepage1">
 <link rel="stylesheet" href="/dashboard/static/workbench-chrome.css?v=onepage2">
 <link rel="stylesheet" href="/dashboard/static/workbench-sidebar.css?v=live12">
-<link rel="stylesheet" href="/dashboard/static/workbench-editor.css?v=live27">
+<link rel="stylesheet" href="/dashboard/static/workbench-editor.css?v=live35">
 <link rel="stylesheet" href="/dashboard/static/workbench-dialogs.css?v=onepage1">
 <link rel="stylesheet" href="/dashboard/static/workbench-overlays.css?v=onepage1">
+<link rel="stylesheet" href="/dashboard/static/workbench-matching.css?v=matching1">
+<link rel="stylesheet" href="/dashboard/static/workbench-family.css?v=family1">
+<link rel="stylesheet" href="/dashboard/static/workbench-call-comparison.css?v=calls1">
+<link rel="stylesheet" href="/dashboard/static/workbench-docking.css?v=dock1">
+<link rel="stylesheet" href="/dashboard/static/workbench-ghidra-inspector.css?v=inspector1">
 </head>
 <body class="workbench-page">
 <div id="page-context" hidden data-page="home" data-atlas-api="/atlas/api"></div>
 <div id="wb-root">
   <div class="wb">
-    <a class="skip-link" href="#wb-functions">Skip to functions</a>
+    <a class="skip-link" href="#wb-fnbrowse">Skip to functions</a>
     <div class="wb-chrome">
     <header class="wb-toolbar">
       <div class="wb-brand">
@@ -2498,7 +2524,11 @@ def render_workbench(*, static_mode: bool = False) -> str:
 <script src="/dashboard/static/react-dom.js"></script>
 <script src="/dashboard/static/htm.js"></script>
 <script src="/dashboard/static/dashboard.js" defer></script>
-<script src="/dashboard/static/workbench-app.js?v=live41" defer></script>
+<script src="/dashboard/static/workbench-family.js?v=family1" defer></script>
+<script src="/dashboard/static/workbench-call-comparison.js?v=calls1" defer></script>
+<script src="/dashboard/static/workbench-docking.js?v=dock1" defer></script>
+<script src="/dashboard/static/workbench-ghidra-inspector.js?v=inspector1" defer></script>
+<script src="/dashboard/static/workbench-app.js?v=matching51" defer></script>
 </body>
 </html>
 """

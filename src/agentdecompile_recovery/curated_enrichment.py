@@ -777,51 +777,15 @@ def _matching_paren(text: str, open_index: int) -> int | None:
 
 
 def msvc_thiscall_to_fastcall(text: str) -> str:
-    """Rewrite a Ghidra `__thiscall` signature into something MSVC will compile.
+    """Limited x86 C proxy for explicit Ghidra this/this_ecx declarations.
 
-    MSVC rejects `__thiscall` on a free function -- in C with
-    ``error C2061: syntax error``, in C++ with ``error C3865: '__thiscall' :
-    can only be used on native member functions`` -- so the decompiler's own
-    text for a `__thiscall` method never reaches the objdiff gate at all.
-
-    32-bit `__fastcall` with a dead second parameter has the identical ABI:
-    `this` in ECX, the dead argument in EDX, every real argument on the stack
-    in order, callee-cleaned `ret N`. Verified byte-identical against a C++
-    member function and against the shipped target bytes for
-    `CAppManager::GetObjectTableManager` (0x401060).
-
-    Returns `text` unchanged when it declares no `__thiscall` function, so this
-    is safe to apply to every candidate.
+    Native C++ members and ambiguous/unsupported declarations remain unchanged.
+    Caller arguments require independent fact-bound ABI repair; this spelling
+    helper does not prove general convention equivalence or source parity.
     """
+    from .corpus.ctxtypes import fix_thiscall_signatures
 
-    anchor = text.find(_BODY_ANCHOR)
-    head = text if anchor < 0 else text[:anchor]
-    convention_at = head.find("__thiscall")
-    if convention_at < 0:
-        return text
-    open_index = head.find("(", convention_at)
-    if open_index < 0:
-        return text
-    close_index = _matching_paren(head, open_index)
-    if close_index is None:
-        return text
-    inner = head[open_index + 1 : close_index]
-    parameters = _split_top_level_commas(inner)
-    if not parameters or parameters[0].strip() in ("", "void"):
-        # A `__thiscall` with no parameters has no `this` to keep in ECX; the
-        # rewrite would invent one, so leave the text alone and let it fail
-        # honestly at compile time rather than silently change its meaning.
-        return text
-    rest = ", ".join(part.strip() for part in parameters[1:])
-    tail = f", {rest}" if rest else ""
-    rewritten_head = (
-        head[:convention_at]
-        + "__fastcall"
-        + head[convention_at + len("__thiscall") : open_index + 1]
-        + f"{parameters[0].strip()}, {THISCALL_SHIM_PARAMETER}{tail}"
-        + head[close_index:]
-    )
-    return rewritten_head + (text[anchor:] if anchor >= 0 else "")
+    return fix_thiscall_signatures(text)
 
 
 def _split_top_level_commas(text: str) -> list[str]:

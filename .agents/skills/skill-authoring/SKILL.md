@@ -11,8 +11,11 @@ metadata:
 # Author AgentDecompile skills
 
 Read [AGENTS](../../../AGENTS.md) and [STRATEGY](../../../STRATEGY.md) first.
-Current recovery operations use the existing 8080 catalog; CLI, test and startup
-recipes below are implementation references subject to the mission restrictions.
+Active recovery uses the checkout-pinned `.venv/bin/agentdecompile-cli` from the
+repository root; frontends are deferred. Reuse existing local or shared Ghidra
+project bytes and analysis when available. The procedures below concern skill
+authoring only; respect project restrictions on tests, startup and process
+ownership.
 
 
 Read [references/SITE.md](references/SITE.md) for every agentskills.io page. Do not stop at the specification.

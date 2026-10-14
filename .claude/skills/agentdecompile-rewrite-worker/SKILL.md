@@ -1,6 +1,6 @@
 ---
 name: agentdecompile-rewrite-worker
-description: "Use this skill when a recovery work_dir has pending rewrite-queue entries, or the user wants /loop rewrite fulfillment during an --autonomous campaign. Requires a work_dir."
+description: "Retired legacy rewrite-queue entrypoint. Do not invoke the old /loop workflow; use the current shared source-recovery contract."
 license: AGPL-3.0-or-later
 compatibility: Requires a recovery work_dir and the Agent/Task tool (no external LLM API)
 metadata:
@@ -9,8 +9,12 @@ metadata:
   argument-hint: "<work_dir>"
 ---
 
-# agentdecompile-rewrite-worker
+# Retired rewrite-queue entrypoint
 
-Canonical skill: [../../../.agents/skills/agentdecompile-rewrite-worker/SKILL.md](../../../.agents/skills/agentdecompile-rewrite-worker/SKILL.md)
+The former canonical skill is not present in this checkout. Do not run the old
+`/loop` rewrite-queue workflow or treat queued model rewrites as accepted source.
+Use the current [source-recovery skill](../source-recovery/SKILL.md) and
+[proof policy](../../../STRATEGY.md).
 
-Read that file immediately and follow it. Do not continue from this stub.
+This legacy entrypoint is retained only so old references fail safely; it does
+not define a current recovery path.

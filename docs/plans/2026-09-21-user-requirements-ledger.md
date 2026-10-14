@@ -210,7 +210,7 @@ the supersession is stated.
 | cross-match as a side panel | the organizing relationship of the workspace |
 | two Functions trees | one Functions surface |
 | 24-hour default budget | unlimited default, bounded per attempt |
-| "priorities 1–9" as a 9-rung ladder | eight named stages; minimize priority-zero friction |
+| "priorities 1–9" as a 9-rung ladder | Numeric recovery stages are a dependency sequence, not a transcription of the product-priority map. Keep P0 narrow; do not infer P9 absent from the local stage list. |
 | functions-only cross-matching | every entity kind |
 | "coverage recorded, universality never asserted" | exhaustive ladders; residue is what remains after every strategy |
 | operational guards protecting live recovery | lifted; rigor retained |

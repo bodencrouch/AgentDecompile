@@ -37,16 +37,18 @@
     context: "/dashboard/api/workbench/context",
     actions: "/api/v1/actions",
     jobs: "/api/v1/jobs",
+    jobsCurrent: "/api/v1/jobs/current",
+    jobsHistory: "/api/v1/jobs/history",
     serverShutdown: "/dashboard/api/server/shutdown",
     serverRestart: "/dashboard/api/server/restart",
     panel: "/dashboard/panel"
   };
+  const JOB_PAGE_SIZE = 100;
 
   const SURFACES = [
     { id: "wb-overview", title: "Overview", keys: ["overview", "corpus"] },
     { id: "wb-ingest", title: "Project", keys: ["add", "drop", "gpr", "upload", "project", "source", "binary"] },
     { id: "wb-sources", title: "Project", keys: ["source", "binary"] },
-    { id: "wb-functions", title: "Functions", keys: ["function", "func", "addr"] },
     { id: "wb-inspect", title: "Inspector", keys: ["inspect", "sibling", "preview"] },
     { id: "wb-graph", title: "Call trees", keys: ["graph", "call"] },
     { id: "wb-jobs", title: "Jobs", keys: ["job", "pulse"] },
@@ -57,7 +59,7 @@
     { id: "wb-logical", title: "Logical identities", keys: ["logical", "identity", "sibling"] },
     { id: "wb-artifacts", title: "Artifacts", keys: ["artifact"] },
     { id: "wb-pipeline", title: "Pipeline", keys: ["pipeline", "steps"] },
-    { id: "wb-match", title: "Match", keys: ["match", "cross"] },
+    { id: "wb-match", title: "Cross-build", keys: ["match", "cross", "logical identity", "counterpart"] },
     { id: "wb-recovery", title: "Recover", keys: ["recovery", "recover", "dump"] },
     { id: "wb-stabs", title: "STABS", keys: ["stabs", "donor"] },
     { id: "wb-knowledge", title: "Knowledge", keys: ["knowledge"] },
@@ -68,14 +70,11 @@
     { id: "wb-tools", title: "Commands", keys: ["mcp", "cli", "tool", "command", "swagger"] }
   ];
 
-  /* Analyze / Match / Recover are the methodology. Atlas, Pipeline, Corpus
-     table and the rest stay in More — they are not a second row of chrome. */
+  /* Three destinations share the same project universe. */
   const EDITOR_PRIMARY = [
-    { id: "decompile", title: "Listing" },
-    { id: "wb-fnbrowse", title: "Functions" },
-    { id: "graph", title: "Call trees" },
-    { id: "wb-match", title: "Match" },
-    { id: "wb-recovery", title: "Recover" }
+    { id: "wb-overview", title: "Compare" },
+    { id: "wb-artifacts", title: "Recover" },
+    { id: "wb-pipeline", title: "Work" }
   ];
 
   function slugFromDiskPath(filePath, fileName) {
@@ -113,6 +112,16 @@
       }
     }
     return text.slice(0, 280);
+  }
+
+  function sameFunctionAddress(left, right) {
+    function canonical(value) {
+      if (typeof value === "number") return Number.isSafeInteger(value) && value >= 0 ? value.toString(16) : null;
+      const text = String(value == null ? "" : value).trim().replace(/^0x/i, "");
+      return /^[0-9a-f]+$/i.test(text) ? text.toLowerCase().replace(/^0+(?=.)/, "") : null;
+    }
+    const address = canonical(left);
+    return address !== null && address === canonical(right);
   }
 
   function importSlug(item) {
@@ -209,11 +218,26 @@
     if (kind === "ghidra-project" || kind === "gpr" || kind === "project-dir") return "Local Ghidra project";
     if (kind === "packed-program" || kind === "gzf") return "Packed Ghidra program";
     if (kind === "dir") return "Folder";
-    if (kind === "shared-fs") return "On-disk Ghidra Server tree";
+    if (kind === "shared-fs") return "Local shared-project repository folder (not a .gpr project file)";
     if (kind === "shared-project" || kind === "shared-http" || kind === "ghidra-server") return "Ghidra Server";
     if (kind === "draft") return "New session";
     if (kind === "binary" || kind === "bin") return "Binary";
     return kind || "Unknown";
+  }
+
+  function sessionKindLabel(item) {
+    const savedName = String(item && (item.title || item.locator) || "");
+    if (/\.gpr(?:$|[?#])/i.test(savedName)) {
+      return "Saved .gpr path";
+    }
+    if (/\.(?:exe|dll|so|dylib|bin)(?:$|[?#])/i.test(savedName)) return "Binary";
+    const labels = {
+      "ghidra-project": "Ghidra project", gpr: "Ghidra project", "project-dir": "Project folder",
+      "shared-fs": "Shared folder", "shared-project": "Server project", "shared-http": "Server project",
+      "ghidra-server": "Server project", "packed-program": "GZF program", gzf: "GZF program",
+      bin: "Binary", binary: "Binary", draft: "New tab", dir: "Folder"
+    };
+    return labels[item && item.kind] || "Unknown type";
   }
 
   function formatBytes(n) {
@@ -813,15 +837,25 @@
     ISLAND_BUS.subs.slice().forEach(function (fn) { fn(); });
   }
 
-  function CallGraphView({ graph, onPick }) {
+  function IdentityReceiptDetails({ record, label }) {
+    const [open, setOpen] = useState(false);
+    const contents = useMemo(function () { return open ? JSON.stringify(record, null, 2) : null; }, [open, record]);
+    return html`<details onToggle=${function (event) { setOpen(event.currentTarget.open); }}>
+      <summary>${label}</summary><span>${record.method || "Identity method not supplied"}</span>
+      ${open ? html`<pre>${contents}</pre>` : null}
+    </details>`;
+  }
+
+  function CallGraphView({ graph, onPick, compact }) {
     const data = graph || {};
     const center = data.center || null;
     const callers = data.callers || [];
     const callees = data.callees || [];
     const neighbors = data.neighbors || [];
     if (!center && !callers.length && !callees.length && !neighbors.length) {
-      return html`<div id="wb-callgraph" className="wb-callgraph wb-callgraph-empty">
-        <p>No graph yet. Pick a program.</p>
+      return html`<div id=${compact ? undefined : "wb-callgraph"} className="wb-callgraph wb-callgraph-empty">
+        <p>Call context is not loaded for this function. Missing evidence does not establish that it has no callers or callees.</p>
+        ${data.callersError || data.calleesError ? html`<p role="alert">${data.callersError || data.calleesError}</p>` : null}
       </div>`;
     }
     function nodeBtn(node, extra) {
@@ -835,23 +869,29 @@
         ${node.kind ? html`<i>${node.kind}</i>` : null}
       </button>`;
     }
-    return html`<div id="wb-callgraph" className="wb-callgraph">
+    return html`<div id=${compact ? undefined : "wb-callgraph"} className=${"wb-callgraph" + (compact ? " wb-callgraph-compact" : "")}>
       <div className="wb-cg-col wb-cg-callers">
-        <h3>Callers ${callers.length ? "· " + callers.length : ""}</h3>
+        <h3>Callers · ${callers.length} shown</h3>
+        ${data.callersError ? html`<p role="alert">Caller evidence unavailable: ${data.callersError}</p>` : null}
+        ${data.callersTruncated ? html`<p className="wb-hint">This is a bounded caller list, not the full neighborhood.</p>` : null}
         ${callers.length ? callers.map(function (node) { return nodeBtn(node, "in"); })
-          : html`<p class="wb-hint">No incoming refs at this entry.</p>`}
+          : html`<p class="wb-hint">${data.callersError ? "Caller lookup did not complete." : "No incoming calls in this recorded snapshot."}</p>`}
       </div>
+      ${callers.length && center ? html`<div className="wb-cg-direction"><span>Callers call this function</span><b aria-hidden="true">→</b></div>` : html`<div className="wb-cg-direction is-empty"></div>`}
       <div className="wb-cg-col wb-cg-center">
         <h3>This function</h3>
         ${nodeBtn(center, "on")}
       </div>
+      ${callees.length && center ? html`<div className="wb-cg-direction"><span>This function calls callees</span><b aria-hidden="true">→</b></div>` : html`<div className="wb-cg-direction is-empty"></div>`}
       <div className="wb-cg-col wb-cg-callees">
-        <h3>Callees ${callees.length ? "· " + callees.length : ""}</h3>
+        <h3>Callees · ${callees.length} shown</h3>
+        ${data.calleesError ? html`<p role="alert">Callee evidence unavailable: ${data.calleesError}</p>` : null}
+        ${data.calleesTruncated ? html`<p className="wb-hint">This is a bounded callee list, not the full neighborhood.</p>` : null}
         ${callees.length ? callees.map(function (node) { return nodeBtn(node, "out"); })
-          : html`<p class="wb-hint">No outgoing refs at the entry.</p>`}
+          : html`<p class="wb-hint">${data.calleesError ? "Callee lookup did not complete." : "No outgoing calls in this recorded snapshot."}</p>`}
       </div>
       ${neighbors.length ? html`<div className="wb-cg-neighbors">
-        <h3>Nearby</h3>
+        <h3>Nearby · no call relationship implied</h3>
         ${neighbors.map(function (node) { return nodeBtn(node, "near"); })}
       </div>` : null}
     </div>`;
@@ -1037,23 +1077,50 @@
     </article>`;
   }
 
-  function MatchAvailability({ match, selection }) {
-    const [open,setOpen]=useState(false),[data,setData]=useState(null),[error,setError]=useState("");
+  function MatchAvailability({ match, selection, checks }) {
+    const [data,setData]=useState(null),[error,setError]=useState("");
     useEffect(function () {
       let alive=true;const controller=new AbortController();setData(null);setError("");
-      if(open&&selection)fetch("/dashboard/api/workbench/matching-availability?"+new URLSearchParams({match_ids:String(match.id),selection:selection}),{signal:controller.signal,cache:"no-store"})
+      if(!Array.isArray(checks)&&selection)fetch("/dashboard/api/workbench/matching-availability?"+new URLSearchParams({match_ids:String(match.id),selection:selection}),{signal:controller.signal,cache:"no-store"})
         .then(function(r){return r.json().then(function(body){if(!r.ok||!body.ok)throw new Error(body.error||"Matching availability unavailable");return body;});})
         .then(function(body){if(!alive)return;const row=(body.rows||[]).find(function(item){return item.matchId===match.id&&item.srcBinary===match.src_binary&&item.dstBinary===match.dst_binary&&item.srcAddr===match.src_addr&&item.run===match.run;});if(body.selection!==selection||!row)throw new Error("The matching evidence changed. Refresh this page.");setData(row);})
         .catch(function(e){if(alive)setError(String(e.message||e));});
       return function(){alive=false;controller.abort();};
-    },[open,selection,match.id,match.src_binary,match.dst_binary,match.src_addr,match.run]);
-    return html`<details onToggle=${function(e){setOpen(e.currentTarget.open);}}><summary>Matching methods</summary>
-      ${error?html`<p className="wb-dialog-error">${error}</p>`:open&&!data?html`<p role="status">Reading recorded method availability…</p>`:null}
-      <ul>${(data&&data.channels||[]).map(function(channel){return html`<li key=${channel.channel}><strong>${channel.channel} · ${channel.label}</strong>: ${channel.state} · ${channel.reason}</li>`;})}</ul>
-    </details>`;
+    },[selection,match.id,match.src_binary,match.dst_binary,match.src_addr,match.run,checks]);
+    const inlineChecks=Array.isArray(checks);
+    const channels=inlineChecks?checks:data&&data.channels||[];
+    const receiptMissing=channels.filter(function(channel){return channel.reason==="no_method_execution_receipt";});
+    const recorded=channels.filter(function(channel){return channel.reason!=="no_method_execution_receipt";});
+    return html`<section className="wb-match-methods" aria-label="Recorded matching checks">
+      <h4>Recorded checks</h4>
+      ${!inlineChecks&&error?html`<p role="alert">${error}</p>`:!inlineChecks&&!data&&selection?html`<p role="status">Reading the selected candidate’s check receipts…</p>`:null}
+      ${recorded.length?html`<ul>${recorded.map(function(channel){return html`<li key=${channel.channel}><strong>${channel.label}</strong><span>${channel.state}</span>${channel.reason?html`<small>${String(channel.reason).replace(/_/g," ")}</small>`:null}</li>`;})}</ul>`:null}
+      ${receiptMissing.length?html`<p className="wb-match-gap">This run has no method-execution receipts for ${receiptMissing.length} checks. That means their execution is unknown, not that those tools are unavailable. The recorded candidate signals above remain inspectable.</p>`:null}
+      ${(inlineChecks||data)&&!channels.length?html`<p>No check receipts were returned for this candidate.</p>`:null}
+    </section>`;
   }
 
-  function ReviewReact({ onRefresh }) {
+  function CorrespondenceBadge({ label, state, description }) {
+    const [open,setOpen]=useState(false), tipId=React.useId(), trigger=useRef(null);
+    const closeTimer=useRef(null);
+    useEffect(function(){return function(){window.clearTimeout(closeTimer.current);};},[]);
+    useEffect(function(){if(!open)return;const dismiss=function(event){if(event.type==="scroll"&&event.target&&event.target.closest&&event.target.closest(".wb-correspondence-tooltip"))return;setOpen(false);};window.addEventListener("resize",dismiss);window.addEventListener("scroll",dismiss,true);return function(){window.removeEventListener("resize",dismiss);window.removeEventListener("scroll",dismiss,true);};},[open]);
+    const bounds=open&&trigger.current?trigger.current.getBoundingClientRect():null;
+    const tipWidth=Math.min(480,window.innerWidth-24);
+    const position=bounds?{left:Math.max(12,Math.min(bounds.left,window.innerWidth-tipWidth-12))+"px",top:Math.min(bounds.bottom+4,window.innerHeight-120)+"px",width:tipWidth+"px",maxHeight:Math.max(100,window.innerHeight-Math.min(bounds.bottom+4,window.innerHeight-120)-12)+"px"}:undefined;
+    const symbol=state==="stored"?"◇":state==="blocked"?"⊗":"△";
+    return html`<span className="wb-correspondence-badge" onMouseEnter=${()=>{window.clearTimeout(closeTimer.current);setOpen(true);}} onMouseLeave=${()=>{if(document.activeElement!==trigger.current)closeTimer.current=window.setTimeout(()=>setOpen(false),150);}}>
+      <button ref=${trigger} type="button" className=${"wb-correspondence-evidence is-"+state} aria-expanded=${open} aria-describedby=${open?tipId:undefined} onFocus=${()=>setOpen(true)} onBlur=${()=>setOpen(false)} onClick=${()=>setOpen(true)} onKeyDown=${event=>{if(event.key==="Escape"){event.preventDefault();setOpen(false);}}}><span aria-hidden="true">${symbol}</span> ${label}</button>
+      ${open?html`<span id=${tipId} role="tooltip" className="wb-correspondence-tooltip" style=${position}>${description}</span>`:null}
+    </span>`;
+  }
+
+  function ReviewReact({ onRefresh, binaryIds, onInspect, focus, corpusIdentity }) {
+    const membershipKey = Array.from(new Set((binaryIds || []).map(Number))).sort(function (a, b) { return a - b; }).join(",");
+    const requestFocusKey=focus?[focus.binaryId,focus.addr].join(":"):"";
+    const hasFocus=Boolean(focus&&focus.binaryId!=null&&focus.addr!=null&&Number.isSafeInteger(Number(focus.binaryId))&&Number.isSafeInteger(Number(focus.addr))&&Number(focus.binaryId)>=0&&Number(focus.addr)>=0);
+    const scopeKey=String(corpusIdentity||"")+"|"+membershipKey+"|"+requestFocusKey;
+    const rowKey=function(row){return row.correspondenceKey||"match:"+row.match.id;};
     /* Deep links from panels/entities.py carry review_after_id and
        review_page_size. The retired score:id cursor is refused by name. */
     const start = useMemo(function () {
@@ -1080,8 +1147,9 @@
        from watchSeq, which only defeats an in-flight watch's own poll loop. */
     const mountedRef = useRef(true);
     useEffect(function () { return function () { watchSeq.current++; mountedRef.current = false; }; }, []);
-    const [page, setPage] = useState({ rows: [], total: 0, nextAfterId: null, selection: "" });
+    const [page, setPage] = useState({ rows: [], total: 0, nextAfterId: null, selection: "",scope:scopeKey });
     const [afterId, setAfterId] = useState(legacyCursor ? 0 : start.after);
+    const [cursorScope,setCursorScope]=useState(scopeKey);
     const [history, setHistory] = useState([]);
     const [nonce, setNonce] = useState(0);
     const [loading, setLoading] = useState(false);
@@ -1093,30 +1161,61 @@
     const [confirm, setConfirm] = useState(null);
     const [message, setMessage] = useState("");
     const [error, setError] = useState("");
+    const [focusedMatch, setFocusedMatch] = useState(null);
+    const [graphEvidence,setGraphEvidence]=useState(null);
+    const receiveGraphEvidence=React.useCallback(function(value){setGraphEvidence(value);},[]);
+    const preferenceStorage="agentdecompile.correspondence-inspection.v1";
+    const [inspectionPreferences,setInspectionPreferences]=useState(function(){try{const value=JSON.parse(localStorage.getItem(preferenceStorage)||"{}");return value&&typeof value==="object"&&!Array.isArray(value)?value:{};}catch(_){return {};}});
+    function retainInspection(value) {
+      setInspectionPreferences(function(old){const next=Object.assign({},old);delete next[scopeKey];if(value)next[scopeKey]=value;const bounded=Object.fromEntries(Object.entries(next).slice(-128));try{localStorage.setItem(preferenceStorage,JSON.stringify(bounded));}catch(_){/* The in-memory choice remains usable if storage is unavailable. */}return bounded;});
+    }
+    const [filter, setFilter] = useState("");
+    const [receiptOpen, setReceiptOpen] = useState(false);
+    const [expertOpen,setExpertOpen]=useState(false);
+    useEffect(function(){setFilter("");setReceiptOpen(false);setConfirm(null);setExpertOpen(false);},[scopeKey]);
+    useEffect(function(){setFocusedMatch(null);},[scopeKey]);
     useEffect(function () {
-      let dead = false;
-      setLoading(true);
-      fetch(API.matchReview + "?after_id=" + afterId + "&limit=" + pageSize, { cache: "no-store" }).then(function (res) {
+      let dead = false; const controller=new AbortController();
+      if(binaryIds&&(!corpusIdentity||!membershipKey||!hasFocus)) {
+        setLoading(false);setError("");setPage({rows:[],total:null,nextAfterId:null,selection:"",scope:scopeKey});
+        return function(){dead=true;controller.abort();};
+      }
+      setLoading(true);setError("");
+      const cursor=cursorScope===scopeKey?afterId:0;
+      const query=new URLSearchParams({after_id:String(cursor),limit:String(pageSize)});
+      if(binaryIds) {
+        query.set("binary_ids",membershipKey);
+        query.set("corpus_identity",String(corpusIdentity));
+        if(page.selection&&page.corpusIdentity===corpusIdentity&&page.membershipKey===membershipKey)query.set("selection",page.selection);
+        if(hasFocus) {query.set("binary_id",String(Number(focus.binaryId)));query.set("addr",String(Number(focus.addr)));}
+      }
+      fetch((binaryIds?"/api/v1/projects/correspondence":API.matchReview) + "?" + query, { cache: "no-store", signal:controller.signal }).then(function (res) {
         return res.json().catch(function () { return {}; }).then(function (data) {
           if (!res.ok || data.ok === false) throw reviewFailure("refused", data.error || "", data.error ? "" : "Could not load review rows (" + res.status + ").");
           return data;
         });
       }).then(function (data) {
         if (dead) return;
-        const rows = data.rows || [];
-        setPage({ rows: rows, total: data.total || 0, nextAfterId: data.nextAfterId == null ? null : data.nextAfterId, selection: data.selection || "" });
+        if(binaryIds) {
+          const returned=data.scope||{},expectedFocus=hasFocus;
+          if(data.corpusIdentity!==corpusIdentity||!Array.isArray(returned.binaryIds)||returned.binaryIds.slice().sort(function(a,b){return a-b;}).join(",")!==membershipKey||returned.binaryId!==(expectedFocus?Number(focus.binaryId):null)||returned.addr!==(expectedFocus?Number(focus.addr):null))throw new Error("The returned candidate scope does not match this project, database and function cursor. Refresh project facts before continuing.");
+        }
+        const allowed = new Set((binaryIds || []).map(Number));
+        const rows = (data.identityCorrespondences||[]).concat(data.rows || []).filter(function (row) { return !binaryIds || allowed.has(Number(row.match.src_binary)) && allowed.has(Number(row.match.dst_binary)); });
+        setPage({ rows: rows, total: binaryIds ? rows.length : data.total, nextAfterId: data.nextAfterId == null ? null : data.nextAfterId, selection: data.selection || "",scope:scopeKey,corpusIdentity:corpusIdentity,membershipKey:membershipKey,preferredMatchId:data.preferredMatchId,preferredByBinary:data.preferredByBinary||[] });
+        if(cursorScope!==scopeKey) {setCursorScope(scopeKey);setAfterId(0);setHistory([]);}
         setError(""); setConfirm(null);
         /* Keep checked rows that are still on this page with the same token. */
         const present = rows.map(function (row) { return row.token; });
         setSelected(function (old) { return old.filter(function (token) { return present.indexOf(token) >= 0; }); });
       }).catch(function (err) {
         if (dead) return;
-        setPage({ rows: [], total: 0, nextAfterId: null, selection: "" });
+        setPage({ rows: [], total: 0, nextAfterId: null, selection: "",scope:scopeKey });
         setSelected([]); setConfirm(null);
         setError(String((err && err.message) || err));
       }).then(function () { if (!dead) setLoading(false); });
-      return function () { dead = true; };
-    }, [afterId, nonce]);
+      return function () { dead = true; controller.abort(); };
+    }, [afterId, nonce, scopeKey]);
     useEffect(function () {
       if (!confirm || !confirmRef.current) return;
       confirmRef.current.scrollIntoView({ block: "nearest" });
@@ -1150,10 +1249,12 @@
     }
     function ask(rows, decision) {
       if (busy || !rows.length) return;
-      setError(""); setConfirm({ rows: rows, decision: decision });
+      if(rows.some(function(row){return !eligible(row);})) {setError("Only current review candidates with their own unchanged decision token can be edited here.");return;}
+      if(decision==="accept"&&rows.some(function(row){return !mayRecordReview(row);})) {setError("A conflicting or ambiguous candidate cannot be advanced by a browser review decision. Inspect caller/callee evidence and resolve the competing assignments first.");return;}
+      setError(""); setConfirm({ rows: rows, decision: decision,scope:scopeKey });
     }
     async function send() {
-      if (!confirm || busy) return;
+      if (!confirm || busy || confirm.scope!==scopeKey) return;
       const rows = confirm.rows, decision = confirm.decision;
       setConfirm(null); setSubmitting(true); setError(""); setMessage("Sending the decision…");
       try {
@@ -1162,7 +1263,7 @@
         }), page.selection, decision);
         if (!mountedRef.current) return;
         const tokens = rows.map(function (row) { return row.token; });
-        setJobs(function (old) { return old.concat([{ id: jobId, tokens: tokens, matchIds: rows.map(function (row) { return row.match.id; }) }]); });
+        setJobs(function (old) { return old.concat([{ id: jobId, selection:page.selection, tokens: tokens, matchIds: rows.map(function (row) { return row.match.id; }) }]); });
         setSelected(function (old) { return old.filter(function (token) { return tokens.indexOf(token) < 0; }); });
         setMessage("Decision sent as job " + jobId + ". Waiting for the server to record it.");
         setSubmitting(false);
@@ -1181,33 +1282,134 @@
       setMessage("Stopped waiting for job " + jobId + ". It may still save. Its rows stay locked until you check its result or refresh the rows.");
     }
     function refreshRows() {
-      /* After a refresh the rows show the current state, so open jobs no longer lock them. */
-      if (jobs.length) setMessage("Rows refreshed. Job" + (jobs.length === 1 ? " " : "s ") + jobs.map(function (job) { return job.id; }).join(", ") + " may still save; decided rows leave the list.");
-      setJobs([]); reload();
+      if (jobs.length) setMessage("Refreshing the candidate snapshot. Pending decisions stay locked until their jobs finish; already decided candidates leave the list.");
+      reload();
     }
-    const locked = [].concat.apply([], jobs.map(function (job) { return job.tokens; }));
-    const busy = loading || submitting || Boolean(watching);
-    const eligible = function (row) { return Boolean(row.token && page.selection && Number.isSafeInteger(row.match && row.match.id)) && locked.indexOf(row.token) < 0; };
-    const chosen = page.rows.filter(function (row) { return selected.indexOf(row.token) >= 0 && eligible(row); });
-    const selectable = page.rows.filter(eligible);
-    const allChosen = selectable.length > 0 && selectable.every(function (row) { return selected.indexOf(row.token) >= 0; });
+    const isLocked=function(row){return jobs.some(function(job){return job.tokens.includes(row.token)||job.selection===page.selection&&job.matchIds.includes(row.match.id);});};
+    const scopePending=page.scope!==scopeKey;
+    const currentRows=scopePending?[]:page.rows;
+    const busy = loading || scopePending || submitting || Boolean(watching);
+    const eligible = function (row) { return Boolean(row.match&&row.match.status==="review"&&row.token && page.selection && Number.isSafeInteger(row.match.id)) && !isLocked(row); };
+    const chosen = currentRows.filter(function (row) { return selected.indexOf(row.token) >= 0 && eligible(row); });
     const slug = function (row, i) { const b = (row.binaries || [])[i] || {}; return (b.row && b.row.slug) || (i ? row.match.dst_binary : row.match.src_binary); };
     const hex = function (value) { return Number.isSafeInteger(value) ? "0x" + value.toString(16) : String(value == null ? "Unavailable" : value); };
+    const policy = function(row) { return row.decision || {state:"unresolved",headline:"Evidence assessment not returned",recommendation:"Inspect the recorded evidence before requesting verification.",reasons:[],signals:[],automaticEligible:false}; };
+    const mayRecordReview=function(row){const decision=policy(row);return row.match.status==="review"&&Boolean(row.decision)&&decision.state!=="blocked"&&decision.state!=="ambiguous";};
+    const groupKey = function(row) { return [row.match.src_binary,row.match.src_addr,row.match.dst_binary].join(":"); };
+    const preferredKeys=new Set((page.preferredByBinary||[]).map(function(item){return item.correspondenceKey||(Number.isSafeInteger(item.matchId)?"match:"+item.matchId:"");}).filter(Boolean));
+    function preferredRow(rows) {
+      return rows.find(function(row){return Number.isSafeInteger(page.preferredMatchId)&&row.match.id===page.preferredMatchId&&row.storedSelection===true;})||rows.find(function(row){return row.storedSelection===true&&preferredKeys.has(rowKey(row));})||rows.find(function(row){return row.storedSelection===true;})||rows[0];
+    }
+    const groups = useMemo(function() {
+      const grouped=new Map(),needle=filter.trim().toLowerCase();
+      currentRows.forEach(function(row) {
+        const key=groupKey(row);if(!grouped.has(key))grouped.set(key,{key:key,rows:[]});grouped.get(key).rows.push(row);
+      });
+      return Array.from(grouped.values()).map(function(group) {
+        group.rows.sort(function(a,b) {
+          const ap=policy(a),bp=policy(b);
+          const priority=function(decision){return decision.state==="blocked"?0:decision.state==="ambiguous"?1:2;};
+          /* Ranking selects an inspection cursor only. It never authorizes a decision. */
+          return Number(b.storedSelection===true)-Number(a.storedSelection===true)||Number(preferredKeys.has(rowKey(b)))-Number(preferredKeys.has(rowKey(a)))||Number(bp.automaticEligible===true)-Number(ap.automaticEligible===true)||
+            priority(bp)-priority(ap)||
+            (Number(b.match.score)||0)-(Number(a.match.score)||0)||
+            (Number(b.match.margin)||0)-(Number(a.match.margin)||0)||a.match.id-b.match.id;
+        });return group;
+      }).filter(function(group) {
+        return !needle||group.rows.some(function(row) {
+          const decision=policy(row);
+          return [slug(row,0),slug(row,1),row.functions&&row.functions.source&&row.functions.source.name,row.functions&&row.functions.destination&&row.functions.destination.name,hex(row.match.src_addr),hex(row.match.dst_addr),decision.headline,decision.recommendation].join(" ").toLowerCase().includes(needle);
+        });
+      });
+    },[currentRows,filter,page.preferredByBinary]);
+    const savedInspection=inspectionPreferences[scopeKey];
+    const restoredRow=savedInspection&&currentRows.find(function(row){return rowKey(row)===savedInspection.key&&row.match.src_binary===savedInspection.srcBinary&&row.match.src_addr===savedInspection.srcAddr&&row.match.dst_binary===savedInspection.dstBinary&&row.match.dst_addr===savedInspection.dstAddr&&(row.token||null)===savedInspection.token;});
+    useEffect(function() {
+      const matching=groups.flatMap(function(group){return group.rows;}).filter(function(row){return focus&&(Number(row.match.src_binary)===Number(focus.binaryId)&&Number(row.match.src_addr)===Number(focus.addr)||Number(row.match.dst_binary)===Number(focus.binaryId)&&Number(row.match.dst_addr)===Number(focus.addr));});
+      if(matching.length)setFocusedMatch(function(){const chosen=restoredRow||preferredRow(matching);return rowKey(chosen);});
+    },[requestFocusKey,page.rows,inspectionPreferences]);
+    const defaultRow=preferredRow(groups.flatMap(function(group){return group.rows;}));
+    const activeGroup=groups.find(function(group){return group.rows.some(function(row){return rowKey(row)===focusedMatch;});})||groups.find(function(group){return defaultRow&&group.key===groupKey(defaultRow);})||groups[0];
+    const activeRow=activeGroup&&(activeGroup.rows.find(function(row){return rowKey(row)===focusedMatch;})||preferredRow(activeGroup.rows));
+    const visibleRows=groups.flatMap(function(group){return group.rows;});
+    const duplicateTargets=new Set(),duplicateSources=new Set();
+    const conflictingBatch=chosen.some(function(row) {
+      if(row.match.relation&&row.match.relation!=="one_to_one")return false;
+      const src=[row.match.src_binary,row.match.src_addr,row.match.dst_binary].join(":"),dst=[row.match.src_binary,row.match.dst_binary,row.match.dst_addr].join(":");
+      const collision=duplicateTargets.has(dst)||duplicateSources.has(src);duplicateTargets.add(dst);duplicateSources.add(src);return collision;
+    });
+    function inspect(row,side,retain) {
+      setFocusedMatch(rowKey(row));setReceiptOpen(false);
+      if(retain!==false)retainInspection({key:rowKey(row),srcBinary:row.match.src_binary,srcAddr:row.match.src_addr,dstBinary:row.match.dst_binary,dstAddr:row.match.dst_addr,token:row.token||null});
+      if(onInspect)onInspect({row:row,side:side,binaryId:side==="source"?row.match.src_binary:row.match.dst_binary,slug:slug(row,side==="source"?0:1),addr:side==="source"?row.match.src_addr:row.match.dst_addr,decision:policy(row)});
+    }
     const confirmText = function (rows, decision) {
       const ids = rows.map(function (row) { return String(row.match.id); });
       const list = ids.length > 6 ? ids.slice(0, 6).join(", ") + " and " + (ids.length - 6) + " more" : ids.join(", ");
       const noun = rows.length === 1 ? "match" : rows.length + " matches";
       return decision === "accept"
-        ? "Move " + noun + " (" + list + ") to verification? This cannot be undone here."
+        ? "Record a manual review decision for " + noun + " (" + list + ") and move its status to verify? This does not run matching checks, verify source or establish byte equality. This cannot be undone here."
         : "Reject " + noun + " (" + list + ")? This cannot be undone here.";
     };
-    return html`<div className="wb-review-react">
-      <p className="wb-hint">Accept moves a candidate to verification. It does not prove matching source or runtime behaviour.</p>
+    const decision=activeRow&&policy(activeRow);
+    const stateLabel=function(state){return String(state||"unresolved").replace(/_/g," ");};
+    const functionName=function(row,side){const value=row.functions&&row.functions[side];return value&&value.name||hex(side==="source"?row.match.src_addr:row.match.dst_addr);};
+    function peerEndpoint(row) {
+      const focusedDestination=hasFocus&&Number(row.match.dst_binary)===Number(focus.binaryId)&&Number(row.match.dst_addr)===Number(focus.addr);
+      const focusedSource=hasFocus&&Number(row.match.src_binary)===Number(focus.binaryId)&&Number(row.match.src_addr)===Number(focus.addr);
+      const side=focusedDestination&&!focusedSource?"source":"destination";
+      return {side:side,binaryId:side==="source"?row.match.src_binary:row.match.dst_binary,addr:side==="source"?row.match.src_addr:row.match.dst_addr,slug:slug(row,side==="source"?0:1),name:functionName(row,side)};
+    }
+    const reasons=decision&&decision.reasons||[];
+    const metricValue=function(value){return typeof value==="number"&&Number.isFinite(value)?Number(value.toPrecision(4)).toString():"Not recorded";};
+    const evidenceTip=decision?[decision.headline,decision.recommendation,...reasons.map(function(reason){return reason.text;}),"Recorded comparisons: "+(decision.signals||[]).map(function(signal){return signal.label+": "+metricValue(signal.value);}).join(", "),decision.claimBoundary,activeRow&&activeRow.storedSelection===true?"Recorded identity does not establish source interchangeability, ABI/layout compatibility or byte parity; those require separate acceptance evidence.":null].filter(Boolean).join("\n"):"No correspondence evidence is loaded.";
+    const decisiveReason=reasons.find(function(reason){return ["quarantined","contract_conflict","destination_collision","source_alternatives","no_distinguishing_content","evidence_gap"].includes(reason.code);});
+    const stored=activeRow&&activeRow.storedSelection===true;
+    const preferredForPeer=activeRow&&rowKey(preferredRow(activeGroup.rows))===rowKey(activeRow);
+    function observedChoices(row) {
+      const targets=new Set([row.match.dst_addr]),sources=new Set([row.match.src_addr]);
+      currentRows.filter(function(item){return item.match.src_binary===row.match.src_binary&&item.match.dst_binary===row.match.dst_binary;}).forEach(function(item){
+        if(item.match.src_addr===row.match.src_addr&&Number.isSafeInteger(item.match.dst_addr))targets.add(item.match.dst_addr);
+        if(item.match.dst_addr===row.match.dst_addr&&Number.isSafeInteger(item.match.src_addr))sources.add(item.match.src_addr);
+      });
+      const assessment=policy(row);
+      (assessment.alternatives||[]).forEach(function(item){
+        if(!item||typeof item!=="object")return;
+        if(item.srcAddr===row.match.src_addr&&Number.isSafeInteger(item.dstAddr))targets.add(item.dstAddr);
+        if(item.dstAddr===row.match.dst_addr&&Number.isSafeInteger(item.srcAddr))sources.add(item.srcAddr);
+      });
+      (assessment.producerAlternatives||[]).forEach(function(item){if(item&&typeof item==="object"&&Number.isSafeInteger(item.dst))targets.add(item.dst);});
+      return {targets:targets.size,otherSources:sources.size-1,truncated:assessment.alternativesTruncated===true||page.nextAfterId!==null};
+    }
+    const choices=activeRow&&observedChoices(activeRow);
+    const graphSummary=activeRow&&graphEvidence&&graphEvidence.sourceBinary===activeRow.match.src_binary&&graphEvidence.sourceAddr===activeRow.match.src_addr&&graphEvidence.targetBinary===activeRow.match.dst_binary&&graphEvidence.targetAddr===activeRow.match.dst_addr?graphEvidence:null;
+    const graphCount=function(key){return graphSummary&&Number.isSafeInteger(graphSummary[key])&&graphSummary[key]>=0?String(graphSummary[key]):"Not loaded";};
+    const selectionCaption=restoredRow&&activeRow&&rowKey(restoredRow)===rowKey(activeRow)?"Browser-local inspection choice":stored?"Automatic · recorded identity":preferredForPeer?"Automatic · ranked proposal":"Inspected alternative";
+    function correspondenceStatus(row) {
+      const assessment=policy(row);
+      if(row.storedSelection===true)return {state:"stored",symbol:"◇",label:"Recorded identity"};
+      if(assessment.state==="blocked")return {state:"blocked",symbol:"⊗",label:"Conflicting evidence"};
+      if(assessment.state==="ambiguous") {const count=observedChoices(row);return {state:"ambiguous",symbol:"△",label:count.targets>1?count.targets+" targets observed":count.otherSources?count.otherSources+" other "+(count.otherSources===1?"source claims":"sources claim")+" target":"Unresolved assignment"};}
+      return {state:"provisional",symbol:"△",label:"Provisional correspondence"};
+    }
+    const CallComparison=window.AgentDecompileCallComparison;
+    function inspectGraphNode(node) {
+      if(!onInspect||!activeRow)return;
+      onInspect({row:activeRow,side:node.side||"neighbor",binaryId:node.binaryId,slug:node.slug,addr:node.addr,name:node.name,decision:decision});
+    }
+    const picker=html`<div className="wb-correspondence-picker"><label>Inspect counterpart<select value=${activeRow?rowKey(activeRow):""} disabled=${busy||!visibleRows.length} onChange=${function(event){const row=visibleRows.find(function(row){return rowKey(row)===event.target.value;});if(row)inspect(row,peerEndpoint(row).side);}}>${groups.map(function(group){return html`<optgroup key=${group.key} label=${functionName(group.rows[0],"source")+" · "+slug(group.rows[0],0)+" → "+slug(group.rows[0],1)}>${group.rows.map(function(row){const peer=peerEndpoint(row),status=correspondenceStatus(row);return html`<option key=${rowKey(row)} value=${rowKey(row)}>${peer.slug} · ${peer.name} ${hex(peer.addr)} · ${status.label}</option>`;})}</optgroup>`;})}</select></label><label>Filter loaded counterparts<input type="search" value=${filter} placeholder="Build, function, address or reason" onInput=${function(event){setFilter(event.target.value);}}/></label></div>`;
+    return html`<section className="wb-review-react wb-match-workspace wb-correspondence" aria-label="Cross-build correspondence" aria-busy=${loading||scopePending}>
+      <header className="wb-correspondence-toolbar"><h3>Correspondence</h3>
+        ${decision?html`<${CorrespondenceBadge} key=${rowKey(activeRow)} state=${correspondenceStatus(activeRow).state} label=${correspondenceStatus(activeRow).label} description=${evidenceTip}/>`:null}
+        ${savedInspection?html`<button type="button" className="wb-btn wb-btn-mini" onClick=${function(){retainInspection(null);if(defaultRow)inspect(defaultRow,peerEndpoint(defaultRow).side,false);else setFocusedMatch(null);}} title="Forget this browser's inspected correspondence and follow the automatic evidence-based choice">Reset to automatic</button>`:null}
+        <button type="button" className="wb-btn wb-btn-mini" disabled=${loading||submitting} onClick=${refreshRows} title="Read the current recorded correspondence snapshot; does not rerun analysis">Refresh</button>
+      </header>
       ${legacyCursor ? html`<p role="alert">${REVIEW_ERRORS.ranked_cursor_retired} Showing the first page.</p>` : null}
       ${start.badCursor ? html`<p role="alert">The page cursor in this link is not a match ID. Showing the first page.</p>` : null}
-      ${start.capped ? html`<p className="wb-hint">A review page holds at most 100 rows. Showing 100.</p>` : null}
+      ${start.capped ? html`<p className="wb-hint">A bounded correspondence snapshot holds at most 100 proposals.</p>` : null}
       ${error ? html`<p role="alert">${error}</p>` : null}
       ${message ? html`<p role="status">${message}</p>` : null}
+      ${savedInspection&&!scopePending&&!loading&&!restoredRow?html`<p className="wb-hint" role="status">The saved inspection is absent or changed in this bounded snapshot. Showing the automatic correspondence from the loaded evidence instead.</p>`:null}
       ${jobs.map(function (job) {
         return html`<p key=${job.id}>Decision job <a href=${API.jobs + "/" + encodeURIComponent(job.id)} target="_blank" rel="noreferrer">${job.id}</a>
           ${" for match" + (job.matchIds.length === 1 ? " " : "es ") + job.matchIds.join(", ") + " "}
@@ -1215,44 +1417,76 @@
             ? html`<button type="button" className="wb-btn wb-btn-mini" onClick=${stopWaiting}>Stop waiting</button>`
             : html`<button type="button" className="wb-btn wb-btn-mini" disabled=${busy} onClick=${function () { watch(job.id); }}>Check result</button>`}</p>`;
       })}
-      ${confirm ? html`<div ref=${confirmRef} className="review-confirm" role="group" aria-label="Confirm match decision">
+      ${confirm&&confirm.scope===scopeKey ? html`<div ref=${confirmRef} className="review-confirm" role="group" aria-label="Confirm match decision">
         <p>${confirmText(confirm.rows, confirm.decision)}</p>
         <button type="button" className="wb-btn wb-btn-mini" onClick=${function () { setConfirm(null); }}>Cancel</button>
-        <button type="button" className="wb-btn wb-btn-mini" onClick=${send}>${confirm.decision === "accept" ? "Confirm accept" : "Confirm reject"}</button>
+        <button type="button" className="wb-btn wb-btn-mini" onClick=${send}>${confirm.decision === "accept" ? "Confirm review decision" : "Confirm rejection"}</button>
       </div>` : null}
-      <div className="wb-toolbar">
-        <button type="button" className="wb-btn wb-btn-mini" disabled=${loading || submitting} onClick=${refreshRows}>Refresh rows</button>
-        <button type="button" className="wb-btn wb-btn-mini" disabled=${busy || Boolean(confirm) || !chosen.length} onClick=${function () { ask(chosen, "accept"); }}>Accept selected</button>
-        <button type="button" className="wb-btn wb-btn-mini" disabled=${busy || Boolean(confirm) || !chosen.length} onClick=${function () { ask(chosen, "reject"); }}>Reject selected</button>
-        <span>${loading ? "Loading…" : page.total + " candidates awaiting review, listed by match ID"}</span>
-      </div>
-      <table className="wb-fnb-table">
-        <thead><tr>
-          <th><input type="checkbox" aria-label="Select all rows on this page" checked=${allChosen} disabled=${busy || !selectable.length}
-            onChange=${function (event) { const checked = event.target.checked; const tokens = selectable.map(function (row) { return row.token; }); setSelected(function (old) { const rest = old.filter(function (token) { return tokens.indexOf(token) < 0; }); return checked ? rest.concat(tokens) : rest; }); }}/></th>
-          <th>Match</th><th>Score / margin</th><th>Source</th><th>Dest</th><th>Evidence</th><th>Decision</th></tr></thead>
-        <tbody>${page.rows.map(function (row) {
-          const waiting = locked.indexOf(row.token) >= 0;
-          return html`<tr key=${row.token}>
-            <td><input type="checkbox" aria-label=${"Select match " + row.match.id} disabled=${busy || !eligible(row)} checked=${selected.indexOf(row.token) >= 0}
-              onChange=${function (event) { const checked = event.target.checked; setSelected(function (old) { return checked ? old.concat([row.token]) : old.filter(function (token) { return token !== row.token; }); }); }}/></td>
-            <td>${String(row.match.id)}</td>
-            <td>${String(row.match.score)} / ${String(row.match.margin)}</td>
-            <td>${slug(row, 0)} <code>${hex(row.match.src_addr)}</code></td>
-            <td>${slug(row, 1)} <code>${hex(row.match.dst_addr)}</code></td>
-            <td><details><summary>${row.match.relation || "Recorded evidence"}</summary><pre>${row.match.evidence || "No recorded evidence"}</pre><p>Run: ${row.match.run}</p></details><${MatchAvailability} match=${row.match} selection=${page.selection}/></td>
-            <td>${waiting ? html`<span>Waiting for its job</span>` : html`<button type="button" className="wb-btn wb-btn-mini" disabled=${busy || Boolean(confirm) || !eligible(row)} onClick=${function () { ask([row], "accept"); }}>Accept</button>
-              <button type="button" className="wb-btn wb-btn-mini" disabled=${busy || Boolean(confirm) || !eligible(row)} onClick=${function () { ask([row], "reject"); }}>Reject</button>`}</td>
-          </tr>`;
-        })}</tbody>
-      </table>
-      ${!loading && !error && !page.rows.length ? html`<p>${afterId ? "No review candidates after this match ID." : "No review candidates."}</p>` : null}
-      <div className="wb-toolbar">
-        <button type="button" className="wb-btn wb-btn-mini" disabled=${loading || !afterId} onClick=${function () { setHistory([]); setAfterId(0); }}>Go to first page</button>
-        <button type="button" className="wb-btn wb-btn-mini" disabled=${loading || !history.length} onClick=${function () { setAfterId(history[history.length - 1]); setHistory(history.slice(0, -1)); }}>Show previous page</button>
-        <button type="button" className="wb-btn wb-btn-mini" disabled=${loading || page.nextAfterId === null} onClick=${function () { setHistory(history.concat([afterId])); setAfterId(page.nextAfterId); }}>Show next page</button>
-      </div>
-    </div>`;
+      ${!activeRow&&filter?picker:null}
+      ${activeRow?html`<div className="wb-correspondence-analysis"><aside className="wb-correspondence-summary" aria-label="Correspondence selection and recorded evidence">
+        ${picker}<p className="wb-correspondence-selection">${selectionCaption}<small>Inspection only · recorded identities unchanged</small></p>
+        <dl className="wb-correspondence-metrics">
+          <div title="Distinct target addresses recorded for this source and peer build in the loaded rows and bounded evidence shortlist. This is not an exhaustive uniqueness check."><dt>Targets observed</dt><dd>${choices.targets}${choices.truncated?"+":""}</dd></div>
+          <div title="Other recorded source addresses that claim this same target in this build pair; separate from alternative targets for this source."><dt>Other sources claiming target</dt><dd>${choices.otherSources}${choices.truncated?"+":""}</dd></div>
+          <div title="Uncalibrated matcher ranking value, not an identity probability or proof."><dt>Matcher score</dt><dd>${metricValue(activeRow.match.score)}</dd></div>
+          <div title="Margin recorded by this candidate's producer; not recomputed from the visible page."><dt>Recorded margin</dt><dd>${metricValue(activeRow.match.margin)}</dd></div>
+          <div title="Caller pairs connected by usable recorded logical identities in the bounded call comparison. These links are not independent proof of this candidate."><dt>Linked caller pairs</dt><dd>${graphCount("callers")}${graphSummary&&graphSummary.truncated?"+":""}</dd></div>
+          <div title="Callee pairs connected by usable recorded logical identities in the bounded call comparison. Missing links do not establish disagreement."><dt>Linked callee pairs</dt><dd>${graphCount("callees")}${graphSummary&&graphSummary.truncated?"+":""}</dd></div>
+          <div title="This read API does not report measured opposing caller/callee evidence. Unaligned neighbors must not be treated as contradictory calls."><dt>Opposing call evidence</dt><dd>Not recorded</dd></div>
+          <div><dt>Calling contract</dt><dd>${decision.contract==="conflict"?"Conflict":decision.contract==="compatible"?"Compatible":"Not recorded"}</dd></div>
+        </dl>
+        ${(decision.signals||[]).length?html`<dl className="wb-correspondence-signals" aria-label="Recorded ranking inputs">${decision.signals.map(function(signal){return html`<div key=${signal.key}><dt>${signal.label}</dt><dd>${metricValue(signal.value)}</dd></div>`;})}</dl>`:null}
+        ${graphSummary&&graphSummary.ambiguousNeighborIdentities?html`<p className="wb-correspondence-reason">${graphSummary.ambiguousNeighborIdentities} neighbor identities are ambiguous; they are not supporting links.</p>`:null}
+        ${decisiveReason?html`<p className="wb-correspondence-reason">${decisiveReason.text}</p>`:null}
+        ${Number.isSafeInteger(decision.dependencyCount)&&decision.dependencyCount>0?html`<small className="wb-correspondence-lineage">Derived from ${decision.dependencyCount} recorded ${decision.dependencyCount===1?"anchor":"anchors"}; not independent checks.</small>`:null}
+      </aside><div className="wb-correspondence-pair">
+        ${CallComparison?html`<${CallComparison} binaryIds=${binaryIds||[]} corpusIdentity=${corpusIdentity} source=${{binaryId:activeRow.match.src_binary,addr:activeRow.match.src_addr,name:functionName(activeRow,"source"),slug:slug(activeRow,0)}} target=${{binaryId:activeRow.match.dst_binary,addr:activeRow.match.dst_addr,name:functionName(activeRow,"destination"),slug:slug(activeRow,1)}} claimState=${correspondenceStatus(activeRow).state} claimDescription=${evidenceTip} onInspect=${inspectGraphNode} onEvidenceSummary=${receiveGraphEvidence}/>`:html`<p className="wb-hint">The paired call-graph component is not loaded. No neighborhood alignment can be shown from this page.</p>`}
+        <footer className="wb-correspondence-footer"><span title=${evidenceTip}>${stored?"Recorded identity · byte parity not established here":decision.state==="blocked"?"Propagation blocked":"Ranked inspection proposal · identity unconfirmed"}</span><button type="button" className="wb-btn wb-btn-mini" aria-expanded=${expertOpen} onClick=${function(){setExpertOpen(!expertOpen);}}>${activeRow.match.status==="review"?"Expert controls":"Evidence details"}</button></footer>
+        ${expertOpen?html`<section className="wb-correspondence-expert" aria-label="Optional expert correspondence controls">${activeRow.match.status==="review"?html`<p>These optional controls change review status, not the inspected graph. Automatic evidence acquisition belongs to the pipeline. A manual decision does not run verification.</p>`:html`<p>This existing mapping is inspection-only here. Its stored status cannot be changed through candidate review controls.</p>`}<div className="wb-match-decision">${activeRow.match.status==="review"?html`<span>${isLocked(activeRow)?"This candidate has a decision pending.":mayRecordReview(activeRow)?"A manual decision changes status to verify without establishing identity, source or runtime proof.":"Promotion is blocked while evidence is conflicting or ambiguous."}</span>`:null}<div>${activeRow.match.status==="review"?html`<button type="button" className="wb-btn wb-btn-mini" disabled=${busy||Boolean(confirm)||!eligible(activeRow)||!mayRecordReview(activeRow)} onClick=${function(){ask([activeRow],"accept");}}>Record manual decision</button><button type="button" className="wb-btn wb-btn-mini" disabled=${busy||Boolean(confirm)||!eligible(activeRow)} onClick=${function(){ask([activeRow],"reject");}}>Reject proposal</button>`:null}<button type="button" className="wb-btn wb-btn-mini" aria-expanded=${receiptOpen} onClick=${function(){setReceiptOpen(!receiptOpen);}}>${receiptOpen?"Hide technical receipt":"Inspect technical receipt"}</button></div></div>
+          ${receiptOpen?html`<section className="wb-match-receipt"><h4>${activeRow.match.status==="identity"?"Logical identity "+(activeRow.identityBinding&&activeRow.identityBinding.logicalId):"Candidate "+activeRow.match.id} · ${stateLabel(activeRow.match.relation||"relation not recorded")}</h4>${activeRow.match.run?html`<p>Recorded run: <code>${activeRow.match.run}</code></p>`:null}<pre>${activeRow.identityBinding?JSON.stringify(activeRow.identityBinding,null,2):activeRow.match.evidence||"No raw evidence was recorded."}</pre></section>`:null}
+          ${activeGroup.rows.some(function(row){return row.match.status==="review";})?html`<div className="wb-correspondence-manual-list">${activeGroup.rows.filter(function(row){return row.match.status==="review";}).map(function(row){return html`<label key=${rowKey(row)}><input type="checkbox" aria-label=${"Include proposal "+row.match.id+" in a manual decision"} checked=${selected.indexOf(row.token)>=0} disabled=${busy||!eligible(row)} onChange=${function(event){const checked=event.target.checked;setSelected(function(old){return checked?old.filter(function(token){return token!==row.token;}).concat([row.token]):old.filter(function(token){return token!==row.token;});});}}/><span>${functionName(row,"destination")} <code>${hex(row.match.dst_addr)}</code></span></label>`;})}</div>`:null}
+          ${chosen.length?html`<div className="wb-match-batch"><span>${chosen.length} selected</span><button type="button" className="wb-btn wb-btn-mini" disabled=${busy||Boolean(confirm)||conflictingBatch||chosen.some(function(row){return !mayRecordReview(row);})} onClick=${function(){ask(chosen,"accept");}}>Record selected decisions</button><button type="button" className="wb-btn wb-btn-mini" disabled=${busy||Boolean(confirm)} onClick=${function(){ask(chosen,"reject");}}>Reject selected</button>${conflictingBatch?html`<p role="status">Competing one-to-one assignments cannot be promoted together.</p>`:null}</div>`:null}
+        </section>`:null}
+      </div></div>`:!loading&&!scopePending&&!error?html`<p className="wb-match-empty">${binaryIds&&(!corpusIdentity||!membershipKey)?"Load project facts to bind correspondence to this project’s builds.":binaryIds&&!hasFocus?"Choose a function to show its automatic cross-build correspondence.":filter?"No loaded correspondences match this filter.":binaryIds?"No correspondence proposal is recorded for this function in the selected builds. This does not establish absence of a counterpart.":"No correspondence proposals are recorded in this snapshot."}</p>`:loading||scopePending?html`<p role="status">Reading the recorded correspondence for the current function…</p>`:null}
+      ${page.nextAfterId!==null||history.length?html`<div className="wb-toolbar wb-match-pagination"><button type="button" className="wb-btn wb-btn-mini" disabled=${loading||!history.length} onClick=${function(){setAfterId(history[history.length-1]);setHistory(history.slice(0,-1));}}>Previous proposals</button><button type="button" className="wb-btn wb-btn-mini" disabled=${loading||page.nextAfterId===null} onClick=${function(){setHistory(history.concat([afterId]));setAfterId(page.nextAfterId);}}>More proposals</button><span>Bounded recorded snapshot, not an exhaustive uniqueness claim.</span></div>`:null}
+    </section>`;
+  }
+
+  function SourcePreview({ text, name, addr, slug, source, path, truncated, previous, status, language, reason }) {
+    const [wrap,setWrap]=useState(false),[feedback,setFeedback]=useState("");
+    const tierDescriptionId=React.useId();
+    useEffect(function(){setFeedback("");},[text,addr,slug]);
+    const assembly=language==="assembly-listing";
+    const tierDescription=assembly?"This is a disassembly observation, not buildable .S fallback source. Assembly-floor artifacts belong in the byte-accurate export and do not count as recovered C.":"Readable source is not matching C until its compiled output has a current source/target-bound acceptance receipt. No such proof accompanies this preview.";
+    const tokens=useMemo(function() {
+      if(assembly)return [text];
+      const keywords=new Set("alignas alignof asm auto break case catch class const constexpr continue decltype default delete do else enum explicit extern false for friend goto if inline namespace new noexcept nullptr operator private protected public register reinterpret_cast return sizeof static static_cast struct switch template this throw true try typedef typename union using virtual volatile while".split(" "));
+      const types=new Set("bool char double float int long short signed unsigned void wchar_t size_t ptrdiff_t uint8_t uint16_t uint32_t uint64_t int8_t int16_t int32_t int64_t".split(" "));
+      /* Render token text through React, never innerHTML. Bound colour work without dropping supplied text. */
+      const cap=200000,body=text.slice(0,cap),pattern=/\/\*[\s\S]*?(?:\*\/|$)|\/\/[^\n]*|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|^\s*#[^\n]*|\b(?:0[xX][\da-fA-F]+|\d+(?:\.\d+)?(?:[eE][+-]?\d+)?[uUlLfF]*|[A-Za-z_]\w*)\b/gm;
+      const parts=[];let end=0,match;
+      while((match=pattern.exec(body))) {
+        if(match.index>end)parts.push(body.slice(end,match.index));
+        const value=match[0],kind=value.startsWith("/*")||value.startsWith("//")?"comment":/^\s*#/.test(value)?"directive":value[0]==='"'||value[0]==="'"?"string":/^\d/.test(value)?"number":keywords.has(value)?"keyword":types.has(value)||/^undefined\d*$/.test(value)||/^(?:u?int|uint)\d+_t$/.test(value)?"type":null;
+        parts.push(kind?html`<span key=${match.index} className=${"wb-source-token-"+kind}>${value}</span>`:value);end=pattern.lastIndex;
+      }
+      if(end<body.length)parts.push(body.slice(end));if(text.length>cap)parts.push(text.slice(cap));return parts;
+    },[text,assembly]);
+    const extent=truncated===true?"Partial captured text":truncated===false?"Complete captured text":"Displayed text · completeness not recorded";
+    const origin=source==="recovered"?"Recovered source candidate":source==="recorded-knowledge"?"Stored Ghidra knowledge":source==="recorded-mcp-evidence"?"Recorded Ghidra observation":source?String(source).replace(/-/g," "):"Captured analysis text";
+    function download() {
+      const stem=[slug,name,addr].filter(Boolean).join("-").replace(/[^A-Za-z0-9_.-]+/g,"_").slice(0,180)||"function";
+      const suffix=assembly?"-instruction-listing.txt":"-advisory-"+(truncated===true?"partial":truncated===false?"captured":"displayed")+(/\.cpp$/i.test(path||"")?".cpp":".c");
+      const url=URL.createObjectURL(new Blob([text],{type:"text/plain;charset=utf-8"})),link=document.createElement("a");link.href=url;link.download=stem+suffix;link.click();window.setTimeout(function(){URL.revokeObjectURL(url);},1000);setFeedback("Downloaded the displayed text only. This is not a complete source bundle or a build receipt.");
+    }
+    async function copy() {try{if(!navigator.clipboard)throw new Error("Clipboard access is unavailable in this browser.");await navigator.clipboard.writeText(text);setFeedback("Displayed text copied.");}catch(error){setFeedback(String(error.message||error));}}
+    return html`<section className=${"wb-source-preview "+(assembly?"is-assembly-observation":"is-advisory")+(previous?" is-pinned":"")} aria-label=${assembly?"Recorded instruction listing":"Advisory source preview"}>
+      <header className="wb-source-heading"><div><span className="wb-source-tier" tabIndex="0" title=${tierDescription} aria-describedby=${tierDescriptionId}>${assembly?"Instruction observation":"Advisory C/C++ · byte parity unproven"}<span aria-hidden="true"> ⓘ</span></span><span id=${tierDescriptionId} className="wb-source-a11y-note">${tierDescription}</span><h3>${name} <code>${addr}</code>${previous?" · previous function":""}</h3><p>${slug||"Build binding not recorded"} · ${origin}</p></div><div className="wb-source-tools"><button type="button" className="wb-btn wb-btn-mini" aria-pressed=${wrap} onClick=${function(){setWrap(!wrap);}}>Wrap lines</button><button type="button" className="wb-btn wb-btn-mini" onClick=${copy}>Copy text</button><button type="button" className="wb-btn wb-btn-mini" onClick=${download}>Download ${truncated===true?"fragment":"displayed text"}</button></div></header>
+      ${status||reason?html`<p className="wb-hint" role="status">${status||reason}</p>`:null}
+      <pre className=${"wb-preview wb-source-code"+(wrap?" is-wrapped":"")} id="wb-decompile-preview" tabIndex="0" aria-label=${assembly?"Instruction text":"Syntax-highlighted source"}><code>${tokens}</code></pre>
+      <footer className="wb-source-foot"><span>${extent} · ${text.split("\n").length} lines</span>${path?html`<span title=${path}>Evidence file: <code>${path}</code></span>`:null}${text.length>200000&&!assembly?html`<span>Syntax colour is bounded to the first 200,000 characters; no supplied text is omitted.</span>`:null}</footer>
+      ${feedback?html`<p role="status" className="wb-hint">${feedback}</p>`:null}
+    </section>`;
   }
 
   function StepLadder({ steps, title }) {
@@ -1338,7 +1572,7 @@
     return `MCP tool calls: ${used} used / ${limit} allowance · allocation revision ${revision}${exhausted}${prior}`;
   }
 
-  const PREPARATION_ACTIVE = { queued: 1, running: 1, waiting: 1, cancelling: 1 };
+  const PREPARATION_PAUSABLE = { queued: 1, running: 1, waiting: 1 };
 
   function PreparationObservation({ run, feed, now, onControl }) {
     const stale = ["disconnected", "resync"].includes(String(run && run.status)) || Boolean(feed.error) || Boolean(feed.receivedAt && now - feed.receivedAt > 10000);
@@ -1368,13 +1602,17 @@
         ${typeof run.updatedAt === "number" && Number.isFinite(run.updatedAt) ? html`<p className="wb-hint">Last recorded change: <time dateTime=${new Date(run.updatedAt * 1000).toISOString()}>${new Date(run.updatedAt * 1000).toLocaleString()}</time></p>` : null}
         ${decisions.map(function (decision, index) { return html`<p key=${index} className="wb-hint">${decision.reason || "Awaiting reconciliation"}${decision.wakeCondition ? " · Continues after: " + String(decision.wakeCondition).replace(/_/g, " ") : ""}</p>`; })}
         <p className="wb-hint">Stage completion does not establish byte verification or accepted source contribution.</p>
-        ${onControl && run.id ? html`<div className="wb-fn-tools" role="toolbar" aria-label="Workflow control">
-          ${PREPARATION_ACTIVE[run.status] ? html`<button type="button" className="wb-btn wb-btn-mini" disabled=${Boolean(busy)}
-            onClick=${function () { control("pause"); }}>Pause</button>` : null}
-          ${PREPARATION_ACTIVE[run.status] ? html`<button type="button" className="wb-btn wb-btn-mini" disabled=${Boolean(busy)}
-            onClick=${function () { control("stop"); }}>Stop</button>` : null}
-          ${run.status === "paused" ? html`<button type="button" className="wb-btn wb-btn-mini" disabled=${Boolean(busy)}
-            onClick=${function () { control("resume"); }}>Resume</button>` : null}
+        ${onControl && run.id ? html`<div className="wb-fn-tools" role="group" aria-label="Workflow control">
+          ${PREPARATION_PAUSABLE[run.status] ? html`<button type="button" className="wb-btn wb-btn-mini" disabled=${Boolean(busy)}
+            onClick=${function () { control("pause"); }}>Pause this recovery run</button>` : null}
+          ${run.status === "paused" && !(Number.isFinite(run.deadline) && run.deadline * 1000 <= now) ? html`<button type="button" className="wb-btn wb-btn-mini" disabled=${Boolean(busy)}
+            onClick=${function () { control("resume"); }}>Resume this recovery run</button>` : null}
+          ${run.status === "paused" && Number.isFinite(run.deadline) && run.deadline * 1000 <= now ? html`<p className="wb-hint">This run’s execution deadline has passed; resuming would be refused.</p>` : null}
+          ${PREPARATION_PAUSABLE[run.status] || run.status === "paused" ? html`<details className="wb-run-extra-controls">
+            <summary>More run controls</summary>
+            <button type="button" className="wb-btn wb-btn-mini" disabled=${Boolean(busy)}
+              onClick=${function () { control("stop"); }}>Stop this recovery run</button>
+          </details>` : null}
           ${busy ? html`<span role="status" className="wb-hint">Submitting ${busy}…</span>` : null}
           ${ctlError ? html`<span role="status" className="wb-dialog-error">${ctlError}</span>` : null}
         </div>` : null}` : null}
@@ -1462,34 +1700,13 @@
 
   function matchPairParams(ctx, binaries, siblings) {
     const srcSlug = (ctx && ctx.slug) || "";
-    const src = repoForSlug(srcSlug, binaries) || (ctx && ctx.repo) || (ctx && ctx.program) || "";
-    let dst = "";
-    if (siblings && siblings.length) {
-      for (let i = 0; i < siblings.length; i += 1) {
-        const sib = siblings[i];
-        if (!sib || !sib.slug || sib.slug === srcSlug) continue;
-        const hit = repoForSlug(sib.slug, binaries);
-        if (hit) {
-          dst = hit;
-          break;
-        }
-      }
-    }
-    if (!dst && ctx && ctx.tabRows && ctx.tabRows.length) {
-      const donor = ctx.tabRows.find(function (row) { return row.role === "donor"; });
-      const other = ctx.tabRows.find(function (row) {
-        return row.slug && row.slug !== srcSlug;
-      });
-      if (donor && donor.slug && donor.slug !== srcSlug) {
-        dst = repoForSlug(donor.slug, binaries) || donor.repo || "";
-      } else if (other) {
-        dst = repoForSlug(other.slug, binaries) || other.repo || "";
-      }
-    }
-    if (!dst && binaries.length > 1 && srcSlug) {
-      const other = binaries.find(function (row) { return row.slug && row.slug !== srcSlug; });
-      if (other) dst = other.repo || "";
-    }
+    const sourceMember = ((ctx && ctx.tabRows) || []).find(function (row) { return row.slug === srcSlug; });
+    const src = sourceMember ? (repoForSlug(srcSlug, binaries) || sourceMember.repo || "") : "";
+    const candidates = Array.from(new Set(((ctx && ctx.tabRows) || [])
+      .filter(function (row) { return row.slug && row.slug !== srcSlug && row.repo; })
+      .map(function (row) { return row.repo; })));
+    const dst = candidates.length === 1 ? candidates[0] : "";
+    // A target is an explicit pair, never the first unrelated corpus binary.
     return { src: src, dst: dst, ok: Boolean(src && dst) };
   }
 
@@ -1542,11 +1759,9 @@
   }
 
   function MatchWorkbench({
-    program, selected, detail, bsim,
-    onRefresh, onPickSibling
+    program, selected, bsim, onRefresh
   }) {
     const state = (bsim && bsim.state) || "";
-    const siblings = (detail && detail.siblings) || [];
     let line = BSIM_HONEST[state] || (bsim && bsim.summary) || "Checking BSim…";
     if (state === "populated") {
       line = "BSim holds " + ((bsim && bsim.executables) || 0) + " executables.";
@@ -1559,33 +1774,142 @@
         <p>${line}</p>
         ${bsim && bsim.datadir ? html`<p className="wb-hint"><code>${bsim.datadir}</code></p>` : null}
       </div>
-      <p className="wb-hint">The pipeline matches and rebuilds identities automatically.</p>
-      <div className="wb-fn-tools" role="toolbar" aria-label="Match">
+      <p className="wb-hint">BSim is a candidate-discovery signal. It does not establish an accepted cross-build identity.</p>
+      <div className="wb-fn-tools" role="toolbar" aria-label="Cross-build source/index status">
         <button type="button" className="wb-btn" onClick=${onRefresh}>Refresh</button>
       </div>
       <section className="wb-stabs-detail">
         <h3>STABS</h3>
-        <p className="wb-hint">Donor symbols for this program, if a STABS file exists. The pipeline extracts them automatically.</p>
+        <p className="wb-hint">Donor symbols for this program, when a STABS source is available.</p>
       </section>
-      ${siblings.length ? html`<section>
-        <h3>Siblings</h3>
-        <ul className="wb-siblings">
-          ${siblings.map(function (sib) {
-            return html`<li key=${(sib.slug || "") + (sib.addr || "")}>
-              <button type="button" className="wb-text-action"
-                onClick=${function () { if (onPickSibling) onPickSibling(sib); }}>${sib.slug || sib.program || ""} ${sib.addr || ""} ${sib.name || ""}</button>
-            </li>`;
-          })}
-        </ul>
-      </section>` : html`<p className="wb-hint">No sibling matches for this function yet.</p>`}
     </div>`;
   }
 
-  function RepoStatus({ dossier, user }) {
+  function LogicalCounterparts({ slug, selected, detail, binaries, onPick }) {
+    const siblings = (detail && detail.siblings || []).filter(function (item) {
+      return item && item.slug && item.addr && item.slug !== slug;
+    });
+    const currentBinary = (binaries || []).find(function (item) { return item.slug === slug; }) || {};
+    const group = currentBinary.variant_group || currentBinary.variantGroup || null;
+    const logicalId = (selected && (selected.logicalId || selected.logical_id))
+      || (detail && detail.function && (detail.function.logicalId || detail.function.logical_id))
+      || (siblings[0] && siblings[0].logicalId) || null;
+    if (!selected) return html`<section className="wb-identity-map" aria-labelledby="wb-identity-title">
+      <header className="wb-identity-head"><div><h3 id="wb-identity-title">Function identity across builds</h3>
+        <p className="wb-hint">Select a function to inspect its recorded cross-build identity evidence.</p></div></header>
+      <p className="wb-identity-empty">No function is selected. Open Functions, then choose a function to compare its recorded counterparts.</p>
+    </section>`;
+    return html`<section className="wb-identity-map" aria-labelledby="wb-identity-title">
+      <header className="wb-identity-head">
+        <div><h3 id="wb-identity-title">Function identity across builds</h3>
+          <p className="wb-hint">${selected.name || selected.addr} · ${slug} · ${selected.addr}</p></div>
+        ${logicalId != null ? html`<code className="wb-identity-id">Recorded logical group ${logicalId}</code>` : null}
+      </header>
+      <p className="wb-identity-caveat">Identity links describe recorded correspondence. They do not establish source interchangeability, ABI compatibility, equal bytes, or runtime safety.</p>
+      <div className="wb-identity-source" aria-label="Selected function">
+        <span className="wb-identity-source-mark" aria-hidden="true">●</span>
+        <strong>${slug || "Selected build"}</strong><code>${selected.addr}</code>
+        <span>${selected.name || "Unnamed function"}</span><b>Selected</b>
+      </div>
+      ${siblings.length ? html`<div className="wb-identity-links" aria-label="Recorded counterpart links">
+        ${siblings.map(function (sibling, index) {
+          const binary = (binaries || []).find(function (item) { return item.slug === sibling.slug; }) || {};
+          return html`<article className="wb-identity-link" key=${sibling.slug + ":" + sibling.addr}>
+            <div className="wb-identity-edge" aria-hidden="true"><span></span><i>${sibling.method || "identity evidence"}</i><span></span></div>
+            <div className="wb-identity-counterpart">
+              <strong>${sibling.slug}</strong><code>${sibling.addr}</code>
+              <span>${sibling.name || binary.label || binary.platform || "Recorded counterpart"}</span>
+              <small>${sibling.method || "Identity method not recorded"}</small>
+              ${sibling.evidence ? html`<details><summary>Evidence detail</summary><pre>${typeof sibling.evidence === "string" ? sibling.evidence : JSON.stringify(sibling.evidence, null, 2)}</pre></details>` : null}
+              <button type="button" className="wb-btn wb-btn-mini"
+                aria-label=${"Open " + (sibling.name || "function") + " at " + sibling.addr + " in " + sibling.slug}
+                onClick=${function () { if (onPick) onPick(sibling); }}>Open this counterpart</button>
+            </div>
+          </article>`;
+        })}
+      </div>` : html`<p className="wb-identity-empty">No counterpart link is recorded for this function. This does not establish that the function is absent from other builds.</p>`}
+      ${group ? html`<details className="wb-variant-evidence">
+        <summary>Build-family comparison · ${group.status || "unclassified"} · advisory only</summary>
+        <p className="wb-hint">${group.policy && group.policy.description || "Build-family grouping is a navigation aid, not proof that functions or binaries are interchangeable."}</p>
+        ${(group.evidence || []).length ? html`<ul>${group.evidence.map(function (item, index) {
+          return html`<li key=${item.jobId || item.receipt || index}>
+            <span>${item.source || "Build"} ↔ ${item.target || "Build"}</span>
+            <span>${item.acceptedMatches == null ? "Accepted matches not recorded" : item.acceptedMatches + " accepted identity matches"}</span>
+            <span>${item.minimumCoverage == null ? "Coverage not recorded" : "minimum coverage " + Number(item.minimumCoverage).toLocaleString(undefined, { style: "percent", maximumFractionDigits: 1 })}</span>
+            ${item.receipt ? html`<code>${item.receipt}</code>` : null}
+          </li>`;
+        })}</ul>` : html`<p className="wb-identity-empty">No qualifying comparison receipt is recorded for this build family.</p>`}
+      </details>` : null}
+    </section>`;
+  }
+
+  function PreparationWorkMap({ run, feed, slug, program }) {
+    const stages = run && Array.isArray(run.stages) ? run.stages : [];
+    const active = stages.find(function (stage) { return stage.key === run.currentStage; })
+      || stages.find(function (stage) { return stage.status === "running" || stage.status === "queued"; });
+    const scopeLabel = run && run.scope === "project"
+      ? "Project-wide run" + (run.executionLocator ? " · " + run.executionLocator : "")
+      : (run && (run.program || run.slug)) || program || slug || "Current project";
+    const feedStatus = feed && feed.error ? "Refresh failed · last observation may be stale"
+      : feed && feed.receivedAt ? "Dashboard state refreshed " + new Date(feed.receivedAt).toLocaleTimeString()
+        : "Not loaded · refresh to inspect pipeline status";
+    function stageStatus(stage) {
+      return String(stage.status || "unknown").toLowerCase().replace(/[^a-z0-9-]/g, "-");
+    }
+    function stageProgress(stage) {
+      const progress = stage.workProgress || {};
+      if (typeof progress.completed === "number" && typeof progress.total === "number" && progress.total > 0) {
+        return progress.completed + " / " + progress.total + (progress.unit ? " " + progress.unit : "");
+      }
+      return stage.status === "running" ? "Active · no measured completion count" : "No measured progress reported";
+    }
+    const currentDescription = run
+      ? [scopeLabel, run.status || "unknown state", active && active.title || "stage not recorded",
+        active && active.currentProgram || "",
+        active && active.status || "stage state not recorded", active && active.currentAction || "",
+        active && active.reason || ""].filter(Boolean).join(" · ")
+      : "No preparation run is associated with this selected project and build.";
+    return html`<section className="wb-live-work" aria-labelledby="wb-preparation-map-title">
+      <header className="wb-live-work-head">
+        <div><h3 id="wb-preparation-map-title">Pipeline work path</h3>
+          <p className="wb-hint">${run ? "Recorded stages for " + scopeLabel + ". Refresh status on request; this static page does not poll expensive project-wide aggregates." : "No preparation run is associated with this selection. This does not mean no work exists elsewhere."}</p></div>
+        <span className="wb-feed-state"><i aria-hidden="true"></i>${feedStatus}</span>
+      </header>
+      <p className="sr-only" aria-live="polite" aria-atomic="true">${currentDescription}</p>
+      ${run && stages.length ? html`<div className="wb-work-flow" aria-label="Recorded preparation stages">
+        ${stages.map(function (stage, index) {
+          const isActive = stage.key === (run.currentStage || (active && active.key));
+          return html`<article key=${stage.key || index} className=${"wb-work-node wb-work-" + stageStatus(stage) + (isActive ? " is-current" : "")}>
+            <div className="wb-work-node-title"><span>Stage ${index + 1}</span><strong>${stage.title || stage.key || "Unnamed stage"}</strong></div>
+            <span className="wb-work-status">${stage.status || "Unknown state"}</span>
+            ${stage.currentAction ? html`<p className="wb-work-action"><b>Doing</b> ${stage.currentAction}${stage.currentProgram ? " · " + stage.currentProgram : ""}</p>` : null}
+            ${stage.reason ? html`<p className=${stage.status === "failed" || stage.status === "blocked" ? "wb-work-error" : "wb-work-stage"}>${stage.reason}</p>` : null}
+            <p className="wb-work-progress">${stageProgress(stage)}</p>
+            ${stage.jobId ? html`<code className="wb-work-job">${stage.jobId}</code>` : null}
+            ${index < stages.length - 1 ? html`<div className="wb-work-connector" aria-hidden="true"><span></span><i>next</i></div>` : null}
+          </article>`;
+        })}
+      </div>` : html`<div className="wb-live-work-empty">
+        <p>${run ? "This run has not recorded a stage list." : "No preparation stages are recorded for this selection."}</p>
+        <small>Unknown state is not a claim that the full recovery pipeline is idle.</small>
+      </div>`}
+    </section>`;
+  }
+
+  function RepoStatus({ dossier, user, session, program, slug, onRetry }) {
     if (!dossier || !dossier.ok) {
-      return html`<p id="wb-repo-status" className="wb-repo-row wb-repo-empty">No active project</p>`;
+      if (session && session.locator) return html`<div id="wb-repo-status" className="wb-repo-row wb-repo-empty">
+        <p role="status">${dossier && dossier.error ? "Saved tab “" + (session.title || "Untitled") + "” points to “" + session.locator + "”, which is not readable as a project here: " + dossier.error : "Reading saved project " + (session.title || session.locator) + "…"}</p>
+        ${dossier && dossier.error && onRetry ? html`<button type="button" className="wb-btn wb-btn-mini" onClick=${onRetry}>Retry project inspection</button>` : null}
+      </div>`;
+      return html`<p id="wb-repo-status" className="wb-repo-row wb-repo-empty">
+        ${session ? "Workspace: " + (session.title || "Untitled") + (slug ? " · Build: " + slug : " · No build selected") : "No workspace is open. Open a project to begin."}
+      </p>`;
     }
     const kind = dossier.kind || "";
+    const projectName = (session && session.title) || dossier.slug || dossier.repository || "Project";
+    const programName = program || (slug && slug !== (session && session.projectSlug) ? slug : "");
+    const context = html`<strong>Project: ${projectName}</strong><span>Program: ${programName || "not selected"}</span>`;
     if (kind === "shared-project") {
       const host = dossier.host || "";
       const port = Number(dossier.port || 0);
@@ -1593,6 +1917,7 @@
       const repo = dossier.repository || "";
       const who = dossier.user || user || "";
       return html`<p id="wb-repo-status" className=${"wb-repo-row" + (dossier.reachable ? " on" : " off")}>
+        ${context}
         <span>Project Repository: ${repo || "—"}</span>
         <span>${dossier.reachable
           ? ("Reachable at " + host + portBit)
@@ -1602,15 +1927,15 @@
       </p>`;
     }
     if (kind === "shared-fs") {
-      return html`<p id="wb-repo-status" className="wb-repo-row">On-disk Ghidra Server tree. No live RMI session.</p>`;
+      return html`<p id="wb-repo-status" className="wb-repo-row">${context}<span>Folder of shared projects · not itself a .gpr project · no live Ghidra Server session</span></p>`;
     }
     if (kind === "packed-program") {
-      return html`<p id="wb-repo-status" className="wb-repo-row">Packed Ghidra program ${dossier.slug || ""}</p>`;
+      return html`<p id="wb-repo-status" className="wb-repo-row">${context}<span>Packed Ghidra program</span></p>`;
     }
     if (kind === "ghidra-project") {
-      return html`<p id="wb-repo-status" className="wb-repo-row">Local project ${dossier.slug || ""}</p>`;
+      return html`<p id="wb-repo-status" className="wb-repo-row">${context}<span>Local Ghidra project</span></p>`;
     }
-    return html`<p id="wb-repo-status" className="wb-repo-row">${kindTitle(kind)}</p>`;
+    return html`<p id="wb-repo-status" className="wb-repo-row">${context}<span>${kindTitle(kind)}</span></p>`;
   }
 
   function ExportBundles({ slug, locator }) {
@@ -1874,9 +2199,7 @@
       { id: "corpus.init", label: "Init corpus", needsProject: true, mutating: true }
     ],
     project: [],
-    pipeline: [
-      { id: "corpus.stages", label: "Stages" }
-    ],
+    pipeline: [],
     function: [
       { id: "mcp.decompile-function", label: "Decompile", needsFunction: true },
       { id: "mcp.get-references", label: "Xrefs", needsFunction: true },
@@ -1930,9 +2253,107 @@
     </section>`;
   }
 
+  function PanelLayoutDialog({ open, onClose, workspaceId, menuInvokerRef }) {
+    const [, refresh] = useState(0);
+    const [panelState, setPanelState] = useState(null);
+    useEffect(function () {
+      if (!open) return;
+      setPanelState(null);
+      function update(event) {
+        if (!event.detail || event.detail.id !== workspaceId) return;
+        const current = window.AgentDecompileDockControls && window.AgentDecompileDockControls.get(workspaceId);
+        if (current) setPanelState(current.panels);
+        refresh(function (n) { return n + 1; });
+      }
+      window.addEventListener("agentdecompile:dock-controls", update);
+      return function () { window.removeEventListener("agentdecompile:dock-controls", update); };
+    }, [open, workspaceId]);
+    const registry = window.AgentDecompileDockControls;
+    const workspace = registry && registry.get(workspaceId);
+    function change(action, patch) {
+      if (patch && workspace) setPanelState(function (previous) { return (previous || workspace.panels).map(function (panel) { return panel.id === patch.id ? Object.assign({}, panel, patch) : panel; }); });
+      action();
+    }
+    return html`<${Modal} open=${open} title="Arrange panels" onClose=${onClose} menuInvokerRef=${menuInvokerRef}
+      footer=${html`<button type="button" className="wb-btn" disabled=${!workspace} onClick=${function () { if (workspace) change(workspace.reset); }}>Restore default layout</button><button type="button" className="wb-btn wb-btn-primary" onClick=${onClose}>Done</button>`}>
+      ${workspace ? html`<p>Drag a panel title to move it, or set its position here. Right-click a title for the same controls.</p><div className="wb-panel-layout-list">${(panelState || workspace.panels).map(function (panel) {
+        return html`<div key=${panel.id}><label><input type="checkbox" checked=${!panel.hidden} onChange=${function (event) { const checked = event.target.checked; change(function () { checked ? workspace.show(panel.id) : workspace.hide(panel.id); }, {id:panel.id,hidden:!checked}); }}/><span>${panel.title}</span></label><label>Position<select aria-label=${"Position " + panel.title} value=${panel.zone} onChange=${function (event) { const zone = event.target.value; change(function () { workspace.dock(panel.id, zone); }, {id:panel.id,zone:zone}); }}>${["left", "center", "right", "bottom", "floating"].map(function (zone) { return html`<option value=${zone} key=${zone}>${zone === "floating" ? "Floating" : zone.charAt(0).toUpperCase() + zone.slice(1)}</option>`; })}</select></label></div>`;
+      })}</div>` : html`<p>Open Compare, Recover or Work to arrange its panels.</p>`}
+    </${Modal}>`;
+  }
+
+  function SaveAsDialog({ open, onClose, onSubmit, error, menuInvokerRef, locator, project, projectTitle, workDir, target, setTarget, name, setName, destination, setDestination }) {
+    const [busy,setBusy]=useState(false),[localError,setLocalError]=useState(""),[picker,setPicker]=useState(null),[reading,setReading]=useState(false);
+    const browseSequence=useRef(0),active=useRef(open);
+    active.current=open;
+    useEffect(function(){browseSequence.current++;setReading(false);if(open){setBusy(false);setLocalError("");setPicker(null);}},[open]);
+    const stem=(name||"").trim().replace(/[^\p{L}\p{N}_-]/gu,"_")||"Project";
+    const source=project&&project.ok&&(!project.locator||project.locator===locator||project.canonical===locator)?project:null;
+    const count=source&&Number.isSafeInteger(source.program_count)?source.program_count:source&&Array.isArray(source.programs)?source.programs.length:null;
+    const sourceName=source&&source.slug||String(projectTitle||"Project").replace(/^[^:]+:\s*/,"");
+    const remote=target==="shared-project",local=target==="ghidra-project";
+    const requested=(destination||"").trim(),base=String(workDir||"").replace(/\/$/,"");
+    const folder=requested||(base?(local?base+"/ghidra-projects":base+"/shared-exports/"+stem):"");
+    const path=remote?"Native server publication is not available in this adapter.":folder?(local?/\.gpr$/i.test(folder)?folder:folder.replace(/\/$/,"")+"/"+stem+".gpr":folder.replace(/\/$/,"")+"/_"+stem):"The server's configured work directory will determine the destination.";
+    const unsupported=source&&!["ghidra-project","shared-fs"].includes(source.kind);
+    async function browseFolder(next) {
+      const seq=++browseSequence.current;setReading(true);setLocalError("");
+      try {
+        const response=await fetch(API.browse+"?path="+encodeURIComponent(next||""),{cache:"no-store",signal:AbortSignal.timeout(12000)});
+        const packet=await response.json();
+        if(seq!==browseSequence.current||!active.current)return;
+        if(!response.ok||packet.ok===false)throw new Error(packet.error||"Could not read destination folders.");
+        setPicker(packet);
+      }catch(reason){if(seq===browseSequence.current&&active.current)setLocalError(String(reason.message||reason));}
+      finally{if(seq===browseSequence.current&&active.current)setReading(false);}
+    }
+    async function submit(event) {
+      event.preventDefault();if(busy||remote||unsupported||!locator||!name.trim())return;
+      if(requested&&!/^(\/|~\/)/.test(requested)){setLocalError("Use an absolute server path (or ~/…) so the destination does not depend on the server's working directory.");return;}
+      setBusy(true);setLocalError("");
+      try{await onSubmit(event);}catch(reason){if(active.current)setLocalError(String(reason.message||reason));}
+      finally{if(active.current)setBusy(false);}
+    }
+    return html`<${Modal} open=${open} title="Save project copy" onClose=${function(){if(!busy)onClose();}} error=${localError||error} menuInvokerRef=${menuInvokerRef}
+      footer=${html`<button type="button" className="wb-btn" disabled=${busy} onClick=${onClose}>Cancel</button><button type="submit" form="wb-save-as-form" className="wb-btn wb-btn-primary" disabled=${busy||remote||unsupported||!locator||!name.trim()}>${busy?"Copying…":"Save copy and open"}</button>`}>
+      <form id="wb-save-as-form" className="wb-save-project-form" onSubmit=${submit} aria-busy=${busy}>
+        <section className="wb-save-source" aria-label="Source project"><strong>${sourceName}</strong><span>${count==null?"Program count not recorded":count+" recorded "+(count===1?"program":"programs")}${source&&source.kind?" · "+kindTitle(source.kind):""}</span><code>${locator||"No source project open"}</code></section>
+        <div className="wb-save-fields"><label htmlFor="wb-save-name">New project name<input id="wb-save-name" type="text" value=${name} required disabled=${busy} autoComplete="off" onInput=${event=>setName(event.target.value)} aria-describedby="wb-save-name-note"/><small id="wb-save-name-note">${stem===name.trim()?"Names the copied project, not the selected binary.":"Filesystem name: "+stem}</small></label>
+        <label htmlFor="wb-save-format">Destination format<select id="wb-save-format" value=${target} disabled=${busy} onChange=${event=>{browseSequence.current++;setReading(false);setTarget(event.target.value);setPicker(null);}}><option value="ghidra-project">Local Ghidra project (.gpr + .rep)</option><option value="shared-fs">Shared repository folder (offline)</option><option value="shared-project" disabled>Ghidra Server publication — unavailable</option></select></label></div>
+        <p className="wb-save-format-note">${remote?"This adapter cannot publish a project to a live server. Opening a server URL is not a saved project copy.":local?"Copies program databases and stored version history into a local .gpr project with its .rep directory.":"Copies program databases and stored version history into a server-shaped repository on disk. This does not connect to or publish on a live Ghidra Server."}</p>
+        ${!remote?html`<label className="wb-save-destination" htmlFor="wb-save-folder">${local?"Destination folder or .gpr path":"Destination repository root"}<div className="wb-save-path-control"><input id="wb-save-folder" type="text" value=${destination} disabled=${busy} placeholder=${base?(local?base+"/ghidra-projects":base+"/shared-exports/"+stem):"Use configured work directory"} onInput=${event=>setDestination(event.target.value)} aria-describedby="wb-save-destination-note"/><button type="button" className="wb-btn" disabled=${busy||reading} aria-expanded=${Boolean(picker)} onClick=${()=>{if(picker){browseSequence.current++;setPicker(null);}else browseFolder(/\.gpr$/i.test(requested)?requested.slice(0,requested.lastIndexOf("/")):requested||workDir||"");}}>Browse…</button></div><small id="wb-save-destination-note">Server-visible storage only. Leave blank to use the configured work directory.</small></label>`:null}
+        ${reading?html`<p role="status">Reading destination folders…</p>`:null}
+        ${picker&&!remote?html`<section className="wb-save-folder-picker" aria-label="Choose destination folder"><header><code>${picker.path||"Available storage roots"}</code><button type="button" className="wb-btn" disabled=${busy||reading} onClick=${()=>{browseSequence.current++;setPicker(null);}}>Close browser</button></header><div className="wb-save-folder-actions">${picker.parent?html`<button type="button" className="wb-btn" disabled=${reading} onClick=${()=>browseFolder(picker.parent)}>Parent folder</button>`:null}${picker.path&&picker.kind!=="ghidra-project"?html`<button type="button" className="wb-btn" disabled=${reading} onClick=${()=>{setDestination(picker.path);setPicker(null);}}>Use this folder</button>`:null}</div><ul>${(picker.entries||[]).filter(entry=>["dir","project-dir","shared-fs"].includes(entry.kind)).map(entry=>html`<li key=${entry.path}><button type="button" disabled=${reading} onClick=${()=>browseFolder(entry.path)}><span aria-hidden="true">▱</span> ${entry.name}</button></li>`)}</ul>${!(picker.entries||[]).some(entry=>["dir","project-dir","shared-fs"].includes(entry.kind))?html`<p>No subfolders listed. You can use this folder or enter a new destination path.</p>`:null}</section>`:null}
+        <section className="wb-save-output" aria-label="Requested destination"><span>Requested ${local?"project path":"repository path"}</span><output>${path}</output>${!remote?html`<small>${local&&/\.gpr$/i.test(folder)?"Explicit path: existing destination storage is not overwritten. Saving to the source path uses native Save instead of creating a copy.":"The server chooses a numbered suffix if that project already exists; the final path is confirmed after copying."}</small>`:null}</section>
+        ${unsupported?html`<p className="wb-dialog-error" role="status">This source does not expose program databases to the copy adapter. Open a local .gpr or a shared repository folder first.</p>`:null}
+        <p className="wb-save-scope-note">The source stays in place. The saved destination opens when the copy succeeds. This saves project databases, not a recovered-source export or a byte-verification receipt.</p>
+        ${busy?html`<p role="status">Copying the project databases; waiting for the server to confirm the destination. No byte progress is available.</p>`:null}
+      </form>
+    </${Modal}>`;
+  }
+
   function Modal({ open, title, onClose, children, footer, error, menuInvokerRef }) {
     const boxRef = useRef(null);
     const capturedInvokerRef = useRef(null);
+    const moveRef = useRef(null);
+    const [position, setPosition] = useState({ x: 0, y: 0 });
+    useEffect(function () { if (open) setPosition({ x: 0, y: 0 }); moveRef.current = null; }, [open]);
+    function moveBy(dx, dy) {
+      if (!boxRef.current) return;
+      const r = boxRef.current.getBoundingClientRect();
+      setPosition(old => ({ x: old.x + Math.min(innerWidth - r.right - 8, Math.max(8 - r.left, dx)), y: old.y + Math.min(innerHeight - r.bottom - 8, Math.max(8 - r.top, dy)) }));
+    }
+    function startMove(event) {
+      if (event.button !== 0 || event.target.closest("button, input, select")) return;
+      event.preventDefault(); event.currentTarget.setPointerCapture(event.pointerId);
+      moveRef.current = { x: event.clientX, y: event.clientY };
+    }
+    function continueMove(event) {
+      const start = moveRef.current;
+      if (!start) return;
+      moveBy(event.clientX - start.x, event.clientY - start.y);
+      moveRef.current = { x: event.clientX, y: event.clientY };
+    }
     useEffect(function () {
       if (!open || !boxRef.current) return;
       /* A2: remember what had focus before the modal opened, so closing it
@@ -1948,7 +2369,7 @@
         ? menuInvoker
         : document.activeElement;
       if (menuInvokerRef) menuInvokerRef.current = null;
-      const first = boxRef.current.querySelector("input, select, textarea, button.wb-btn-primary");
+      const first = boxRef.current.querySelector("input, select, textarea, button.wb-btn-primary") || boxRef.current.querySelector("button");
       if (first && typeof first.focus === "function") first.focus();
       return function () {
         const invoker = capturedInvokerRef.current;
@@ -1961,6 +2382,7 @@
     if (!open) return null;
     /* Tab stays inside the dialog, the way a modal window behaves on a desktop. */
     function onKeyDown(ev) {
+      if (ev.key === "Escape") { ev.preventDefault(); ev.stopPropagation(); onClose(); return; }
       if (ev.key !== "Tab" || !boxRef.current) return;
       const focusable = Array.prototype.filter.call(
         boxRef.current.querySelectorAll("a[href], button, input, select, textarea, [tabindex]"),
@@ -1980,9 +2402,13 @@
     return html`<div className="wb-modal-backdrop" onClick=${onClose}>
       <div className="wb-modal" role="dialog" aria-modal="true" aria-labelledby="wb-modal-title"
         ref=${boxRef}
+        style=${{ transform: "translate(" + position.x + "px," + position.y + "px)" }}
         onKeyDown=${onKeyDown}
         onClick=${function (ev) { ev.stopPropagation(); }}>
-        <header className="wb-modal-head">
+        <header className="wb-modal-head" tabIndex="0" aria-label=${title + "; drag to move, Alt and arrow keys to move, double-click to center"}
+          onPointerDown=${startMove} onPointerMove=${continueMove} onPointerUp=${function () { moveRef.current = null; }} onPointerCancel=${function () { moveRef.current = null; }}
+          onDoubleClick=${function (event) { if (!event.target.closest("button")) setPosition({ x: 0, y: 0 }); }}
+          onKeyDown=${function (event) { if (event.altKey && ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)) { event.preventDefault(); moveBy(event.key === "ArrowLeft" ? -20 : event.key === "ArrowRight" ? 20 : 0, event.key === "ArrowUp" ? -20 : event.key === "ArrowDown" ? 20 : 0); } }}>
           <h2 id="wb-modal-title">${title}</h2>
           <button type="button" className="wb-modal-close" aria-label="Close" onClick=${onClose}>×</button>
         </header>
@@ -2004,17 +2430,7 @@
 
 
   const CORPUS_NAV = [
-    { id: "wb-overview", title: "Overview", more: true },
-    { id: "wb-atlas", title: "Atlas", more: true },
-    { id: "wb-report", title: "Report", more: true },
-    { id: "wb-pipeline", title: "Pipeline", more: true },
-    { id: "wb-stabs", title: "STABS", more: true },
-    { id: "wb-knowledge", title: "Knowledge", more: true },
-    { id: "wb-logical", title: "Logical identities", more: true },
-    { id: "wb-artifacts", title: "Artifacts", more: true },
-    { id: "wb-evidence", title: "Database", more: true },
-    { id: "wb-review", title: "Review", more: true },
-    { id: "wb-corpus", title: "Corpus", more: true },
+    { id: "wb-guide", title: "Reversing guide", more: true },
     { id: "wb-tools", title: "Commands", more: true }
   ];
 
@@ -2054,7 +2470,7 @@
     const hash = String((window.location.hash || "").replace(/^#/, "")).toLowerCase();
     if (BROWSE_ANCHOR_WINDOW[hash]) return editorTabFor(BROWSE_ANCHOR_WINDOW[hash]);
     const want = String(params().get("window") || "").trim();
-    if (!want) return "decompile";
+    if (!want) return "wb-overview";
     if (BROWSE_ANCHOR_WINDOW[want.toLowerCase()]) {
       return editorTabFor(BROWSE_ANCHOR_WINDOW[want.toLowerCase()]);
     }
@@ -2062,14 +2478,10 @@
   }
 
   function editorTabFor(id) {
-    if (!id) return "decompile";
-    if (id === "wb-inspect" || id === "wb-functions" || id === "inspect" || id === "wb-ingest") return "decompile";
-    if (id === "wb-graph") return "graph";
-    if (id === "match" || id === "cross-match" || id === "crossmatch") return "wb-match";
-    if (id === "recover" || id === "recovery") return "wb-recovery";
-    if (id === "artifact" || id === "artifacts") return "wb-artifacts";
-    if (id === "evidence" || id === "wb-evidence") return "wb-evidence";
-    return id;
+    if (["wb-tools", "wb-guide"].includes(id)) return id;
+    if (["wb-artifacts", "wb-roundtrip", "wb-recovery", "recover", "recovery", "artifact", "artifacts", "wb-evidence", "evidence"].includes(id)) return "wb-artifacts";
+    if (["wb-pipeline", "wb-processes", "wb-jobs", "wb-activity"].includes(id)) return "wb-pipeline";
+    return "wb-overview";
   }
 
   const RECENT_ACTIONS_KEY = "wb-recent-actions";
@@ -2111,15 +2523,16 @@
 
   function scrollToSurface(surfaceId) {
     const aliases = {
-      decompile: "wb-inspect",
-      inspect: "wb-inspect",
-      graph: "wb-graph"
+      decompile: "wb-comparison-evidence", "wb-inspect": "wb-comparison-evidence",
+      inspect: "wb-comparison-evidence", graph: "wb-comparison-evidence", "wb-graph": "wb-comparison-evidence",
+      "wb-fnbrowse": "wb-q", "wb-functions": "wb-q"
     };
-    const node = document.getElementById(aliases[surfaceId] || surfaceId);
-    if (node) {
-      node.classList.add("wb-surface-flash");
-      window.setTimeout(function () { node.classList.remove("wb-surface-flash"); }, 1400);
-    }
+    window.requestAnimationFrame(function () {
+      const node = document.getElementById(aliases[surfaceId] || surfaceId);
+      if (!node) return;
+      node.scrollIntoView({ block: "nearest" });
+      if (node.id === "wb-q" || node.hasAttribute("tabindex")) node.focus({ preventScroll: true });
+    });
   }
 
   function readActionParams(form, action, ctx) {
@@ -2285,6 +2698,7 @@
     { id: "file.open-url", title: "Open from URL…", accel: "mod+shift+U", group: "File" },
     { id: "file.save", title: "Save", accel: "mod+S", group: "File" },
     { id: "file.save-as", title: "Save As…", accel: "mod+shift+S", group: "File" },
+    { id: "file.download-source", title: "Download project source", group: "File" },
     { id: "file.checkin", title: "Check in to Ghidra server", group: "File" },
     { id: "file.open-program", title: "Open selected program in Ghidra", group: "File" },
     { id: "file.add-binaries", title: "Add to project…", accel: "mod+I", group: "File" },
@@ -2294,6 +2708,8 @@
     { id: "edit.rename-tab", title: "Rename Tab", accel: "F2", group: "Edit" },
     { id: "view.palette", title: "Command palette", accel: "mod+K", group: "View" },
     { id: "view.explorer", title: "Explorer", accel: "mod+shift+E", group: "View" },
+    { id: "view.panels", title: "Arrange panels…", group: "View" },
+    { id: "view.match-receipts", title: "Matching receipts…", group: "View" },
     { id: "view.listing", title: "Listing", accel: "alt+1", group: "View" },
     { id: "view.browse", title: "Functions", accel: "alt+F", group: "View" },
     { id: "view.graph", title: "Call trees", accel: "alt+2", group: "View" },
@@ -2302,7 +2718,7 @@
     { id: "view.logical", title: "Logical identities", accel: "alt+L", group: "View" },
     { id: "view.overview", title: "Overview", accel: "alt+3", group: "View" },
     { id: "view.atlas", title: "Atlas", accel: "alt+4", group: "View" },
-    { id: "view.cross-match", title: "Match", accel: "alt+5", group: "View" },
+    { id: "view.cross-match", title: "Cross-build", accel: "alt+5", group: "View" },
     { id: "view.inspect", title: "Inspector", accel: "alt+6", group: "View" },
     { id: "view.tools", title: "Commands", accel: "alt+7", group: "View" },
     { id: "view.jobs", title: "Jobs", accel: "alt+J", group: "View" },
@@ -2691,6 +3107,8 @@
 
   function ListingRows({ addr, name, program, runReadAction, fallbackText, onJumpAddr, budgetMs, assemblyText }) {
     const [state, setState] = useState({ status: "idle" });
+    const [requestedScope, setRequestedScope] = useState("");
+    const listingScope = JSON.stringify([program, addr]);
     const [focusIdx, setFocusIdx] = useState(0);
     const seqRef = useRef(0);
     const rowRefs = useRef([]);
@@ -2707,6 +3125,9 @@
         setState({ status: "ok", rows: parsed, elapsedMs: 0, budgetHit: false, inboundCount: null });
         return undefined;
       }
+      // Viewing an uncached listing is not permission to queue an instruction
+      // walk. The operator explicitly acquires it; browsing stays read-only.
+      if (requestedScope !== listingScope) { setState({ status: "idle" }); return undefined; }
       setState({ status: "loading" });
       const t0 = (window.performance && performance.now) ? performance.now() : Date.now();
       const now = function () { return (window.performance && performance.now) ? performance.now() : Date.now(); };
@@ -2758,7 +3179,7 @@
       }
       run();
       return function () { cancelled = true; };
-    }, [addr, program, assemblyText]);
+    }, [addr, program, assemblyText, requestedScope]);
 
     function onRowKeyDown(ev, idx, row) {
       if (ev.key === "ArrowDown") {
@@ -2811,48 +3232,20 @@
     return html`<div>
       ${state.status === "fallback" ? html`<p className="wb-hint">Structured listing unavailable here (${state.reason}, ${Math.round(state.elapsedMs || 0)}ms) -- showing the text preview.</p>` : null}
       ${state.status === "loading" ? html`<p className="wb-hint">Reading instructions…</p>` : null}
+      ${state.status === "idle" && program && addr ? html`<button type="button" className="wb-btn" onClick=${function () { setRequestedScope(listingScope); }}>Read uncached instructions from Ghidra</button>` : null}
       <pre className="wb-preview" id="wb-listing-preview">${fallbackText}</pre>
     </div>`;
   }
 
-  function CorpusNavBar({ active, onJump, moreOpen, onMoreToggle }) {
-    const primaryIds = {};
-    EDITOR_PRIMARY.forEach(function (item) { primaryIds[item.id] = true; });
-    const overflow = EDITOR_TABS.filter(function (item) { return !primaryIds[item.id]; });
-    /* An overflow window that is open gets its own pill, so the strip always shows what
-       the editor is displaying instead of hiding it behind "More". */
-    const promoted = overflow.find(function (item) { return item.id === active; }) || null;
-    const more = overflow.filter(function (item) { return !promoted || item.id !== promoted.id; });
-    return html`<nav id="wb-corpus-nav" className="wb-corpus-nav wb-editor-tabs" aria-label="Windows">
+  function CorpusNavBar({ active, onJump }) {
+    return html`<nav id="wb-corpus-nav" className="wb-corpus-nav wb-editor-tabs" aria-label="Workspace destinations">
       ${EDITOR_PRIMARY.map(function (item) {
-        const isActive = active === item.id;
-        const on = isActive ? " on" : "";
-        return html`<button type="button" key=${item.id} className=${"wb-corpus-nav-item" + on}
-          data-surface=${item.id}
-          aria-current=${isActive ? "page" : undefined}
+        const isActive = editorTabFor(active) === item.id;
+        return html`<button type="button" key=${item.id} className=${"wb-corpus-nav-item" + (isActive ? " on" : "")}
+          data-surface=${item.id} aria-current=${isActive ? "page" : undefined}
           onClick=${function () { onJump(item.id); }}>${item.title}</button>`;
       })}
-      ${promoted ? html`<button type="button" key=${promoted.id} className="wb-corpus-nav-item on wb-nav-promoted"
-        data-surface=${promoted.id}
-        aria-current="page"
-        onClick=${function () { onJump(promoted.id); }}>${promoted.title}</button>` : null}
-      <details className=${"wb-editor-more" + (promoted ? " on" : "")} open=${Boolean(moreOpen)}
-        onToggle=${function (ev) {
-          if (onMoreToggle) onMoreToggle(Boolean(ev.target.open));
-        }}>
-        <summary>More</summary>
-        <div className="wb-editor-more-list">
-          ${more.map(function (item) {
-            return html`<button type="button" key=${item.id} className="wb-corpus-nav-item"
-              data-surface=${item.id}
-              onClick=${function (ev) {
-                ev.preventDefault();
-                ev.stopPropagation();
-                onJump(item.id);
-              }}>${item.title}</button>`;
-          })}
-        </div>
-      </details>
+      <button type="button" className="wb-text-action wb-files-access" onClick=${function () { onJump("wb-sidebar"); }}>Project files</button>
     </nav>`;
   }
 
@@ -3134,12 +3527,52 @@
     document.addEventListener("mouseup", up);
   }
 
+  function JobAdmissionSummary({ admission, onSelectJob }) {
+    if (!admission) return null;
+    const holders = Array.isArray(admission.holders) ? admission.holders : [];
+    const pausedScopes = Object.keys(admission.pausedScopes || {});
+    return html`<section className="wb-admission-summary" aria-label="Scheduler resource ownership">
+      <p className="wb-hint">Scheduler: ${admission.running}/${admission.maxConcurrent} worker slots · ${admission.identityLocksHeld} identity locks · ${admission.ghidraLocksHeld} Ghidra locks · ${admission.pausedScopeCount} paused scopes</p>
+      ${pausedScopes.length ? html`<p className="wb-hint">Paused: ${pausedScopes.join(", ")}. Jobs in these scopes wait until explicitly resumed.</p>` : null}
+      ${holders.length ? html`<div className="wb-admission-holders">
+        <h4>${holders.length} retained resource reservation${holders.length === 1 ? "" : "s"}</h4>
+        <ul className="wb-job-list">
+          ${holders.map(function (holder, index) {
+            const jobId = String(holder.jobId || "");
+            const status = String(holder.status || "unknown");
+            const disposition = String(holder.resourceDisposition || "");
+            const receipt = holder.retainedReceipt;
+            const displayedStatus = holder.liveRecordPresent === false && receipt
+              ? String(receipt.status || "unknown") + " receipt" : status;
+            const extra = holder.liveRecordPresent === false && receipt
+              ? "live owner unregistered · clearance " + (receipt.clearanceRecorded ? "recorded, not reconciled" : "unconfirmed")
+              : disposition && disposition !== "unknown"
+              ? disposition
+              : holder.historyOnly === true ? "history only" : "";
+            return html`<li key=${String(holder.resource || "resource") + ":" + jobId + ":" + index}>
+              ${jobId ? html`<button type="button" className="wb-job-row" onClick=${function () { onSelectJob(jobId); }}>
+                <code>${jobId}</code>
+                <span>${String(holder.resource || "resource")} · ${String(holder.actionId || "unknown action")}</span>
+                <span>${displayedStatus}${extra ? " · " + extra : ""}</span>
+              </button>` : html`<p className="wb-hint">${String(holder.resource || "resource")} · owner ID unavailable · ${status}</p>`}
+            </li>`;
+          })}
+        </ul>
+      </div>` : html`<p className="wb-hint">No retained resource owners reported.</p>`}
+    </section>`;
+  }
+
   function LogDock({
     entries, tab, onTab, open, onToggle, selectedId, onSelect,
-    jobs, selectedJobId, jobDetail, onSelectJob, onCancel, actions, height, onResize, onKeyResize
+    jobs, selectedJobId, jobDetail, jobDetailLoading, jobDetailError,
+    onSelectJob, onRetryJobDetail, onCancel, onRefreshJobs, onLoadJobHistory,
+    jobsRefreshedAt, jobsRefreshing, jobsVisibleCount, onShowMoreJobs,
+    jobsScope, jobsLoadingScope, jobAdmission, actions, height, onResize, onKeyResize
   }) {
     const list = jobs || [];
-    const running = list.filter(function (job) { return job.status === "running" || job.status === "queued"; });
+    const running = list.filter(function (job) { return job.status === "running"; }).length;
+    const queued = list.filter(function (job) { return job.status === "queued"; }).length;
+    const visibleJobs = list.slice(0, jobsVisibleCount || JOB_PAGE_SIZE);
     const detail = jobDetail || null;
     const logText = detail && detail.log ? String(detail.log).slice(-12000) : "";
     const rows = (entries || []).slice().reverse();
@@ -3153,8 +3586,12 @@
           onClick=${function () { onTab("log"); if (!open) onToggle(true); }}>Log</button>
         <button type="button" className=${"wb-log-tab" + (tab === "jobs" ? " on" : "")}
           onClick=${function () { onTab("jobs"); if (!open) onToggle(true); }}>
-          Jobs${running.length ? " · " + running.length + " running" : ""}
+          Jobs${jobsRefreshedAt ? " · " + running + " running" + (queued ? " · " + queued + " queued" : "") : jobs.length ? " · new job" : " · not checked"}
         </button>
+        ${tab === "jobs" ? html`<button type="button" className="wb-btn wb-btn-mini" disabled=${Boolean(jobsRefreshing)}
+          onClick=${function () { onRefreshJobs("current"); }}>${jobsLoadingScope === "current" ? "Refreshing status…" : "Refresh live status"}</button>
+          <button type="button" className="wb-btn wb-btn-mini" disabled=${Boolean(jobsRefreshing)}
+            onClick=${function () { onLoadJobHistory(); }}>${jobsLoadingScope === "history" ? "Loading history…" : "Load retained history"}</button>` : null}
         <span className="wb-hint">A finished job is not a match.</span>
         <button type="button" className="wb-log-toggle" onClick=${function () { onToggle(!open); }}>
           ${open ? "Hide" : "Show"}
@@ -3173,8 +3610,12 @@
             </li>`;
           }) : html`<li className="wb-hint">No log lines yet.</li>`}
         </ul>` : html`<div className="wb-jobs-dock-body">
+          <p className="wb-hint">${jobsRefreshedAt
+            ? "Showing " + visibleJobs.length + " of " + jobs.length + (jobsScope === "current-process" ? " current-process jobs" : " retained jobs") + " · " + running + " running · " + queued + " queued · refreshed " + new Date(jobsRefreshedAt).toLocaleTimeString()
+            : jobs.length ? "Refresh live status for this server, or load retained history when you need older receipts." : "Live status and retained history are separate; history is only read when requested."}</p>
+          <${JobAdmissionSummary} admission=${jobAdmission} onSelectJob=${onSelectJob} />
           <ul className="wb-job-list">
-            ${list.length ? list.map(function (job) {
+            ${visibleJobs.length ? visibleJobs.map(function (job) {
               const on = job.id === selectedJobId;
               const live = job.status === "running" || job.status === "queued";
               return html`<li key=${job.id} className=${on ? "on" : ""}>
@@ -3186,10 +3627,14 @@
                 ${live ? html`<button type="button" className="wb-btn danger wb-job-cancel"
                   onClick=${function (ev) { ev.stopPropagation(); onCancel(job.id); }}>Cancel</button>` : null}
               </li>`;
-            }) : html`<li className="wb-hint">No jobs yet.</li>`}
+            }) : html`<li className="wb-hint">${jobsRefreshedAt ? "No jobs were returned by the last refresh." : "No job history loaded."}</li>`}
           </ul>
+          ${visibleJobs.length < list.length ? html`<button type="button" className="wb-btn wb-btn-mini" onClick=${onShowMoreJobs}>Show ${Math.min(JOB_PAGE_SIZE, list.length - visibleJobs.length)} older jobs</button>` : null}
           ${selectedJobId && logText ? html`<pre className="wb-job-log">${logText}</pre>`
-            : selectedJobId ? html`<p className="wb-hint">Loading log…</p>` : null}
+            : selectedJobId && jobDetailLoading ? html`<p className="wb-hint" role="status">Loading job detail…</p>`
+              : selectedJobId && jobDetailError ? html`<p className="wb-status-error" role="alert">${jobDetailError}
+                <button type="button" className="wb-btn wb-btn-mini" onClick=${onRetryJobDetail}>Retry</button></p>`
+                : selectedJobId ? html`<p className="wb-hint">No retained log is available for this job.</p>` : null}
         </div>`}
       </div>` : null}
     </aside>`;
@@ -3336,7 +3781,7 @@
       ? statusResult.value.body
       : { ok: false, error: statusResult.status === "rejected" ? reason(statusResult.reason) : "Corpus status response is malformed." };
     const db = dbResult.status === "fulfilled" && dbResult.value.ok ? dbResult.value.body : null;
-    const identity = db && db.corpus && typeof db.corpus.identity === "string" ? db.corpus.identity : "";
+    const identity = status.scope === "projects" ? status.corpusIdentity || "" : db && db.corpus && typeof db.corpus.identity === "string" ? db.corpus.identity : "";
     return { status: status, identity: identity };
   }
 
@@ -3351,11 +3796,51 @@
     const [selectionPacket, setSelectionPacket] = useState(null);
     const [evidencePacket, setEvidencePacket] = useState(null);
     const [corpusStatus, setCorpusStatus] = useState(null);
+    const [projectQuery, setProjectQuery] = useState("");
+    const [projectBusy, setProjectBusy] = useState(false);
+    const [cohortIds, setCohortIds] = useState(null);
+    const [functionBuildFilter, setFunctionBuildFilter] = useState("");
+    const [functionBrowseIds, setFunctionBrowseIds] = useState(null);
+    const [acrossProjects, setAcrossProjects] = useState(false);
+    const [functionRequest, setFunctionRequest] = useState({ q: "", offset: 0, limit: 100 });
+    const [functionRefresh, setFunctionRefresh] = useState(0);
+    const [functionPacket, setFunctionPacket] = useState(null);
+    const [functionBusy, setFunctionBusy] = useState(false);
+    const [functionError, setFunctionError] = useState("");
+    const functionSequence = useRef(0);
+    const projectPageRef = useRef({ q: "", offset: 0, limit: 100 });
+    const sessionsWriteSequence = useRef(0);
+    const sessionsWriteQueue = useRef(Promise.resolve());
+    const openSequence = useRef(0);
+    const projectOperationSequence = useRef(0);
+    const [focusLocator, setFocusLocator] = useState("");
+    const [addBusy, setAddBusy] = useState(false);
+    const addDialogSequence = useRef(0);
+    const [projectControls, setProjectControls] = useState({});
+    const projectControlBusy = useRef(new Set());
+    const [projectAvailability, setProjectAvailability] = useState({});
+    const availabilitySequence = useRef(0);
+    const availabilityScopeRef = useRef("");
+    const projectPipelineSnapshot = useRef(null);
+    const [outputBuilds, setOutputBuilds] = useState({});
+    const [reviewAnchor, setReviewAnchor] = useState(null);
+    const [memberLimit, setMemberLimit] = useState(48);
+    const [peerLimits, setPeerLimits] = useState({});
+    const [receiptLimits, setReceiptLimits] = useState({});
+    const [runLimit, setRunLimit] = useState(12);
+    const [inspectedMember, setInspectedMember] = useState("");
+    const [inspectedOutput, setInspectedOutput] = useState("");
+    const [inspectedStages, setInspectedStages] = useState({});
+    const [filesOpen, setFilesOpen] = useState(false);
+    const [comparisonMode, setComparisonMode] = useState(function () {
+      return /graph/.test(start.get("window") || window.location.hash) ? "calls" : "code";
+    });
     const [corpusIdentity, setCorpusIdentity] = useState("");
     const [corpusRevision, setCorpusRevision] = useState(0);
     const [preparationRuns, setPreparationRuns] = useState([]);
     const [preparationFeed, setPreparationFeed] = useState({ receivedAt: 0, error: "" });
     const [preparationNow, setPreparationNow] = useState(Date.now());
+    const [preparationRefreshing, setPreparationRefreshing] = useState(false);
     const preparationSequence = useRef(0);
     const preparationInFlight = useRef(false);
     useEffect(function () {
@@ -3364,12 +3849,29 @@
     }, []);
     const [actions, setActions] = useState([]);
     const [jobs, setJobs] = useState([]);
+    const [jobsVisibleCount, setJobsVisibleCount] = useState(JOB_PAGE_SIZE);
+    const [jobAdmission, setJobAdmission] = useState(null);
+    const readActionJobs = useRef(new Map());
+    const projectSourceRequests = useRef(new Map());
+    const [projectSourceState, setProjectSourceState] = useState(null);
+    const [jobsRefreshedAt, setJobsRefreshedAt] = useState(0);
+    const [jobsScope, setJobsScope] = useState("");
+    const [jobsLoadingScope, setJobsLoadingScope] = useState("");
+    const [jobsRefreshing, setJobsRefreshing] = useState(false);
+    const jobsRefreshInFlight = useRef(false);
     const [reaction, setReaction] = useState(null);
     const [path, setPath] = useState("");
     const [newSlug, setNewSlug] = useState("");
     const [role, setRole] = useState("member");
     const [label, setLabel] = useState("");
     const [browse, setBrowse] = useState({ path: "", parent: "", entries: [] });
+    const [browseBusy, setBrowseBusy] = useState(false);
+    const [browseOpening, setBrowseOpening] = useState(false);
+    const browseReadSequence = useRef(0);
+    const browseReadController = useRef(null);
+    const browseOpenSequence = useRef(0);
+    const browseDialogEpoch = useRef(0);
+    const renderedBrowseDialogEpoch = browseDialogEpoch.current;
     const [preview, setPreview] = useState(null);
     const [sharedHost, setSharedHost] = useState("127.0.0.1");
     const [sharedPort, setSharedPort] = useState("13100");
@@ -3408,6 +3910,7 @@
     const [saveAsDest, setSaveAsDest] = useState("");
     const [saveAsUrl, setSaveAsUrl] = useState("");
     const [addPath, setAddPath] = useState("");
+    const [addFileName, setAddFileName] = useState("");
     const [editRole, setEditRole] = useState("member");
     const [editLabel, setEditLabel] = useState("");
     const [probes, setProbes] = useState([]);
@@ -3427,13 +3930,17 @@
     const [funcLimit, setFuncLimit] = useState("all");
     const DEFAULT_FUNCTION_ACTION = "mcp.decompile-function";
     const [pendingActionId, setPendingActionId] = useState("");
+    const [pendingActionParams, setPendingActionParams] = useState({});
     const [lastActionId, setLastActionId] = useState(DEFAULT_FUNCTION_ACTION);
     const [actionExpanded, setActionExpanded] = useState(false);
     const [confirmDialog, setConfirmDialog] = useState(null);
-    const [logOpen, setLogOpen] = useState(true);
+    const [logOpen, setLogOpen] = useState(false);
     const [logTab, setLogTab] = useState("log");
     const [selectedJobId, setSelectedJobId] = useState("");
     const [jobDetail, setJobDetail] = useState(null);
+    const [jobDetailLoading, setJobDetailLoading] = useState(false);
+    const [jobDetailError, setJobDetailError] = useState("");
+    const [jobDetailReload, setJobDetailReload] = useState(0);
     const [sideW, setSideW] = useState(function () { return Number(readUiPref("wb-side-w", "360")) || 360; });
     const [explorerH, setExplorerH] = useState(function () { return Number(readUiPref("wb-explorer-h", "240")) || 240; });
     const [logH, setLogH] = useState(function () { return Number(readUiPref("wb-log-h", "180")) || 180; });
@@ -3459,6 +3966,7 @@
     const targetRef = useRef(null);
     const funcSlugRef = useRef(slug);
     const fileRef = useRef(null);
+    const addFileRef = useRef(null);
     const folderRef = useRef(null);
     const dropRef = useRef(null);
     const actionFormRef = useRef(null);
@@ -3491,8 +3999,7 @@
     // An explicit pending/empty dossier owns the locator even before inspection.
     // Falling back to the previous session here would resurrect its target on render.
     const renderedTarget = targetFields(slug, program, activeSession,
-      dossier && Object.prototype.hasOwnProperty.call(dossier, "locator")
-        ? dossier.locator : (currentSession && currentSession.locator));
+      focusLocator || (currentSession && currentSession.locator) || "");
     const targetKey = targetIdentity(renderedTarget);
 
     function writePageContext(row, target) {
@@ -3577,7 +4084,7 @@
     const admittedPacket = evidencePacket && evidencePacket.intent === renderIntent
       && isCurrentIntent(renderIntent) ? evidencePacket : null;
     const detail = admittedPacket && admittedPacket.detail;
-    const graph = admittedPacket && (!detail.resolvedFunction || !selected || detail.resolvedFunction.addr === selected.addr)
+    const graph = admittedPacket && (!detail.resolvedFunction || !selected || sameFunctionAddress(detail.resolvedFunction.addr, selected.addr))
       ? admittedPacket.graph : null;
     const overview = admittedPacket && admittedPacket.overview;
     const lastDecompile = lastDecompilePacket && lastDecompilePacket.targetKey === targetKey
@@ -3601,18 +4108,35 @@
     }, []);
 
     const corpusStatusSequence = useRef(0);
-    const loadCorpusStatus = useCallback(async function () {
+    const loadCorpusStatus = useCallback(async function (page) {
+      if (page && !page.nativeEvent) projectPageRef.current = Object.assign({}, projectPageRef.current, page);
+      const scope = projectPageRef.current;
       const sequence = ++corpusStatusSequence.current;
-      const result = await readCorpusStatus(function (url, init) { return fetch(url, init); }, API);
+      const writeSequence = sessionsWriteSequence.current;
+      setProjectBusy(true);
+      await sessionsWriteQueue.current.catch(function () {});
+      if (sequence !== corpusStatusSequence.current || writeSequence !== sessionsWriteSequence.current) {
+        if (sequence === corpusStatusSequence.current) setProjectBusy(false);
+        return;
+      }
+      const scopedApi = Object.assign({}, API, { corpusStatus: API.corpusStatus + "?scope=projects&q=" + encodeURIComponent(scope.q) + "&offset=" + scope.offset + "&limit=" + scope.limit });
+      const result = await readCorpusStatus(function (url, init) { return fetch(url, init); }, scopedApi);
       if (sequence !== corpusStatusSequence.current) return;
-      setCorpusStatus(result.status);
+      setCorpusStatus(function (previous) {
+        if (result.status && result.status.scope === "projects") return result.status;
+        return previous && previous.scope === "projects"
+          ? Object.assign({}, previous, { staleError: result.status && result.status.error || "Refresh failed; showing the last project snapshot." })
+          : result.status;
+      });
       setCorpusIdentity(result.identity);
       setCorpusRevision(function (value) { return value + 1; });
+      setProjectBusy(false);
     }, []);
 
     const loadPreparations = useCallback(async function () {
       if (preparationInFlight.current) return;
       preparationInFlight.current = true;
+      setPreparationRefreshing(true);
       const sequence = ++preparationSequence.current;
       try {
         const res = await fetch(API.preparations, { cache: "no-store", signal: AbortSignal.timeout(10000) });
@@ -3627,6 +4151,39 @@
         setPreparationFeed(function (previous) { return { receivedAt: previous.receivedAt, error: String(err && err.message || err) }; });
       } finally {
         preparationInFlight.current = false;
+        setPreparationRefreshing(false);
+      }
+    }, []);
+
+    const loadJobs = useCallback(async function (requestedScope) {
+      if (jobsRefreshInFlight.current) return;
+      const scope = requestedScope === "history" ? "history" : "current";
+      jobsRefreshInFlight.current = true;
+      setJobsLoadingScope(scope);
+      setJobsRefreshing(true);
+      try {
+        const url = scope === "current" ? API.jobsCurrent : API.jobsHistory;
+        const res = await fetch(url, { cache: "no-store", signal: AbortSignal.timeout(30000) });
+        if (!res.ok) throw new Error((scope === "current" ? "Live job status" : "Job history") + " request failed (" + res.status + ")");
+        const data = await res.json();
+        const list = Array.isArray(data.jobs) ? data.jobs : [];
+        const note = jobsSnapshotRef.current === null ? "" : jobLiveAnnouncement(jobsSnapshotRef.current, list);
+        jobsSnapshotRef.current = list;
+        setJobs(list);
+        setJobsScope(data.scope || (scope === "current" ? "current-process" : "retained-history"));
+        setJobsVisibleCount(JOB_PAGE_SIZE);
+        setJobAdmission(data.admission && typeof data.admission === "object" ? data.admission : null);
+        setJobsRefreshedAt(Date.now());
+        if (note) {
+          setJobLiveText(note);
+          showToast(note, /failed|cancelled/.test(note) ? "error" : "info");
+        }
+      } catch (err) {
+        showToast("Could not refresh " + (scope === "current" ? "live job status" : "job history") + ": " + String(err && err.message || err), "error");
+      } finally {
+        jobsRefreshInFlight.current = false;
+        setJobsLoadingScope("");
+        setJobsRefreshing(false);
       }
     }, []);
 
@@ -3877,29 +4434,104 @@
     }, [program, slug]);
 
     const loadBrowse = useCallback(async function (nextPath) {
-      const res = await fetch(API.browse + "?path=" + encodeURIComponent(nextPath || ""), { cache: "no-store" });
-      const data = await res.json();
-      setBrowse(data);
-      if (data.kind === "ghidra-project" && data.path) {
-        setPath(data.path);
-        setPreview(data);
+      const requested = typeof nextPath === "string" ? nextPath.trim() : "";
+      const sequence = ++browseReadSequence.current;
+      if (browseReadController.current) browseReadController.current.abort();
+      const controller = new AbortController();
+      browseReadController.current = controller;
+      setBrowseBusy(true);
+      try {
+        const res = await fetch(API.browse + "?path=" + encodeURIComponent(requested), {
+          cache: "no-store", signal: AbortSignal.any([controller.signal, AbortSignal.timeout(12000)])
+        });
+        const data = await res.json();
+        if (controller.signal.aborted || sequence !== browseReadSequence.current) return null;
+        if (!res.ok || !data || data.ok === false) throw new Error(data && data.error || "Could not read this folder.");
+        setBrowse(data);
+        setDialogError("");
+        return data;
+      } catch (error) {
+        if (!controller.signal.aborted && sequence === browseReadSequence.current) {
+          setDialogError("Could not browse " + (requested || "project locations") + ": " + String(error.message || error));
+        }
+        return null;
+      } finally {
+        if (sequence === browseReadSequence.current) setBrowseBusy(false);
       }
     }, []);
 
-    const loadPreview = useCallback(async function (locator, intent) {
-      const generation = intentGeneration.current;
-      const currentRead = function () { return selectionMounted.current && generation === intentGeneration.current && (!intent || isCurrentIntent(intent)); };
+    useEffect(function () {
+      // A delayed close effect must not cancel a newer Open project request.
+      if (dialog === "open" || renderedBrowseDialogEpoch !== browseDialogEpoch.current) return;
+      ++browseReadSequence.current;
+      ++browseOpenSequence.current;
+      if (browseReadController.current) browseReadController.current.abort();
+      setBrowseBusy(false);
+      setBrowseOpening(false);
+    }, [dialog]);
+
+    async function openBrowseEntry(entry) {
+      if (!entry || !entry.path || browseOpening) return null;
+      const value = String(entry.path);
+      setOpenPaste(value);
+      setDialogError("");
+      if (["gpr", "ghidra-project", "project-dir", "shared-fs", "shared-project", "project-collection", "binary", "packed-program"].includes(entry.kind)) {
+        const opening = ++browseOpenSequence.current;
+        ++browseReadSequence.current;
+        if (browseReadController.current) browseReadController.current.abort();
+        setBrowseBusy(false);
+        setBrowseOpening(true);
+        try { return await openLocator(value); }
+        finally { if (opening === browseOpenSequence.current) setBrowseOpening(false); }
+      }
+      const observed = await loadBrowse(value);
+      if (observed && ["ghidra-project", "shared-fs", "shared-project", "binary", "packed-program"].includes(observed.kind)) {
+        const opening = ++browseOpenSequence.current;
+        setBrowseOpening(true);
+        try { return await openLocator(observed.path || value); }
+        finally { if (opening === browseOpenSequence.current) setBrowseOpening(false); }
+      }
+      return observed;
+    }
+
+    const loadPreview = useCallback(async function (locator) {
+      /* Project inspection is scoped to the locator, not the selected function.
+         Function-selection churn must not strand the project panel in “Reading…”. */
+      const currentRead = function () {
+        return selectionMounted.current
+          && currentLocator() === canonicalLocator(locator);
+      };
       if (!locator) {
         setPreview(null);
         setDossier(null);
         return;
       }
-      const res = await fetch(API.inspect + "?locator=" + encodeURIComponent(locator), { cache: "no-store" });
-      if (!currentRead()) return;
-      const data = await res.json();
-      if (!currentRead()) return;
-      setPreview(data);
-      setDossier(data);
+      try {
+        const res = await fetch(API.inspect + "?locator=" + encodeURIComponent(locator), {
+          cache: "no-store",
+          signal: AbortSignal.timeout(10000)
+        });
+        if (!currentRead()) return;
+        let data = null;
+        try { data = await res.json(); } catch (_parseError) { data = null; }
+        if (!currentRead()) return;
+        if (!res.ok || !data || typeof data !== "object") {
+          data = Object.assign({}, data || {}, {
+            ok: false,
+            locator: locator,
+            error: (data && data.error) || ("Project inspection returned HTTP " + res.status + ".")
+          });
+        }
+        setPreview(data);
+        setDossier(data);
+      } catch (error) {
+        if (!currentRead()) return;
+        const message = error && error.name === "TimeoutError"
+          ? "Project inspection timed out after 10 seconds."
+          : String(error && error.message || error || "Project inspection failed.");
+        setPreview({ ok: false, locator: locator, error: message });
+        setDossier({ ok: false, locator: locator, error: message });
+      }
     }, []);
 
     function showToast(message, kind) {
@@ -3917,7 +4549,6 @@
         return next.length > 200 ? next.slice(-200) : next;
       });
       setLogTab("log");
-      setLogOpen(true);
       if (tone === "error") setOpenLogId(entry.id);
       setIngestNote(text);
       window.clearTimeout(showToast._errTimer);
@@ -3936,31 +4567,51 @@
     }
 
     const putSessions = useCallback(async function (nextActive, nextSessions, revision, options) {
-      const rev = revision !== undefined ? revision : sessionRevision;
+      const write = ++sessionsWriteSequence.current;
+      ++corpusStatusSequence.current;
+      setProjectBusy(true);
+      setCorpusStatus(null);
       const generation = intentGeneration.current;
+      const persist = async function () {
+      if (write !== sessionsWriteSequence.current) return { ok: false, ignored: true };
+      const rev = sessionRevisionRef.current;
       try {
         const res = await fetch(API.sessions, {
           method: "PUT",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ active: nextActive, sessions: nextSessions, revision: rev, admitOpen: Boolean(options && options.admitOpen) })
+          body: JSON.stringify({ active: nextActive, sessions: nextSessions, revision: rev, admitOpen: Boolean(options && options.admitOpen) }),
+          signal: AbortSignal.timeout(45000)
         });
         const data = await res.json();
         if (!res.ok || data.ok === false) {
           showToast(data.error || "Could not save tab state.", "error");
-          return data;
+          return Object.assign({}, data, { ok: false });
         }
-        if (data.revision != null) setSessionRevision(data.revision);
-        if (data.sessions && generation === intentGeneration.current) {
+        if (data.revision != null) { sessionRevisionRef.current = data.revision; setSessionRevision(data.revision); }
+        if (data.sessions && write === sessionsWriteSequence.current && generation === intentGeneration.current) {
+          sessionsRef.current = data.sessions;
           setSessions(data.sessions);
           if (data.active) setActiveSession(data.active);
         }
         if (data.merged) showToast("Tab state merged", "success");
         return data;
-      } catch (_err) {
-        showToast("Could not save tab state.", "error");
-        return null;
+      } catch (error) {
+        const message = error && error.name === "TimeoutError"
+          ? "Could not confirm the tab save after 45 seconds. The server may have saved it; retry to reconcile the existing tab."
+          : "Could not confirm the tab save. Retry to reconcile the existing tab.";
+        showToast(message, "error");
+        return { ok: false, error: message };
       }
-    }, [sessionRevision]);
+      };
+      const queued = sessionsWriteQueue.current.catch(function () {}).then(persist);
+      sessionsWriteQueue.current = queued;
+      const saved = await queued;
+      if (write === sessionsWriteSequence.current) {
+        if (saved && saved.ok !== false) loadCorpusStatus({ offset: 0 });
+        else setProjectBusy(false);
+      }
+      return saved;
+    }, [loadCorpusStatus]);
 
     const sessionsRef = useRef([]);
     const activeSessionRef = useRef("");
@@ -3968,48 +4619,56 @@
     useEffect(function () { sessionsRef.current = sessions; }, [sessions]);
     useEffect(function () { activeSessionRef.current = activeSession; }, [activeSession]);
     useEffect(function () { sessionRevisionRef.current = sessionRevision; }, [sessionRevision]);
-    useEffect(function () {
-      function flushSessions() {
-        fetch(API.sessions, {
-          method: "PUT",
-          headers: { "content-type": "application/json", "X-Requested-With": "fetch" },
-          body: JSON.stringify({
-            active: activeSessionRef.current,
-            sessions: sessionsRef.current,
-            revision: sessionRevisionRef.current
-          }),
-          keepalive: true
-        });
-      }
-      window.addEventListener("pagehide", flushSessions);
-      window.addEventListener("beforeunload", flushSessions);
-      return function () {
-        window.removeEventListener("pagehide", flushSessions);
-        window.removeEventListener("beforeunload", flushSessions);
-      };
-    }, []);
+    // Every session mutation enters the serialized writer. An extra unload PUT
+    // could overtake that queue with an older snapshot and resurrect closed tabs.
 
     const persistSessions = useCallback(async function (nextSessions, nextActive) {
+      sessionsRef.current = nextSessions;
+      activeSessionRef.current = nextActive;
       setSessions(nextSessions);
       setActiveSession(nextActive);
-      await putSessions(nextActive, nextSessions);
+      return await putSessions(nextActive, nextSessions);
     }, [putSessions]);
 
     const patchActiveSession = useCallback(async function (patch) {
-      const list = sessions.map(function (item) {
-        return item.id === activeSession ? Object.assign({}, item, patch) : item;
+      const owner = activeSessionRef.current;
+      const list = sessionsRef.current.map(function (item) {
+        return item.id === owner ? Object.assign({}, item, patch) : item;
       });
+      sessionsRef.current = list;
       setSessions(list);
-      await putSessions(activeSession, list);
-    }, [activeSession, sessions, putSessions]);
+      await putSessions(owner, list);
+    }, [putSessions]);
 
     function closeDialog() {
+      ++projectOperationSequence.current;
+      ++addDialogSequence.current;
+      ++openSequence.current;
+      setAddBusy(false);
       setDialog("");
       setDialogError("");
       setMenu("");
     }
 
-    function resetTabState(nextLocator) {
+    function beginProjectOperation() {
+      return { id: ++projectOperationSequence.current, generation: intentGeneration.current };
+    }
+
+    function projectOperationCurrent(operation) {
+      return Boolean(operation) && selectionMounted.current
+        && operation.id === projectOperationSequence.current
+        && operation.generation === intentGeneration.current;
+    }
+
+    function resetTabState(nextLocator, operation, keepDialog) {
+      if (operation && !projectOperationCurrent(operation)) return false;
+      if (!operation) ++projectOperationSequence.current;
+      if (!keepDialog) {
+        ++openSequence.current;
+        ++addDialogSequence.current;
+        setAddBusy(false);
+      }
+      setFocusLocator("");
       retireSelection();
       setDossier({ locator: canonicalLocator(nextLocator) });
       ensureSeqRef.current += 1;
@@ -4021,23 +4680,28 @@
       setPreview(null);
       setQuery("");
       setIngestNote("");
-      setDialog("");
+      if (!keepDialog) setDialog("");
       setRows([]);
       setTotal(0);
       setCheckedAddrs([]);
       setCheckAnchor("");
+      // Only this synchronous, already-authorized transition may rebase focus.
+      if (operation) operation.generation = intentGeneration.current;
+      return true;
     }
 
     function restoreTabSession(item) {
       resetTabState(item && item.locator);
       if (!item || !item.locator) return;
-      setSlug(item.projectSlug || "");
-      setProgram(item.program || "");
+      setSlug("");
+      setProgram("");
       changeTarget({ locator: canonicalLocator(item.locator) });
-      loadPreview(item.locator, beginSelection(null));
+      loadPreview(item.locator);
     }
 
     function selectProgram(name) {
+      setFocusLocator("");
+      changeTarget({ locator: currentLocator() });
       const picked = (name || "").trim();
       ensureSeqRef.current += 1;
       funcSeqRef.current += 1;
@@ -4151,6 +4815,8 @@
     useEffect(function bootstrapWorkbench() {
       selectionMounted.current = true;
       const bootNavigation = navigationGeneration.current;
+      const bootSessionWrite = sessionsWriteSequence.current;
+      const bootProjectOperation = projectOperationSequence.current;
       window.AgentDecompileUI = {
         announce: function (msg) {
           const pulse = document.getElementById("job-pulse");
@@ -4159,29 +4825,33 @@
       };
       window.KotorXidUI = window.AgentDecompileUI;
       loadBinaries();
-      loadCorpusStatus();
       loadActions();
       loadBrowse("");
       fetch(API.sessions, { cache: "no-store" }).then(function (res) { return res.json(); }).then(function (data) {
-        if (!selectionMounted.current || bootNavigation !== navigationGeneration.current) return;
+        // Context/default discovery can change the function target while this
+        // read is pending. That must not discard the persisted project tabs.
+        // Actual project operations or tab writes still supersede restoration.
+        if (!selectionMounted.current || bootSessionWrite !== sessionsWriteSequence.current
+          || bootProjectOperation !== projectOperationSequence.current) return;
+        const restoreFocus = bootNavigation === navigationGeneration.current;
         const list = data.sessions || [];
+        sessionsRef.current = list;
         setSessions(list);
         const activeId = data.active || (list[0] && list[0].id) || "";
+        activeSessionRef.current = activeId;
         setActiveSession(activeId);
-        if (data.revision != null) setSessionRevision(data.revision);
+        if (data.revision != null) { sessionRevisionRef.current = data.revision; setSessionRevision(data.revision); }
         const cur = list.find(function (item) { return item.id === activeId; }) || list[0];
         /* A deep link that names a build wins over the restored tab, otherwise
            /dashboard?window=…&binary=X silently shows a different build. */
         const pinned = start.get("slug") || start.get("binary") || "";
         const pinnedProgram = start.get("program") || "";
-        if (cur && cur.locator) {
-          if (!pinned) setSlug(cur.projectSlug || "");
-          if (!pinnedProgram) setProgram(cur.program || "");
+        if (cur && cur.locator && restoreFocus) {
+          if (!pinned) setSlug("");
+          if (!pinnedProgram) setProgram("");
           setDossier({ locator: canonicalLocator(cur.locator) });
-          loadPreview(cur.locator, beginSelection(null));
-        } else if (!pinned && cur && (cur.imports || []).length) {
-          const first = importSlug(cur.imports[0]);
-          if (first) setSlug(first);
+          beginSelection(null);
+          loadPreview(cur.locator);
         }
       }).catch(function () { /* next write creates a draft */ });
       fetch(API.ghidraDefaults, { cache: "no-store" }).then(function (res) { return res.json(); }).then(function (data) {
@@ -4242,17 +4912,7 @@
       loadContext();
     }, [loadContext]);
 
-    useEffect(function () {
-      loadPreparations();
-      const timer = window.setInterval(loadPreparations, 2000);
-      return function () { window.clearInterval(timer); };
-    }, [loadPreparations]);
-
-    useEffect(function () {
-      if (!dossier || !dossier.ok || program) return;
-      const names = (dossier.programs || []).map(programName).filter(Boolean);
-      if (names.length === 1) setProgram(names[0]);
-    }, [dossier, program]);
+    // Opening a project leaves focus empty, including single-program projects.
 
     useEffect(function () {
       /* Reset paging on the same tick as the slug change so we do not fetch the
@@ -4268,9 +4928,9 @@
     }, [slug, program, query, funcOffset, funcLimit, loadFuncs]);
 
     useEffect(function () {
-      if (centerTab === "wb-match") loadMatchStatus();
+      if (editorTabFor(centerTab) === "wb-pipeline") loadPreparations();
       if (centerTab === "wb-recovery") loadRecoverStatus();
-    }, [centerTab, loadMatchStatus, loadRecoverStatus]);
+    }, [centerTab, loadPreparations, loadRecoverStatus]);
 
     /* A deep link from the old browse page names an address; land on that row so
        the link means the same thing it used to. Disarm after the first page so
@@ -4327,23 +4987,38 @@
     }, [binaries]);
 
     useEffect(function () {
-      if (running.length) openLogJobs();
-    }, [running.length]);
-
-    useEffect(function () {
       if (!selectedJobId) {
         setJobDetail(null);
+        setJobDetailLoading(false);
+        setJobDetailError("");
         return undefined;
       }
       let dead = false;
-      fetch(API.jobs + "/" + encodeURIComponent(selectedJobId), { cache: "no-store" })
-        .then(function (res) { return res.json(); })
-        .then(function (data) {
-          if (!dead) setJobDetail(data.job || null);
+      setJobDetail(null);
+      setJobDetailLoading(true);
+      setJobDetailError("");
+      fetch(API.jobs + "/" + encodeURIComponent(selectedJobId), {
+        cache: "no-store", signal: AbortSignal.timeout(15000)
+      })
+        .then(function (res) {
+          if (!res.ok) throw new Error("Job detail request failed (" + res.status + ")");
+          return res.json();
         })
-        .catch(function () { if (!dead) setJobDetail(null); });
+        .then(function (data) {
+          if (dead) return;
+          const job = data.job || null;
+          setJobDetail(job);
+          if (!job) setJobDetailError("No retained detail was returned for this job.");
+        })
+        .catch(function (err) {
+          if (dead) return;
+          setJobDetailError(err && err.name === "TimeoutError"
+            ? "Job detail request timed out after 15 seconds."
+            : "Could not load job detail: " + String(err && err.message || err));
+        })
+        .finally(function () { if (!dead) setJobDetailLoading(false); });
       return function () { dead = true; };
-    }, [selectedJobId, jobs]);
+    }, [selectedJobId, jobs, jobDetailReload]);
 
     useEffect(function () {
       function onPaletteKey(ev) {
@@ -4460,39 +5135,6 @@
       writeUiPref("wb-decompile-open", decompileOpenNarrow ? "1" : "0");
     }, [decompileOpenNarrow]);
 
-    useEffect(function () {
-      let last = "";
-      async function poll() {
-        try {
-          const res = await fetch(API.jobs, { cache: "no-store" });
-          const data = await res.json();
-          const list = data.jobs || [];
-          const note = jobsSnapshotRef.current === null ? "" : jobLiveAnnouncement(jobsSnapshotRef.current, list);
-          jobsSnapshotRef.current = list;
-          if (note) {
-            setJobLiveText(note);
-            showToast(note, /failed|cancelled/.test(note) ? "error" : "info");
-          }
-          setJobs(list);
-          const sig = list.map(function (job) { return job.id + job.status + job.returncode; }).join("|");
-          if (sig !== last) {
-            last = sig;
-            loadBinaries();
-            loadFuncs();
-          }
-          const live = list.find(function (job) { return job.status === "running"; });
-          if (live) {
-            const detailRes = await fetch(API.jobs + "/" + live.id, { cache: "no-store" });
-            const body = await detailRes.json();
-            if (body.job) setReaction({ id: body.job.actionId || live.id, data: body });
-          }
-        } catch (_err) { /* keep last frame */ }
-      }
-      poll();
-      const timer = setInterval(poll, 1500);
-      return function () { clearInterval(timer); };
-    }, [loadBinaries, loadFuncs]);
-
     async function registerLocator(locator, extraSlug, options) {
       let operationGeneration = intentGeneration.current;
       const operationCurrent = function () { return selectionMounted.current && operationGeneration === intentGeneration.current; };
@@ -4531,6 +5173,43 @@
       fileRef.current.click();
     }
 
+    function triggerAddFileUpload() {
+      if (!addFileRef.current) return;
+      addFileRef.current.value = "";
+      addFileRef.current.click();
+    }
+
+    async function stageAddFile(file) {
+      if (!file) return;
+      const sequence = ++addDialogSequence.current;
+      const generation = intentGeneration.current;
+      const owner = currentLocator();
+      const currentUpload = function () { return sequence === addDialogSequence.current && generation === intentGeneration.current && owner === currentLocator() && selectionMounted.current; };
+      setAddBusy(true);
+      setDialogError("");
+      try {
+      const form = new FormData();
+      form.append("file", file, file.name);
+      form.append("paths", JSON.stringify([file.name]));
+      const res = await fetch(API.stageDrop, { method: "POST", body: form });
+      if (!currentUpload()) return;
+      const data = await res.json();
+      if (!currentUpload()) return;
+      if (!res.ok || !data.ok || !data.root || !data.relative_paths || !data.relative_paths[0]) {
+        failDialog(data.error || "Could not stage the selected file.");
+        return;
+      }
+      const stagedPath = data.root.replace(/[\\/]+$/, "") + "/" + data.relative_paths[0];
+      setAddPath(stagedPath);
+      setAddFileName(file.name);
+      setDialogError("");
+      } catch (error) {
+        if (currentUpload()) failDialog("Could not stage file: " + String(error.message || error));
+      } finally {
+        if (sequence === addDialogSequence.current) setAddBusy(false);
+      }
+    }
+
     function triggerFolderUpload() {
       if (!folderRef.current) return;
       folderRef.current.value = "";
@@ -4557,9 +5236,9 @@
       await persistSessions(list, activeSession);
     }
 
-    async function createTabProject(preferredName) {
-      let operationGeneration = intentGeneration.current;
-      const operationCurrent = function () { return selectionMounted.current && operationGeneration === intentGeneration.current; };
+    async function createTabProject(preferredName, operation) {
+      if (!projectOperationCurrent(operation)) return null;
+      const operationCurrent = function () { return projectOperationCurrent(operation); };
       const session = sessions.find(function (item) { return item.id === activeSession; }) || currentSession;
       if (tabHasRealProject(session)) {
         return { ok: true, list: sessions, id: activeSession, projectSlug: session.projectSlug || "" };
@@ -4577,107 +5256,101 @@
         showToast(data.error || "Could not create a project.", "error");
         return null;
       }
-      return openLocator(data.locator || data.gpr, data.slug || projectName);
+      return openLocator(data.locator || data.gpr, data.slug || projectName, { operation: operation, keepDialog: true });
     }
 
     async function openLocator(locator, title, options) {
       const opts = options || {};
+      const operation = opts.operation || beginProjectOperation();
+      if (!projectOperationCurrent(operation)) return null;
       const value = (locator || "").trim();
       if (!value) return null;
-      const sameProject = Boolean(
-        currentSession
-        && tabHasRealProject(currentSession)
-        && String(currentSession.locator || "").trim() === value
-      );
-      const prevSlug = slug;
-      const prevProgram = program;
-      const prevImports = sessionImportSlugs(currentSession);
-      if (!sameProject && !opts.refresh) {
-        resetTabState(value);
-      }
-      retireSelection();
-      const openGeneration = intentGeneration.current;
-      const inspectedRes = await fetch(API.inspect + "?locator=" + encodeURIComponent(value), { cache: "no-store" });
-      if (openGeneration !== intentGeneration.current || !selectionMounted.current) return null;
+      const request = ++openSequence.current;
+      const isCurrent = function () { return request === openSequence.current && projectOperationCurrent(operation); };
+      try {
+      const inspectedRes = await fetch(API.inspect + "?locator=" + encodeURIComponent(value), { cache: "no-store", signal: AbortSignal.timeout(15000) });
+      if (!isCurrent()) return null;
       const inspected = await inspectedRes.json();
-      if (openGeneration !== intentGeneration.current || !selectionMounted.current) return null;
-      if (!inspected.ok) {
+      if (!isCurrent()) return null;
+      if (!inspectedRes.ok || !inspected.ok) {
         showToast(inspected.error || "Could not load that project.", "error");
         setDialogError(inspected.error || "Could not load that project.");
         return null;
       }
-      const regSlug = String(inspected.slug || newSlug || "").trim();
-      let registered = { ok: true, binary: { slug: regSlug } };
-      // Projects and repository trees are opened, never registered as binaries;
-      // the server refuses that. Each program resolves its own corpus slug.
-      const projectKind = ["ghidra-project", "shared-fs", "shared-project"].indexOf(inspected.kind) >= 0;
-      if (!projectKind && (!sameProject || !currentSession.projectSlug)) {
-        registered = await registerLocator(value, regSlug, { quiet: true });
-        if (openGeneration !== intentGeneration.current || !selectionMounted.current) return null;
-        if (!registered.ok) {
-          showToast(registered.error || "Could not register that project.", "error");
-          setDialogError(registered.error || "Could not register that project.");
+      if (inspected.kind === "project-collection" && Array.isArray(inspected.projects)) {
+        // A folder containing several .gpr files is a chooser, not a project.
+        // Opening it must not silently select a sibling or create a fake tab.
+        const collection = String(inspected.canonical || inspected.locator || value);
+        ++browseReadSequence.current;
+        if (browseReadController.current) browseReadController.current.abort();
+        setBrowseBusy(false);
+        setOpenPaste(collection);
+        setOpenTab("local");
+        ++browseDialogEpoch.current;
+        setDialog("open");
+        setBrowse({ ok: true, path: collection,
+          parent: collection.replace(/\/+$/, "").replace(/\/[^/]*$/, "") || "/",
+          kind: "project-collection", entries: inspected.projects.filter(function (project) { return project && project.locator; }).map(function (project) {
+            return { name: project.name || project.locator, path: project.locator, kind: "ghidra-project", programs: project.programs || [] };
+          }) });
+        setDialogError("");
+        return { ok: false, requiresSelection: true, inspected: inspected };
+      }
+      if (!["ghidra-project", "shared-fs", "shared-project", "project-collection"].includes(inspected.kind)) {
+        if (!["binary", "packed-program"].includes(inspected.kind)) {
+          failDialog("This item is not an openable project or importable binary (" + String(inspected.kind || "unknown") + ").");
           return null;
         }
+        openAddToProjectDialog();
+        setAddPath(value);
+        setAddFileName(value.split(/[/\\]/).pop());
+        return null;
       }
-      const projectSlug = (registered.binary && registered.binary.slug) || regSlug || (currentSession && currentSession.projectSlug) || "";
-      const nextTitle = title || inspected.slug || (currentSession && currentSession.title) || "Project";
-      const kind = inspected.kind || "ghidra-project";
-      const programs = (inspected.programs || []).map(programName).filter(Boolean);
-      const firstProgram = programs.length ? programs[0] : "";
-      const keptImports = preservedImports(currentSession, projectSlug || "");
-      const mergedImports = mergeImportSlugs(prevImports, keptImports, projectSlug || "");
-      const nextProgram = sameProject && prevProgram ? prevProgram : firstProgram;
-      let list = sessions.slice();
-      let id = activeSession;
-      if (!list.length || !id) {
-        id = "s" + Date.now();
-        list = [{
-          id: id,
-          title: nextTitle,
-          kind: kind,
-          locator: value,
-          projectSlug: projectSlug || "",
-          imports: mergedImports,
-          program: nextProgram,
-          created: Date.now()
-        }];
-      } else {
-        list = list.map(function (item) {
-          if (item.id !== id) return item;
-          return Object.assign({}, item, {
-            title: nextTitle,
-            kind: kind,
-            locator: value,
-            projectSlug: projectSlug || "",
-            imports: mergedImports,
-            program: nextProgram
-          });
-        });
-      }
-      list = list.filter(function (item) {
-        if (item.id === id) return true;
-        return tabHasRealProject(item) || sessionImportSlugs(item).length;
-      });
+      const canonical = canonicalLocator(inspected.canonical || inspected.gpr || inspected.locator || value);
+      let list = sessionsRef.current.slice();
+      const existing = list.find(function (item) { return canonicalLocator(item.locator) === canonical; });
+      const draft = list.find(function (item) { return item.id === activeSessionRef.current && item.kind === "draft" && !item.locator && !sessionImportSlugs(item).length && !item.program && !item.projectSlug; });
+      const id = existing ? existing.id : draft ? draft.id : "s" + Date.now() + Math.random().toString(16).slice(2, 6);
+      const nextTitle = existing && existing.title || title || inspected.slug || "Project";
+      const projectSlug = existing && existing.projectSlug || "";
+      const opened = Object.assign({}, existing || draft || {}, { id: id, title: nextTitle,
+        kind: inspected.kind, locator: canonical, projectSlug: projectSlug,
+        imports: existing && existing.imports || [], program: "", created: existing && existing.created || Date.now() });
+      if (existing || draft) list = list.map(function (item) { return item.id === id ? opened : item; });
+      else list.push(opened);
+      // Keep this open request alive while its project-tab selection is saved.
+      // Closing/resetting the dialog here invalidates openSequence, making the
+      // successful persistence response look stale before it can finish.
+      if (!resetTabState(canonical, operation, true)) return null;
       setDossier(inspected);
       setPreview(inspected);
-      const nextSlug = sameProject && prevSlug ? prevSlug : (projectSlug || "");
-      setSlug(nextSlug);
-      setProgram(nextProgram);
+      sessionsRef.current = list;
+      activeSessionRef.current = id;
       setSessions(list);
       setActiveSession(id);
+      setCenterTab("wb-overview");
       const openIntent = beginSelection(null);
-      const saved = await putSessions(id, list, undefined, { admitOpen: true });
-      if (!isCurrentIntent(openIntent)) return null;
+      operation.generation = intentGeneration.current;
+      const saved = await putSessions(id, list, undefined, { admitOpen: false });
+      if (!projectOperationCurrent(operation) || !isCurrentIntent(openIntent)) return null;
+      if (!saved || saved.ok === false) {
+        if (!saved || !saved.ignored) {
+          setDialogError(saved && saved.error || "The project was read, but its tab could not be saved. Retry opening it.");
+        }
+        return null;
+      }
       const admission = saved && saved.preparation;
       setIngestNote("Loaded " + nextTitle + (admission
         ? " · Recovery " + admission.status + " · run " + (admission.id || "unavailable")
           + " · generation " + (admission.generation || "not recorded")
           + " · queue " + (admission.queuePosition == null ? (admission.admissionPending ? "position pending" : "not queued") : admission.queuePosition)
           + (admission.reason ? " · " + admission.reason : "") : ""));
-      closeDialog();
-      if (nextProgram) ensureGhidraProgram(nextProgram, { quiet: true, locator: value, intent: openIntent });
+      if (!opts.keepDialog) closeDialog();
       return { ok: true, list: list, id: id, projectSlug: projectSlug || "", inspected: inspected, intent: openIntent };
+      } catch (error) {
+        if (isCurrent()) failDialog("Could not open project: " + String(error.message || error));
+        return null;
+      }
     }
 
     function builtSharedUrl() {
@@ -4715,11 +5388,11 @@
         created: Date.now()
       };
       resetTabState();
-      await persistSessions(sessions.concat([item]), id);
+      await persistSessions(sessionsRef.current.concat([item]), id);
     }
 
     async function closeTab(id) {
-      const remain = sessions.filter(function (item) { return item.id !== id; });
+      const remain = sessionsRef.current.filter(function (item) { return item.id !== id; });
       if (!remain.length) {
         const fresh = {
           id: "s" + Date.now(),
@@ -4746,7 +5419,7 @@
 
     async function renameTab(id, title) {
       const name = (title || "").trim() || "Untitled";
-      const list = sessions.map(function (item) {
+      const list = sessionsRef.current.map(function (item) {
         return item.id === id ? Object.assign({}, item, { title: name }) : item;
       });
       await persistSessions(list, activeSession);
@@ -4754,25 +5427,26 @@
     }
 
     async function createProject() {
-      const generation = intentGeneration.current;
+      const operation = beginProjectOperation();
       const res = await fetch(API.projects, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ name: (currentSession && currentSession.title) || "Project" })
       });
       const data = await res.json();
-      if (generation !== intentGeneration.current || !selectionMounted.current) return;
+      if (!projectOperationCurrent(operation)) return;
       if (!data.ok) {
         const err = data.error || "Could not create a local project.";
         setIngestNote(err);
         showToast(err, "error");
         return;
       }
-      await openLocator(data.locator || data.gpr, data.slug);
+      await openLocator(data.locator || data.gpr, data.slug, { operation: operation });
     }
 
     function currentLocator() {
-      return targetRef.current.locator;
+      const owner = sessionsRef.current.find(function (item) { return item.id === activeSessionRef.current; });
+      return canonicalLocator(owner && owner.locator || "");
     }
 
     /* Reload answers "did my change on disk land?" without losing the tab layout: it
@@ -4790,7 +5464,7 @@
         if (!isCurrentIntent(intent)) return;
         await loadActions();
         if (!isCurrentIntent(intent)) return;
-        await loadPreview(locator, intent);
+        await loadPreview(locator);
         if (!isCurrentIntent(intent)) return;
         await loadFuncs(intent.target.slug, query, intent);
         if (!isCurrentIntent(intent)) return;
@@ -4808,6 +5482,7 @@
       let operationGeneration = intentGeneration.current;
       const operationCurrent = function () { return selectionMounted.current && operationGeneration === intentGeneration.current; };
       const locator = currentLocator();
+      if (!locator) { showToast("Open or create a project before saving.", "warning"); return null; }
       const prevSlug = slug;
       const prevProgram = program;
       const res = await fetch(API.save, {
@@ -4840,15 +5515,22 @@
       if (!operationCurrent()) return null;
       if (prevSlug) setSlug(prevSlug);
       if (prevProgram) setProgram(prevProgram);
-      showToast("Saved " + title, "success");
+      showToast(data.state === "partial" || data.saved === false
+        ? (data.message || "Program changes persisted; complete project save is not yet confirmed.")
+        : "Saved " + title, data.state === "partial" || data.saved === false ? "warning" : "success");
       setMenu("");
       return data;
     }
 
     function openSaveAsDialog() {
+      ++projectOperationSequence.current;
+      ++openSequence.current;
+      ++addDialogSequence.current;
+      setAddBusy(false);
       setDialogError("");
       setSaveAsTarget("ghidra-project");
-      setSaveAsName((currentSession && currentSession.title) || (dossier && dossier.slug) || "Project");
+      const sourceName = dossier && dossier.slug || String(currentSession && currentSession.locator || "").replace(/\\/g, "/").split("/").pop();
+      setSaveAsName(String(sourceName || currentSession && currentSession.title || "Project").replace(/\.gpr$/i, "").replace(/^[^:]+:\s*/, ""));
       setSaveAsDest("");
       setSaveAsUrl(sharedUrl || builtSharedUrl() || "");
       setDialog("save-as");
@@ -4856,8 +5538,8 @@
     }
 
     async function submitSaveAs(ev) {
-      let operationGeneration = intentGeneration.current;
-      const operationCurrent = function () { return selectionMounted.current && operationGeneration === intentGeneration.current; };
+      const operation = beginProjectOperation();
+      const operationCurrent = function () { return projectOperationCurrent(operation); };
       if (ev) ev.preventDefault();
       setDialogError("");
       if (!(saveAsName || "").trim()) {
@@ -4886,13 +5568,17 @@
         failDialog(data.error || "Save As failed.");
         return data;
       }
-      closeDialog();
+      if (data.saved === false || data.project_metadata_saved === false || data.state === "partial") {
+        failDialog(data.reason || data.origin_note || "The server did not confirm a complete project save. No successful copy is being claimed.");
+        return data;
+      }
       const next = saveAsTarget === "shared-project"
         ? (data.http_locator || data.locator || data.local_checkout || data.gpr)
         : (data.locator || data.local_checkout || data.gpr);
       if (next && next !== currentLocator()) {
         const carryImports = sessionImportSlugs(currentSession);
-        const opened = await openLocator(next, data.slug || saveAsName);
+        const opened = await openLocator(next, data.slug || saveAsName, { operation: operation });
+        if (!opened || !opened.ok) return null;
         if (opened && opened.ok && isCurrentIntent(opened.intent) && carryImports.length) {
           const list = opened.list.map(function (item) {
             if (item.id !== opened.id) return item;
@@ -4905,6 +5591,7 @@
       } else if (next) {
         setDossier(data);
         setPreview(data);
+        closeDialog();
       }
       showToast("Saved as " + kindTitle(data.kind || saveAsTarget) + (data.origin_note ? ". " + data.origin_note : ""), "success");
       if (data.origin_note) setIngestNote(data.origin_note);
@@ -4912,6 +5599,11 @@
     }
 
     function openProjectDialog(tab) {
+      ++browseDialogEpoch.current;
+      ++projectOperationSequence.current;
+      ++openSequence.current;
+      ++addDialogSequence.current;
+      setAddBusy(false);
       setOpenTab(tab === "remote" ? "remote" : "local");
       setDialogError("");
       setDialog("open");
@@ -4927,29 +5619,15 @@
     }
 
     async function openPastedPath() {
+      if (browseOpening) return;
       const value = (openPaste || "").trim();
       setDialogError("");
       if (!value) {
         failDialog("Paste a folder, .gpr, binary, or ghidra:// URL.");
         return;
       }
-      if (/^(ghidra|http|https):\/\//i.test(value)) {
-        await openLocator(value, value.split("/").pop() || "shared");
-        return;
-      }
-      const generation = intentGeneration.current;
-      const inspectRes = await fetch(API.inspect + "?locator=" + encodeURIComponent(value), { cache: "no-store" });
-      if (generation !== intentGeneration.current || !selectionMounted.current) return;
-      const inspected = await inspectRes.json();
-      if (generation !== intentGeneration.current || !selectionMounted.current) return;
-      if (inspected.ok && (inspected.kind === "shared-fs" || inspected.kind === "ghidra-project" || inspected.kind === "shared-project")) {
-        await openLocator(value, inspected.slug || value);
-        return;
-      }
-      if (!inspected.ok && inspected.error) {
-        setDialogError(inspected.error);
-      }
-      await openBinaryPath(value);
+      // One inspect/router and one operation token cover every locator kind.
+      await openBrowseEntry({ path: value, kind: "project-collection" });
     }
 
     /* Navigating closes the overflow menu the way a desktop menu closes on pick; the
@@ -4957,11 +5635,9 @@
     function jumpTo(id) {
       setMenu("");
       setMoreOpen(false);
+      if (id !== "wb-sidebar") setFilesOpen(false);
       if (id === "wb-sidebar") {
-        const el = document.getElementById("wb-sidebar");
-        if (el) el.scrollIntoView({ block: "nearest" });
-        const first = el && el.querySelector("button, input");
-        if (first) first.focus();
+        setFilesOpen(true);
         return;
       }
       if (id === "wb-jobs") {
@@ -4969,14 +5645,17 @@
         return;
       }
       const tab = editorTabFor(id);
+      if (["graph", "wb-graph"].includes(id)) setComparisonMode("calls");
+      if (["decompile", "wb-inspect", "inspect"].includes(id)) setComparisonMode("code");
+      if (id === "listing") setComparisonMode("listing");
       setCenterTab(tab);
-      scrollToSurface(id === "wb-inspect" ? "wb-inspect" : tab);
+      if (["wb-match", "wb-review"].includes(id)) { scrollToSurface("wb-match-analysis"); return; }
+      const contextual = ["wb-fnbrowse", "wb-functions", "decompile", "inspect", "wb-inspect", "graph", "wb-graph"].includes(id);
+      scrollToSurface(contextual ? id : tab);
     }
 
     function jumpToCorpus(surfaceId) {
-      setMoreOpen(false);
-      setCenterTab(editorTabFor(surfaceId));
-      scrollToSurface(surfaceId);
+      jumpTo(surfaceId);
     }
 
     function askConfirm(opts) {
@@ -4996,10 +5675,11 @@
       setConfirmDialog(null);
     }
 
-    function openActionStrip(actionId) {
+    function openActionStrip(actionId, initialParameters) {
       if (actionId) setLastActionId(actionId);
       setPendingActionId(actionId || "");
-      setActionExpanded(false);
+      setPendingActionParams(initialParameters || {});
+      setActionExpanded(Boolean(initialParameters && Object.keys(initialParameters).length));
     }
 
     function openCtx(ev, items) {
@@ -5068,6 +5748,7 @@
         "—",
         { id: "file.save" },
         { id: "file.save-as" },
+        { id: "file.download-source" },
         "—",
         { title: "Copy project path", run: function () { copyText(currentLocator(), "project path"); } },
         "—",
@@ -5104,6 +5785,7 @@
 
     function runCommand(id, extra) {
       extra = extra || {};
+      if (id !== "view.explorer") setFilesOpen(false);
       setCtxMenu(null);
       setMenu("");
       if (id === "file.new-project") { createProject(); showToast("New project"); return; }
@@ -5112,7 +5794,14 @@
       if (id === "file.open-url") { openProjectDialog("remote"); showToast("Open from URL…"); return; }
       if (id === "file.save") { saveProject(); return; }
       if (id === "file.save-as") { openSaveAsDialog(); showToast("Save As…"); return; }
+      if (id === "file.download-source") { downloadProjectSource(); return; }
+      if (id === "view.panels") { setDialog("panels"); return; }
+      if (id === "view.match-receipts") { setDialog("match-receipts"); return; }
       if (id === "file.checkin") {
+        if (focusLocator && canonicalLocator(focusLocator) !== currentLocator()) {
+          showToast("Choose a program in the active project before checking it in. The compared function belongs to another project.", "warning");
+          return;
+        }
         const kind = (dossier && dossier.kind) || (currentSession && currentSession.kind) || "";
         const loc = currentLocator();
         const isServer = kind === "shared-project" || String(loc).indexOf("ghidra://") === 0;
@@ -5134,6 +5823,7 @@
         return;
       }
       if (id === "file.open-program") {
+        if (focusLocator && canonicalLocator(focusLocator) !== currentLocator()) { showToast("Choose a program in the active project first.", "warning"); return; }
         if (!program) { showToast("Select a program first", "error"); return; }
         ensureGhidraProgram(program, { locator: currentLocator() });
         return;
@@ -5173,7 +5863,7 @@
          Toasting it as well buries the notifications that report real outcomes. */
       if (id === "view.palette") { setPaletteOpen(true); setPaletteQuery(""); return; }
       if (id === "view.jobs") { jumpTo("wb-jobs"); return; }
-      if (id === "view.listing") { jumpTo("decompile"); return; }
+      if (id === "view.listing") { jumpTo("listing"); return; }
       if (id === "view.browse") { jumpTo("wb-fnbrowse"); return; }
       if (id === "view.logical") { jumpTo("wb-logical"); return; }
       if (id === "view.inspect") { jumpTo("wb-inspect"); return; }
@@ -5282,6 +5972,10 @@
       openLogJobs();
     }
 
+    function retryJobDetail() {
+      setJobDetailReload(function (value) { return value + 1; });
+    }
+
     async function cancelJob(jobId) {
       if (!jobId) return;
       try {
@@ -5321,12 +6015,12 @@
         kb: envDefaults.kb || "",
         recovered: recoveredRoot || "",
         tabSlugs: tabSlugs,
-        tabRows: tabRows.length ? tabRows : binaries.slice(0, 32),
-        allBinaries: binaries,
+        tabRows: (corpusStatus && corpusStatus.builds || []).filter(function (row) { return row.slug && row.bindingState !== "ambiguous" && row.repositoryBindingState !== "unresolved"; }).map(function (row) { return binaries.find(function (b) { return b.slug === row.slug; }); }).filter(Boolean),
+        allBinaries: binaries.filter(function (b) { return (corpusStatus && corpusStatus.builds || []).some(function (row) { return row.slug === b.slug; }); }),
         programs: projectNames,
         functions: rows
       };
-    }, [binaries, slug, program, selected, rows, currentSession, dossier, envDefaults, recoveredRoot]);
+    }, [binaries, slug, program, selected, rows, currentSession, dossier, envDefaults, recoveredRoot, corpusStatus]);
 
     function liveToolContext() {
       const target = targetRef.current;
@@ -5371,6 +6065,16 @@
         return null;
       }
       const params = paramOverrides || {};
+      if ((act.mutating || act.danger) && actionId.indexOf("mcp.") === 0) {
+        const nativeContext = opts.targetContext || currentContext;
+        const nativeProgram = canonicalProgram(params.program || nativeContext.program);
+        const nativeLocator = canonicalLocator(params.locator || nativeContext.locator);
+        const bindings = projectBuilds.filter(function (build) { return canonicalLocator(build.locator) === nativeLocator && canonicalProgram(build.program) === nativeProgram; });
+        if (bindings.length !== 1 || bindings[0].bindingState === "ambiguous" || bindings[0].repositoryBindingState === "unresolved") {
+          showToast("Native changes require one unambiguous project/program binding. Review the project membership before running this command.", "warning");
+          return null;
+        }
+      }
       const checkedRows = rows.filter(function (row) { return checkedAddrs.indexOf(row.addr) >= 0; });
       const batchTargets = opts.batch === false
         ? []
@@ -5433,6 +6137,17 @@
           body: JSON.stringify(body)
         });
         data = await res.json();
+        // Some hot-reloaded catalog actions are newer than the action-specific
+        // routes mounted when the server started. Keep them on the same job
+        // runner and admission path through the stable dashboard endpoint.
+        if (res.status === 404) {
+          res = await fetch("/dashboard/api/jobs", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ action: actionId, params: params, context: ctx, confirm: true })
+          });
+          data = await res.json();
+        }
       } catch (err) {
         const message = "Action request failed: " + String((err && err.message) || err);
         if (!opts.quiet) showToast(message, "error");
@@ -5448,12 +6163,16 @@
       pushRecentActionId(actionId);
       setRecentActionIds(readRecentActionIds());
       if (data.job && data.job.id) {
+        setJobs(function (previous) {
+          return [Object.assign({ actionId: actionId }, data.job), ...previous.filter(function (job) { return job.id !== data.job.id; })];
+        });
         openLogJobs();
         setSelectedJobId(data.job.id);
         if (!opts.quiet) showToast("Job " + data.job.id + " — " + (act.title || actionId), "info");
       } else if (data.argv && !opts.quiet) {
         showToast("Dry run: " + data.argv.join(" "), "success");
       }
+      if (!data.job && !data.argv) loadCorpusStatus();
       if (String(actionId).indexOf("decompile") >= 0 || String(actionId).indexOf("rename") >= 0) {
         loadBinaries();
         if (isCurrentIntent(actionIntent)) {
@@ -5463,6 +6182,91 @@
         }
       }
       return data;
+    }
+
+    async function downloadProjectSource() {
+      const owner = currentSession;
+      const identity = projectUniverse && projectUniverse.corpusIdentity;
+      if (!owner || !owner.locator || !identity) {
+        showToast("Load project facts before downloading its source. No export was started.", "warning");
+        return;
+      }
+      const actionId = "workbench.export-project-source-zip";
+      if (!actions.some(function (action) { return action.id === actionId; })) {
+        await loadActions();
+        showToast("Project source export is not in the loaded catalog yet. The catalog was refreshed; try again.", "warning");
+        return;
+      }
+      const key = JSON.stringify([owner.id, owner.locator, identity]);
+      let entry = projectSourceRequests.current.get(key);
+      if (entry && entry.waiting) return;
+      const context = liveToolContext();
+      const current = function () {
+        const session = sessionsRef.current.find(function (item) { return item.id === activeSessionRef.current; });
+        return selectionMounted.current && session && session.id === owner.id && session.locator === owner.locator && liveToolContext().db === context.db;
+      };
+      if (!entry) {
+        entry = { waiting: true, jobId: null, result: null, uncertain: false };
+        projectSourceRequests.current.set(key, entry);
+        setProjectSourceState({ owner: owner.id, status: "waiting" });
+        try {
+          const admission = await executeAction(actionId, { project_id: owner.id, corpus_identity: identity, locator: owner.locator }, { skipConfirm: true, batch: false, quiet: true, targetContext: context });
+          if (!admission) { entry.uncertain = true; throw new Error("Export admission could not be confirmed. Check Activity before trying another export."); }
+          entry.jobId = admission.job && admission.job.id;
+          if (!entry.jobId) entry.result = admission;
+        } catch (error) {
+          entry.waiting = false;
+          setProjectSourceState(function (state) {
+            return state && state.owner === owner.id ? { owner: owner.id, status: "uncertain" } : state;
+          });
+          if (current()) showToast(String(error.message || error), "error");
+          return;
+        }
+      }
+      if (entry.uncertain) {
+        if (current()) showToast("The previous admission is uncertain. Check Activity; no duplicate export was submitted.", "warning");
+        return;
+      }
+      entry.waiting = true;
+      if (current()) setProjectSourceState({ owner: owner.id, status: "waiting" });
+      try {
+        const deadline = Date.now() + 60000;
+        while (!entry.result && Date.now() < deadline && current()) {
+          const response = await fetch(API.jobs + "/" + encodeURIComponent(entry.jobId), { cache: "no-store", signal: AbortSignal.timeout(10000) });
+          if (!response.ok) throw new Error("Could not inspect source export " + entry.jobId + ". Check the existing export; no duplicate will be submitted.");
+          const packet = await response.json(), job = packet.job;
+          if (!job || job.id !== entry.jobId) throw new Error("Source export job identity did not match.");
+          if (job.status === "ok") {
+            const log = String(job.log || ""), newline = log.indexOf("\n");
+            entry.result = JSON.parse(newline >= 0 ? log.slice(newline + 1) : log);
+          } else if (["error", "failed", "cancelled", "canceled"].includes(job.status)) {
+            throw new Error(job.error || "Source export " + job.status + ". Inspect Activity for its recorded error.");
+          } else await new Promise(function (resolve) { window.setTimeout(resolve, 750); });
+        }
+        if (!current()) return;
+        if (!entry.result) {
+          setProjectSourceState({ owner: owner.id, status: "pending" });
+          showToast("The source export is still queued or preparing. Check source download to reconnect to the same job.", "info");
+          return;
+        }
+        const result = entry.result;
+        if (!result.ok || result.scope !== "project" || !result.project || result.project.id !== owner.id || !/^\/dashboard\/api\/workbench\/source-archives\/[a-f0-9]{32}\/download$/.test(result.downloadUrl || "")) throw new Error(result.error || "The source export did not return a project-bound download.");
+        const link = document.createElement("a");
+        link.href = result.downloadUrl; link.download = result.filename || "project-source.zip";
+        document.body.appendChild(link); link.click(); link.remove();
+        setProjectSourceState({ owner: owner.id, status: "ready" });
+        showToast(result.partial ? "Project source snapshot downloaded. Its manifest lists missing source; this is not a complete matching-C build." : "Project source snapshot downloaded. Compilation and byte parity are not established by this export.", result.partial ? "warning" : "success");
+      } catch (error) {
+        if (current()) { setProjectSourceState({ owner: owner.id, status: "pending" }); showToast(String(error.message || error), "error"); }
+      } finally {
+        entry.waiting = false;
+        // Leaving a tab stops observation, not its admitted export. Allow the
+        // same project to reconnect when revisited without admitting a duplicate.
+        setProjectSourceState(function (state) {
+          return state && state.owner === owner.id && state.status === "waiting"
+            ? { owner: owner.id, status: "pending" } : state;
+        });
+      }
     }
 
     /* Pause, resume and stop are the only workflow controls (R4). They post the
@@ -5494,69 +6298,107 @@
     async function runReadAction(actionId, params, options) {
       const opts = options || {};
       const readScope = targetKey;
+      const readGeneration = intentGeneration.current;
       const readCurrent = function () { return selectionMounted.current && readScope === targetIdentity(targetRef.current)
-        && (!opts.selectionIntent || isCurrentIntent(opts.selectionIntent)); };
+        && readGeneration === intentGeneration.current
+        && (!opts.selectionIntent || isCurrentIntent(opts.selectionIntent)) && !(opts.signal && opts.signal.aborted); };
       const ignored = { ok: false, ignored: true, error: "Selection target changed.", elapsedMs: 0 };
       if (!readCurrent()) return ignored;
       const readContext = liveToolContext();
       const t0 = (window.performance && performance.now) ? performance.now() : Date.now();
       const elapsed = function () { return ((window.performance && performance.now) ? performance.now() : Date.now()) - t0; };
+      const timeoutMs = Number.isFinite(opts.timeoutMs) && opts.timeoutMs > 0 ? Math.max(1,Math.floor(Math.min(opts.timeoutMs,2147483647))) : 5000;
+      const deadline = AbortSignal.timeout(timeoutMs);
+      const readSignal = opts.signal ? AbortSignal.any([opts.signal, deadline]) : deadline;
       const act = actions.find(function (item) { return item.id === actionId; });
       if (!act) return { ok: false, error: "Unknown action " + actionId, elapsedMs: elapsed() };
       if (act.danger || act.mutating || act.long_running) {
         return { ok: false, error: actionId + " is not a confirmed read-only action; refusing to auto-run it.", elapsedMs: elapsed() };
       }
+      const parameters = params || {};
       const loc = readContext.locator || "";
       const ctx = {
         slug: readContext.slug || "",
         program: readContext.program || "",
         repo: readContext.repo || "",
-        addr: params.addr || readContext.addr || "",
-        name: params.name || readContext.name || "",
+        addr: parameters.addr ?? readContext.addr ?? "",
+        name: parameters.name ?? readContext.name ?? "",
         db: readContext.db || "",
         work_dir: readContext.work_dir || "",
         kb: readContext.kb || ""
       };
-      const body = Object.assign({ confirm: true, context: ctx, locator: loc, program: readContext.program || "" }, params);
-      let res, data;
+      const body = Object.assign({ confirm: true, context: ctx, locator: loc, program: readContext.program || "" }, parameters);
+      let key, encoded;
       try {
-        res = await fetch("/api/v1/actions/" + actionId.replace(/\./g, "/"), {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify(body)
-        });
-        if (!readCurrent()) return ignored;
-        data = await res.json();
-        if (!readCurrent()) return ignored;
-      } catch (err) {
-        return { ok: false, error: String((err && err.message) || err), elapsedMs: elapsed() };
+        /* Key the effective request, not option spelling/order or the wait budget. */
+        encoded = JSON.stringify(body,function(_key,value){return value&&typeof value==="object"&&!Array.isArray(value)?Object.fromEntries(Object.keys(value).sort().map(function(name){return [name,value[name]];})):value;});
+        key = JSON.stringify([readScope,actionId,encoded]);
+      } catch (err) { return {ok:false,error:"Read parameters cannot be serialized: "+String(err.message||err),elapsedMs:elapsed()}; }
+      let entry = readActionJobs.current.get(key);
+      const reused = Boolean(entry);
+      if (!entry) {
+        if (readActionJobs.current.size >= 128) return {ok:false,error:"128 read admissions are still pending or uncertain. Check existing jobs before admitting another read; none were discarded.",elapsedMs:elapsed()};
+        entry = {jobId:null,job:null,admission:null,outcome:null};
+        /* Reserve synchronously, before fetch or any await: double clicks share admission. */
+        readActionJobs.current.set(key,entry);
+        entry.admission = (async function () {
+          try {
+            /* A caller stops waiting, not a shared admission. Retain its response even
+               after a tab/target change so a later exact request can recover the job ID. */
+            const res = await fetch("/api/v1/actions/"+actionId.replace(/\./g,"/"), {
+              method:"POST",headers:{"content-type":"application/json"},body:encoded
+            });
+            const data = await res.json();
+            if (data&&data.job&&data.job.id) {
+              entry.jobId=data.job.id;entry.job=data.job;
+            } else if (!res.ok || !data || data.ok===false) {
+              entry.outcome = {ok:false,error:data&&data.error||"Action admission failed",admissionUncertain:res.status>=500};
+            } else entry.outcome={ok:true,data:data};
+          } catch (err) {
+            /* Losing the response does not prove the server failed to admit work. */
+            entry.outcome={ok:false,admissionUncertain:true,error:"The read admission response was lost; no duplicate was submitted. "+String(err.message||err)};
+          }
+          if (entry.outcome&&!entry.outcome.admissionUncertain&&readActionJobs.current.get(key)===entry)readActionJobs.current.delete(key);
+        })();
       }
-      if (!res.ok || !data || data.ok === false) {
-        return { ok: false, error: (data && data.error) || "Action failed", elapsedMs: elapsed() };
+      function interrupted() {
+        const stopped=Boolean(opts.signal&&opts.signal.aborted);
+        return {ok:false,ignored:!readCurrent(),aborted:stopped,timedOut:deadline.aborted||elapsed()>=timeoutMs,jobId:entry.jobId,
+          admissionPending:!entry.jobId&&!entry.outcome,reused:reused,elapsedMs:elapsed(),
+          error:stopped?"Stopped waiting; the read job was not cancelled.":!readCurrent()?"Selection target changed; its read job was retained.":"Timed out waiting for "+actionId+"; repeat this read to check the existing admission, not submit another job."};
       }
-      if (!(data.job && data.job.id)) {
-        // A handful of actions answer synchronously; take that if it happens.
-        return { ok: true, data: data, elapsedMs: elapsed() };
-      }
-      const jobId = data.job.id;
-      const timeoutMs = opts.timeoutMs || 5000;
-      let job = data.job;
+      const admitted=await new Promise(function(resolve){
+        const stop=function(){readSignal.removeEventListener("abort",stop);resolve(false);};
+        readSignal.addEventListener("abort",stop,{once:true});
+        entry.admission.then(function(){readSignal.removeEventListener("abort",stop);resolve(true);});
+        if(readSignal.aborted)stop();
+      });
+      if(!admitted||!readCurrent()||deadline.aborted)return interrupted();
+      if(entry.outcome)return Object.assign({},entry.outcome,{elapsedMs:elapsed(),reused:reused,jobId:entry.jobId});
+      const jobId = entry.jobId;
+      let job = entry.job, firstCheck = true;
       while (job.status === "running" || job.status === "queued" || job.status === "admitted" || !job.status) {
-        if (elapsed() >= timeoutMs) {
-          return { ok: false, timedOut: true, error: "Timed out waiting for " + actionId, elapsedMs: elapsed(), jobId: jobId };
-        }
-        await new Promise(function (resolve) { setTimeout(resolve, 250); });
-        if (!readCurrent()) return ignored;
+        if (elapsed() >= timeoutMs || deadline.aborted || !readCurrent()) return interrupted();
+        /* Reconnecting starts with GET immediately; later checks retain the bounded wait. */
+        if(!firstCheck)await new Promise(function(resolve){
+          const wake=function(){clearTimeout(timer);readSignal.removeEventListener("abort",wake);resolve();};
+          const timer=setTimeout(wake,Math.max(0,Math.min(250,timeoutMs-elapsed())));
+          readSignal.addEventListener("abort",wake,{once:true});if(readSignal.aborted)wake();
+        });
+        firstCheck=false;
+        if (!readCurrent()||deadline.aborted) return interrupted();
         try {
-          const jres = await fetch(API.jobs + "/" + encodeURIComponent(jobId), { cache: "no-store" });
-          if (!readCurrent()) return ignored;
+          const jres = await fetch(API.jobs + "/" + encodeURIComponent(jobId), { cache: "no-store", signal: readSignal });
+          if (!readCurrent()||deadline.aborted) return interrupted();
           const jdata = await jres.json();
-          if (!readCurrent()) return ignored;
-          job = (jdata && jdata.job) || job;
+          if (!readCurrent()||deadline.aborted) return interrupted();
+          if(jres.ok&&jdata&&jdata.job&&jdata.job.id===jobId){job=jdata.job;entry.job=job;}
         } catch (err) {
           // Keep polling until the deadline; a transient fetch error isn't fatal.
         }
       }
+      if (!readCurrent()||deadline.aborted) return interrupted();
+      if(readActionJobs.current.get(key)===entry)readActionJobs.current.delete(key);
       if (job.status !== "ok") {
         const log = String(job.log || "");
         const stateMatch = /\*\*State:\*\* `([^`]+)`/.exec(log) || /"state":\s*"([^"]+)"/.exec(log) || /"cause":\s*"([^"]+)"/.exec(log);
@@ -5564,7 +6406,7 @@
         const friendly = cause === "authentication-failed"
           ? "The Ghidra server refused the login for this repository."
           : (job.error || cause || "Action failed");
-        return { ok: false, error: friendly, cause: cause, elapsedMs: elapsed() };
+        return { ok: false, error: friendly, cause: cause, elapsedMs: elapsed(), jobId:jobId,reused:reused };
       }
       const log = String(job.log || "");
       const nl = log.indexOf("\n");
@@ -5573,17 +6415,17 @@
       try {
         parsed = JSON.parse(jsonText);
       } catch (err) {
-        return { ok: false, error: "Could not parse the response for " + actionId, elapsedMs: elapsed() };
+        return { ok: false, error: "Could not parse the response for " + actionId, elapsedMs: elapsed(),jobId:jobId,reused:reused };
       }
-      return { ok: true, data: parsed, elapsedMs: elapsed() };
+      return { ok: true, data: parsed, elapsedMs: elapsed(),jobId:jobId,reused:reused };
     }
 
     useEffect(function () {
       window.AgentDecompileUI = Object.assign(window.AgentDecompileUI || {}, {
         getToolContext: function () { return liveToolContext(); },
         getEnvDefaults: function () { return envDefaults; },
-        getBinaries: function () { return binaries; },
-        getSiblings: function () { return isCurrentIntent(renderIntent) && admittedPacket ? ((admittedPacket.detail && admittedPacket.detail.siblings) || []) : []; },
+        getBinaries: function () { return toolContext.allBinaries || []; },
+        getSiblings: function () { return isCurrentIntent(renderIntent) && admittedPacket ? ((admittedPacket.detail && admittedPacket.detail.siblings) || []).filter(function (peer) { return (toolContext.allBinaries || []).some(function (binary) { return binary.slug === peer.slug; }); }) : []; },
         runCatalogAction: function (actionId, params) {
           if (!actionId) return null;
           openActionStrip(actionId);
@@ -5596,7 +6438,7 @@
     }, [toolContext, envDefaults, binaries, detail]);
 
     function runFromActionStrip() {
-      const act = actions.find(function (item) { return item.id === pendingActionId; });
+      const act = pendingAction;
       if (!act) return;
       const params = readActionParams(actionFormRef.current, act, toolContext);
       executeAction(pendingActionId, params, { danger: act.danger, mutating: act.mutating });
@@ -5630,8 +6472,13 @@
     }
 
     function openAddToProjectDialog() {
+      ++projectOperationSequence.current;
+      ++openSequence.current;
+      ++addDialogSequence.current;
+      setAddBusy(false);
       setDialogError("");
       setAddPath("");
+      setAddFileName("");
       setDialog("add-binary");
       setMenu("");
       showToast(currentLocator() ? "Add a binary into this project" : "Add creates a project, then imports into it");
@@ -5639,37 +6486,49 @@
 
     async function submitAddToProject(ev) {
       if (ev) ev.preventDefault();
+      if (addBusy) return null;
       const field = document.getElementById("wb-add-path");
       const path = ((addPath || "").trim() || (field && field.value) || "").trim();
       if (!path) {
         failDialog("Paste a binary path, or choose a file.");
         return null;
       }
-      const data = await importPathIntoProject(path, path.split(/[/\\]/).pop() || "binary");
-      if (data && data.ok) closeDialog();
-      return data;
+      setAddBusy(true);
+      const sequence = addDialogSequence.current;
+      try {
+        const data = await importPathIntoProject(path, path.split(/[/\\]/).pop() || "binary");
+        if (sequence === addDialogSequence.current && data && data.ok) closeDialog();
+        return data;
+      } catch (error) {
+        if (sequence === addDialogSequence.current) failDialog(String(error.message || error));
+        return null;
+      } finally {
+        if (sequence === addDialogSequence.current) setAddBusy(false);
+      }
     }
 
-    async function importPathIntoProject(filePath, preferredName, sourceProgram) {
-      let operationGeneration = intentGeneration.current;
-      const operationCurrent = function () { return selectionMounted.current && operationGeneration === intentGeneration.current; };
+    async function importPathIntoProject(filePath, preferredName, sourceProgram, capturedOperation) {
+      const operation = capturedOperation || beginProjectOperation();
+      const operationCurrent = function () { return projectOperationCurrent(operation); };
+      if (!operationCurrent()) return null;
       const path = (filePath || "").trim();
       if (!path) return null;
       const baseName = (preferredName || path.split(/[/\\]/).pop() || "binary").trim();
       let locator = currentLocator();
       if (!locator) {
-        const opened = await createTabProject(baseName);
+        const opened = await createTabProject(baseName, operation);
+        if (!operationCurrent()) return null;
         if (!opened || !opened.ok || (opened.intent && !isCurrentIntent(opened.intent))) {
           showToast("Open a project first, then add binaries into it.", "error");
           return null;
         }
-        operationGeneration = intentGeneration.current;
         locator = (opened.inspected && opened.inspected.locator) || currentLocator();
       }
       if (!locator) {
         showToast("The project tab has no locator yet.", "error");
         return null;
       }
+      if (!operationCurrent()) return null;
       showToast("Importing " + baseName + " into the project…");
       const res = await fetch(API.programs, {
         method: "POST",
@@ -5702,13 +6561,15 @@
         beginSelection(null);
         setEvidencePacket(null);
       }
-      closeDialog();
       setIngestNote("Imported " + prog + " into the project");
       showToast("Imported " + prog + " into the project", "success");
+      operation.generation = intentGeneration.current;
+      loadCorpusStatus({ offset: 0 });
       return Object.assign({}, data, { selectionIntent: intentRef.current });
     }
 
     async function removeProgramFromProject(name) {
+      if (focusLocator && canonicalLocator(focusLocator) !== currentLocator() && (!name || name === program)) { showToast("Choose a program in the active project before removing it.", "warning"); return; }
       const target = (name || program || "").trim();
       const locator = currentLocator();
       if (!target || !locator) {
@@ -5759,7 +6620,7 @@
       const path = (filePath || "").trim();
       if (!path) return;
       const baseName = (preferredName || path.split(/[/\\]/).pop() || "binary").trim();
-      return importPathIntoProject(path, baseName);
+      return openLocator(path, baseName);
     }
 
     async function selectImportBinary(row) {
@@ -5778,8 +6639,9 @@
     }
 
     async function uploadFiles(fileList) {
-      let generation = intentGeneration.current;
       if (dialog === "add-binary") closeDialog();
+      const operation = beginProjectOperation();
+      const operationCurrent = function () { return projectOperationCurrent(operation); };
       const files = Array.from(fileList || []);
       const rels = files.map(function (file) { return file.webkitRelativePath || file.name; });
       const gprs = files.filter(function (file) { return /\.gpr$/i.test(file.name); });
@@ -5796,9 +6658,9 @@
         });
         form.append("paths", JSON.stringify(rels));
         const stageRes = await fetch(API.stageDrop, { method: "POST", body: form });
-        if (generation !== intentGeneration.current || !selectionMounted.current) return null;
+        if (!operationCurrent()) return null;
         const stageData = await stageRes.json();
-        if (generation !== intentGeneration.current || !selectionMounted.current) return null;
+        if (!operationCurrent()) return null;
         if (!stageRes.ok || stageData.ok === false || !stageData.staging_id) {
           setIngestNote(stageData.error || "Could not stage dropped files.");
           return;
@@ -5812,11 +6674,11 @@
             staging_id: stageData.staging_id
           })
         });
-        if (generation !== intentGeneration.current || !selectionMounted.current) return null;
+        if (!operationCurrent()) return null;
         const data = await res.json();
-        if (generation !== intentGeneration.current || !selectionMounted.current) return null;
+        if (!operationCurrent()) return null;
         if (data.ok && data.locator) {
-          await openLocator(data.locator, data.slug);
+          await openLocator(data.locator, data.slug, { operation: operation });
           return;
         }
         if (data.candidates && data.candidates.length) {
@@ -5827,13 +6689,14 @@
         return;
       }
       for (const file of files) {
+        if (!operationCurrent()) return null;
         const body = new FormData();
         body.append("file", file, file.name);
         body.append("role", role || "member");
         const res = await fetch(API.binaries, { method: "POST", body: body });
-        if (generation !== intentGeneration.current || !selectionMounted.current) return null;
+        if (!operationCurrent()) return null;
         const data = await res.json();
-        if (generation !== intentGeneration.current || !selectionMounted.current) return null;
+        if (!operationCurrent()) return null;
         // source_path is the immutable staged upload. binary.repo can be a
         // reused virtual Ghidra row and binary.locator a project locator;
         // neither is a file the project import can read.
@@ -5844,9 +6707,8 @@
           continue;
         }
         if (!data.ok) showToast("Staged " + file.name + ", but the corpus did not record it: " + (data.error || "unknown reason"), "error");
-        const imported = await importPathIntoProject(staged, file.name);
-        if (!imported || !imported.selectionIntent || !isCurrentIntent(imported.selectionIntent)) return;
-        generation = intentGeneration.current;
+        const imported = await importPathIntoProject(staged, file.name, "", operation);
+        if (!operationCurrent() || !imported || !imported.selectionIntent || !isCurrentIntent(imported.selectionIntent)) return;
       }
     }
 
@@ -6022,7 +6884,7 @@
       uploadFiles(ev.dataTransfer && ev.dataTransfer.files);
     }
 
-    const projectLocator = renderedTarget.locator;
+    const projectLocator = canonicalLocator(currentSession && currentSession.locator);
     const projectNames = (dossier && dossier.ok ? (dossier.programs || []) : []).map(programName).filter(Boolean);
     const tabImports = sessionImportSlugs(currentSession);
     const activeProjectSlug = (currentSession && currentSession.projectSlug) || slug;
@@ -6087,17 +6949,17 @@
       showToast("Logical #" + logicalId + " — see Logical identities");
     }
 
-    const pendingAction = pendingActionId
+    const pendingCatalogAction = pendingActionId
       ? actions.find(function (item) { return item.id === pendingActionId; })
       : null;
+    const pendingAction = pendingCatalogAction ? Object.assign({}, pendingCatalogAction, { fields: (pendingCatalogAction.fields || []).map(function (field) {
+      return Object.prototype.hasOwnProperty.call(pendingActionParams, field.name) ? Object.assign({}, field, { default: pendingActionParams[field.name] }) : field;
+    }) }) : null;
 
-    /* Every legacy panel gets at least Refresh, so no surface is a read-only dead end. */
+    /* Refresh controls are explicit to the data they refresh; avoid a generic
+       button that reloads unrelated hidden HTML panels. */
     function panelActions(extras) {
-      return html`<div className="wb-surface-actions">
-        ${extras || null}
-        <button type="button" className="wb-btn wb-btn-mini"
-          onClick=${function () { reloadIslands(); showToast("Panel refreshed", "success"); }}>Refresh</button>
-      </div>`;
+      return extras ? html`<div className="wb-surface-actions">${extras}</div>` : null;
     }
 
     function runActionButton(actionId, label) {
@@ -6116,265 +6978,454 @@
         }}>${label}</button>`;
     }
 
+    const projectUniverse = corpusStatus && corpusStatus.scope === "projects" ? corpusStatus : null;
+    const allOpenProjects = projectUniverse && projectUniverse.projects || [];
+    const openProjects = acrossProjects ? allOpenProjects : allOpenProjects.filter(function (project) { return project.id === activeSession; });
+    const projectOwners = new Set(openProjects.map(function (project) { return project.id; }));
+    const projectBuilds = (projectUniverse && projectUniverse.builds || []).filter(function (build) { return (build.projectIds || []).some(function (owner) { return projectOwners.has(owner); }); });
+    const cohortBuilds = cohortIds === null ? projectBuilds : projectBuilds.filter(function (build) { return cohortIds.includes(build.id); });
+    const cohortBinaryIds = Array.from(new Set(cohortBuilds.flatMap(function (build) { return build.binaryIds || []; }))).sort(function (a,b) { return a-b; });
+    const functionBrowseBuilds = projectBuilds;
+    const functionBrowseSelection = functionBrowseIds === null ? functionBrowseBuilds.map(function (build) { return build.id; }) : functionBrowseIds;
+    const functionBinaryIds = Array.from(new Set(functionBrowseBuilds.filter(function (build) { return functionBrowseSelection.includes(build.id); }).flatMap(function (build) { return build.binaryIds || []; }))).sort(function (a,b) { return a-b; });
+    const functionScope = JSON.stringify([activeSession, acrossProjects, projectUniverse && projectUniverse.corpusIdentity, corpusRevision, functionBinaryIds, functionRequest, functionRefresh]);
+    const functionOwner = useRef(activeSession);
+    useEffect(function () {
+      if (functionOwner.current === activeSession) return;
+      functionOwner.current = activeSession;
+      setCohortIds(null); setFunctionBrowseIds(null); setAcrossProjects(false); setFunctionBuildFilter(""); setProjectQuery(""); setReviewAnchor(null);
+      setFunctionRequest(function (old) { return Object.assign({}, old, { q: "", offset: 0 }); });
+    }, [activeSession]);
+    const emptyFunctions = { results: [], total: null, offset: functionRequest.offset, limit: functionRequest.limit, hasMore: false };
+    const projectFunctions = functionPacket && functionPacket.key === functionScope ? functionPacket.functions : emptyFunctions;
+    useEffect(function () {
+      const sequence = ++functionSequence.current;
+      const controller = new AbortController();
+      setFunctionError("");
+      if (!projectUniverse || !projectUniverse.corpusIdentity || !functionBinaryIds.length) { setFunctionBusy(false); return; }
+      setFunctionBusy(true);
+      const timer = setTimeout(async function () {
+        try {
+          const request = new URLSearchParams({ binary_ids: functionBinaryIds.join(","), corpus_identity: projectUniverse.corpusIdentity,
+            q: functionRequest.q, offset: String(functionRequest.offset), limit: String(functionRequest.limit) });
+          const response = await fetch("/api/v1/projects/functions?" + request, {cache:"no-store",signal:AbortSignal.any([controller.signal,AbortSignal.timeout(12000)])});
+          const result = await response.json();
+          if (!response.ok || !result.ok || result.corpusIdentity !== projectUniverse.corpusIdentity || JSON.stringify(result.binaryIds) !== JSON.stringify(functionBinaryIds) || !result.functions || result.functions.query !== functionRequest.q.trim() || result.functions.offset !== functionRequest.offset || result.functions.limit !== functionRequest.limit) throw new Error(result.error || "The selected project evidence changed. Refresh project facts.");
+          if (sequence === functionSequence.current) setFunctionPacket({key:functionScope,functions:result.functions});
+        } catch (error) { if (!controller.signal.aborted && sequence === functionSequence.current) setFunctionError(String(error.message || error)); }
+        finally { if (sequence === functionSequence.current && !controller.signal.aborted) setFunctionBusy(false); }
+      }, 200);
+      return function () { controller.abort(); clearTimeout(timer); };
+    }, [functionScope]);
+    function loadFunctionPage(update) {
+      setFunctionRequest(function (previous) { return Object.assign({}, previous, update); });
+    }
+    const availabilityScope = JSON.stringify(openProjects.map(function (project) { return [project.id, project.locator]; }));
+    availabilityScopeRef.current = availabilityScope;
+    projectPipelineSnapshot.current = { projects: openProjects, runs: preparationRuns, feed: preparationFeed, availability: projectAvailability };
+    useEffect(function () {
+      if (editorTabFor(centerTab) === "wb-pipeline") loadProjectAvailability();
+      return function () { ++availabilitySequence.current; };
+    }, [centerTab, availabilityScope]);
+
+    async function loadProjectAvailability() {
+      const request = ++availabilitySequence.current;
+      const scope = availabilityScopeRef.current;
+      const projects = (projectPipelineSnapshot.current && projectPipelineSnapshot.current.projects || []).slice();
+      const pending = {};
+      projects.forEach(function (project) { pending[project.id] = { locator: project.locator, state: "unknown", reason: "Reading project inventory…" }; });
+      setProjectAvailability(pending);
+      const observed = {};
+      let index = 0;
+      async function worker() {
+        while (index < projects.length && request === availabilitySequence.current && scope === availabilityScopeRef.current) {
+          const project = projects[index++];
+          const entry = { locator: project.locator, state: "unavailable", reason: "This retained record has no project locator." };
+          if (project.locator) {
+            try {
+              const response = await fetch(API.inspect + "?locator=" + encodeURIComponent(project.locator), { cache: "no-store", signal: AbortSignal.timeout(15000) });
+              const data = await response.json();
+              if (!response.ok || !data.ok) entry.reason = data.error || "Project inventory is unavailable.";
+              else if (!["ghidra-project", "shared-project", "shared-fs", "project-collection"].includes(data.kind)) entry.reason = "The locator does not identify an openable project.";
+              else if (data.reachable === false && !data.mirror_available) entry.reason = "The project is unreachable and no readable mirror was reported.";
+              else if (!(data.programs || []).length) entry.reason = "No program inventory was reported. Add or resolve project members before starting.";
+              else { entry.state = "available"; entry.reason = "Project inventory is readable; native execution and recovery eligibility are checked by the pipeline."; }
+            } catch (error) { entry.reason = "Project inventory read failed: " + String(error.message || error); }
+          }
+          entry.observedAt = Date.now();
+          observed[project.id] = entry;
+        }
+      }
+      await Promise.all([worker(), worker(), worker(), worker()]);
+      if (request === availabilitySequence.current && scope === availabilityScopeRef.current && selectionMounted.current) setProjectAvailability(observed);
+    }
+
+    function projectPipelineState(project, now) {
+      const snapshot = projectPipelineSnapshot.current || {};
+      const currentProject = (snapshot.projects || []).find(function (item) { return item.id === project.id && item.locator === project.locator; });
+      const locator = canonicalLocator(project.locator);
+      const allRuns = (snapshot.runs || []).filter(function (run) { return locator && canonicalLocator(run.locator) === locator && !run.supersededBy; });
+      const projectRuns = allRuns.filter(function (run) { return run.scope === "project" && !String(run.program || "").trim(); });
+      const otherRuns = allRuns.filter(function (run) { return !projectRuns.includes(run); });
+      const run = projectRuns.length === 1 ? projectRuns[0] : null;
+      const state = { run: run, projectRuns: projectRuns, otherRuns: otherRuns, operation: "", reason: "", label: "Start project" };
+      if (run && PREPARATION_PAUSABLE[run.status]) { state.operation = "pause"; state.label = "Pause project"; }
+      else if (run && run.status === "paused") { state.operation = "resume"; state.label = "Resume project"; }
+      else if (!run || run.status === "completed") state.operation = "start";
+      const feed = snapshot.feed || {};
+      const available = (snapshot.availability || {})[project.id];
+      if (!currentProject || !locator) state.reason = "Open a project with a locator before controlling its pipeline.";
+      else if (!feed.receivedAt || feed.error || now - feed.receivedAt > 10000) state.reason = "Pipeline status is unavailable or older than ten seconds. Refresh status before controlling it.";
+      else if (projectRuns.length > 1) state.reason = "Multiple project-scoped runs are recorded. No authoritative project run is identified; no run was chosen automatically.";
+      else if (otherRuns.some(function (item) { return item.scope !== "binary" || !String(item.program || "").trim(); })) state.reason = "A recorded run has unknown or inconsistent scope. Project control is unavailable until its ownership is resolved.";
+      else if (otherRuns.some(function (item) { return ["queued", "running", "waiting", "paused", "cancelling", "disconnected", "resync"].includes(item.status); })) state.reason = "A program-scoped or unknown-scope run is active for this locator. Project-wide control is unavailable until its ownership is resolved.";
+      else if (run && ["blocked", "failed", "cancelled", "interrupted", "partial", "cancelling", "disconnected", "resync"].includes(run.status)) state.reason = "Recorded project run is " + run.status + ": " + (run.error || "Resolve its recorded prerequisites before starting another run.");
+      else if (!state.operation) state.reason = "The recorded run state does not authorize a project control.";
+      else if (state.operation === "resume" && !Object.prototype.hasOwnProperty.call(run, "deadline")) state.reason = "The paused run's execution deadline is unknown; refresh or resolve its recorded state.";
+      else if (state.operation === "resume" && run.deadline != null && (!Number.isFinite(run.deadline) || run.deadline * 1000 <= now)) state.reason = "The paused run's execution deadline has expired or is invalid; resume is unavailable.";
+      else if (state.operation === "resume" && Object.values(run.retryDecisions || {}).some(function (decision) { return decision && decision.nextAction && decision.nextAction !== "dispatch"; })) state.reason = "The paused run has an unresolved recorded retry prerequisite. Review its observation details before resuming.";
+      else if (state.operation !== "pause" && (!available || available.locator !== project.locator || available.state !== "available" || now - available.observedAt > 60000)) state.reason = available && available.locator === project.locator && available.state !== "available" ? available.reason : "Project inventory availability is unknown or stale. Refresh status before starting or resuming.";
+      return state;
+    }
+    const memberSlugs = new Set(projectBuilds.map(function (build) { return build.slug; }).filter(Boolean));
+    const scopedBinaries = binaries.filter(function (binary) { return memberSlugs.has(binary.slug); });
+    function projectTitles(ids) {
+      return openProjects.filter(function (project) { return (ids || []).includes(project.id); }).map(function (project) { return project.title; }).join(", ");
+    }
+    function focusProjectFunction(row, keepReference) {
+      const memberships = projectBuilds.filter(function (build) { return row.binaryId != null ? (build.binaryIds || []).includes(Number(row.binaryId)) : build.slug === row.slug; });
+      const choices = memberships.filter(function (build) { return build.bindingState !== "ambiguous" && build.repositoryBindingState !== "unresolved" && build.locator && build.program; });
+      const ownedChoices = choices.filter(function (build) { return (build.projectIds || []).includes(activeSession); });
+      const exact = row.buildId ? choices.find(function (build) { return build.id === row.buildId; }) : ownedChoices.length === 1 ? ownedChoices[0] : choices.length === 1 ? choices[0] : null;
+      if (!exact) { showToast("This function has no unambiguous project/program binding. Review its recorded membership before opening native evidence.", "warning"); return; }
+      if (!keepReference) setReviewAnchor(null);
+      setFocusLocator(exact.locator);
+      changeTarget({ locator: canonicalLocator(exact.locator) });
+      setSlug(row.slug);
+      setProgram(exact.program);
+      const intent = beginSelection(Object.assign({}, row, { logicalId: row.logicalId == null ? row.logical_id : row.logicalId }));
+      readSelection(intent);
+    }
+    function inspectMatchEndpoint(info) {
+      const match = info.row.match;
+      setReviewAnchor({ binaryId: match.src_binary, addr: match.src_addr });
+      const functionRecord = info.row.functions && info.row.functions[info.side] || {};
+      focusProjectFunction({ binaryId: info.binaryId, slug: info.slug,
+        addr: "0x" + Number(info.addr).toString(16), name: info.name || functionRecord.name || "0x" + Number(info.addr).toString(16) }, true);
+      scrollToSurface("wb-comparison-evidence");
+    }
+    function projectScopeNotice() {
+      return html`<div className="wb-project-scope"><strong>${acrossProjects ? "Across open projects" : currentSession && currentSession.title || "Current project"}</strong>
+        <label className="wb-project-scope-choice"><input type="checkbox" checked=${acrossProjects} onChange=${function (event) { setAcrossProjects(event.target.checked); setCohortIds(null); setFunctionBrowseIds(null); setReviewAnchor(null); loadFunctionPage({ offset: 0 }); }}/>Compare across open projects</label>
+        <span>${projectUniverse
+          ? "Recorded project snapshot" + (projectUniverse.staleError ? " · stale" : "")
+          : "Project-wide inventory and function aggregation is loaded only when requested."}</span>
+        ${projectBusy ? html`<span>Reading recorded facts…</span>` : null}
+        <button type="button" className="wb-btn wb-btn-mini" disabled=${projectBusy} onClick=${function () { loadBinaries().catch(function (error) { showToast("Build relationships could not refresh: " + String(error.message || error)); }); loadCorpusStatus(); }}>${projectUniverse ? "Refresh project facts" : "Load project facts"}</button>
+      </div>`;
+    }
+    function projectErrors() {
+      return html`<div>${(corpusStatus && corpusStatus.errors || []).map(function (error, index) { return html`<p key=${index} className="wb-hint" role="status">${error}</p>`; })}${corpusStatus && (corpusStatus.error || corpusStatus.staleError) ? html`<p role="alert">${corpusStatus.error || corpusStatus.staleError}</p>` : null}</div>`;
+    }
+    function memberTable() {
+      return html`<div className="wb-project-table-scroll"><table className="wb-fnb-table"><thead><tr><th>Project</th><th>Build / program</th><th>Functions</th><th>Named</th><th>Recorded identities</th><th>Binding</th></tr></thead><tbody>
+        ${projectBuilds.map(function (build) { return html`<tr key=${build.id}><td>${projectTitles(build.projectIds)}</td><td><strong>${build.slug || build.name}</strong><br/><code>${build.program}</code></td><td>${build.funcs == null ? "Unknown" : build.funcs.toLocaleString()}</td><td>${build.named == null ? "Unknown" : build.named.toLocaleString()}</td><td>${build.bound == null ? "Unknown" : build.bound.toLocaleString()}</td><td>${build.repositoryBindingState === "unresolved" ? "Unresolved repository" : build.bindingState}<br/><small>${build.bindingReason || build.inventoryState || ""}</small></td></tr>`; })}
+      </tbody></table></div>`;
+    }
+    function projectFunctionFilter() {
+      return html`<form className="wb-project-filter" onSubmit=${function (ev) { ev.preventDefault(); loadFunctionPage({ q: projectQuery, offset: 0 }); setFunctionRefresh(function (n) { return n+1; }); scrollToSurface("wb-function-results-heading"); }}>
+        <label>Find a function <input id="wb-q" type="search" value=${projectQuery} onInput=${function (ev) { const value = ev.target.value; setProjectQuery(value); loadFunctionPage({q:value,offset:0}); }} placeholder="Name or address across selected binaries" /></label>
+        <button type="submit" className="wb-btn">Find</button>
+        <button type="button" className="wb-btn" disabled=${!projectQuery} onClick=${function () { setProjectQuery(""); loadFunctionPage({ q: "", offset: 0 }); }}>Clear filter</button>
+        ${functionBusy ? html`<span role="status">Searching stored functions in the selected binaries…</span>` : null}
+        ${functionError ? html`<p role="alert">${functionError}</p>` : null}
+      </form>`;
+    }
+    function projectPager() {
+      return html`<div className="wb-project-pager"><span>${projectFunctions.results.length ? projectFunctions.offset + 1 : 0}–${projectFunctions.offset + projectFunctions.results.length}${projectFunctions.total == null ? " recorded functions in this page" : " of " + projectFunctions.total + " recorded functions"}</span>
+        <button type="button" className="wb-btn" disabled=${functionBusy || !functionRequest.offset} onClick=${function () { loadFunctionPage({ offset: Math.max(0, functionRequest.offset - functionRequest.limit) }); }}>Previous</button>
+        <button type="button" className="wb-btn" disabled=${functionBusy || !projectFunctions.hasMore} onClick=${function () { loadFunctionPage({ offset: functionRequest.offset + functionRequest.limit }); }}>Next</button>
+        <label>Page size <select value=${functionRequest.limit} onChange=${function (ev) { loadFunctionPage({ limit: Number(ev.target.value), offset: 0 }); }}>${[50, 100, 250, 500].map(function (n) { return html`<option key=${n} value=${n}>${n}</option>`; })}</select></label>
+      </div>`;
+    }
+    function focusedComparison() {
+      const scopedDetail = Object.assign({}, detail || {}, { siblings: (detail && detail.siblings || []).filter(function (peer) { return memberSlugs.has(peer.slug); }) });
+      const comparisonBinaries = scopedBinaries.map(function (binary) {
+        const group = binary.variant_group || binary.variantGroup;
+        if (!group) return binary;
+        const scopedGroup = Object.assign({}, group, { evidence: (group.evidence || []).filter(function (receipt) { return memberSlugs.has(receipt.source) && memberSlugs.has(receipt.target); }) });
+        return Object.assign({}, binary, { variant_group: scopedGroup, variantGroup: scopedGroup });
+      });
+      return html`<${LogicalCounterparts} slug=${slug} selected=${selected} detail=${scopedDetail} binaries=${comparisonBinaries} onPick=${focusProjectFunction}/>
+        <p className="wb-hint">${selected ? "Focus: " + slug + " · " + selected.addr + ". Project ownership and the all-project scope remain unchanged." : "Choose a function in Functions to compare code and calls across its recorded peers."}</p>`;
+    }
+    async function projectPipelineControl(project, run) {
+      if (projectControlBusy.current.has(project.id)) return;
+      const state = projectPipelineState(project, Date.now());
+      if (state.reason || (state.run && state.run.id || "") !== (run && run.id || "")) {
+        setProjectControls(function (old) { return Object.assign({}, old, { [project.id]: state.reason || "Project run selection changed. Refresh and review its scope before controlling it." }); });
+        return;
+      }
+      projectControlBusy.current.add(project.id);
+      setProjectControls(function (old) { return Object.assign({}, old, { [project.id]: "Submitting…" }); });
+      try {
+        let data;
+        if (state.operation === "pause" || state.operation === "resume") {
+          data = await controlPreparation(state.run.id, state.operation);
+        } else {
+          const response = await fetch("/dashboard/api/workbench/prepare", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ locator: project.locator, program: "", slug: "", resume: false }) });
+          data = await response.json();
+          if (!response.ok) throw new Error(data.error || "Pipeline request failed");
+        }
+        if (!data || data.ok === false || data.error) throw new Error(data && data.error || "Pipeline request failed");
+        setProjectControls(function (old) { return Object.assign({}, old, { [project.id]: "Request recorded. Refresh status for progress." }); });
+        await loadPreparations();
+        loadCorpusStatus();
+      } catch (error) { setProjectControls(function (old) { return Object.assign({}, old, { [project.id]: String(error.message || error) }); }); }
+      finally { projectControlBusy.current.delete(project.id); }
+    }
+    function evidenceMark(state) {
+      const shapes = { accepted: html`<path d="M5 12l5 5 9-11" />`, candidate: html`<path d="M12 3l10 18H2z" />`, divergent: html`<path d="M5 5l14 14M19 5L5 19" />`, selected: html`<circle cx="12" cy="12" r="8" />`, unknown: html`<circle cx="12" cy="12" r="8" strokeDasharray="3 3" />` };
+      return html`<svg className=${"wb-evidence-mark is-" + state} viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.7">${shapes[state] || shapes.unknown}</svg>`;
+    }
+    function peersForBuild(build) {
+      if (!selected) return [];
+      const records = (detail && detail.siblings || []).filter(function (peer) { return peer.slug === build.slug && peer.addr && memberSlugs.has(peer.slug); });
+      if (build.slug === slug) records.unshift(Object.assign({}, selected, { slug: slug, selected: true }));
+      const identities = new Map();
+      records.forEach(function (peer) {
+        const key = JSON.stringify([peer.binaryId ?? peer.binary_id ?? null, peer.slug, peer.addr, peer.logicalId ?? peer.logical_id ?? null]);
+        if (!identities.has(key)) identities.set(key, []);
+        identities.get(key).push(peer);
+      });
+      return Array.from(identities.values());
+    }
+    function counterpartCard(records, build) {
+      const peer = records[0];
+      const cardKey = JSON.stringify([slug, selected && selected.addr, build.id, peer.binaryId ?? peer.binary_id ?? null, peer.slug, peer.addr, peer.logicalId ?? peer.logical_id ?? null]);
+      const receiptLimit = receiptLimits[cardKey] || 3;
+      return html`<div className="wb-counterpart-card" key=${cardKey}><button type="button" className="wb-counterpart-open" onClick=${function () { focusProjectFunction(Object.assign({}, peer, { buildId: build.id })); }}>
+        <strong>${peer.name || "Unnamed counterpart"}</strong><code>${peer.addr}</code><span>Read recorded function</span>
+      </button>${records.slice(0, receiptLimit).map(function (record, index) {
+        const state = peerState(record);
+        return html`<div className=${"wb-peer-receipt is-" + state} key=${index}>${evidenceMark(state)}<span>${record.selected ? "Selected function" : "Recorded counterpart · " + state}</span>
+          <${IdentityReceiptDetails} record=${record} label=${"Identity receipt" + (records.length > 1 ? " " + (index + 1) : "")} /></div>`;
+      })}${records.length > receiptLimit ? html`<button type="button" className="wb-btn wb-peer-expansion" onClick=${function () { setReceiptLimits(function (old) { return Object.assign({}, old, { [cardKey]: receiptLimit + 12 }); }); }}>Show ${Math.min(12, records.length - receiptLimit)} more identity receipts (${receiptLimit} of ${records.length} shown)</button>` : null}</div>`;
+    }
+    function counterpartRow(build, project) {
+      const peers = peersForBuild(build);
+      const states = Array.from(new Set(peers.reduce(function (all, records) { return all.concat(records.map(peerState)); }, [])));
+      const name = memberPath(build).name;
+      const relationLabel = peers.length ? peers.length + " recorded address" + (peers.length === 1 ? "" : "es") : "No recorded counterpart";
+      return html`<tr className=${peers.length ? "wb-counterpart-row has-peer" : "wb-counterpart-row is-unknown"} key=${project.id + ":" + build.id}>
+        <td className="wb-counterpart-project">${project.title}</td>
+        <th scope="row"><button type="button" className="wb-counterpart-binary" aria-pressed=${inspectedMember === build.id} onClick=${function () { setInspectedMember(inspectedMember === build.id ? "" : build.id); }}><strong>${name}</strong><small>${build.slug || "Build identity not bound"}</small></button></th>
+        <td><div className="wb-matrix-peers">${peers.length ? peers.map(function (records) { return counterpartCard(records, build); }) : html`<span className="wb-matrix-unknown">${evidenceMark("unknown")}<span><strong>${relationLabel}</strong><small>Not recorded here; absence is not established.</small></span></span>`}</div></td>
+        <td className="wb-counterpart-state">${states.length ? states.map(function (state) { return html`<span className=${"wb-peer-state is-" + state} key=${state}>${evidenceMark(state)}${state === "unknown" ? "Recorded; state unknown" : state === "selected" ? "Selected" : state}</span>`; }) : html`<span className="wb-peer-state is-unknown">${evidenceMark("unknown")}Unknown</span>`}</td>
+      </tr>`;
+    }
+    function peerState(peer) {
+      if (!peer) return "unknown";
+      if (peer.selected) return "selected";
+      const state = String(peer.status || peer.decision || "").toLowerCase();
+      if (["accepted", "candidate", "divergent"].includes(state)) return state;
+      return "unknown";
+    }
+    function memberLimitControl() {
+      return projectBuilds.length > memberLimit ? html`<button type="button" className="wb-btn" onClick=${function () { setMemberLimit(function (n) { return n + 48; }); }}>Show ${Math.min(48, projectBuilds.length - memberLimit)} more members (${memberLimit} of ${projectBuilds.length} drawn)</button>` : null;
+    }
+    function memberPath(build) {
+      const path = String(build.program || "").replace(/\\/g, "/");
+      const slash = path.lastIndexOf("/");
+      return { name: path.slice(slash + 1) || build.name || build.slug || "Unnamed member", directory: path ? path.slice(0, slash + 1) || "/" : "Path not recorded" };
+    }
+    function binaryInventoryCard(build) {
+      const path = memberPath(build);
+      const binding = build.repositoryBindingState === "unresolved" ? "Unresolved repository" : build.bindingState || "Binding unknown";
+      const total = Number.isFinite(build.funcs) && build.funcs >= 0 ? build.funcs : null;
+      const named = Number.isFinite(build.named) && build.named >= 0 ? Math.min(build.named, total == null ? build.named : total) : null;
+      const namedWidth = total > 0 && named != null ? Math.round(named * 100 / total) : 0;
+      return html`<button type="button" className=${"wb-binary-inventory" + (/unresolved|ambiguous|unbound/.test(binding) ? " has-binding-warning" : "") + (inspectedMember === build.id ? " is-inspected" : "")} key=${build.id} aria-pressed=${inspectedMember === build.id} aria-label=${path.name + " · " + (total == null ? "function inventory unavailable" : total.toLocaleString() + " functions") + " · " + binding} onClick=${function () { setInspectedMember(inspectedMember === build.id ? "" : build.id); }}>
+        <span className="wb-binary-inventory-head"><svg viewBox="0 0 18 18" aria-hidden="true" className="wb-member-glyph"><rect x="2" y="2" width="13" height="13" rx="1" /><path d="M5 6h7M5 9h7M5 12h4" /></svg><strong>${path.name}</strong></span>
+        ${total == null ? html`<span className="wb-binary-inventory-unknown">Function inventory not recorded</span>` : named == null ? html`<span className="wb-inventory-track is-unknown" role="img" aria-label="Function count recorded; naming breakdown unknown"></span>` : html`<span className="wb-inventory-track" role="img" aria-label=${named.toLocaleString() + " named and " + Math.max(0, total - named).toLocaleString() + " unnamed or generated functions"}><span className="is-named" style=${{ width: namedWidth + "%" }}></span><span className="is-generated" style=${{ width: Math.max(0, 100 - namedWidth) + "%" }}></span></span>`}
+        <span className="wb-inventory-counts">${total == null ? "Function count unknown" : total.toLocaleString() + " functions"}<span>${named == null ? "Named count unknown" : named.toLocaleString() + " named"}</span><span>${Number.isFinite(build.bound) ? build.bound.toLocaleString() + " identity records" : "Identity count unknown"}</span></span>
+        <span className=${"wb-inventory-binding" + (/unresolved|ambiguous|unbound/.test(binding) ? " is-warning" : "")}>${binding}</span>
+      </button>`;
+    }
+    function projectMap() {
+      const logical = selected && (selected.logicalId || selected.logical_id) || detail && detail.function && (detail.function.logicalId || detail.function.logical_id);
+      const inspected = projectBuilds.find(function (build) { return build.id === inspectedMember; });
+      return html`<section className="wb-build-map wb-membership-map" aria-label="Project membership and recorded function counterparts">
+        <header className="wb-map-heading"><div><span className="wb-map-kicker">Open project map</span><h3 id="wb-map-heading" tabIndex="-1">${selected ? selected.name || selected.addr : "Binaries by project"}</h3></div>
+          ${selected ? html`<div className="wb-alignment-anchor"><code>${logical == null ? "Identity not recorded" : "Logical identity #" + logical}</code><span>Correspondence is not byte equivalence.</span></div>` : html`<p>Select any combination of project builds; functions and correspondence follow that selection.</p>`}</header>
+        ${window.AgentDecompileFamilyMap ? html`<${window.AgentDecompileFamilyMap} builds=${projectBuilds} binaries=${binaries} relationships=${projectUniverse && projectUniverse.relationships}
+          selectedIds=${cohortIds === null ? projectBuilds.map(function (build) { return build.id; }) : cohortIds}
+          onSelection=${function (ids) { setCohortIds(ids); setReviewAnchor(null); loadFunctionPage({offset:0}); }}
+          onFocus=${function (build) { setInspectedMember(build.id); }}/>` : null}
+        ${inspected ? html`<aside className="wb-member-inspection" aria-label="Selected member details"><header><strong>${memberPath(inspected).name}</strong><button type="button" className="wb-text-action" onClick=${function () { setInspectedMember(""); }}>Close details</button></header><code>${inspected.program || inspected.slug}</code><span>${inspected.slug} · ${inspected.repositoryBindingState === "unresolved" ? "Unresolved repository" : inspected.bindingState || "Binding unknown"}</span><p>${inspected.bindingReason || inspected.inventoryState || "No binding explanation supplied."}</p>
+        </aside>` : null}
+        <div className="wb-map-foot"><details><summary>Inspect project membership and inventory records</summary>${memberTable()}</details></div>
+      </section>`;
+    }
+    function comparisonWorkspace() {
+      const selectedIds = cohortBinaryIds;
+      const focusedBuilds = projectBuilds.filter(function (build) { return build.slug === slug; });
+      const focusedIds = Array.from(new Set(focusedBuilds.flatMap(function (build) { return build.binaryIds || []; })));
+      const focus = reviewAnchor && selectedIds.includes(reviewAnchor.binaryId) ? reviewAnchor :
+        selected && focusedIds.length === 1 && selectedIds.includes(focusedIds[0]) ? { binaryId: focusedIds[0], addr: Number(selected.addr) } : null;
+      function followCall(node) { setReviewAnchor(null); const hit = rows.find(function (row) { return row.addr === node.addr; }); selectRow(hit || node); }
+      const functionsPanel = html`<div className="wb-function-results">
+          <fieldset className="wb-functions-cohort"><legend>Browse binaries</legend>
+            <p className="wb-functions-cohort-context">${acrossProjects ? "Across open projects" : "Current project tab"} · ${functionBrowseSelection.length} selected project members</p>
+            <label className="wb-functions-cohort-filter"><span>Find a binary</span><input type="search" value=${functionBuildFilter} placeholder="Name or program path" onInput=${function (event) { setFunctionBuildFilter(event.target.value); }}/></label>
+            <div className="wb-functions-cohort-actions"><button type="button" className="wb-btn wb-btn-mini" onClick=${function () { setFunctionBrowseIds(null); setReviewAnchor(null); loadFunctionPage({offset:0}); }}>Select all</button><button type="button" className="wb-btn wb-btn-mini" disabled=${!functionBrowseSelection.length} onClick=${function () { setFunctionBrowseIds([]); setReviewAnchor(null); loadFunctionPage({offset:0}); }}>Clear</button></div>
+            <div className="wb-functions-cohort-options" aria-label="Binary browsing selection">${openProjects.map(function (project) {
+              const members = functionBrowseBuilds.filter(function (build) { return (build.projectIds || []).includes(project.id) && (!functionBuildFilter.trim() || [build.name,build.slug,build.program].join(" ").toLowerCase().includes(functionBuildFilter.trim().toLowerCase())); });
+              if (!members.length) return null;
+              return html`<fieldset className="wb-functions-cohort-project" key=${project.id}><legend>${project.title || project.locator || "Project"}</legend>${members.map(function (build) {
+                const checked = functionBrowseSelection.includes(build.id);
+                return html`<div className=${"wb-functions-cohort-member" + (checked ? " is-selected" : "")} key=${build.id}><label><input type="checkbox" checked=${checked} onChange=${function (event) {
+                  const next = event.target.checked ? Array.from(new Set(functionBrowseSelection.concat(build.id))) : functionBrowseSelection.filter(function (id) { return id !== build.id; });
+                  setFunctionBrowseIds(next); setReviewAnchor(null); loadFunctionPage({offset:0});
+                }}/><span><strong>${build.name || build.slug || "Unnamed binary"}</strong><small title=${build.program || build.slug}>${build.program || build.slug || "Program path not recorded"}</small>${!(build.binaryIds || []).length ? html`<small className="wb-functions-cohort-unbound">No recorded function binding</small>` : null}</span></label><button type="button" className="wb-text-action" title=${"Browse only " + (build.name || build.slug || "this binary")} aria-label=${"Browse only " + (build.name || build.slug || "this binary")} onClick=${function () { setFunctionBrowseIds([build.id]); setReviewAnchor(null); loadFunctionPage({offset:0}); }}>Only</button></div>`;
+              })}</fieldset>`;
+            })}
+            ${!functionBrowseBuilds.length ? html`<p>No binaries recorded for this browsing scope. Refresh project facts to inspect its inventory.</p>` : functionBuildFilter.trim() && !functionBrowseBuilds.some(function (build) { return [build.name,build.slug,build.program].join(" ").toLowerCase().includes(functionBuildFilter.trim().toLowerCase()); }) ? html`<p>No binaries match this filter. <button type="button" className="wb-text-action" onClick=${function () { setFunctionBuildFilter(""); }}>Clear binary filter</button></p>` : null}
+            </div><small className="wb-functions-cohort-hint">Browsing selection filters this function list; it does not remove comparison peers.</small>
+          </fieldset><h3 id="wb-function-results-heading" tabIndex="-1">Functions in browsing selection</h3>${projectPager()}
+          <div className="wb-function-list" aria-label="Recorded function page">${projectFunctions.results.map(function (row) { return html`<button type="button" key=${row.binaryId + ":" + row.addr} className=${"wb-function-result" + (selected && slug === row.slug && selected.addr === row.addr ? " on" : "")} onClick=${function () { focusProjectFunction(row); }}>
+            <strong>${row.name || "Unnamed function"}</strong><code>${row.addr}</code><span>${row.slug}</span>${row.recordedName && row.recordedName !== row.name ? html`<small>Recorded name: ${row.recordedName}</small>` : null}${(row.matchedNames || []).filter(function (name) { return name !== row.name && name !== row.recordedName; }).map(function (name) { return html`<small key=${name}>Matched identity label: ${name}</small>`; })}<small>${row.logicalId == null ? "Identity not recorded" : "Identity #" + row.logicalId}</small></button>`; })}</div>
+          ${!projectFunctions.results.length ? html`<p>${functionBusy ? "Reading function page…" : !functionBrowseSelection.length ? "Select a binary above to browse its functions." : "No recorded functions returned for this selection. Clear the function filter or inspect the project bindings."}</p>` : null}
+        </div>`;
+      const matchesPanel = html`<section id="wb-match-analysis" tabIndex="-1" aria-label="Correspondence analysis">
+            ${reviewAnchor && focus === reviewAnchor ? html`<p className="wb-match-reference">Reference pinned at <code>${"0x" + reviewAnchor.addr.toString(16)}</code> while inspecting counterparts. <button type="button" className="wb-btn wb-btn-mini" onClick=${function () { setReviewAnchor(null); }}>Follow current function</button></p>` : null}
+            ${selectedIds.length && projectUniverse && projectUniverse.corpusIdentity ? html`<${ReviewReact} binaryIds=${selectedIds} corpusIdentity=${projectUniverse.corpusIdentity} focus=${focus} onInspect=${inspectMatchEndpoint} onRefresh=${loadCorpusStatus}/>` : html`<p>Load project facts to inspect recorded correspondences alongside the code.</p>`}
+          </section>`;
+      const sourcePanel = html`<section className="wb-function-analysis" aria-label="Focused source and instructions">
+          ${selected ? html`<p><code>${slug} · ${selected.addr}</code></p>${focusedIds.length === 1 && !selectedIds.includes(focusedIds[0]) ? html`<p className="wb-hint">This inspected function is outside the selected binary cohort. The correspondence area follows the selected cohort, not this excluded build.</p>` : null}<div className="wb-context-modes" role="group" aria-label="Function evidence">
+            ${["code", "calls", "listing"].map(function (mode) { return html`<button type="button" className="wb-btn" key=${mode} aria-pressed=${comparisonMode === mode} onClick=${function () { setComparisonMode(mode); }}>${mode.charAt(0).toUpperCase() + mode.slice(1)}</button>`; })}</div>
+            ${comparisonMode === "calls" ? html`<section className="wb-matching-call-context" aria-label="Call neighborhood of the focused member"><h4>Focused call neighborhood</h4><${CallGraphView} graph=${graph} compact=${true} onPick=${followCall}/></section>` : comparisonMode === "listing" ? renderFocusedListing() : decompileDockBody()}
+            ` : html`<div className="wb-map-gap">Select a recorded function to inspect code, calls and member correspondence here.</div>`}
+          </section>`;
+      return html`<${window.AgentDecompileDockWorkspace} id="compare" onContextMenu=${openCtx} panels=${[
+        { id: "wb-builds-dock", title: "Project builds", zone: "left", weight: .8, content: projectMap() },
+        { id: "wb-functions-dock", title: "Functions", zone: "left", weight: 1.4, content: functionsPanel },
+        { id: "wb-comparison-evidence", title: selected ? (selected.name || selected.addr) + " · " + selected.addr : "Code / listing", zone: "center", content: sourcePanel },
+        { id: "wb-correspondence-dock", title: "Correspondence / call graph", zone: "right", content: matchesPanel },
+        { id: "wb-selection-inspector-dock", title: "References / types / memory", zone: "bottom", content: html`<${window.AgentDecompileGhidraInspector} program=${program} addr=${selected && selected.addr} selectionKey=${selectionKey} actions=${actions} runReadAction=${runReadAction} onOpenAction=${openActionStrip}/>` }
+      ]}/>`;
+    }
+    function recoveryPaths() {
+      function shortPathLabel(value) {
+        const parts = String(value || "").replace(/\\/g, "/").split("/").filter(Boolean);
+        return parts[parts.length - 1] || "/";
+      }
+      return html`<section className="wb-recovery-paths" aria-label="Independent source and proof evidence"><header className="wb-map-heading"><div><span className="wb-map-kicker">Evidence overview</span><h3>Source and proof by binary</h3></div></header>
+        <p className="wb-evidence-note">Independent evidence columns, not a progression. ● Witness on the explicitly loaded inventory snapshot page; ? unknown in that snapshot. Search does not recompute recovery evidence. Fresh whole-image proof is not supplied here.</p>
+        <p className="wb-evidence-key"><b>C</b> readable source · <b>Comp.</b> compiled · <b>Hist.</b> historical exact · <b>Image</b> fresh whole-image proof</p>
+        <div className="wb-evidence-scroll"><table className="wb-evidence-grid"><thead><tr><th scope="col">Binary</th><th scope="col" aria-label="Readable C">C</th><th scope="col" aria-label="Compiled">Comp.</th><th scope="col" aria-label="Historical exact">Hist.</th><th scope="col" aria-label="Fresh whole-image proof">Image</th></tr></thead><tbody>
+          ${projectBuilds.slice(0, memberLimit).map(function (build) {
+            const witnesses = (projectUniverse && projectUniverse.functions.results || []).filter(function (row) { return (build.binaryIds || []).includes(row.binaryId) && row.recordedRecovery && (row.recordedRecovery.records || []).length; });
+            const tiers = [["Readable C", witnesses.some(function (row) { return row.recordedRecovery.readable === true; })], ["Compiled", witnesses.some(function (row) { return row.recordedRecovery.compiled === true; })], ["Historical exact", witnesses.some(function (row) { return row.recordedRecovery.historicalExact === true; })], ["Fresh image", false]];
+            const path = memberPath(build);
+            const owningProjects = openProjects.filter(function (project) { return (build.projectIds || []).includes(project.id); });
+            const projectLabel = owningProjects.map(function (project) { return shortPathLabel(project.title || project.locator); }).join(", ");
+            return html`<${React.Fragment} key=${build.id}><tr className=${inspectedOutput === build.id ? "is-inspected" : ""}><th scope="row"><button type="button" aria-expanded=${inspectedOutput === build.id} aria-label=${path.name + " · " + projectTitles(build.projectIds) + " · " + path.directory + " · show member details"} className="wb-evidence-member" onClick=${function () { setInspectedOutput(inspectedOutput === build.id ? "" : build.id); }}><strong>${path.name}</strong><small>${projectLabel} · ${shortPathLabel(path.directory)}</small></button></th>
+              ${tiers.map(function (tier) { return html`<td key=${tier[0]}><span className=${"wb-tier-dot " + (tier[1] ? "has-witness" : "is-unknown")} aria-label=${tier[0] + ": " + (tier[1] ? "witness on this page" : "unknown in this view")}>${tier[1] ? "●" : "?"}</span></td>`; })}</tr>
+              ${inspectedOutput === build.id ? html`<tr className="wb-evidence-detail"><td colSpan="5"><strong>${build.slug || path.name}</strong><p><code>${build.program || "Program path not recorded"}</code></p>
+                ${owningProjects.map(function (project) { return html`<p key=${project.id}>Project: ${project.title}<br/><code>${project.locator || "Project locator not recorded"}</code></p>`; })}
+                ${!witnesses.length ? html`<p>No source witness on this page. Find additional functions in Compare.</p>` : witnesses.map(function (row) { return html`<section key=${row.binaryId + ":" + row.addr}><h4>${row.name} <code>${row.addr}</code></h4>${row.recordedRecovery.records.map(function (record, index) { return html`<div key=${index}><code>${record.path}</code><pre>${record.evidence || "No evidence reference recorded"}</pre></div>`; })}${row.recordedRecovery.witnessesPartial ? html`<p>Witness list is partial.</p>` : null}</section>`; })}
+                ${build.slug ? html`<details onToggle=${function (ev) { if (ev.currentTarget.open) setOutputBuilds(function (old) { return Object.assign({}, old, { [build.id]: true }); }); }}><summary>Inspect exports and WASM / hook / runtime readiness</summary>${outputBuilds[build.id] ? html`<${ExportBundles} slug=${build.slug} locator="" />` : null}</details>` : html`<p>Resolve this member’s binding to inspect exports.</p>`}
+              </td></tr>` : null}</${React.Fragment}>`;
+          })}</tbody></table></div>${memberLimitControl()}${projectPager()}<button type="button" className="wb-btn" onClick=${function () { jumpTo("wb-fnbrowse"); }}>Find source functions in Compare</button>
+      </section>`;
+    }
+    function measuredStageProgress(value, unit) {
+      if (!value || !Number.isFinite(value.total) || value.total <= 0 || !Number.isFinite(value.completed) || value.completed < 0 || value.completed > value.total) return null;
+      return { completed: value.completed, total: value.total, unit: value.unit || unit || "items", currentTarget: value.currentTarget || "" };
+    }
+    function workRunLane(run) {
+      const stages = Array.isArray(run.stages) ? run.stages : [];
+      const displayed = stages.slice(0, 32);
+      const current = stages.find(function (stage) { return stage.key === run.currentStage; });
+      const selectedStage = stages.find(function (stage) { return stage.key === inspectedStages[run.id]; }) || current || stages.find(function (stage) { return /failed|blocked|queued|waiting/.test(stage.status); }) || stages[0];
+      const defaultUnits = { matching: "comparisons", analysis: "programs", facts: "programs", bsim: "programs" };
+      function progressFor(stage) { return { primary: measuredStageProgress(stage, defaultUnits[stage.key]), secondary: measuredStageProgress(stage.workProgress) }; }
+      function counter(progress) { return progress.completed + " / " + progress.total + " " + progress.unit; }
+      function stageFacts(stage) {
+        const progress = progressFor(stage);
+        const job = jobs.find(function (item) { return item.id === stage.jobId; });
+        const startKnown = job && Object.prototype.hasOwnProperty.call(job, "startedAt");
+        const boundary = !job ? "Job execution receipt not loaded" : job.startedAt ? "Execution start recorded" : startKnown ? job.status === "cancelled" && !job.workerPid ? "Cancelled · no start or worker receipt" : "No execution start recorded" : "Execution start unknown";
+        return html`<div className="wb-stage-inspection"><div className="wb-stage-actual"><strong>${stage.title || stage.key}</strong><span>Stage: ${stage.status || "unknown"}</span><span>Child job in stage receipt: ${stage.jobStatus || "unknown"}</span>${job ? html`<span>Job snapshot: ${job.status || "unknown"}</span>` : null}</div>
+          <div className="wb-stage-target">${stage.currentTarget || stage.currentProgram ? html`<span>Target <code>${stage.currentTarget || stage.currentProgram}</code></span>` : html`<span>Current target not recorded</span>`}${stage.currentAction ? html`<span>Action <code>${stage.currentAction}</code></span>` : null}</div>
+          ${progress.primary ? html`<div className="wb-measured-line"><span>Stage ${counter(progress.primary)}</span><progress max=${progress.primary.total} value=${progress.primary.completed} aria-label="Measured stage progress"></progress></div>` : null}
+          ${progress.secondary ? html`<div className="wb-measured-line"><span>Sub-work ${counter(progress.secondary)}</span><progress max=${progress.secondary.total} value=${progress.secondary.completed} aria-label="Measured sub-work progress"></progress></div>` : null}
+          ${stage.workProgress && stage.workProgress.currentTarget ? html`<p className="wb-stage-subtarget">Sub-work target <code>${stage.workProgress.currentTarget}</code></p>` : null}
+          <p className="wb-execution-boundary">${boundary}${job && job.resourceDisposition ? " · Resources: " + job.resourceDisposition : ""}</p>
+          ${stage.reason ? html`<p className="wb-stage-boundary">${stage.reason}</p>` : null}
+          <details><summary>Stage evidence and resource details</summary>${job && job.resourceKeys ? html`<p>Recorded resource keys</p><pre>${JSON.stringify(job.resourceKeys, null, 2)}</pre>` : null}<p>A stage message is not a fresh byte inspection. Queue time is not execution time.</p><pre>${JSON.stringify(stage, null, 2)}</pre>${stage.jobId ? html`<button type="button" className="wb-btn" onClick=${function () { selectJobInDock(stage.jobId); }}>Inspect job details</button>` : null}</details>
+        </div>`;
+      }
+      return html`<section key=${run.id} className="wb-run-lane wb-compact-run"><header><strong>${run.scope === "project" ? "Project run" : run.scope === "binary" ? "Program run" : "Unknown scope"} · ${run.status || "unknown"}</strong><code>${run.program || run.id}</code></header>
+        <ol className="wb-stage-path" aria-label="Ordered recorded stages">${displayed.map(function (stage, index) {
+          const progress = progressFor(stage); const shown = progress.primary || progress.secondary;
+          const job = jobs.find(function (item) { return item.id === stage.jobId; });
+          return html`<li key=${stage.key || index} className=${(stage.key === run.currentStage ? "is-current " : "") + (/failed|blocked/.test(stage.status) ? "is-failed" : "")}><button type="button" aria-pressed=${stage === selectedStage} onClick=${function () { setInspectedStages(function (old) { return Object.assign({}, old, { [run.id]: stage.key }); }); }}><span className="wb-path-pin" aria-hidden="true"></span><strong>${stage.title || stage.key || "Unnamed stage"}</strong><span>${stage.status || "unknown"}${stage.key === run.currentStage ? " · current receipt" : ""}</span>${stage.jobStatus || job ? html`<small>Child: ${stage.jobStatus || job.status || "unknown"}</small>` : null}${shown ? html`<small>${progress.primary ? "" : "Sub-work: "}${counter(shown)}</small>` : null}</button></li>`;
+        })}</ol>${selectedStage ? stageFacts(selectedStage) : html`<p className="wb-membership-gap">No stage list recorded.</p>`}
+        ${stages.length > 32 ? html`<p>First 32 of ${stages.length} stages drawn; full record below.</p>` : null}
+        <details><summary>Run observation and complete stage record</summary><${PreparationObservation} run=${run} feed=${preparationFeed} now=${preparationNow} /><pre>${JSON.stringify(stages, null, 2)}</pre></details>
+      </section>`;
+    }
+    function workPaths() {
+      return html`<section className="wb-work-paths" aria-label="Recorded project work"><header className="wb-map-heading"><div><span className="wb-map-kicker">Recorded work</span><h3>Where each run stopped</h3></div><button type="button" className="wb-btn" disabled=${preparationRefreshing} onClick=${function () { loadPreparations(); loadProjectAvailability(); loadJobs("current"); }}>Refresh work status</button></header>
+        <p className="wb-hint">${preparationFeed.receivedAt ? "Snapshot received " + new Date(preparationFeed.receivedAt).toLocaleString() + (preparationNow - preparationFeed.receivedAt > 10000 ? " · stale for controls" : "") : "Work snapshot not loaded"}${preparationFeed.error ? " · Refresh failed: " + preparationFeed.error : ""}. Queue time is not execution time.</p>
+        ${openProjects.map(function (project) { const state = projectPipelineState(project, preparationNow); return html`<article key=${project.id} className="wb-project-boundary"><header><h4>${project.title}</h4><button type="button" className="wb-btn" disabled=${Boolean(state.reason) || projectControlBusy.current.has(project.id)} onClick=${function () { projectPipelineControl(project, state.run); }}>${state.label}</button></header>
+          ${state.reason ? html`<p role="status">${state.reason}</p>` : null}${projectControls[project.id] ? html`<p role="status">${projectControls[project.id]}</p>` : null}
+          ${state.projectRuns.length > 1 ? html`<p>Multiple project runs · ownership unresolved. Each is shown separately.</p>` : null}
+          ${state.projectRuns.concat(state.otherRuns).slice(0, runLimit).map(workRunLane)}${!state.projectRuns.length && !state.otherRuns.length ? html`<p className="wb-map-gap">No preparation runs recorded for this project. Execution elsewhere is unknown.</p>` : null}
+          ${state.projectRuns.length + state.otherRuns.length > runLimit ? html`<button type="button" className="wb-btn" onClick=${function () { setRunLimit(function (n) { return n + 12; }); }}>Show more runs (${runLimit} of ${state.projectRuns.length + state.otherRuns.length} drawn)</button>` : null}
+          <details><summary>Project availability</summary><p>${projectAvailability[project.id] && projectAvailability[project.id].reason || "Inventory not yet inspected."}</p></details>
+        </article>`; })}
+        <div className="wb-work-activity"><button type="button" className="wb-btn" onClick=${openLogJobs}>Inspect job activity</button><button type="button" className="wb-btn" onClick=${function () { setLogTab("log"); setLogOpen(true); }}>Session log</button><span>Job details open on request.</span></div>
+      </section>`;
+    }
+    function renderProjectSurface(tab) {
+      const titles = { "wb-overview": "Compare", "wb-artifacts": "Recover", "wb-pipeline": "Work" };
+      if (!titles[tab]) return null;
+      return html`<${Surface} id=${tab} title=${titles[tab]}>
+        ${projectScopeNotice()}${projectErrors()}
+        ${!openProjects.length ? html`<p>Open a project to inspect its binaries and recorded work.</p><button type="button" className="wb-btn" onClick=${openProjectDialog}>Open project…</button>` : null}
+        ${tab === "wb-overview" ? comparisonWorkspace() : html`<${window.AgentDecompileDockWorkspace} id=${tab} onContextMenu=${openCtx} panels=${[{ id: tab + "-dock", title: titles[tab] === "Recover" ? "Source / build artifacts" : "Pipeline / activity", zone: "center", content: tab === "wb-artifacts" ? recoveryPaths() : workPaths() }]}/>`}
+      </${Surface}>`;
+    }
+
     function renderEditorBody() {
-      const tab = centerTab || "decompile";
-      const recoveryRun = selectPreparationRun(preparationRuns, currentLocator(), program, slug);
-      if (tab === "graph") {
-        return html`<${Surface} id="wb-graph" title="Call trees">
-          <p className="wb-hint">Incoming and outgoing calls for this function. This is not Ghidra Function Graph.</p>
-          <${CallGraphView} graph=${graph} onPick=${function (node) {
-            const hit = rows.find(function (row) { return row.addr === node.addr; });
-            selectRow(hit || node);
-          }} />
+      const tab = editorTabFor(centerTab);
+      const projectSurface = renderProjectSurface(tab);
+      if (projectSurface) return projectSurface;
+      if (tab === "wb-guide") {
+        return html`<${Surface} id="wb-guide" title="Ghidra reversing guide">
+          ${projectScopeNotice()}
+          <p className="wb-hint">Navigate the existing workspace using the guide’s Code Browser concepts. A guide step is orientation, not a completion score.</p>
+          <${GuideRail} chapters=${GUIDE_CHAPTERS} centerTab=${centerTab}
+            reachable=${GUIDE_CHAPTERS.map(function (chapter) {
+              return chapter.target === "wb-sidebar" ? Boolean(dossier && dossier.ok) : Boolean(program);
+            })}
+            evidence=${[
+              Boolean(dossier && dossier.ok && (dossier.programs || []).length > 0),
+              rows.length > 0,
+              Boolean(detail && (detail.preview || (detail.decompile && detail.decompile.text))),
+              Boolean(graph && (graph.center || (graph.callers && graph.callers.length) || (graph.callees && graph.callees.length))),
+              Boolean(selected && selected.addr),
+              false,
+              false,
+              Boolean(detail && detail.decompile && detail.decompile.text)
+            ]}
+            onJump=${jumpTo} />
         </${Surface}>`;
       }
-      if (tab === "wb-overview") {
-        const ladder = (corpusStatus && corpusStatus.ladder) || {};
-        return html`<${Surface} id="wb-overview" title="Overview" actions=${panelActions(
-          html`<button type="button" className="wb-btn wb-btn-mini" onClick=${function () { loadCorpusStatus(); }}>Refresh facts</button>`
-        )}>
-          ${quickBar("home")}
-          <${TabRoster}
-            programs=${projectNames}
-            imports=${importItems}
-            selectedSlug=${slug}
-            selectedProgram=${program}
-            onPickProgram=${function (name) {
-              selectProgram(name);
-              showToast("Program " + name);
-            }}
-            onPickImport=${function (row) {
-              selectImportBinary(row);
-              showToast("Import " + ((row && row.slug) || ""));
-            }} />
-          <${HealthStrip} probes=${corpusStatus && corpusStatus.probes} atlasUrl=${atlasHref(corpusStatus)} />
-          <${CorpusHeadline} slug=${slug} version=${current.content_sha256||current.contentSha256||current.sha256||""} corpusIdentity=${corpusIdentity} revision=${corpusRevision} headline=${corpusStatus && corpusStatus.headline} claim=${corpusStatus && corpusStatus.claimBoundary} />
-          <${StepLadder} title="Corpus ladder" steps=${ladder.corpus_steps} />
-          <${BinaryCompareTable} binaries=${ladder.binaries} onOpen=${function (b) {
-            if (b && b.slug) { setSlug(b.slug); setCenterTab("wb-pipeline"); }
-          }} />
-        </${Surface}>`;
-      }
-      if (tab === "wb-atlas") {
-        return html`<${Surface} id="wb-atlas" title="Atlas" actions=${panelActions(
-          runActionButton("corpus.export-atlas-db", "Export atlas DB"),
-          html`<a className="wb-btn wb-btn-mini" href=${atlasHref(corpusStatus)} target="_blank" rel="noreferrer">Decomp Atlas :5173</a>`
-        )}>
-          ${quickBar("atlas")}
-          <${AtlasReact} onToast=${function (name) { showToast(name || "Atlas function"); }} />
-        </${Surface}>`;
-      }
-      if (tab === "wb-report") {
-        return html`<${Surface} id="wb-report" title="Report" actions=${panelActions(
-          runActionButton("corpus.coverage-report", "Coverage report"),
-          runActionButton("corpus.export-run-report", "Export run report"),
-          html`<button type="button" className="wb-btn wb-btn-mini" onClick=${function () { loadCorpusStatus(); }}>Refresh facts</button>`
-        )}>
-          ${quickBar("report")}
-          <${ReportReact} report=${corpusStatus && corpusStatus.report} />
-        </${Surface}>`;
-      }
-      if (tab === "wb-pipeline") {
-        const ladder = (corpusStatus && corpusStatus.ladder) || {};
-        const active = (ladder.binaries || []).find(function (b) { return b.slug === slug; }) || (ladder.binaries || [])[0];
-        return html`<${Surface} id="wb-pipeline" title="Pipeline" actions=${panelActions(
-          runActionButton("corpus.stages", "Stages"),
-          html`<button type="button" className="wb-btn wb-btn-mini" onClick=${function () { loadCorpusStatus(); }}>Refresh facts</button>`
-        )}>
-          ${quickBar("pipeline")}
-          <${StepLadder} title="Corpus" steps=${ladder.corpus_steps} />
-          ${active ? html`<${StepLadder} title=${"Build " + active.slug} steps=${active.steps} />` : null}
-          <${PreparationObservation} run=${recoveryRun} feed=${preparationFeed} now=${preparationNow} onControl=${controlPreparation} />
-          ${recoveryRun ? html`<${StepLadder} title=${"Self-contained recovery · " + recoveryRun.status} steps=${recoveryRun.stages} />` : null}
-        </${Surface}>`;
-      }
-      if (tab === "wb-jobs") {
-        return html`<${Surface} id="wb-jobs" title="Jobs">
-          <ul id="action-jobs" className="wb-job-list">
-            ${jobs.length ? jobs.map(function (job) {
-              return html`<li key=${job.id}><code>${job.id}</code> ${job.actionId || ""} ${job.status}</li>`;
-            }) : html`<li>no jobs</li>`}
-          </ul>
-        </${Surface}>`;
-      }
-      if (tab === "wb-match") {
-        return html`<${Surface} id="wb-match" title="Match" actions=${panelActions(
-          runActionButtonRun("corpus.bsim-report", "BSim report")
-        )}>
-          <${MatchWorkbench}
-            program=${program}
-            selected=${selected}
-            detail=${detail}
-            bsim=${bsimStatus}
-            onRefresh=${function () { loadMatchStatus(); showToast("BSim status refreshed"); }}
-            onPickSibling=${function (sib) {
-              if (sib && sib.slug) setSlug(sib.slug);
-            }} />
-          <${BinaryCompareTable} binaries=${(corpusStatus && corpusStatus.ladder && corpusStatus.ladder.binaries) || []}
-            onOpen=${function (b) { if (b && b.slug) setSlug(b.slug); }} />
-        </${Surface}>`;
-      }
-      if (tab === "wb-recovery") {
-        return html`<${Surface} id="wb-recovery" title="Recover" actions=${panelActions(
-          runActionButtonRun("recover.inspect", "Inspect recover")
-        )}>
-          <${RecoverWorkbench}
-            program=${program}
-            selected=${selected}
-            recover=${recoverInfo}
-            recoveredRoot=${recoveredRoot}
-            onRefresh=${function () { loadRecoverStatus(); showToast("Recovery status refreshed"); }} />
-        </${Surface}>`;
-      }
-      if (tab === "wb-stabs") {
-        const bins = (corpusStatus && corpusStatus.ladder && corpusStatus.ladder.binaries) || [];
-        return html`<${Surface} id="wb-stabs" title="STABS" actions=${panelActions(
-          runActionButton("corpus.stabs-manifest", "STABS manifest")
-        )}>
-          ${quickBar("stabs")}
-          <p className="wb-hint">Named counts come from the live corpus snapshot. The pipeline extracts STABS automatically.</p>
-          <${BinaryCompareTable} binaries=${bins} onOpen=${function (b) { if (b && b.slug) setSlug(b.slug); }} />
-        </${Surface}>`;
-      }
-      if (tab === "wb-knowledge") {
-        const steps = ((corpusStatus && corpusStatus.ladder && corpusStatus.ladder.corpus_steps) || []).filter(function (s) {
-          return s.key === "calibrate-global" || s.key === "identify";
-        });
-        return html`<${Surface} id="wb-knowledge" title="Knowledge" actions=${panelActions(
-          runActionButton("corpus.bsim-report", "BSim report")
-        )}>
-          <${StepLadder} title="Identity and knowledge merge" steps=${steps} />
-        </${Surface}>`;
-      }
-      if (tab === "wb-roundtrip") {
-        const steps = ((corpusStatus && corpusStatus.ladder && corpusStatus.ladder.corpus_steps) || []).filter(function (s) {
-          return s.key === "leftover-recover" || s.key === "verify-byte-accuracy" || s.key === "apply-cross-build";
-        });
-        const recoverySteps = recoveryRun ? (recoveryRun.stages || []).filter(function (stage) {
-          return ["calibrate-global", "materialize-target", "assembly-floor", "recover-source", "apply-cross-build", "leftover-recover", "verify-byte-accuracy"].includes(stage.key);
-        }) : [];
-        return html`<${Surface} id="wb-roundtrip" title="Roundtrip" actions=${panelActions()}>
-          <${CorpusHeadline} slug=${slug} version=${current.content_sha256||current.contentSha256||current.sha256||""} corpusIdentity=${corpusIdentity} revision=${corpusRevision} headline=${corpusStatus && corpusStatus.headline} claim="Compile and byte-accuracy stay separate columns." />
-          <${PreparationObservation} run=${recoveryRun} feed=${preparationFeed} now=${preparationNow} onControl=${controlPreparation} />
-          ${recoveryRun ? html`<${StepLadder} title=${"Self-contained recovery · " + (recoveryRun.program || program || slug || recoveryRun.status)} steps=${recoverySteps} />` : null}
-          <${StepLadder} title="Compile and verify" steps=${steps} />
-        </${Surface}>`;
-      }
-      if (tab === "wb-processes") {
-        return html`<${Surface} id="wb-processes" title="Process log" actions=${panelActions(
-          runActionButton("mcp.status", "MCP status")
-        )}>
-          <${HealthStrip} probes=${corpusStatus && corpusStatus.probes} atlasUrl=${atlasHref(corpusStatus)} />
-          <ul id="action-jobs" className="wb-job-list">
-            ${jobs.length ? jobs.map(function (job) {
-              return html`<li key=${job.id}><code>${job.id}</code> ${job.actionId || ""} ${job.status}</li>`;
-            }) : html`<li>No catalog jobs in this session.</li>`}
-          </ul>
-        </${Surface}>`;
-      }
-      if (tab === "wb-mission") {
-        return html`<${Surface} id="wb-mission" title="Mission" actions=${panelActions(
-          html`<button type="button" className="wb-btn wb-btn-mini" onClick=${function () { loadCorpusStatus(); }}>Refresh</button>`
-        )}>
-          <${MissionReact} mission=${corpusStatus && corpusStatus.mission} />
-        </${Surface}>`;
-      }
-      if (tab === "wb-corpus") {
-        return html`<${Surface} id="wb-corpus" title="Corpus" actions=${panelActions(
-          runActionButton("corpus.init", "Init corpus"),
-          runActionButton("corpus.program-inventory", "Program inventory"),
-          runActionButton("corpus.add-binary", "Add binary"),
-          runActionButton("corpus.remove-binary", "Remove binary"),
-          html`<button type="button" className="wb-btn wb-btn-mini" data-cmd="file.add-binaries"
-            onClick=${function () { runCommand("file.add-binaries"); }}>Add to project…</button>`
-        )}>
-          <${BinaryCompareTable} binaries=${(corpusStatus && corpusStatus.ladder && corpusStatus.ladder.binaries) || []}
-            onOpen=${function (b) { if (b && b.slug) { setSlug(b.slug); setCenterTab("wb-pipeline"); } }} />
-        </${Surface}>`;
-      }
-      if (tab === "wb-fnbrowse") {
-        return html`<${Surface} id="wb-fnbrowse" title="Functions" actions=${html`<div className="wb-surface-actions">
-          <${FuncPager} limit=${funcLimit} shown=${rows.length} total=${total}
-            onLimit=${function (n) { setFuncLimit(n); setFuncOffset(0); }} />
-          <button type="button" className="wb-btn wb-btn-mini"
-            onClick=${function () { loadFuncs(slug, query); showToast("Function list reloaded", "success"); }}>Refresh</button>
-        </div>`}>
-          ${quickBar("function")}
-          ${quickBar("functions")}
-          <div className="wb-fnb-head">
-            <label className="wb-fnb-filter">
-              <span className="sr-only">Find a function by name or address</span>
-              <input id="wb-fnbrowse-q" type="search" placeholder="Find a function by name or address…"
-                value=${query} onInput=${function (ev) { onSearch(ev.target.value); }} autocomplete="off" />
-            </label>
-            <span className="wb-hint">${program
-              ? "Ghidra program " + program
-              : (slug ? slug : "Pick a program in Explorer.")}</span>
-          </div>
-          ${rows.length ? html`<table id="wb-fnbrowse-table" className="wb-fnb-table">
-            <thead>
-              <tr>
-                <th scope="col">Name</th>
-                <th scope="col">Location</th>
-                <th scope="col">Function Signature</th>
-                <th scope="col">Function Size</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${rows.map(function (row) {
-                const on = selected && selected.addr === row.addr;
-                return html`<tr key=${row.addr} className=${on ? "on" : ""}
-                  onContextMenu=${function (ev) {
-                    if (!on) selectRow(row);
-                    openCtx(ev, functionCtxItems(row));
-                  }}
-                  onClick=${function () { selectRow(row); }}
-                  onDoubleClick=${function () { selectRow(row); jumpTo("decompile"); }}>
-                  <td>${row.name}</td>
-                  <td><code>${row.addr}</code></td>
-                  <td className="wb-sig">${row.signature || "—"}</td>
-                  <td className="wb-num">${row.size || ""}</td>
-                </tr>`;
-              })}
-            </tbody>
-          </table>` : html`<div className="wb-empty wb-empty-surface">
-            <p>${funcNote || "Select a program in Explorer to list its functions."}</p>
-            <p className="wb-empty-actions">
-              <button type="button" className="wb-btn" data-cmd="file.open-program"
-                onClick=${function () { runCommand("file.open-program"); }}>Open in Ghidra</button>
-            </p>
-            <p className="wb-hint">The pipeline analyzes and ingests new programs automatically.</p>
-          </div>`}
-          ${rows.length ? html`<${FuncPager} limit=${funcLimit} shown=${rows.length}
-            total=${total}
-            onLimit=${function (n) { setFuncLimit(n); setFuncOffset(0); }} />` : null}
-        </${Surface}>`;
-      }
-      if (tab === "wb-artifacts") {
-        return html`<${Surface} id="wb-artifacts" title="Artifacts" actions=${panelActions()}>
-          <${ArtifactsReact} path=${artifactPath} onOpen=${setArtifactPath} />
-        </${Surface}>`;
-      }
-      if (tab === "wb-evidence") {
-        return html`<${Surface} id="wb-evidence" title="Database" actions=${panelActions()}>
-          <${EvidenceReact} />
-        </${Surface}>`;
-      }
-      if (tab === "wb-logical") {
-        return html`<${Surface} id="wb-logical" title="Logical identities" actions=${panelActions()}>
-          <p className="wb-hint">Same function across builds. Bound vs real C is the identity picture.</p>
-          <${LogicalMatrix} binaries=${binaries} corpusIdentity=${corpusIdentity} revision=${corpusRevision}/>
-          <${ExportBundles} slug=${slug} locator=${currentLocator()}/>
-          <p className="wb-hint">The pipeline builds and propagates identities across builds automatically.</p>
-          <${BinaryCompareTable} binaries=${(corpusStatus && corpusStatus.ladder && corpusStatus.ladder.binaries) || []}
-            onOpen=${function (b) { if (b && b.slug) setSlug(b.slug); }} />
-        </${Surface}>`;
-      }
-      if (tab === "wb-review") {
-        return html`<${Surface} id="wb-review" title="Review" actions=${panelActions()}>
-          <${ReviewReact} onRefresh=${loadCorpusStatus}/>
-        </${Surface}>`;
-      }
+
       if (tab === "wb-tools") {
         const needle = (commandFilter || "").trim().toLowerCase();
         const matches = actions.filter(function (item) {
@@ -6394,6 +7445,8 @@
           <button type="button" className="wb-btn wb-btn-mini"
             onClick=${function () { setPaletteOpen(true); setPaletteQuery(""); }}>Palette ${accelLabel("mod+K")}</button>
         </div>`}>
+          ${projectScopeNotice()}
+          <p className="wb-hint">Expert commands retain their explicit parameters. Review source and target when several project members are suitable; no arbitrary global binary is selected.</p>
           <label className="wb-cmd-filter">
             <span className="sr-only">Filter commands</span>
             <input type="search" id="wb-cmd-filter" placeholder=${"Filter " + actions.length + " commands…"}
@@ -6437,93 +7490,26 @@
           ${!matches.length ? html`<p className="wb-empty">No command matches “${commandFilter}”.</p>` : null}
         </${Surface}>`;
       }
-      const hasProject = dossier && dossier.ok;
-      if (!hasProject && !selected) {
-        return html`<section id="wb-inspect" className="wb-surface wb-listing">
-          <div id="wb-ingest" className="wb-listing-empty wb-ingest-drop"
-            onDragOver=${onIngestDragOver} onDragLeave=${onIngestDragLeave} onDrop=${onDrop}
-            onClick=${openProjectDialog}>
-            <p>Drop a binary or project here.</p>
-            <p className="wb-hint">File → Open</p>
-          </div>
-        </section>`;
-      }
-      const decompileText = (detail && detail.resolvedFunction && selected && detail.resolvedFunction.addr === selected.addr && detail.decompile && detail.decompile.text) || "";
-      /* Classic layout keeps today's side-by-side Listing/Decompile split, unchanged.
-         The CodeBrowser layout lifts Decompile into its own persistent dock (see
-         decompileDock() below), so Listing here is always single-column there. */
-      const showInlineDecompile = classicLayout && Boolean(decompileText);
-      const listingTitle = (selected && selected.name) || program || "Listing";
-      return html`<${Surface} id="wb-inspect" title=${"Listing: " + (program || "—")}>
-        <div id="wb-inspect-body" className=${"wb-workspace-split" + (showInlineDecompile ? "" : " wb-listing-only")}>
-          <div className="wb-listing-pane">
-          ${overview || selected || program ? html`<div>
-            <h3>Listing ${listingTitle} ${(selected && selected.addr) ? html`<code>${selected.addr}</code>` : null}</h3>
-            <p className="wb-hint">${(detail && detail.path) || (overview && overview.path) || ""}</p>
-            <div className="wb-fn-tools" role="toolbar" aria-label="Listing tools">
-              <button type="button" id="wb-listing-decompile" className="wb-btn wb-btn-mini"
-                onClick=${function () {
-                  if (!selected || !selected.addr) { showToast("Select a function first", "error"); return; }
-                  executeAction("mcp.decompile-function", {
-                    addr: selected.addr, name: selected.name || "", program: program || ""
-                  }, { skipConfirm: true });
-                }}>Decompile</button>
-              <button type="button" id="wb-listing-match" className="wb-btn wb-btn-mini"
-                onClick=${function () { jumpTo("wb-match"); }}>Match</button>
-              <button type="button" id="wb-listing-recover" className="wb-btn wb-btn-mini"
-                onClick=${function () { jumpTo("wb-recovery"); }}>Recover</button>
-              <button type="button" id="wb-listing-fields" className="wb-btn wb-btn-mini" disabled=${!selected}
-                onClick=${function () { if (selected) openActionStrip("mcp.manage-function"); }}>Fields…</button>
-            </div>
-            ${(detail && detail.siblings && detail.siblings.length) ? html`<ul className="wb-siblings">
-              ${detail.siblings.map(function (sib) {
-                return html`<li key=${sib.slug + sib.addr}>
-                  <button type="button" className="wb-text-action"
-                    onClick=${function () { setSlug(sib.slug); }}>${sib.slug} ${sib.addr}</button>
-                </li>`;
-              })}
-            </ul>` : null}
-            ${selected && selected.addr
-              ? html`<${ListingRows} key=${selectionKey} addr=${selected.addr} name=${selected.name} program=${program}
-                  runReadAction=${function (id, parameters, options) {
-                    if (!isCurrentIntent(renderIntent)) return Promise.resolve({ ok: false, ignored: true, error: "Selection changed." });
-                    return runReadAction(id, parameters, Object.assign({}, options, { selectionIntent: renderIntent }));
-                  }}
-                  assemblyText=${detail && detail.resolvedFunction && detail.resolvedFunction.addr === selected.addr && detail.assembly && detail.assembly.text}
-                  fallbackText=${(detail && detail.resolvedFunction && detail.resolvedFunction.addr === selected.addr && detail.preview) || ("Reading " + program + " from the Ghidra project on disk…")}
-                  onJumpAddr=${function (target) { selectRow({ addr: target, name: target }); }} />`
-              : html`<pre className="wb-preview" id="wb-listing-preview">${(detail && detail.preview) || (program
-                  ? ("Reading " + program + " from the Ghidra project on disk…")
-                  : "Pick a program in Explorer.")}</pre>`}
-          </div>` : html`<div className="wb-empty wb-empty-surface">
-            <p>${hasProject
-              ? "Pick a program in Explorer. Listing comes from that program."
-              : "File → Open a Ghidra repository, then pick a program."}</p>
-          </div>`}
-          </div>
-          ${showInlineDecompile ? html`<div className="wb-decompile-pane">
-            <h3>Decompile: ${(selected && selected.name) || "function"}</h3>
-            <p className="wb-hint">${(detail.decompile && detail.decompile.source === "recovered")
-              ? "Recovered C for this function."
-              : "Decompiler pane."}</p>
-            <pre className="wb-preview" id="wb-decompile-preview">${decompileText}</pre>
-          </div>` : null}
-          <div id="wb-reaction" className="wb-reaction">
-            ${reaction && /analyze|decompile|match-function|export-c|one-shot|recover/.test(String(reaction.id || ""))
-              && String(reaction.id || "").indexOf("add-binary") < 0
-              ? html`<p><strong>${actionTitle(reaction.id, actions)}</strong> ${formatJobSummary(reaction.data, actions)}</p>
-              ${reaction.data && reaction.data.job && reaction.data.job.id
-                ? html`<button type="button" className="wb-text-action"
-                    onClick=${function () { selectJobInDock(reaction.data.job.id); }}>View log in dock</button>`
-                : null}
-              <details className="wb-reaction-raw">
-                <summary>Raw response</summary>
-                <pre className="wb-preview">${JSON.stringify(reaction.data, null, 2).slice(0, 4000)}</pre>
-              </details>`
-              : null}
-          </div>
+
+      return renderProjectSurface("wb-overview");
+    }
+
+    function renderFocusedListing() {
+      return html`<section id="wb-inspect" aria-label="Selected function listing">
+        <div className="wb-fn-tools" role="toolbar" aria-label="Listing tools">
+          <button type="button" id="wb-listing-decompile" className="wb-btn" onClick=${function () { if (selected && selected.addr) executeAction("mcp.decompile-function", { addr: selected.addr, name: selected.name || "", program: program || "" }, { skipConfirm: true }); }}>Decompile</button>
+          <button type="button" className="wb-btn" onClick=${function () { jumpTo("wb-recovery"); }}>Recover</button>
+          <button type="button" className="wb-btn" onClick=${function () { openActionStrip("mcp.manage-function"); }}>Function fields…</button>
         </div>
-      </${Surface}>`;
+        <${ListingRows} key=${selectionKey} addr=${selected.addr} name=${selected.name} program=${program}
+          runReadAction=${function (id, parameters, options) {
+            if (!isCurrentIntent(renderIntent)) return Promise.resolve({ ok: false, ignored: true, error: "Selection changed." });
+            return runReadAction(id, parameters, Object.assign({}, options, { selectionIntent: renderIntent }));
+          }}
+          assemblyText=${detail && detail.resolvedFunction && sameFunctionAddress(detail.resolvedFunction.addr, selected.addr) && detail.assembly && detail.assembly.text}
+          fallbackText=${detail && detail.resolvedFunction && sameFunctionAddress(detail.resolvedFunction.addr, selected.addr) && detail.preview || "No captured listing available for this selection."}
+          onJumpAddr=${function (target) { selectRow({ addr: target, name: target }); }} />
+      </section>`;
     }
 
     /* Persistent Decompile dock (CodeBrowser layout only). Shows the selected
@@ -6531,7 +7517,7 @@
        Listing. When nothing is selected, it keeps the last function that had
        a decompile, per the guide's "connected views" behavior. */
     function decompileDockBody() {
-      const liveText = detail && detail.resolvedFunction && selected && detail.resolvedFunction.addr === selected.addr
+      const liveText = detail && detail.resolvedFunction && selected && sameFunctionAddress(detail.resolvedFunction.addr, selected.addr)
         && detail.decompile && detail.decompile.text;
       const text = liveText || (lastDecompile && lastDecompile.text) || "";
       const request = detail && detail.evidenceRequest;
@@ -6546,6 +7532,8 @@
         }
       }
       if (!text) {
+        const assembly=detail&&detail.resolvedFunction&&selected&&sameFunctionAddress(detail.resolvedFunction.addr,selected.addr)&&detail.assembly&&detail.assembly.text;
+        if(assembly)return html`<div className="wb-decompile-pane"><${SourcePreview} text=${assembly} language="assembly-listing" name=${selected.name||"function"} addr=${selected.addr} slug=${detail.resolvedSlug||slug} source=${detail.source||"recorded instruction evidence"} truncated=${detail.assembly.truncated} status=${status} reason=${detail.decompile&&detail.decompile.reason}/></div>`;
         return html`<div className="wb-decompile-pane wb-decompile-empty">
           <h3>Decompile</h3>
           <p className="wb-hint" role="status">${status || "Pick a function to see its decompiled C."}</p>
@@ -6557,51 +7545,36 @@
         || "function";
       const source = (liveText && detail.decompile && detail.decompile.source)
         || (lastDecompile && lastDecompile.source)
+        || (liveText&&detail.source)
         || "";
       return html`<div className="wb-decompile-pane">
-        <h3>Decompile: ${name} ${!liveText && lastDecompile ? "(previous function @ " + lastDecompile.addr + ")" : ""}</h3>
-        <p className="wb-hint" role="status">${status
+        <${SourcePreview} text=${text} name=${name} addr=${liveText?detail.resolvedFunction.addr:lastDecompile&&lastDecompile.addr} slug=${liveText?detail.resolvedSlug||slug:lastDecompile&&lastDecompile.resolvedSlug||slug} source=${source} path=${liveText&&detail.decompile.path||""} truncated=${liveText?detail.decompile.truncated:undefined} previous=${!liveText} status=${status
           ? status + " Showing the last function read."
-          : (!liveText ? "Showing the previous function read; the current address has no decompile evidence." : (source === "recovered" ? "Recovered C for this function." : "Decompiler pane."))}</p>
-        <pre className="wb-preview" id="wb-decompile-preview">${text}</pre>
+          : (!liveText ? "Showing the previous function read; the current address has no decompile evidence. This download belongs to the displayed previous function, not the current cursor." : "")}/>
       </div>`;
     }
 
-    function decompileDock() {
-      if (classicLayout) return null;
-      return html`<aside className="wb-decompile-dock" aria-label="Decompile">
-        <button type="button" className="wb-decompile-dock-toggle"
-          aria-expanded=${decompileOpenNarrow} aria-controls="wb-decompile-dock-body"
-          onClick=${function () { setDecompileOpenNarrow(function (v) { return !v; }); }}>
-          ${decompileOpenNarrow ? "Hide Decompile" : "Show Decompile"}
-        </button>
-        <div id="wb-decompile-dock-body" className=${"wb-decompile-dock-body" + (decompileOpenNarrow ? " open" : "")}>
-          ${decompileDockBody()}
-        </div>
-      </aside>`;
-    }
 
     return html`<div className="wb">
-      <a className="skip-link" href="#wb-functions">Skip to functions</a>
+      <a className="skip-link" href="#wb-q" onClick=${function (ev) { ev.preventDefault(); jumpTo("wb-fnbrowse"); }}>Skip to function search</a>
       <div className="wb-chrome">
       <header className="wb-toolbar">
         <div className="wb-brand">
           <span className="wb-mark" aria-hidden="true">AD</span>
           <strong>AgentDecompile</strong>
         </div>
-        <label className="wb-search">
-          <span className="sr-only">Filter functions in the open binary</span>
-          <input id="wb-q" type="search" placeholder="Filter functions…"
-            value=${query} onInput=${function (ev) { onSearch(ev.target.value); }} autocomplete="off" />
-        </label>
+        <button type="button" className="wb-btn wb-project-source-download" data-cmd="file.download-source" disabled=${!currentSession || !currentSession.locator || projectSourceState && projectSourceState.owner === activeSession && projectSourceState.status === "waiting"} onClick=${downloadProjectSource} title="Download recorded source and assembly artifacts for every member of the active project; includes a coverage manifest">${projectSourceState && projectSourceState.owner === activeSession && projectSourceState.status === "waiting" ? "Collecting project source…" : projectSourceState && projectSourceState.owner === activeSession && projectSourceState.status === "pending" ? "Check source download" : "Download project source"}</button>
         <p className="wb-status-line">
           <button type="button" className="wb-server-btn" data-cmd="view.palette"
             onClick=${function () { setPaletteOpen(true); setPaletteQuery(""); }}
             title=${"Command palette (" + accelLabel("mod+K") + ")"}>${accelLabel("mod+K")}</button>
-          <span id="job-pulse">${running.length ? running.length + " running" : "idle"}</span>
+          <span id="job-pulse" title=${jobsRefreshedAt ? "Last checked " + new Date(jobsRefreshedAt).toLocaleString() : "Job status has not been checked"}>${jobsRefreshedAt
+            ? (running.length ? running.length + " active" : "No active jobs · checked")
+            : jobs.length ? "New job · refresh for status" : "Jobs not checked"}</span>
         </p>
       </header>
-      <${RepoStatus} dossier=${dossier} user=${sharedUser} />
+      <${RepoStatus} dossier=${dossier} user=${sharedUser} session=${currentSession} program=${program} slug=${slug}
+        onRetry=${function () { if (currentSession && currentSession.locator) loadPreview(currentSession.locator); }} />
       <nav id="wb-menubar" className="wb-menubar" aria-label="Application">
         ${[
           ["file", "File", [
@@ -6614,6 +7587,7 @@
             ["Reload from disk", "file.reload"],
             ["Save", "file.save"],
             ["Save As…", "file.save-as"],
+            ["Download project source", "file.download-source"],
             ["Check in to Ghidra server", "file.checkin"],
             ["Open selected program in Ghidra", "file.open-program"],
             ["—"],
@@ -6625,27 +7599,14 @@
           ["view", "View", [
             ["Command palette", "view.palette"],
             ["Explorer", "view.explorer"],
+            ["Arrange panels…", "view.panels"],
             ["—"],
-            ["Listing", "view.listing"],
-            ["Functions", "view.browse"],
-            ["Call trees", "view.graph"],
-            ["Match", "view.cross-match"],
-            ["Recover", "view.recovery"],
-            ["Artifacts", "view.artifacts"],
-            ["Database", "view.evidence"],
-            ["Inspector", "view.inspect"],
+            ["Compare", "view.overview"],
+            ["Recover", "view.artifacts"],
+            ["Work", "view.pipeline"],
+            ["Job activity…", "view.jobs"],
+            ["Matching receipts…", "view.match-receipts"],
             ["—"],
-            ["Overview", "view.overview"],
-            ["Pipeline", "view.pipeline"],
-            ["Atlas", "view.atlas"],
-            ["Jobs", "view.jobs"],
-            ["—"],
-            ["STABS", "view.stabs"],
-            ["Knowledge", "view.knowledge"],
-            ["Logical identities", "view.logical"],
-            ["Review", "view.review"],
-            ["Report", "view.report"],
-            ["Corpus table", "view.corpus"],
             ["Commands", "view.tools"],
             ["—"],
             ["Use compact layout", "view.density-compact"],
@@ -6662,6 +7623,7 @@
           ]],
           ["help", "Help", [
             ["Shortcuts and menus…", "help.access"],
+            ["Ghidra reversing guide", null, function () { setCenterTab("wb-guide"); }],
             ["Open all commands", null, function () { window.location.href = "/docs"; }],
             ["Overview", "help.overview"]
           ]]
@@ -6725,7 +7687,7 @@
                   run: function () { runCommand("file.close-tab"); } }
               ].map(decorateCommandItem));
             }}>
-            <span className=${"wb-tab-chip kind-" + styleKind(item.kind)} title=${kindTitle(item.kind)}>${styleKind(item.kind)}</span>
+            <span className=${"wb-tab-chip kind-" + styleKind(item.kind)} title=${kindTitle(item.kind) + " · " + sessionKindLabel(item)}>${sessionKindLabel(item)}</span>
             ${editingTab === item.id
               ? html`<input className="wb-tab-rename" value=${item.title} autofocus
                   onBlur=${function (ev) { renameTab(item.id, ev.target.value); }}
@@ -6760,6 +7722,7 @@
           title=${"New tab (" + accelLabel("alt+T") + ")"}>+</button>
       </div>
       ${pendingAction ? html`<${ActionStrip}
+        key=${pendingAction.id + ":" + JSON.stringify(pendingActionParams)}
         action=${pendingAction}
         ctx=${toolContext}
         expanded=${actionExpanded}
@@ -6792,6 +7755,12 @@
           if (typeof item.run === "function") item.run();
           else runCommand(item.id, item.extra);
         }} />
+      <${PanelLayoutDialog} open=${dialog === "panels"} onClose=${closeDialog} workspaceId=${editorTabFor(centerTab) === "wb-overview" ? "compare" : editorTabFor(centerTab)} menuInvokerRef=${dialogInvokerRef}/>
+      <${Modal} open=${dialog === "match-receipts"} title="Recorded matching evidence" onClose=${closeDialog} menuInvokerRef=${dialogInvokerRef} footer=${html`<button type="button" className="wb-btn" onClick=${loadMatchStatus}>Read matching methods</button><button type="button" className="wb-btn wb-btn-primary" onClick=${closeDialog}>Close</button>`}>
+        <table><thead><tr><th>Build pair</th><th>Accepted correspondences</th><th>Receipt</th></tr></thead><tbody>${scopedBinaries.flatMap(function (binary) { const group = binary.variant_group || binary.variantGroup; return (group && group.evidence || []).filter(function (receipt) { return memberSlugs.has(receipt.source) && memberSlugs.has(receipt.target); }); }).map(function (receipt, index) { return html`<tr key=${index}><td>${receipt.source} ↔ ${receipt.target}</td><td>${receipt.acceptedMatches == null ? "Not recorded" : receipt.acceptedMatches}</td><td><code>${receipt.receipt || "Not supplied"}</code></td></tr>`; })}</tbody></table>
+        ${bsimStatus ? html`<p>${bsimStatus.summary}</p><table><thead><tr><th>Recorded method</th><th>Bindings</th><th>Scope</th></tr></thead><tbody>${(bsimStatus.methods || []).map(function (method, index) { return html`<tr key=${index}><td>${method.method}</td><td>${method.bindings}</td><td>${method.scope}</td></tr>`; })}</tbody></table>${(bsimStatus.errors || []).map(function (error, index) { return html`<p role="status" key=${index}>${error}</p>`; })}` : html`<p>Read methods on demand. Missing BSim does not block other matching methods.</p>`}
+        <p>Recorded correspondence is not byte-equality proof. Detailed pair evidence remains alongside the code in Correspondence.</p>
+      </${Modal}>
       <${ConfirmDialog}
         open=${Boolean(confirmDialog)}
         title=${confirmDialog && confirmDialog.title}
@@ -6803,14 +7772,16 @@
       <main id="app">
       <input id="wb-bin-file-global" type="file" multiple hidden ref=${fileRef}
         onChange=${function (ev) { if (ev.target.files && ev.target.files.length) uploadFiles(ev.target.files); }} />
+      <input id="wb-add-file" type="file" hidden ref=${addFileRef}
+        onChange=${function (ev) { if (ev.target.files && ev.target.files.length) stageAddFile(ev.target.files[0]); }} />
       <input id="wb-bin-folder-global" type="file" webkitdirectory="true" hidden ref=${folderRef}
         onChange=${function (ev) { if (ev.target.files && ev.target.files.length) uploadFiles(ev.target.files); }} />
       <${Modal} open=${dialog === "open"} title="Open project" onClose=${closeDialog} error=${dialogError} menuInvokerRef=${dialogInvokerRef} footer=${html`
         <button type="button" className="wb-btn" onClick=${closeDialog}>Cancel</button>
-        <button type="button" className="wb-btn wb-btn-primary" id="wb-open-paste-go" onClick=${openPastedPath}>Open path</button>
+        <button type="button" className="wb-btn wb-btn-primary" id="wb-open-paste-go" disabled=${browseOpening || !openPaste.trim()} onClick=${openPastedPath}>${browseOpening ? "Opening project…" : "Open path"}</button>
       `}>
         <label className="wb-open-paste">Path or URL
-          <input id="wb-open-paste" value=${openPaste} placeholder="/home/…/repos · Name.gpr · ghidra://host:port/repo · /path/to/binary"
+          <input id="wb-open-paste" value=${openPaste} disabled=${browseOpening} placeholder="/home/…/repos · Name.gpr · ghidra://host:port/repo · /path/to/binary"
             onInput=${function (ev) { setOpenPaste(ev.target.value); }}
             onKeyDown=${function (ev) { if (ev.key === "Enter") { ev.preventDefault(); openPastedPath(); } }} />
         </label>
@@ -6832,24 +7803,19 @@
           </p>
           <div id="wb-browse" className="wb-browse">
             <p className="wb-browse-path">
-              ${browse.parent ? html`<button type="button" className="wb-text-action" onClick=${function () { loadBrowse(browse.parent); }}>Up</button>` : null}
+              ${browse.path ? html`<button type="button" className="wb-text-action" disabled=${browseBusy || browseOpening} onClick=${function () { loadBrowse(""); }}>Locations</button>` : null}
+              ${browse.parent ? html`<button type="button" className="wb-text-action" disabled=${browseBusy || browseOpening} onClick=${function () { loadBrowse(browse.parent); }}>Up</button>` : null}
               <code>${browse.path || "roots"}</code>
+              ${browse.path && ["ghidra-project", "shared-fs", "shared-project"].includes(browse.kind) ? html`<button type="button" className="wb-btn wb-btn-primary" disabled=${browseBusy || browseOpening} onClick=${function () { openBrowseEntry({path:browse.path,kind:browse.kind}); }}>Open this project</button>` : null}
             </p>
-            <ul className="wb-browse-list">
+            ${browseBusy ? html`<p role="status">Reading project locations…</p>` : browseOpening ? html`<p role="status">Opening the selected project and retaining existing analysis…</p>` : browse.kind === "project-collection" ? html`<p>Select the .gpr project to open. This folder contains multiple projects.</p>` : null}
+            <ul className="wb-browse-list" aria-busy=${browseBusy || browseOpening}>
               ${(browse.entries || []).map(function (entry) {
                 return html`<li key=${entry.path} className=${"kind-" + styleKind(entry.kind)}>
-                  <button type="button" className="wb-browse-item" data-kind=${entry.kind}
-                    onClick=${function () {
-                      if (entry.kind === "binary" || entry.kind === "packed-program") {
-                        openBinaryPath(entry.path, entry.name);
-                      } else if (entry.kind === "gpr" || entry.kind === "project-dir" || entry.kind === "shared-fs") {
-                        openLocator(entry.path, entry.name);
-                      } else {
-                        loadBrowse(entry.path);
-                      }
-                    }}>
+                  <button type="button" className="wb-browse-item" data-kind=${entry.kind} disabled=${browseBusy || browseOpening} title=${entry.path}
+                    onClick=${function () { openBrowseEntry(entry); }}>
                     <strong>${entry.name}</strong>
-                    <span>${kindTitle(entry.kind)}${entry.programs && entry.programs.length ? " · " + entry.programs.length + " programs" : ""}</span>
+                    <span>${["gpr", "ghidra-project", "project-dir", "shared-fs", "shared-project"].includes(entry.kind) ? "Open project" : ["binary", "packed-program"].includes(entry.kind) ? "Add binary to project" : entry.kind === "file" ? "Inspect file" : "Browse folder"} · ${kindTitle(entry.kind)}${entry.programs && entry.programs.length ? " · " + entry.programs.length + " programs" : ""}</span>
                   </button>
                 </li>`;
               })}
@@ -6871,48 +7837,24 @@
         </form>`}
       </${Modal}>
 
-      <${Modal} open=${dialog === "save-as"} title="Save As" onClose=${closeDialog} error=${dialogError} menuInvokerRef=${dialogInvokerRef}
-        footer=${html`
-          <button type="button" className="wb-btn" onClick=${closeDialog}>Cancel</button>
-          <button type="submit" form="wb-save-as-form" className="wb-btn wb-btn-primary">Save</button>
-        `}>
-        <form id="wb-save-as-form" onSubmit=${submitSaveAs}>
-          <label>Project name
-            <input value=${saveAsName} onInput=${function (ev) { setSaveAsName(ev.target.value); }} />
-          </label>
-          <label>Format
-            <select value=${saveAsTarget} onChange=${function (ev) { setSaveAsTarget(ev.target.value); }}>
-              <option value="ghidra-project">Local Ghidra project (.gpr)</option>
-              <option value="shared-fs">Shared server folder (filesystem layout)</option>
-              <option value="shared-project">Ghidra Server (ghidra://) with local checkout</option>
-            </select>
-          </label>
-          ${saveAsTarget === "shared-project" ? html`<label>Server URL
-            <input id="wb-save-as-url" value=${saveAsUrl} placeholder="ghidra://host/repo"
-              onInput=${function (ev) { setSaveAsUrl(ev.target.value); }} />
-          </label>` : html`<label>Folder <span className="wb-hint">optional</span>
-            <input value=${saveAsDest} placeholder="defaults to work directory"
-              onInput=${function (ev) { setSaveAsDest(ev.target.value); }} />
-          </label>`}
-          <p className="wb-hint">${saveAsTarget === "shared-project"
-            ? "Links a Ghidra Server URL. Program databases stay on the server and are not downloaded."
-            : "Copies the program databases and their version history that the source holds. Nothing is written to the source."}</p>
-        </form>
-      </${Modal}>
+      <${SaveAsDialog} open=${dialog === "save-as"} onClose=${closeDialog} onSubmit=${submitSaveAs} error=${dialogError} menuInvokerRef=${dialogInvokerRef}
+        locator=${currentLocator()} project=${dossier} projectTitle=${currentSession&&currentSession.title} workDir=${envDefaults.work_dir}
+        target=${saveAsTarget} setTarget=${setSaveAsTarget} name=${saveAsName} setName=${setSaveAsName} destination=${saveAsDest} setDestination=${setSaveAsDest}/>
 
       <${Modal} open=${dialog === "add-binary"} title="Add binary to this project" onClose=${closeDialog} error=${dialogError} menuInvokerRef=${dialogInvokerRef}
         footer=${html`
           <button type="button" className="wb-btn" onClick=${closeDialog}>Cancel</button>
-          <button type="button" className="wb-btn" onClick=${triggerFileUpload}>Choose file…</button>
-          <button type="submit" form="wb-add-binary-form" className="wb-btn wb-btn-primary">Add to project</button>
+          <button type="button" className="wb-btn" disabled=${addBusy} onClick=${triggerAddFileUpload}>Choose file…</button>
+          <button type="submit" form="wb-add-binary-form" className="wb-btn wb-btn-primary" disabled=${addBusy || !addPath.trim()}>${addBusy ? "Working…" : "Add to project"}</button>
         `}>
         <form id="wb-add-binary-form" onSubmit=${submitAddToProject}>
+          ${addBusy ? html`<p role="status">Staging or importing the file…</p>` : null}
           <p className="wb-hint">${currentLocator()
             ? "The file is imported into the open Ghidra project."
             : "This tab has no project yet. Add creates one, then imports the binary."}</p>
-          <label>Binary path
-            <input id="wb-add-path" value=${addPath} placeholder="/path/to/game.exe"
-              onInput=${function (ev) { setAddPath(ev.target.value); }}
+          <label>${addFileName ? "Selected file · " + addFileName : "Binary path"}
+            <input id="wb-add-path" value=${addPath} disabled=${addBusy} placeholder="Choose a file or enter a server-visible path"
+              onInput=${function (ev) { setAddPath(ev.target.value); setAddFileName(""); }}
               onKeyDown=${function (ev) { if (ev.key === "Enter") { ev.preventDefault(); submitAddToProject(ev); } }} />
           </label>
         </form>
@@ -6937,23 +7879,9 @@
         </table>
       </${Modal}>
 
-      <div className=${"wb-app-shell" + (classicLayout ? " wb-shell-classic" : "")} style=${{ "--wb-side-w": sideW + "px" }}>
-        <${GuideRail} chapters=${GUIDE_CHAPTERS} centerTab=${centerTab}
-          reachable=${GUIDE_CHAPTERS.map(function (chapter) {
-            return chapter.target === "wb-sidebar" ? Boolean(dossier && dossier.ok) : Boolean(program);
-          })}
-          evidence=${[
-            Boolean(dossier && dossier.ok && (dossier.programs || []).length > 0),
-            rows.length > 0,
-            Boolean(detail && (detail.preview || (detail.decompile && detail.decompile.text))),
-            Boolean(graph && (graph.center || (graph.callers && graph.callers.length) || (graph.callees && graph.callees.length))),
-            Boolean(selected && selected.addr),
-            false,
-            false,
-            Boolean(detail && detail.decompile && detail.decompile.text)
-          ]}
-          onJump=${jumpTo} />
-        <aside id="wb-sidebar" className="wb-sidebar" style=${{ width: sideW + "px", flexBasis: sideW + "px" }}
+      <div className="wb-app-shell wb-project-workspace">
+        <${Modal} open=${filesOpen} title="Project files" onClose=${function () { setFilesOpen(false); }}>
+        <aside id="wb-sidebar" className="wb-sidebar wb-files-drawer"
           onContextMenu=${function (ev) {
             const items = [
               { id: "file.open", title: "Open…" },
@@ -6968,10 +7896,10 @@
           }}>
           <div id="wb-sources" className="wb-sidebar-section" style=${{ flex: "0 0 " + explorerH + "px", height: explorerH + "px" }}>
             <header className="wb-sidebar-head">
-              <h3>Explorer</h3>
+              <h3>Project files</h3>
               <button type="button" className="wb-text-action" data-cmd="file.add-binaries"
-                title="Import a binary into this Ghidra project"
-                onClick=${function () { runCommand("file.add-binaries"); }}>Add to project</button>
+                title="Add a binary or program to the open project"
+                onClick=${function () { runCommand("file.add-binaries"); }}>Add files</button>
             </header>
             <ul id="wb-binary-list" className="wb-source-tree">
               ${projectCard ? html`<li key=${projectCard.key}
@@ -7020,58 +7948,20 @@
                     </li>`;
                   })}
                 </ul>` : html`<ul className="wb-programs">
-                  <li className="wb-empty">Add binaries into this project.</li>
+                  <li className="wb-empty" role="status">No program entries are visible in this project yet.</li>
                 </ul>`}
               </li>` : null}
-              ${!projectCard ? html`<li className="wb-empty">This tab is the project. File → Open a .gpr, a repos folder, or a ghidra:// URL.</li>` : null}
+              ${!projectCard ? html`<li className="wb-empty" role="status">${currentSession && currentSession.locator
+                ? (dossier && dossier.error
+                  ? "This tab’s saved project path cannot be read: " + dossier.error
+                  : "Reading the saved project for this workspace…")
+                : currentSession && currentSession.projectSlug
+                  ? "Workspace build: " + currentSession.projectSlug + ". Open a project to browse its program files."
+                  : "No project is loaded in this workspace. Use File → Open project."}</li>` : null}
             </ul>
           </div>
           <${SplitHandle} axis="y" label="Resize explorer"
             onDrag=${function (ev) { beginResize(ev, explorerH, setExplorerH, "wb-explorer-h", "y", 80, 720, false); }} />
-          <div id="wb-functions" className="wb-sidebar-section">
-            <h3>Functions ${total ? "(" + total + ")" : ""} ${checkedAddrs.length ? html`<span className="wb-sel-chip">${checkedAddrs.length} selected <button type="button" className="wb-sel-clear" aria-label="Clear function selection" onClick=${function () { setCheckedAddrs([]); setCheckAnchor(""); }}>×</button></span>` : null}</h3>
-            <span id="wb-func-meta" className="sr-only">${total || 0} functions${checkedAddrs.length ? ", " + checkedAddrs.length + " selected" : ""}</span>
-            ${html`<${FuncPager} compact=${true}
-              limit=${funcLimit} shown=${rows.length} total=${total}
-              onLimit=${function (n) { setFuncLimit(n); setFuncOffset(0); }} />`}
-            <div id="wb-func-window" className="wb-func-window" tabindex="0"
-              onContextMenu=${function (ev) {
-                openCtx(ev, [
-                  { title: checkedAddrs.length
-                      ? "Clear " + checkedAddrs.length + " selected"
-                      : "Nothing selected",
-                    danger: Boolean(checkedAddrs.length),
-                    run: function () { setCheckedAddrs([]); setCheckAnchor(""); } },
-                  "—",
-                  { id: "run.last" },
-                  "—",
-                  { id: "view.listing" },
-                  { id: "view.graph" }
-                ].map(decorateCommandItem));
-              }}>
-              ${rows.map(function (row) {
-                const on = selected && selected.addr === row.addr ? " on" : "";
-                const checked = checkedAddrs.indexOf(row.addr) >= 0;
-                return html`<div key=${row.addr} className=${"wb-func-row" + on + (checked ? " checked" : "")}
-                  onContextMenu=${function (ev) {
-                    if (!selected || selected.addr !== row.addr) selectRow(row);
-                    openCtx(ev, functionCtxItems(row));
-                  }}
-                  onClick=${function (ev) { onFuncRowClick(ev, row); }}>
-                  <input type="checkbox" className="wb-func-check" checked=${checked}
-                    aria-label=${"Select " + (row.name || row.addr)}
-                    onClick=${function (ev) { onFuncCheck(ev, row); }}
-                    onChange=${function () { /* controlled by onClick */ }} />
-                  <code title=${row.addr}>${row.addr}</code><span title=${row.name || ""}>${row.name}</span>
-                </div>`;
-              })}
-              ${!rows.length ? html`<p className="wb-hint">${funcNote || "Select a program to list functions."}</p>` : null}
-            </div>
-            <p className="wb-sidebar-foot">
-              <button type="button" className="wb-text-action" data-cmd="view.browse"
-                onClick=${function () { runCommand("view.browse"); }}>Browse all functions</button>
-            </p>
-          </div>
           <${SymbolTree} program=${program} scopeKey=${targetKey}
             hint=${dossier && dossier.error ? "Symbols need a readable project. " + dossier.error : ""}
             runReadAction=${runReadAction}
@@ -7080,10 +7970,7 @@
               if (scope && scope === targetKey && scope === targetIdentity(targetRef.current)) selectFunctionLeaf(fn.name, fn.addr, scope);
             }} />
         </aside>
-        <${SplitHandle} axis="x" label="Resize explorer"
-          value=${sideW} min=${180} max=${900}
-          onDrag=${function (ev) { beginResize(ev, sideW, setSideW, "wb-side-w", "x", 180, 900, false); }}
-          onStep=${function (delta) { clampResize(sideW + delta, 180, 900, setSideW, "wb-side-w"); }} />
+        </${Modal}>
 
       <div className="wb-editor"
         onContextMenu=${function (ev) {
@@ -7099,21 +7986,13 @@
         }}>
         <${CorpusNavBar} active=${centerTab} moreOpen=${moreOpen}
           onMoreToggle=${setMoreOpen} onJump=${jumpToCorpus} />
-        ${dossier && dossier.ok ? html`<div id="wb-project-bar" className="wb-editor-meta">
-          <span className=${"wb-kind wb-kind-" + styleKind(dossier.kind)}>${kindTitle(dossier.kind)}</span>
-          <code className="wb-project-path">${dossier.locator || ""}</code>
-          <span className="wb-hint">${[
-            dossier.program_count != null ? dossier.program_count + " programs" : "",
-            overview && overview.functionCount ? overview.functionCount + " functions" : ""
-          ].filter(Boolean).join(" · ")}</span>
-        </div>` : null}
+        ${editorTabFor(centerTab) === "wb-overview" ? html`<div className="wb-workspace-search">${projectFunctionFilter()}</div>` : null}
         <div className="wb-editor-body" onDragOver=${onIngestDragOver} onDragLeave=${onIngestDragLeave} onDrop=${onDrop}>
           ${renderEditorBody()}
         </div>
       </div>
-      ${decompileDock()}
       </div>
-      <${LogDock}
+      ${logOpen ? html`<${LogDock}
         entries=${logEntries}
         tab=${logTab}
         onTab=${setLogTab}
@@ -7124,12 +8003,24 @@
         jobs=${jobs}
         selectedJobId=${selectedJobId}
         jobDetail=${jobDetail}
+        jobDetailLoading=${jobDetailLoading}
+        jobDetailError=${jobDetailError}
         onSelectJob=${selectJobInDock}
+        onRetryJobDetail=${retryJobDetail}
         onCancel=${cancelJob}
+        onRefreshJobs=${loadJobs}
+        onLoadJobHistory=${function () { loadJobs("history"); }}
+        jobsRefreshedAt=${jobsRefreshedAt}
+        jobsRefreshing=${jobsRefreshing}
+        jobsVisibleCount=${jobsVisibleCount}
+        jobsScope=${jobsScope}
+        jobsLoadingScope=${jobsLoadingScope}
+        onShowMoreJobs=${function () { setJobsVisibleCount(function (count) { return Math.min(jobs.length, count + JOB_PAGE_SIZE); }); }}
+        jobAdmission=${jobAdmission}
         actions=${actions}
         height=${logH}
         onResize=${function (ev) { beginResize(ev, logH, setLogH, "wb-log-h", "y", 72, 640, true); }}
-        onKeyResize=${function (delta) { clampResize(logH + delta, 72, 640, setLogH, "wb-log-h"); }} />
+        onKeyResize=${function (delta) { clampResize(logH + delta, 72, 640, setLogH, "wb-log-h"); }} />` : null}
         <input id="wb-bin-slug" type="hidden" value=${newSlug} />
         <input id="wb-bin-role" type="hidden" value=${role} />
         <input id="wb-bin-label" type="hidden" value=${label} />
@@ -7141,7 +8032,9 @@
         <span id="wb-status-selection">${selected
           ? ((selected.name || selected.addr) + " " + (selected.addr || ""))
           : (total ? total + " functions" : "No function")}</span>
-        <span id="job-status">${running.length ? running.length + " running" : "idle"}</span>
+        <span id="job-status" title=${jobsRefreshedAt ? "Last checked " + new Date(jobsRefreshedAt).toLocaleString() : "Job status has not been checked"}>${jobsRefreshedAt
+          ? (running.length ? running.length + " active" : "No active jobs · checked")
+          : jobs.length ? "New job · refresh for status" : "Jobs not checked"}</span>
         ${statusError
           ? html`<span id="wb-status-error" className="wb-status-error" role="alert">${statusError}
               <button type="button" className="wb-status-dismiss" aria-label="Dismiss error"

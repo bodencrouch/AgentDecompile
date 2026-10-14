@@ -74,6 +74,24 @@ def _addr_to_file(cand_dir: Path) -> dict[int, Path]:
     return out
 
 
+def _queue_rows(min_size):
+    diffs = json.loads(QUEUE_DIFFS.read_text())["results"]
+    return [r for r in diffs if r.get("reason") == "mismatch" and r.get("diff") is not None
+            and r.get("size", 0) >= min_size]
+
+
+def _no_work_summary(rows, state):
+    known_unclosed = sum(r['addr'] in state['unclosed'] for r in rows)
+    reason = ('no_eligible_queue' if not rows else
+              'known_unclosed_requires_dependency_repair' if known_unclosed else
+              'selected_queue_exhausted')
+    return {'passPending': 0, 'closedThisPass': 0,
+            'closedTotal': len(state['closed']), 'unclosedTotal': len(state['unclosed']),
+            'elapsedSeconds': 0, 'reason': reason, 'needsDependencyChange': True,
+            'compilerInvocations': 0, 'contextRepairAttempted': False,
+            'diagnosticOnly': True, 'goalComplete': False}
+
+
 def _clean_queue(min_size: int) -> list[dict]:
     """Named mismatches, excluding tiny-thunk masking artifacts and Ghidra
     stub bodies (`ghidra_call()`/jumptable-recovery-failed placeholders) --
@@ -82,9 +100,7 @@ def _clean_queue(min_size: int) -> list[dict]:
     from kx import permuter_harness as ph
     from kx import text_permuter as tp
 
-    diffs = json.loads(QUEUE_DIFFS.read_text())["results"]
-    rows = [r for r in diffs if r.get("reason") == "mismatch" and r.get("diff") is not None
-            and r.get("size", 0) >= min_size]
+    rows = _queue_rows(min_size)
     clean = []
     for r in rows:
         f = CAND_DIR / r["file"]
@@ -102,26 +118,36 @@ def _clean_queue(min_size: int) -> list[dict]:
 
 
 def run_pass(seconds_per_fn: float, min_size: int, limit: int | None) -> dict:
-    from kx import permuter_harness as ph
-    from kx import text_permuter as tp
-
-    con = sqlite3.connect(f"file:{DB_PATH}?mode=ro", uri=True)
-    size_map = {int(a): int(s or 0) for a, s in con.execute(
-        "SELECT addr, size FROM func WHERE binary_id=8")}
-    con.close()
-
-    print("repairing context (compile-and-drop)...", flush=True)
-    ph.CONTEXT_CACHE[REPO_PATH] = ph.repair_context(ph.context_for(REPO_PATH), "vc71")
-    print(f"context ready: {len(ph.CONTEXT_CACHE[REPO_PATH].splitlines())} lines", flush=True)
-
-    rows = _clean_queue(min_size)
     state = _load_state()
+    metadata_rows = _queue_rows(min_size)
+    if not any(r['addr'] not in state['closed'] and r['addr'] not in state['unclosed']
+               for r in metadata_rows):
+        # No donor imports, source parsing or compiler context for exhausted state.
+        return {**_no_work_summary(metadata_rows, state), 'eligibilityScope': 'queue-metadata'}
+    rows = _clean_queue(min_size)
     pending = [r for r in rows if r["addr"] not in state["closed"] and r["addr"] not in state["unclosed"]]
     if limit:
         pending = pending[:limit]
     print(f"queue: {len(rows)} clean, {len(pending)} pending this pass "
           f"({len(state['closed'])} already closed, {len(state['unclosed'])} already known-unclosed)",
           flush=True)
+    if not pending:
+        sources = [str(CAND_DIR / row['file']) for row in metadata_rows
+                   if row['addr'] not in state['closed'] and row['addr'] not in state['unclosed']]
+        return {**_no_work_summary(rows, state), 'eligibilityScope': 'clean-source-queue',
+                'idleSourceDependencies': sources[:4096],
+                'idleDependencyCoverageComplete': len(sources) <= 4096}
+
+    from kx import permuter_harness as ph
+    from kx import text_permuter as tp
+    # Compiler-backed context repair is justified only by an eligible pass.
+    con = sqlite3.connect(f"file:{DB_PATH}?mode=ro", uri=True)
+    size_map = {int(a): int(s or 0) for a, s in con.execute(
+        "SELECT addr, size FROM func WHERE binary_id=8")}
+    con.close()
+    print("repairing context (compile-and-drop)...", flush=True)
+    ph.CONTEXT_CACHE[REPO_PATH] = ph.repair_context(ph.context_for(REPO_PATH), "vc71")
+    print(f"context ready: {len(ph.CONTEXT_CACHE[REPO_PATH].splitlines())} lines", flush=True)
 
     addr_to_file = _addr_to_file(CAND_DIR)
     work = Path("/home/brunner56/agentdecompile-nvme/text-permuter-work")
@@ -129,20 +155,28 @@ def run_pass(seconds_per_fn: float, min_size: int, limit: int | None) -> dict:
     BYTEEXACT_DIR.mkdir(exist_ok=True)
 
     closed_this_pass = 0
+    skipped = {}; attempted = 0; idle_sources = []
     t0 = time.time()
     for i, row in enumerate(pending, 1):
         addr = int(row["addr"], 16)
         f = addr_to_file.get(addr)
         if f is None:
+            skipped['candidate_file_missing'] = skipped.get('candidate_file_missing', 0) + 1
+            idle_sources.append(str(CAND_DIR / row['file']))
             continue
         src = f.read_text(errors="replace")
         size = size_map.get(addr, row.get("size", 0))
         fname = ph.defined_name(src, "")
         if not fname:
+            skipped['defined_function_missing'] = skipped.get('defined_function_missing', 0) + 1
+            idle_sources.append(str(f))
             continue
         d = ph.build_case(REPO_PATH, addr, size, fname, src, "vc71", work)
         if d is None:
+            skipped['target_case_unavailable'] = skipped.get('target_case_unavailable', 0) + 1
+            idle_sources.append(str(f))
             continue
+        attempted += 1
         base_c = (d / "base.c").read_text()
         target = (d / "target_bytes.bin").read_bytes()
         ft = (d / "function.txt").read_text().strip()
@@ -177,10 +211,38 @@ def run_pass(seconds_per_fn: float, min_size: int, limit: int | None) -> dict:
     elapsed = round(time.time() - t0, 1)
     summary = {"passPending": len(pending), "closedThisPass": closed_this_pass,
                "closedTotal": len(state["closed"]), "unclosedTotal": len(state["unclosed"]),
-               "elapsedSeconds": elapsed}
+               "elapsedSeconds": elapsed, 'attemptedFunctions': attempted,
+               'skippedCounts': skipped, 'contextRepairAttempted': True,
+               'reason': 'pass_processed' if attempted else 'eligible_queue_blocked',
+               'needsDependencyChange': attempted == 0,
+               'idleSourceDependencies': idle_sources[:4096],
+               'idleDependencyCoverageComplete': len(idle_sources) <= 4096,
+               'diagnosticOnly': True, 'goalComplete': False}
     print(f"\nPASS DONE: {closed_this_pass}/{len(pending)} closed this pass "
           f"({len(state['closed'])} closed total, {elapsed}s)", flush=True)
     return summary
+
+
+def _queue_revision(source_dependencies=()):
+    """Cheap idle trigger only, never source/toolchain equivalence proof.
+
+    Existing failed entries are not cleared when a file changes. An operator
+    must repair their dependencies/selection; this snapshot only avoids
+    repeatedly invoking the compiler on an unchanged, nonactionable queue.
+    """
+    revision = []
+    from itertools import islice
+
+    sources = tuple(islice(iter(source_dependencies), 4097))
+    if len(sources) > 4096:
+        raise ValueError('idle_source_dependency_capacity')
+    for path in (QUEUE_DIFFS, STATE_PATH, CAND_DIR, *(Path(p) for p in sources)):
+        try:
+            st = path.stat()
+            revision.append((st.st_dev, st.st_ino, st.st_size, st.st_mtime_ns, st.st_ctime_ns))
+        except OSError:
+            revision.append(None)
+    return tuple(revision)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -196,11 +258,34 @@ def main(argv: list[str] | None = None) -> int:
     _write_status(running=True, mode="watch" if args.watch else "single-pass")
     try:
         if not args.watch:
-            run_pass(args.seconds_per_fn, args.min_size, args.limit)
-            _write_status(running=False, mode="single-pass", finishedAt=time.time())
+            summary = run_pass(args.seconds_per_fn, args.min_size, args.limit)
+            _write_status(running=False, mode="single-pass", finishedAt=time.time(), lastPass=summary)
             return 0
         while True:
+            before = _queue_revision()
             summary = run_pass(args.seconds_per_fn, args.min_size, args.limit)
+            if summary.get('needsDependencyChange'):
+                if summary.get('idleDependencyCoverageComplete') is False:
+                    _write_status(running=False, mode='watch', lastPass=summary,
+                                  reason='idle_source_dependency_capacity', goalComplete=False)
+                    return 1
+                # The pass may write its state; don't mistake our own write for
+                # new work. Changes that occurred during the pass get one cheap
+                # eligibility recheck before entering the idle wait.
+                source_dependencies = summary.get('idleSourceDependencies', ())
+                revision = _queue_revision(source_dependencies)
+                after = _queue_revision()
+                external_changed = after[0] != before[0] or after[2] != before[2]
+                state_changed_without_write = (summary.get('contextRepairAttempted') is False
+                                               and after[1] != before[1])
+                if external_changed or state_changed_without_write:
+                    continue
+                _write_status(running=True, mode='watch-idle', lastPass=summary,
+                              waitingFor='queue_or_state_revision', goalComplete=False)
+                print('No actionable pass; waiting for queue/state changes without context compilation.', flush=True)
+                while _queue_revision(source_dependencies) == revision:
+                    time.sleep(max(1.0, args.interval))
+                continue
             _write_status(running=True, mode="watch", lastPass=summary)
             print(f"sleeping {args.interval}s before next pass...", flush=True)
             time.sleep(args.interval)

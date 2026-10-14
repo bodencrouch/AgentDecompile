@@ -19,6 +19,73 @@ import pathlib
 import re
 import sqlite3
 
+# Project identity is independent of binary identity. Multiple analysis instances
+# may describe the same image without overwriting each other's bindings.
+PROJECT_TABLES = {
+    "workspace": """CREATE TABLE workspace (
+        id TEXT PRIMARY KEY, created REAL NOT NULL)""",
+    "workspace_locator": """CREATE TABLE workspace_locator (
+        provider TEXT NOT NULL, locator TEXT NOT NULL,
+        workspace_id TEXT NOT NULL REFERENCES workspace(id), evidence TEXT NOT NULL,
+        PRIMARY KEY(provider, locator))""",
+    "analysis_instance": """CREATE TABLE analysis_instance (
+        id TEXT PRIMARY KEY, workspace_id TEXT NOT NULL REFERENCES workspace(id),
+        program_path TEXT NOT NULL, source_locator TEXT NOT NULL,
+        parent_id TEXT REFERENCES analysis_instance(id), basis TEXT NOT NULL,
+        UNIQUE(workspace_id, source_locator, program_path))""",
+    "analysis_revision": """CREATE TABLE analysis_revision (
+        instance_id TEXT NOT NULL REFERENCES analysis_instance(id), revision TEXT NOT NULL,
+        basis TEXT NOT NULL, provenance TEXT NOT NULL,
+        PRIMARY KEY(instance_id, revision))""",
+    "analysis_binding": """CREATE TABLE analysis_binding (
+        source_path TEXT NOT NULL, instance_id TEXT NOT NULL REFERENCES analysis_instance(id),
+        updated REAL NOT NULL, PRIMARY KEY(source_path, instance_id))""",
+    "project_operation": """CREATE TABLE project_operation (
+        operation_key TEXT PRIMARY KEY, workspace_id TEXT NOT NULL REFERENCES workspace(id),
+        request_hash TEXT NOT NULL, state TEXT NOT NULL, result TEXT NOT NULL,
+        updated REAL NOT NULL)""",
+    "reconciliation_conflict": """CREATE TABLE reconciliation_conflict (
+        id TEXT PRIMARY KEY, instance_id TEXT NOT NULL REFERENCES analysis_instance(id),
+        category TEXT NOT NULL, object_key TEXT NOT NULL, alternatives TEXT NOT NULL,
+        state TEXT NOT NULL DEFAULT 'unresolved')""",
+}
+
+
+def resolve_workspace(con: sqlite3.Connection, locator: str, provider: str) -> str:
+    """Resolve an exact canonical source; never equate names or common images."""
+    import time
+    import uuid
+
+    if not locator or not provider:
+        raise ValueError("workspace requires a canonical locator and provider")
+    row = con.execute("SELECT workspace_id FROM workspace_locator WHERE provider=? AND locator=?",
+                      (provider, locator)).fetchone()
+    if row:
+        return str(row[0])
+    workspace_id = str(uuid.uuid5(uuid.NAMESPACE_URL, provider + ":" + locator))
+    con.execute("INSERT OR IGNORE INTO workspace(id,created) VALUES (?,?)", (workspace_id, time.time()))
+    con.execute("INSERT OR IGNORE INTO workspace_locator VALUES (?,?,?,?)",
+                (provider, locator, workspace_id, json.dumps({"basis": "canonical-locator"})))
+    return str(con.execute("SELECT workspace_id FROM workspace_locator WHERE provider=? AND locator=?",
+                           (provider, locator)).fetchone()[0])
+
+
+def bind_analysis_instance(con: sqlite3.Connection, workspace_id: str, locator: str,
+                           program_path: str, basis: dict, *, source_path: str = "") -> str:
+    """Retain each native analysis separately, including unknown historical basis."""
+    import time
+    import uuid
+
+    row = con.execute("SELECT id FROM analysis_instance WHERE workspace_id=? AND source_locator=? AND program_path=?",
+                      (workspace_id, locator, program_path)).fetchone()
+    instance_id = str(row[0]) if row else str(uuid.uuid4())
+    con.execute("INSERT OR IGNORE INTO analysis_instance VALUES (?,?,?,?,?,?)",
+                (instance_id, workspace_id, program_path, locator, None, json.dumps(basis, sort_keys=True)))
+    if source_path:
+        con.execute("INSERT INTO analysis_binding VALUES (?,?,?) ON CONFLICT(source_path,instance_id) DO UPDATE SET updated=excluded.updated",
+                    (source_path, instance_id, time.time()))
+    return instance_id
+
 STABS_TYPE_DDL = """
 CREATE TABLE IF NOT EXISTS stabs_type (
     id INTEGER PRIMARY KEY,
@@ -376,10 +443,40 @@ def require_stabs_schema(con: sqlite3.Connection) -> None:
 
 
 def _decomp_sql(sql: str) -> str:
-    """Known declarations only: tolerate SQLite ADD COLUMN punctuation spacing."""
+    """Normalize known declarations, including comments SQLite omits on storage."""
     from .match_review_schema import _normalized
 
-    return re.sub(r"\s*([(),])\s*", r"\1", _normalized(sql))
+    # SQLite preserves comments in sqlite_schema.sql, so historical declarations
+    # with explanatory -- comments must compare by their actual SQL tokens. Keep
+    # quoted strings and identifiers intact while removing line comments.
+    clean: list[str] = []
+    quote = ""
+    i = 0
+    while i < len(sql):
+        char = sql[i]
+        if quote:
+            clean.append(char)
+            if char == quote:
+                if quote in {"'", '"', '`'} and i + 1 < len(sql) and sql[i + 1] == quote:
+                    clean.append(sql[i + 1])
+                    i += 1
+                else:
+                    quote = ""
+        elif char in {"'", '"', '`'}:
+            quote = char
+            clean.append(char)
+        elif char == "[":
+            quote = "]"
+            clean.append(char)
+        elif char == "-" and i + 1 < len(sql) and sql[i + 1] == "-":
+            newline = sql.find("\n", i + 2)
+            i = len(sql) if newline < 0 else newline
+            clean.append(" ")
+        else:
+            clean.append(char)
+        i += 1
+    uncommented = "".join(clean)
+    return re.sub(r"\s*([(),])\s*", r"\1", _normalized(uncommented))
 
 
 def _decomp_objects(con: sqlite3.Connection) -> dict:
@@ -466,18 +563,18 @@ def _require_decomp_shape(con: sqlite3.Connection, *, complete: bool) -> str | N
 
 
 def decomp_read_state(con: sqlite3.Connection) -> str | None:
-    """Pure bounded v9/v10/v11/v12/v13 selector; NULL/empty ASTs never fall back."""
+    """Pure supported-ledger selector; NULL/empty ASTs never fall back."""
     from . import migrations
 
     version = migrations.user_version(con)
     try:
         _decomp_objects(con)
-        if version not in {9, 10, 11, 12, 13}:
+        if not 9 <= version <= migrations.SCHEMA_VERSION:
             raise ValueError("unsupported reader version")
         migrations.require_ledger(con, version=version)
-        return _require_decomp_shape(con, complete=version in {11, 12, 13})
+        return _require_decomp_shape(con, complete=version >= 11)
     except ValueError as exc:
-        raise ValueError(f"decomp schema required: observed version {version}, supported versions 9/10/11/12/13: {exc}") from exc
+        raise ValueError(f"decomp schema required: observed version {version}, supported versions 9..{migrations.SCHEMA_VERSION}: {exc}") from exc
 
 
 def require_decomp_schema(con: sqlite3.Connection) -> None:
@@ -550,18 +647,18 @@ def _require_convention_shape(con: sqlite3.Connection, *, complete: bool) -> Non
 
 
 def require_convention_schema(con: sqlite3.Connection) -> None:
-    """Pure v13 applying admission; never migrate or commit caller work."""
+    """Pure current-ledger admission; never migrate or commit caller work."""
     from . import migrations
 
     version = migrations.user_version(con)
     try:
         _require_convention_shape(con, complete=True)
-        migrations.require_ledger(con, version=13)
+        migrations.require_ledger(con, version=migrations.SCHEMA_VERSION)
         _require_stabs_shape(con, complete=True)
         _require_decomp_shape(con, complete=True)
     except ValueError as exc:
         raise ValueError(
-            f"convention schema required: observed version {version}, supported version 13: {exc}"
+            f"convention schema required: observed version {version}, supported version {migrations.SCHEMA_VERSION}: {exc}"
         ) from exc
 
 
@@ -639,18 +736,18 @@ def _require_type_shape(con: sqlite3.Connection, *, complete: bool) -> str:
 
 
 def require_type_schema(con: sqlite3.Connection) -> None:
-    """Pure current13 admission, including prior owners and type dependencies."""
+    """Pure current-ledger admission, including prior owners and type dependencies."""
     from . import migrations
 
     version = migrations.user_version(con)
     try:
         _require_type_shape(con, complete=True)
-        migrations.require_ledger(con, version=13)
+        migrations.require_ledger(con, version=migrations.SCHEMA_VERSION)
         _require_stabs_shape(con, complete=True)
         _require_decomp_shape(con, complete=True)
         _require_convention_shape(con, complete=True)
     except ValueError as exc:
-        raise ValueError(f"type schema required: observed version {version}, supported version 13: {exc}") from exc
+        raise ValueError(f"type schema required: observed version {version}, supported version {migrations.SCHEMA_VERSION}: {exc}") from exc
 
 
 def type_inventory_state(con: sqlite3.Connection) -> str:

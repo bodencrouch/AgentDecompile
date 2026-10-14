@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 import sys
 import threading
-from concurrent.futures import Future, ThreadPoolExecutor, as_completed
+from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, as_completed, wait
 from itertools import count
 from typing import Callable, Iterable, TypeVar
 
@@ -98,6 +98,102 @@ def map_parallel(
     if first_error is not None and on_error is None:
         raise first_error[1]
     return [item for item in results if item is not _MISSING]  # type: ignore[misc]
+
+
+def iter_parallel(
+    items: Iterable[T],
+    fn: Callable[[T], R],
+    *,
+    workers: int | None = None,
+    on_error: Callable[[T, BaseException], R] | None = None,
+    worker_env_factory: Callable[[int], dict[str, str]] | None = None,
+    max_in_flight: int | None = None,
+    should_stop: Callable[[T, R], bool] | None = None,
+) -> Iterable[tuple[T, R]]:
+    """Yield bounded parallel results in input order, optionally stopping submits.
+
+    The consumer can durably record each yielded result before the next one is
+    emitted. A stop decision prevents new work from being submitted; already
+    running calls are drained and yielded so their results are not lost.
+    """
+    count_workers = resolve_workers(workers)
+    limit = min(count_workers, max(1, int(max_in_flight or count_workers)))
+
+    def _wrapped(item: T) -> R:
+        worker_index = _assign_worker_index(count_workers)
+        return _call_with_worker_env(
+            fn, item, worker_index=worker_index, worker_env_factory=worker_env_factory
+        )
+
+    iterator = iter(items)
+    completed: dict[int, tuple[T, R]] = {}
+    failures: dict[int, tuple[T, BaseException]] = {}
+    futures: dict[Future[R], tuple[int, T]] = {}
+    next_index = 0
+    next_yield = 0
+    exhausted = False
+    stopped = False
+    first_error: BaseException | None = None
+
+    def _submit(pool: ThreadPoolExecutor) -> None:
+        nonlocal next_index, exhausted
+        while not exhausted and not stopped and len(futures) < limit:
+            try:
+                item = next(iterator)
+            except StopIteration:
+                exhausted = True
+                break
+            futures[pool.submit(_wrapped, item)] = (next_index, item)
+            next_index += 1
+
+    with ThreadPoolExecutor(max_workers=count_workers) as pool:
+        _submit(pool)
+        while futures:
+            done, _ = wait(futures, return_when=FIRST_COMPLETED)
+            for future in done:
+                index, item = futures.pop(future)
+                try:
+                    result = future.result()
+                except BaseException as exc:  # noqa: BLE001 - isolate per worker
+                    if on_error is None:
+                        failures[index] = (item, exc)
+                        first_error = first_error or exc
+                        stopped = True
+                        continue
+                    result = on_error(item, exc)
+                completed[index] = (item, result)
+            while next_yield in completed:
+                item, result = completed.pop(next_yield)
+                if should_stop is not None and should_stop(item, result):
+                    stopped = True
+                yield item, result
+                next_yield += 1
+            while next_yield in failures:
+                next_yield += 1
+            blocked_by_order = (
+                next_yield not in completed
+                and next_yield not in failures
+                and any(index > next_yield for index in completed)
+            )
+            if not blocked_by_order:
+                _submit(pool)
+        while completed or next_yield in failures:
+            while next_yield in failures:
+                next_yield += 1
+            if next_yield in completed:
+                item, result = completed.pop(next_yield)
+                if should_stop is not None and should_stop(item, result):
+                    stopped = True
+                yield item, result
+                next_yield += 1
+                continue
+            if completed:
+                # A failed index may leave a gap before already-settled results.
+                next_yield = min(completed)
+                continue
+            break
+        if first_error is not None:
+            raise first_error
 
 
 def _call_with_worker_env(

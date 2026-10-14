@@ -2,6 +2,11 @@
 
 This guide is for contributors/agents working specifically in `src/agentdecompile_cli`. User how-to: [USAGE.md](../../USAGE.md). Repo rules: [AGENTS.md](../../AGENTS.md).
 
+The CLI/MCP package is one interface into the higher-level Ghidra-centered
+workbench described by [the user contract](../../docs/USER_INTENT.md). Keep its
+actions connected to shared multi-binary identity, exact-source recovery and
+supported runtime evidence; do not make the MCP surface the product boundary.
+
 ```mermaid
 flowchart TD
     A[Client tool call] --> B[registry.resolve_tool_name]
@@ -180,7 +185,17 @@ Tools that modify project data (e.g. `manage-symbols` rename, `manage-function` 
 
 ## 20) Tiered Reverse-Engineering Analysis
 
-Agents should **not default to Ghidra** for every task. Use the **tiered-re-analysis** skill ([skills/tiered-re-analysis/SKILL.md](../../skills/tiered-re-analysis/SKILL.md)) and knowledge base ([docs/solutions/architecture-patterns/tiered-re-analysis-knowledgebase.md](../../docs/solutions/architecture-patterns/tiered-re-analysis-knowledgebase.md)): Tier 0 shell/static tools → Tier 1 batch `ghidrecomp`/BSim/native snapshot replay for JVM-free sweeps → Tier 2 MCP read-only → Tier 3 decompile/mutations. Role skills: `skills/re-planner`, `re-worker`, `re-critic`, `re-aggregator` (Copilot wrappers in `.github/agents/re-*.agent.md`).
+Use the cheapest evidence that answers the immediate question, while treating
+Ghidra and its existing projects as core analysis inputs—not an optional or
+displaced tool. The **tiered-re-analysis** skill
+([skills/tiered-re-analysis/SKILL.md](../../skills/tiered-re-analysis/SKILL.md))
+and knowledge base
+([docs/solutions/architecture-patterns/tiered-re-analysis-knowledgebase.md](../../docs/solutions/architecture-patterns/tiered-re-analysis-knowledgebase.md))
+describe when static inspection, batch analysis, BSim, read-only Ghidra or deeper
+Ghidra interaction is sufficient. These evidence tiers support the shared
+cross-build, matching-C and runtime workflows; they do not replace them. Role
+skills: `skills/re-planner`, `re-worker`, `re-critic`, `re-aggregator` (Copilot
+wrappers in `.github/agents/re-*.agent.md`).
 
 ## 21) MCP Server Debugging and Self-Healing
 

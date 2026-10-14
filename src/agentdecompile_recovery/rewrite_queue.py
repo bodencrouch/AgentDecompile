@@ -202,6 +202,26 @@ def _read_queue_for_mutation(work_dir: Path) -> dict[str, Any]:
     return data
 
 
+def read_rewrite_queue_for_cache(work_dir: Path) -> dict[str, Any]:
+    """Read a validated queue snapshot for cache identity.
+
+    Unlike ``read_rewrite_queue``, this never turns malformed or inaccessible
+    state into an empty queue. The shared lock also prevents observing the
+    queue between a writer's read/check/write cycle.
+    """
+
+    with _locked(work_dir):
+        return _read_queue_for_mutation(work_dir)
+
+
+@contextmanager
+def locked_rewrite_queue_snapshot(work_dir: Path) -> Iterator[dict[str, Any]]:
+    """Hold the queue lock while a caller makes a cache/resume decision."""
+
+    with _locked(work_dir):
+        yield _read_queue_for_mutation(work_dir)
+
+
 def find_entry(work_dir: Path, request_id: str) -> dict[str, Any] | None:
     queue = read_rewrite_queue(work_dir)
     entry = queue["entries"].get(request_id)

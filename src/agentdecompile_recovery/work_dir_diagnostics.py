@@ -41,7 +41,7 @@ def rotational_disk_warning(work_dir: Path, *, sys_block_root: Path = Path("/sys
     return (
         f"work_dir {work_dir} appears to be on a rotational (spinning) disk "
         f"({resolved.name}) -- per-function compile/objdiff cycles are I/O-bound "
-        "and can take 30s-17min instead of 1-2s on SSD/NVMe (G16, see "
-        "docs/plans/2026-07-24-perf-recovery-one-shot-living-plan.md). Consider "
+        "and can take 30s-17min instead of 1-2s on SSD/NVMe (historical "
+        "benchmark). Consider "
         "pointing --work-dir at a local SSD/NVMe path and archiving results afterward."
     )

@@ -3,7 +3,13 @@
 Read [AGENTS.md](../AGENTS.md) for operational authority and canonical naming;
 [STRATEGY.md](../STRATEGY.md) owns pipeline, matching and acceptance policy.
 [Runtime reuse](../docs/RUNTIME_REUSE.md) separates original-binary calls from
-source recovery. Use the [plans hub](../docs/plans/README.md) for current work.
+source recovery. Product definition and exact input/output expectations live in
+[the user contract](../docs/USER_INTENT.md). AgentDecompile is a higher-level
+reverse-engineering workbench built around Ghidra: it joins related binaries,
+recovers matching C/C++, and makes supported ABI, event, WASM/graphics,
+Lua/native shim, code-cave and memory workflows usable through shared evidence.
+Runtime behavior remains distinct from source-parity proof. Use the
+[plans hub](../docs/plans/README.md) for current work.
 
 Verify the actual behavior affected by an authorized code change; tool listing,
 startup, job success and screenshots alone are insufficient. State the evidence

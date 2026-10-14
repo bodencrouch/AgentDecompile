@@ -7,10 +7,10 @@ cd "$ROOT"
 
 export PATH="${HOME}/.local/bin:${PATH}"
 export GHIDRA_INSTALL_DIR="${GHIDRA_INSTALL_DIR:-${HOME}/.local/opt/ghidra/current}"
-export WINEPREFIX="${WINEPREFIX:-${ROOT}/target/wine-smoke-prefix}"
-export VC_ROOT="${VC_ROOT:-/run/media/brunner56/MyBook/Toolchains/msvc8.0-main}"
+export WINEPREFIX="${WINEPREFIX:-${ROOT}/target/toolchain-acquire/vctoolkit2003/wineprefix}"
+export VC_ROOT="${VC_ROOT:-${ROOT}/target/toolchain-acquire/vctoolkit2003/installed-nvme/VC7.1}"
 
-TARGET="${TARGET:-/run/media/brunner56/MyBook/SteamLibrary/steamapps/common/swkotor/swkotor.exe}"
+TARGET="${TARGET:?Set TARGET to an NVMe-resident binary exported from the active Ghidra project}"
 WORK="${WORK:-${ROOT}/target/agentdecompile-reconstruct/swkotor-parity}"
 LOG="${LOG:-${WORK}/state/enrich-smoke-run.log}"
 RUN_TAG="${RUN_TAG:-run-$(date -u +%Y%m%dT%H%M%SZ)}"

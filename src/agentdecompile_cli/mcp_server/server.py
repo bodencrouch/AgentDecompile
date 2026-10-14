@@ -543,6 +543,23 @@ class PythonMcpServer:
             }
             reloader = sys.modules.get("inplace_hotreload")
             runtime["reload"] = reloader.status() if reloader else {"enabled": False}
+            runtime["modulePaths"] = {
+                name: getattr(module, "__file__", None)
+                for name, module in tuple(sys.modules.items())
+                if name.startswith("agentdecompile_")
+            }
+            project_api = sys.modules.get("agentdecompile_recovery.project_api")
+            if project_api is not None:
+                import types
+                contracts = []
+                pending = [project_api.dispatch.__code__]
+                while pending:
+                    code = pending.pop()
+                    contracts.append({"name": code.co_qualname, "freevars": code.co_freevars, "cellvars": code.co_cellvars})
+                    for child in code.co_consts:
+                        if isinstance(child, types.CodeType):
+                            pending.append(child)
+                runtime["projectReadContracts"] = contracts
             return {
                 "status": "healthy" if self._running else "starting",
                 "server": self.config.name,
@@ -907,6 +924,11 @@ class PythonMcpServer:
                 logger.debug("diag.enter %s", "mcp_server/server.py:PythonMcpServer._MCPRoutingMiddleware.__call__")
                 if scope.get("type") == "http":
                     path = (scope.get("path") or "").rstrip("/") or "/"
+                    if path == "/api/v1/projects" or path.startswith("/api/v1/projects/"):
+                        from agentdecompile_recovery.project_api import dispatch as dispatch_project_api
+
+                        await dispatch_project_api(scope, receive, send)
+                        return
                     if path in mcp_paths:
                         scope = self._handle_stale_session(scope)
                         rewritten: dict[str, Any] = {**scope, "path": "/"}

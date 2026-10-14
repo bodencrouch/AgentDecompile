@@ -16,6 +16,7 @@ from typing import Any
 
 from agentdecompile_recovery.languages import language_from_metadata, verify_language_id
 
+from .corpus.recovered_c_preamble import PREAMBLE as RECOVERED_C_PREAMBLE, preamble_for_source
 from .state import atomic_write_json
 
 TYPE_SHIM = """
@@ -60,11 +61,25 @@ _TYPE_SHIM_LINES: list[tuple[str, str]] = [
 _TYPE_SHIM_OTHER_LINES = [
     line for line in TYPE_SHIM.splitlines() if not line.startswith("typedef ")
 ]
+_RECOVERED_C_PREAMBLE_TYPES = frozenset(
+    match.group(0)
+    for line in RECOVERED_C_PREAMBLE.splitlines()
+    if line.startswith("typedef ")
+    for match in [re.match(r"[A-Za-z_]\w*", line.rstrip("; ").split()[-1])]
+    if match is not None
+)
+_RECOVERED_C_PREAMBLE_PATH = Path(__file__).with_name("corpus") / "recovered_c_preamble.py"
 
 
 def _source_already_typedefs(source: str, name: str) -> bool:
-    pattern = re.compile(r"typedef\b[^;]*?\b" + re.escape(name) + r"\s*;")
-    return bool(pattern.search(source))
+    escaped = re.escape(name)
+    ordinary = re.compile(
+        r"\btypedef\b[^;]*\b" + escaped + r"\s*(?:\([^;]*\))?\s*(?:\[[^\]]*\])?\s*;"
+    )
+    function_pointer = re.compile(
+        r"\btypedef\b[^;]*\(\s*\*\s*" + escaped + r"\s*\)[^;]*;"
+    )
+    return bool(ordinary.search(source) or function_pointer.search(source))
 
 
 def _type_shim_for(source: str) -> str:
@@ -82,15 +97,15 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 # swkotor.exe's intact Rich header says the target was built by cl 13.00.9466
 # (MSVC 7.0 / VS.NET 2002 RTM). MSVC 7.0 has no authorized download, so vc71
 # (VC++ Toolkit 2003, cl 13.10.3052) is the closest obtainable toolchain. vc80
-# stays the default: two generations off the target, kept as the A/B control.
+# remains an explicit A/B control only when VC80_ROOT is supplied.
 COMPILER_PROFILES: dict[str, Path] = {
-    "vc71": REPO_ROOT / "target/toolchain-acquire/vctoolkit2003/msitools-extract/Program Files/Microsoft Visual C++ Toolkit 2003",
-    "vc80": Path("/run/media/brunner56/MyBook/Toolchains/msvc8.0-main"),
+    "vc71": REPO_ROOT / "target/toolchain-acquire/vctoolkit2003/installed-nvme/VC7.1",
 }
-DEFAULT_COMPILER_PROFILE = "vc80"
+if os.environ.get("VC80_ROOT"):
+    COMPILER_PROFILES["vc80"] = Path(os.environ["VC80_ROOT"]).expanduser()
+DEFAULT_COMPILER_PROFILE = "vc71"
 
 GLOBAL_RE = re.compile(r"\b(?:DAT|UNK|PTR|iRam|uRam|bRam|sRam|wRam|dRam|qRam|fRam|g_|s_)[A-Za-z0-9_]*\b")
-STACK_SYMBOL_RE = re.compile(r"\bstack0x[0-9A-Fa-f]+\b")
 # Matches `*<global>` (with optional intervening whitespace) so build_shim can
 # tell a dereferenced global apart from a plain scalar use -- declaring a
 # dereferenced global as `extern int` produces a real MSVC type error
@@ -324,10 +339,17 @@ def verify_source(
     if isinstance(target_slice_meta, dict):
         target_slice_meta = {**target_slice_meta, "metadataPath": str(metadata)}
     target_slice = verify_target_slice(target_slice_meta)
-    shim = build_shim(original)
+    preamble_implementation_sha256: str | None = None
+    if source_language == "c":
+        shim = build_recovered_c_shim(original)
+        preamble_implementation_sha256 = file_sha256(_RECOVERED_C_PREAMBLE_PATH)
+    else:
+        shim = build_shim(original)
     if source_language == "c++":
         shim = shim.replace("typedef unsigned char bool;", "")
-    work_c.write_text(shim + "\n\n" + original, encoding="utf-8")
+    compiler_input = shim + "\n\n" + original
+    compiler_input_bytes = compiler_input.encode("utf-8")
+    work_c.write_bytes(compiler_input_bytes)
     if compiler == "msvc":
         syntax_command: list[str] = []
         object_result = compile_with_msvc(
@@ -432,6 +454,14 @@ def verify_source(
         "source": str(source),
         "metadata": str(metadata),
         "verifySource": str(work_c),
+        "compileBasis": {
+            "candidateSha256": file_sha256(source) if source.is_file() else hashlib.sha256(original.encode("utf-8")).hexdigest(),
+            "compilerInputSha256": hashlib.sha256(compiler_input_bytes).hexdigest(),
+            "compiler": compiler,
+            "compilerRoot": str(resolve_msvc_root(msvc_root)) if compiler == "msvc" else None,
+            "sourcePreparation": "recovered-c-preamble" if source_language == "c" else "package-type-shim",
+            "preambleImplementationSha256": preamble_implementation_sha256,
+        },
         "targetSlice": target_slice,
         "compiler": compiler,
         "sourceLanguage": source_language,
@@ -552,7 +582,13 @@ def compile_with_msvc(
         return {"status": "failed", "compilerInvoked": False, "returnCode": 3, "reason": message, "stdout": str(stdout_path), "stderr": str(stderr_path), "stderrTail": message}
 
     source_text = source.read_text(encoding="utf-8", errors="replace")
-    source_name = "in.asm" if is_assembler else "in.c"
+    compiler_suffix = {
+        ".c": ".c",
+        ".cc": ".cc",
+        ".cpp": ".cpp",
+        ".cxx": ".cxx",
+    }.get(source_suffix, ".c")
+    source_name = "in.asm" if is_assembler else f"in{compiler_suffix}"
     (artifact_work_dir / source_name).write_text(source_text, encoding="utf-8")
     out_name = "out.obj"
     if is_assembler:
@@ -609,7 +645,10 @@ def resolve_vc_root_option(value: Path | str | None) -> Path | None:
     """
     if value is None:
         return None
-    profile = COMPILER_PROFILES.get(str(value).strip().lower())
+    profile_name = str(value).strip().lower()
+    profile = COMPILER_PROFILES.get(profile_name)
+    if profile is None and profile_name in {"vc71", "vc80"}:
+        raise ValueError(f"compiler profile {profile_name!r} is not configured; vc80 requires an explicit VC80_ROOT")
     return profile if profile is not None else Path(value)
 
 
@@ -947,6 +986,26 @@ def acceptance_gate_for_tier(tier: str) -> str:
 
 
 def build_shim(source: str) -> str:
+    return _type_shim_for(source) + _global_shim(source)
+
+
+def build_recovered_c_shim(source: str) -> str:
+    """Build C compatibility declarations from the shared recovered-C recipe.
+
+    Keep package-only aliases that the shared preamble does not define, but
+    never add a second declaration for a type owned by that recipe or source.
+    The candidate source itself is appended unchanged by verify_source.
+    """
+    preamble = preamble_for_source(source).rstrip()
+    legacy_types = [
+        line
+        for name, line in _TYPE_SHIM_LINES
+        if name not in _RECOVERED_C_PREAMBLE_TYPES and not _source_already_typedefs(source, name)
+    ]
+    return "\n".join(part for part in (preamble, *legacy_types, _global_shim(source).lstrip()) if part)
+
+
+def _global_shim(source: str) -> str:
     # PTR_-prefixed names are Ghidra's own pointer-typed-global convention --
     # treat them as pointers unconditionally. Other matched globals (DAT_*,
     # UNK_*, etc.) are only pointers when the source actually dereferences
@@ -963,9 +1022,11 @@ def build_shim(source: str) -> str:
             declarations.append(f"extern char *{name};")
         else:
             declarations.append(f"extern int {name};")
-    for name in sorted(set(STACK_SYMBOL_RE.findall(source))):
-        declarations.append(f"extern undefined4 {name};")
-    return _type_shim_for(source) + ("\n" + "\n".join(declarations) if declarations else "")
+    # Ghidra's stack0x... symbols represent function-frame locals. The source
+    # normally declares them inside the recovered function; declaring every
+    # occurrence as an external here both invents global state and can place
+    # an undefined4 declaration before the source's own typedef preamble.
+    return "\n" + "\n".join(declarations) if declarations else ""
 
 
 def resolve_manifest_path(package: Path) -> Path:

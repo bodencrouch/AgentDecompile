@@ -582,7 +582,7 @@ does **not** authorize starting 5174 during a live recovery mission.
 | 2026-07-17 | `plans/2026-07-17-feat-phase5-proof-ladder.md` — first formal proof ladder **1%→5%→20%**, bans "≥90% recovered" marketing | priority |
 | 2026-07-17…30 | 13 `brainstorms/*-requirements.md` (context fusion, agent-loop closure, readability repair, mismatch-class routing, relocation-evidence) | pipeline |
 | 2026-07-24 | perf-recovery ladder P0–P3 | priority |
-| 2026-08-30 | `plans/2026-08-30-corpus-semantic-pipeline-living-plan.md` — first corpus pipeline (10-node) + "Priorities (do not reorder) 1–4" — now **historical/superseded** | pipeline/priority |
+| 2026-08-30 | First corpus-pipeline proposal (10-node) + "Priorities (do not reorder) 1–4" — **historical/superseded; source document removed** | pipeline/priority |
 | 2026-08-31 | Cursor: the canonical pipeline+priority contract quote (S-955d idx 42); "extract, identify, merge knowledge, generate projects, recover source, apply cross-build knowledge, compile, verify byte accuracy" | pipeline/priority origin |
 | 2026-08-31 | `plans/2026-08-31-0041-feat-workbench-aio-plan.md` + AIO ingest→UI flow | look/feel |
 | 2026-08-31 | `prototypes/dashboard-operator-feel/feel.md` — **operator-feel canon** (IDE + flight deck; dual bars; no third accuracy bar; Phase A/B/C) | look/feel |

@@ -231,15 +231,16 @@ def continue_recovery(row: dict[str, Any], root: Path, db: Path,
                     continue
                 result(key, 'blocked', reason, dependencies=[start])
 
-        if not checkpoint.get('analysisConfirmed') or not checkpoint.get('factsComplete'):
-            block_after('calibrate-global', 'Waiting for confirmed analysis and function facts.')
-            continue
         work.mkdir(parents=True, exist_ok=True)
         # Target materialization and Ghidra witnesses are independent of a
         # compiler profile.  Do them before calibration: otherwise a project
         # with no prior source probes can never produce the evidence needed to
         # make subsequent recovery work concrete.
-        from .target_image import catalog_target_authority, materialize_original_target
+        from .target_image import (
+            catalog_target_authority,
+            materialize_ghidra_file_bytes_target,
+            materialize_original_target,
+        )
         expected_hash = ''
         try:
             with sqlite3.connect(f'{db.as_uri()}?mode=ro', uri=True) as con:
@@ -252,26 +253,54 @@ def continue_recovery(row: dict[str, Any], root: Path, db: Path,
             str(root / 'original-target-authorities' / 'k1-k2-target-authorities.json'),
         ))
         authority = catalog_target_authority(registry_path, str(checkpoint.get('repoPath') or ''))
-        target_source = checkpoint.get('executablePath') or ''
-        target_md5 = ''
-        if authority is not None:
-            target_source = authority['sourcePath']
-            target_md5 = str(authority['expectedMd5'])
-            expected_hash = ''
-        target_image = materialize_original_target(
-            target_source, work,
+        # Prefer the analyzed program's stored original bytes.  The executable
+        # path returned by Ghidra is host-local import metadata and may not
+        # exist here when a shared project was imported on another machine.
+        target_image = materialize_ghidra_file_bytes_target(
+            db, int(checkpoint.get('binaryId') or 0), work,
             program=program,
+            # The selected UI project may be a shared repository folder, not a
+            # Ghidra project locator.  Resolve FileBytes through the admitted
+            # per-program execution route (normally the local .gpr); otherwise
+            # the resolver never reaches the project that owns the stored bytes.
+            locator=str(execution_locator or row.get('locator') or ''),
             program_fingerprint=str(checkpoint.get('programFingerprint') or ''),
             expected_sha256=expected_hash,
-            expected_md5=target_md5,
             protection=checkpoint.get('protection'),
-            source_provenance=authority,
         )
+        target_md5 = ''
+        # A verified catalog image is the offline fallback when neither the
+        # shared repository nor a bound local Ghidra project can supply
+        # FileBytes.  An executablePath alone is deliberately not sufficient:
+        # it is not portable shared-project evidence.
+        if not target_image.get('ok') and authority is not None:
+            target_md5 = str(authority['expectedMd5'])
+            target_image = materialize_original_target(
+                authority['sourcePath'], work,
+                program=program,
+                program_fingerprint=str(checkpoint.get('programFingerprint') or ''),
+                expected_md5=target_md5,
+                protection=checkpoint.get('protection'),
+                source_provenance=authority,
+            )
         commit_checkpoint({'name': 'target-image', 'values': {'targetImage': target_image}})
         if target_image.get('ok'):
             original_target = Path(str(target_image['targetPath']))
             result('materialize-target', 'completed', 'Original executable bytes copied and hash-bound for independent comparison.',
                    receipt=target_image['receiptPath'], targetImage=target_image)
+        else:
+            original_target = None
+            result('materialize-target', 'blocked', str(target_image.get('reason') or 'Original byte target could not be materialized.'), targetImage=target_image)
+
+        # Byte acquisition is independent of function analysis. Preserve a
+        # hash-bound image from the selected Ghidra project's FileBytes before
+        # stopping on downstream analysis prerequisites; this path does not
+        # require the original machine's executablePath or a live currentProgram.
+        if not checkpoint.get('analysisConfirmed') or not checkpoint.get('factsComplete'):
+            block_after('calibrate-global', 'Waiting for confirmed analysis and function facts.')
+            continue
+
+        if original_target is not None:
             floor_dir = work / 'assembly-floor'
             floor = action('assembly-floor', 'corpus.roundtrip', {
                 'repo-path': checkpoint['repoPath'], 'db': str(db),
@@ -297,9 +326,6 @@ def continue_recovery(row: dict[str, Any], root: Path, db: Path,
                 bytesFiller=floor_data.get('bytes_filler'), representation='byte-authoritative-assembly-substrate',
                 claimBoundary='This assembly reproduces the shipped file image; it is not recovered authored C/C++.',
             )
-        else:
-            original_target = None
-            result('materialize-target', 'blocked', str(target_image.get('reason') or 'Original byte target could not be materialized.'), targetImage=target_image)
 
 
         profile_path = work / 'compiler-profile.json'
@@ -470,6 +496,98 @@ def continue_recovery(row: dict[str, Any], root: Path, db: Path,
         update(key, status, '; '.join(reasons[:3]) or f'{completed} programs completed this stage.', completed=completed, total=len(all_programs), currentProgram='', currentAction='', recoveryFamily='')
 
 
+def _merge_identity_components(records, existing, quarantined_sources):
+    """Resolve retained edges before writes, rebuilding after seed conflicts.
+
+    This shares the matcher's dependency token and identity gate. Existing
+    identities remain authoritative and are never deleted or renumbered.
+    """
+    from agentdecompile_recovery.corpus.correspondence import allows_identity_binding, enrich_evidence
+    from agentdecompile_recovery.corpus.match_store import dependency_token
+
+    occupied = {}
+    for node, logical_ids in existing.items():
+        for logical in logical_ids:
+            occupied.setdefault(logical, {}).setdefault(node[0], set()).add(node[1])
+    ordered = sorted(records, key=lambda row: (-float(row['score'] or 0),
+        str(row['dst_hash'] or row['dst_slug']), row['dst_addr'],
+        str(row['src_hash'] or row['src_slug']), row['src_addr'],
+        row['status'] != 'verify', json.dumps(row['parsed_evidence'], sort_keys=True)))
+    quarantined = set(quarantined_sources)
+    rejected = {}
+    while True:
+        parent, anchors, binaries, members, witnesses = {}, {}, {}, {}, {}
+
+        def find(node):
+            if node not in parent:
+                parent[node] = node
+                anchors[node] = set(existing.get(node, ()))
+                binaries[node] = {node[0]}
+                members[node] = {node[0]: {node[1]}}
+                for logical in anchors[node]:
+                    for binary, addresses in occupied[logical].items():
+                        members[node].setdefault(binary, set()).update(addresses)
+            root = node
+            while parent[root] != root:
+                root = parent[root]
+            while parent[node] != node:
+                old = parent[node]
+                parent[node] = root
+                node = old
+            return root
+
+        changed = False
+        for row in ordered:
+            evidence = row['parsed_evidence']
+            if not allows_identity_binding(evidence, row['relation'], set()):
+                continue
+            token = dependency_token(row['src_hash'], row['src_addr'], slug=row['src_slug']) if row['src_hash'] else None
+            reason = None
+            if token in quarantined or not allows_identity_binding(evidence, row['relation'], quarantined):
+                reason = 'quarantined_dependency'
+            else:
+                source = (row['src_binary'], row['src_addr'])
+                target = (row['dst_binary'], row['dst_addr'])
+                left, right = find(source), find(target)
+                conflict = len(anchors[left] | anchors[right]) > 1
+                for binary in members[left].keys() & members[right].keys():
+                    if len(members[left][binary] | members[right][binary]) > 1:
+                        conflict = True
+                if conflict:
+                    reason = 'logical_id_binary_conflict'
+                elif left != right:
+                    parent[right] = left
+                    anchors[left] |= anchors[right]
+                    binaries[left] |= binaries[right]
+                    for binary, addresses in members[right].items():
+                        members[left].setdefault(binary, set()).update(addresses)
+                if reason is None:
+                    witness = {'run': row['run'], 'source': source, 'target': target,
+                        'score': row['score'], 'status': row['status'], 'witness': row['evidence']}
+                    for node in (source, target):
+                        witnesses.setdefault(node, witness)
+            if reason:
+                # A missing hash refuses before any database write, as in
+                # bind_identities. Never invent a rowid-based dependency token.
+                if token is None:
+                    token = dependency_token(row['src_hash'], row['src_addr'], slug=row['src_slug'])
+                if token not in quarantined:
+                    quarantined.add(token)
+                    changed = True
+                if row['id'] not in rejected:
+                    rejected_evidence = enrich_evidence(evidence, status='ambiguous',
+                        identity_claim=False, quarantine=True, stage='identity_bind')
+                    rejected_evidence['reason'] = reason
+                    rejected[row['id']] = {'id': row['id'], 'reason': reason,
+                        'evidence': json.dumps(rejected_evidence)}
+        if not changed:
+            groups = {}
+            for node in parent:
+                groups.setdefault(find(node), []).append(node)
+            return {'parent': parent, 'anchors': anchors, 'binaries': binaries,
+                'groups': groups, 'witnesses': witnesses, 'rejected': list(rejected.values())}
+
+
 def merge_evidence(db: str, run: str) -> dict[str, Any]:
     """Add match-supported identities without rebuilding or renumbering them.
 
@@ -486,7 +604,9 @@ def merge_evidence(db: str, run: str) -> dict[str, Any]:
     try:
         ensure_columns(con)
         con.execute('BEGIN IMMEDIATE')
-        existing = {(r['binary_id'], r['addr']): r['logical_id'] for r in con.execute('SELECT * FROM identity')}
+        existing = {}
+        for binding in con.execute('SELECT binary_id,addr,logical_id FROM identity ORDER BY binary_id,addr,logical_id'):
+            existing.setdefault((binding['binary_id'], binding['addr']), set()).add(binding['logical_id'])
         parent, anchors, binaries, witnesses = {}, {}, {}, {}
         # Same token the matcher persists in evidence.dependencies (A3).
         quarantined_sources = quarantined_source_tokens(con, run)
@@ -494,7 +614,7 @@ def merge_evidence(db: str, run: str) -> dict[str, Any]:
         def find(node):
             if node not in parent:
                 parent[node] = node
-                anchors[node] = {existing[node]} if node in existing else set()
+                anchors[node] = set(existing[node]) if node in existing else set()
                 binaries[node] = {node[0]}
             root = node
             while parent[root] != root:
@@ -505,27 +625,21 @@ def merge_evidence(db: str, run: str) -> dict[str, Any]:
                 node = old
             return root
 
-        conflicts = 0
-        for match in con.execute("SELECT * FROM match WHERE run=? AND status IN ('auto','verify') ORDER BY score DESC", (run,)):
-            evidence = json.loads(match['evidence'] or '{}')
-            relation = match['relation'] if 'relation' in match.keys() else 'one_to_one'
-            if not allows_identity_binding(evidence, relation, quarantined_sources):
-                continue
-            source, target = (match['src_binary'], match['src_addr']), (match['dst_binary'], match['dst_addr'])
-            left, right = find(source), find(target)
-            if left != right:
-                if len(anchors[left] | anchors[right]) > 1 or binaries[left] & binaries[right]:
-                    conflicts += 1
-                    continue
-                parent[right] = left
-                anchors[left] |= anchors[right]
-                binaries[left] |= binaries[right]
-            evidence = {'run': run, 'source': source, 'target': target, 'score': match['score'], 'status': match['status'], 'witness': match['evidence']}
-            for node in (source, target):
-                witnesses.setdefault(node, evidence)
-        groups = {}
-        for node in parent:
-            groups.setdefault(find(node), []).append(node)
+        records = []
+        for match in con.execute('''SELECT m.*,bs.content_sha256 AS src_hash,bd.content_sha256 AS dst_hash,
+                bs.slug AS src_slug,bd.slug AS dst_slug FROM match m
+            JOIN binary bs ON bs.id=m.src_binary JOIN binary bd ON bd.id=m.dst_binary
+            WHERE m.run=? AND m.status IN ('auto','verify')''', (run,)):
+            record = dict(match)
+            record['parsed_evidence'] = json.loads(match['evidence'] or '{}')
+            record['relation'] = match['relation'] if 'relation' in match.keys() else 'one_to_one'
+            records.append(record)
+        resolved = _merge_identity_components(records, existing, quarantined_sources)
+        parent, anchors, binaries = resolved['parent'], resolved['anchors'], resolved['binaries']
+        witnesses, groups = resolved['witnesses'], resolved['groups']
+        conflicts = sum(item['reason'] == 'logical_id_binary_conflict' for item in resolved['rejected'])
+        con.executemany("UPDATE match SET status='review',evidence=? WHERE id=? AND run=?",
+            [(item['evidence'], item['id'], run) for item in resolved['rejected']])
         created = bound = 0
         touched = set()
         for root, members in groups.items():
@@ -539,7 +653,8 @@ def merge_evidence(db: str, run: str) -> dict[str, Any]:
                 facts = [fact for fact in facts if fact is not None]
                 if not facts:
                     continue
-                facts.sort(key=lambda fact: (str(fact['name_origin']).lower() not in {'human','user_defined','user'}, str(fact['name'] or '').startswith('FUN_')))
+                facts.sort(key=lambda fact: (str(fact['name_origin']).lower() not in {'human','user_defined','user'},
+                    str(fact['name'] or '').startswith('FUN_'), str(fact['name'] or ''), fact['addr']))
                 chosen = facts[0]
                 logical = con.execute('INSERT INTO logical_function (canon_key,canon_class,canon_method,game,best_name,best_signature,source_file,object_file,n_members,notes) VALUES(?,?,?,?,?,?,?,?,0,?)',
                     tuple(chosen[key] for key in ('canon_key','canon_class','canon_method','game','name','signature','source_file','object_file')) + ('Match-supported identity; concrete metadata preserved.',)).lastrowid
@@ -559,7 +674,8 @@ def merge_evidence(db: str, run: str) -> dict[str, Any]:
         for logical in touched:
             con.execute('UPDATE logical_function SET n_members=(SELECT COUNT(*) FROM identity WHERE logical_id=?) WHERE id=?', (logical, logical))
         con.commit()
-        return {'createdIdentities': created, 'boundFunctions': bound, 'retainedConflicts': conflicts, 'sourceAttributions': 0,
+        return {'createdIdentities': created, 'boundFunctions': bound, 'retainedConflicts': conflicts,
+                'quarantinedDependencies': len(resolved['rejected']) - conflicts, 'sourceAttributions': 0,
                 'sourcePropagation': 'separate_explicit_operation_required',
                 'claim': 'advisory', 'metadataPolicy': 'Existing identities and concrete names, labels, comments, and structures retained.'}
     except Exception:

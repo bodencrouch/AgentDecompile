@@ -13,8 +13,11 @@ flowchart TD
 
 ## Current doc map
 
-[AGENTS.md](../AGENTS.md) owns operations; [STRATEGY.md](../STRATEGY.md) owns pipeline
-policy. Current recovery uses existing 8080. CLI/startup examples elsewhere are
+[USER_INTENT.md](USER_INTENT.md) consolidates the current product contract;
+[AGENTS.md](../AGENTS.md) owns operations; [STRATEGY.md](../STRATEGY.md) owns the
+recovery pipeline and proof policy. Historical plans, brainstorms, and delivery
+ledgers retain provenance but do not independently override those authorities.
+Current recovery uses existing 8080. CLI/startup examples elsewhere are
 implementation references, subject to those constraints.
 
 ### Start here
@@ -25,13 +28,16 @@ implementation references, subject to those constraints.
 
 ### Recovery
 
-1. [../STRATEGY.md](../STRATEGY.md) — pipeline and priority authority
-2. [./CORPUS_PIPELINE.md](./CORPUS_PIPELINE.md) — multi-binary default
-3. [./corpus/README.md](./corpus/README.md) — stage table
-4. [./plans/2026-09-08-0156-feat-recovery-pipeline-ladder-plan.md](./plans/2026-09-08-0156-feat-recovery-pipeline-ladder-plan.md) — implementation plan
-5. [./CRITICAL_PATH.md](./CRITICAL_PATH.md) — single-binary reconstruct
-6. [./RUNTIME_REUSE.md](./RUNTIME_REUSE.md) — implemented seam and runtime claim limits
-7. [./PROTOTYPE_OUTCOMES.md](./PROTOTYPE_OUTCOMES.md) — unfinished outcomes and evidence
+1. [./USER_INTENT.md](./USER_INTENT.md) — consolidated current user contract, inputs/outputs, and authority order
+2. [../STRATEGY.md](../STRATEGY.md) — pipeline, priority, concurrency, and proof authority
+3. [./CORPUS_PIPELINE.md](./CORPUS_PIPELINE.md) — multi-binary mechanics
+4. [./PRODUCT_AND_WORKSPACE_GUIDE.md](./PRODUCT_AND_WORKSPACE_GUIDE.md) — product/UI and project flow
+5. [./FRONTEND_INTENT.md](./FRONTEND_INTENT.md) — static and Vite frontend requirements
+6. [./DELIVERY_STATUS.md](./DELIVERY_STATUS.md) — implementation versus observed outcomes
+7. [./corpus/README.md](./corpus/README.md) — stage table
+8. [./CRITICAL_PATH.md](./CRITICAL_PATH.md) — single-binary mechanics within the family workflow
+9. [./RUNTIME_REUSE.md](./RUNTIME_REUSE.md) — downstream runtime seam and claim limits
+10. [./PROTOTYPE_OUTCOMES.md](./PROTOTYPE_OUTCOMES.md) — unfinished outcomes and evidence
 
 ### Import, security, sessions
 

@@ -29,6 +29,9 @@
   background: var(--bg-panel);
   color: var(--fg-body);
   box-shadow: var(--wb-raise);
+  resize: both;
+  max-width: calc(100vw - 16px);
+  min-height: 140px;
 }
 
 .workbench-page .wb-confirm-dialog {
@@ -46,6 +49,8 @@
   padding: 0 var(--wb-space-2) 0 var(--wb-space-4);
   border-bottom: 1px solid var(--border);
   background: var(--bg-raised);
+  cursor: move;
+  touch-action: none;
 }
 
 .workbench-page .wb-modal-head h2,

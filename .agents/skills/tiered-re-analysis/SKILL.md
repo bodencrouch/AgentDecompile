@@ -10,7 +10,9 @@ metadata:
 # Tiered RE analysis
 
 Read [AGENTS](../../../AGENTS.md) before operations and [STRATEGY](../../../STRATEGY.md)
-for matcher order and acceptance. Use existing 8080 catalog actions for recovery.
+for matcher order and acceptance. Active recovery uses the checkout-pinned
+`.venv/bin/agentdecompile-cli` from the repository root; frontends are deferred.
+Reuse existing local or shared Ghidra project bytes and analysis when available.
 
 | Tier | Use |
 |---|---|
@@ -22,8 +24,9 @@ for matcher order and acceptance. Use existing 8080 catalog actions for recovery
 Choose the cheapest sufficient evidence. First resolve program bindings and
 stored analysis; an empty view or a false session flag alone does not justify
 reanalysis. Reuse valid receipts, retain conflicts, and serialize shared writers.
-These tiers classify tools; they do not reorder the corpus matcher or prove
-recovery. Tool availability comes from the current advertised catalog.
+These tiers classify evidence and operations; they do not reorder the corpus
+matcher or prove recovery. Inspect the pinned CLI's current help for available
+operations. Do not repeat import or analysis already present in a usable project.
 
 Historical [routing research](../../../docs/solutions/architecture-patterns/tiered-re-analysis-knowledgebase.md)
 is reference-only where its storage, confidence or operating rules differ.

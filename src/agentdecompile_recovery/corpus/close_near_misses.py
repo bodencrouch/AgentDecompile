@@ -22,8 +22,9 @@ from pathlib import Path
 
 from . import llm_cleanup
 from .verify_recovered_byteexact import (
-    _PREAMBLE, pe_mapper, text_bytes_and_relocs, masked_diff_count, _parse,
+    pe_mapper, text_bytes_and_relocs, masked_diff_count, _parse,
 )
+from .recovered_c_preamble import preamble_for_source
 
 _PROMPT = """\
 You are fixing a decompiled C function so it compiles to EXACT target bytes.
@@ -50,7 +51,7 @@ def _compile(src_text: str, compiler: str) -> tuple[bytes, list[int]] | None:
     with tempfile.TemporaryDirectory(prefix="nm-", dir="/tmp") as td:
         c = Path(td) / "in.c"
         o = Path(td) / "o.obj"
-        c.write_text(_PREAMBLE + src_text)
+        c.write_text(preamble_for_source(src_text) + src_text)
         try:
             subprocess.run(["bash", compiler, str(c), str(o), "recovered"],
                            capture_output=True, text=True, timeout=180)

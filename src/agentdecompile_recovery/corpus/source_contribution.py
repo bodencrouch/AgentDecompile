@@ -1,7 +1,9 @@
 """Bounded, observed C contribution to a PE reconstruction, never a linker receipt.
 
-The causal root is the owned native clang cc1 invocation below. Only objects
-returned by that invocation and observations returned by our writer are admitted.
+The reconstruction causal root is the owned native clang cc1 invocation below.
+Only its objects and observations returned by our writer are admitted there.
+Owned MSVC same-build captures have a separate emission-only capability; they
+cannot enter the clang reconstruction or establish linked contribution proof.
 Exported JSON is an audit record, not an import/authentication format. Trust is
 process-local: after restart, retained artifacts remain diagnostic until a new
 supported invocation. This deliberately fails closed on cache/store loss.
@@ -31,14 +33,17 @@ SCHEMA = "agentdecompile.source-contribution/v1"
 ADAPTER = "native-clang-cc1-self-contained-c-v1"
 # Repository-owned authority, not a caller's compiler name/version assertion.
 # Fedora Project clang/clang-libs/llvm-libs 22.1.8-4.fc44, package payloads
-# independently checked by rpm -V on 2026-09-27. The closure pin covers the
+# independently checked by rpm -V on 2026-10-13. The closure pin covers the
 # compiler and all 14 resolved ELF loader/shared-library dependencies. Other
 # builds need an explicitly reviewed supported profile; there is no auto-enroll.
 SUPPORTED_COMPILER_SHA256 = "4ea85504401d9f5c05109d6cb05778b241aa8d56fde1da2e5bc7ba46cffd44f5"
-SUPPORTED_TOOLCHAIN_CLOSURE_SHA256 = "b63b975150d1d36e0c3e3186eea2d5886aba7e77ba1ecdee7789671f310f21a8"
+SUPPORTED_TOOLCHAIN_CLOSURE_SHA256 = "56caa5af677c4569b31934bf77c6f56f299366ac5b8e2f829dcb41906b34f058"
 # Identity registration is independent of caller-controlled JSON or booleans.
 _COMPILES: weakref.WeakKeyDictionary = weakref.WeakKeyDictionary()
 _IMAGES: weakref.WeakKeyDictionary = weakref.WeakKeyDictionary()
+_NATIVE_COMPILES: weakref.WeakKeyDictionary = weakref.WeakKeyDictionary()
+_NATIVE_PLACEMENTS: weakref.WeakKeyDictionary = weakref.WeakKeyDictionary()
+_NATIVE_LINKS: weakref.WeakKeyDictionary = weakref.WeakKeyDictionary()
 
 
 def digest(data: bytes) -> str:
@@ -192,6 +197,905 @@ class CompileObservation:
     @property
     def record(self):
         return json.loads(self.record_json)
+
+
+@dataclass(frozen=True, eq=False)
+class NativeCompileObservation:
+    """Process-local MSVC emission capability, never a clang acceptance token."""
+    record_json: str
+
+    @property
+    def record(self):
+        return json.loads(self.record_json)
+
+
+def select_native_coff_closure(objects, placements, externals, *, image_base: int,
+                               metadata_policy: dict) -> dict:
+    """Select and relocate a bounded explicit reconstruction input closure.
+
+    This is an owned reconstruction-link policy, not Microsoft's historical
+    linker selection. Inputs are ordered {object: bytes, sha256: str} records;
+    placements bind objectSha256, section and address. No target operands are
+    consulted to choose winners. Only unique NODUPLICATES/ANY roots and their
+    associations are supported. Default libraries are explicitly suppressed in
+    favor of supplied external bindings; omitted SafeSEH/debug metadata is
+    recorded, never silently treated as a complete native linker receipt.
+    """
+    from .coff_object import parse_object_inventory
+    from .coff_fixup_roundtrip import place_sections
+
+    def require(condition, reason):
+        if not condition:
+            raise ValueError(reason)
+
+    require(isinstance(objects, (list, tuple)) and 0 < len(objects) <= 64,
+            'native_closure_object_capacity')
+    require(isinstance(placements, (list, tuple)) and 0 < len(placements) <= 4096,
+            'native_closure_placement_capacity')
+    require(type(image_base) is int and 0 <= image_base < 1 << 32,
+            'native_closure_image_base')
+    require(metadata_policy == {'defaultLibraries': 'suppress-explicit-externals',
+                                'safeSEH': 'omit-table', 'debug': 'discard'},
+            'native_closure_metadata_policy_unsupported')
+    require(isinstance(externals, dict) and len(externals) <= 4096 and all(
+        isinstance(name, str) and 0 < len(name) <= 4096 and '\0' not in name
+        and type(address) is int and 0 <= address < 1 << 32
+        for name, address in externals.items()), 'native_closure_external_bindings')
+    inputs = []
+    by_digest = {}
+    total = section_count = symbol_count = relocation_count = 0
+    for entry in objects:
+        require(isinstance(entry, dict), 'native_closure_input_record')
+        obj = entry.get('object')
+        require(isinstance(obj, bytes) and 20 <= len(obj) <= 64 * 1024**2,
+                'native_closure_input_bytes')
+        total += len(obj)
+        require(total <= 64 * 1024**2, 'native_closure_total_object_capacity')
+        object_hash = digest(obj)
+        require(entry.get('sha256') == object_hash and object_hash not in by_digest,
+                'native_closure_object_digest_or_duplicate')
+        inventory = parse_object_inventory(obj)
+        require(inventory['machine'] == 0x14c and inventory['characteristics'] == 0,
+                'native_closure_machine_or_object_flags')
+        section_count += len(inventory['sections'])
+        symbol_count += len(inventory['symbols'])
+        relocation_count += sum(section['relocationCount'] for section in inventory['sections'])
+        require(section_count <= 4096 and symbol_count <= 250000 and relocation_count <= 250000,
+                'native_closure_inventory_capacity')
+        public_by_section = {}
+        for symbol in inventory['symbols'].values():
+            require(symbol['storageClass'] != 105 and not (
+                symbol['section'] == 0 and (symbol['value'] or symbol['auxiliaries'])),
+                'native_closure_weak_common_or_aux_external')
+            if symbol['storageClass'] == 2 and symbol['section'] > 0:
+                public_by_section.setdefault(symbol['section'], []).append(symbol)
+        item = {'object': obj, 'sha256': object_hash, 'inventory': inventory,
+                'placements': {}, 'metadata': [], 'runtime': set(),
+                'publicBySection': public_by_section}
+        inputs.append(item)
+        by_digest[object_hash] = item
+    ranges = []
+    for placement in placements:
+        require(isinstance(placement, dict), 'native_closure_placement_record')
+        require(isinstance(placement.get('objectSha256'), str),
+                'native_closure_placement_digest')
+        item = by_digest.get(placement['objectSha256'])
+        section_index, address = placement.get('section'), placement.get('address')
+        require(item is not None and type(section_index) is int
+                and 1 <= section_index <= len(item['inventory']['sections'])
+                and type(address) is int and 0 <= address < 1 << 32,
+                'native_closure_placement_identity')
+        require(section_index not in item['placements'], 'native_closure_duplicate_placement')
+        section = item['inventory']['sections'][section_index - 1]
+        require(section['size'] > 0 and address + section['size'] <= 1 << 32
+                and len(section['data']) == section['size'],
+                'native_closure_placement_bounds_or_uninitialized')
+        alignment = (section['characteristics'] >> 20) & 15
+        require(1 <= alignment <= 14 and address % (1 << (alignment - 1)) == 0,
+                'native_closure_placement_alignment')
+        item['placements'][section_index] = address
+        ranges.append((address, address + section['size']))
+    ranges.sort()
+    require(all(left[1] <= right[0] for left, right in zip(ranges, ranges[1:])),
+            'native_closure_overlapping_placements')
+
+    roots = {}
+    definitions = {}
+    for item in inputs:
+        inventory = item['inventory']
+        for section in inventory['sections']:
+            number, name = section['index'], section['name']
+            if not section['size']:
+                require(not section['relocations'], 'native_closure_empty_relocations')
+                continue
+            if name == '.drectve':
+                require(section['characteristics'] & 0x800 and not section['relocations']
+                        and not section['characteristics'] & (0x20 | 0x80 | 0x20000000 | 0x80000000)
+                        and section['size'] <= 65536, 'native_closure_directive_section')
+                try:
+                    text = section['data'].decode('ascii')
+                except UnicodeDecodeError as exc:
+                    raise ValueError('native_closure_directive_encoding') from exc
+                pattern = re.compile(r'\s*/DEFAULTLIB:(?:"([A-Za-z0-9_.-]+)"|([A-Za-z0-9_.-]+))', re.I)
+                libraries, cursor = [], 0
+                while cursor < len(text.rstrip()):
+                    match = pattern.match(text, cursor)
+                    require(match is not None, 'native_closure_directive_unsupported')
+                    libraries.append(match.group(1) or match.group(2))
+                    cursor = match.end()
+                    require(len(libraries) <= 64, 'native_closure_directive_capacity')
+                item['metadata'].append({'section': number, 'kind': 'directives',
+                    'defaultLibraries': libraries, 'policy': 'suppressed; explicit external bindings only'})
+            elif name in ('.debug$S', '.debug$F'):
+                require(section['characteristics'] & 0x02000000
+                        and section['characteristics'] & 0x40
+                        and not section['characteristics'] & (0x20 | 0x80 | 0x20000000 | 0x80000000),
+                        'native_closure_debug_not_discardable')
+                item['metadata'].append({'section': number, 'kind': 'debug', 'policy': 'discard'})
+            elif name == '.sxdata':
+                require(section['characteristics'] & 0x200 and not section['relocations']
+                        and not section['characteristics'] & (0x20 | 0x80 | 0x20000000 | 0x80000000)
+                        and section['size'] % 4 == 0 and section['size'] <= 16384,
+                        'native_closure_sxdata_structure')
+                handlers = []
+                for (index,) in struct.iter_unpack('<I', section['data']):
+                    symbol = inventory['symbols'].get(index)
+                    require(symbol is not None and symbol['section'] in item['placements'],
+                            'native_closure_sxdata_unselected_handler')
+                    owner = inventory['sections'][symbol['section'] - 1]
+                    require(owner['characteristics'] & 0x20 and owner['characteristics'] & 0x20000000
+                            and symbol['value'] < owner['size'], 'native_closure_sxdata_handler_bounds')
+                    handlers.append({'symbolIndex': index, 'section': symbol['section'],
+                        'offset': symbol['value'], 'address': item['placements'][symbol['section']] + symbol['value']})
+                require(len({row['address'] for row in handlers}) == len(handlers),
+                        'native_closure_sxdata_duplicate_handler')
+                item['metadata'].append({'section': number, 'kind': 'safeSEH',
+                    'handlers': handlers, 'policy': 'omit-table; target policy must be checked by publisher'})
+            else:
+                require(not section['characteristics'] & (0x200 | 0x800 | 0x02000000),
+                        'native_closure_unknown_metadata')
+                require(number in item['placements'], 'native_closure_unplaced_runtime_section')
+                item['runtime'].add(number)
+            definition = inventory['sectionDefinitions'].get(number, {})
+            selection = definition.get('selection', 0)
+            require(selection in (0, 1, 2, 5), 'native_closure_comdat_selection_unsupported')
+            if selection == 5:
+                parent = definition['association']
+                seen = {number}
+                while inventory['sectionDefinitions'].get(parent, {}).get('selection') == 5:
+                    require(parent not in seen, 'native_closure_association_cycle')
+                    seen.add(parent)
+                    parent = inventory['sectionDefinitions'][parent]['association']
+                require(parent in item['placements'], 'native_closure_unselected_association_root')
+            elif selection:
+                keys = [symbol['name'] for symbol in item['publicBySection'].get(number, ())
+                        if symbol['value'] == 0]
+                require(len(keys) == 1, 'native_closure_comdat_key_ambiguous')
+                require(keys[0] not in roots, 'native_closure_duplicate_comdat_key')
+                roots[keys[0]] = {'objectSha256': item['sha256'], 'section': number,
+                                 'selection': selection, 'policy': 'unique explicit input'}
+        require(set(item['placements']) == item['runtime'], 'native_closure_metadata_placement')
+        for symbol in inventory['symbols'].values():
+            if symbol['storageClass'] != 2 or symbol['section'] <= 0:
+                continue
+            require(symbol['section'] in item['runtime'] and not symbol['auxiliaries'],
+                    'native_closure_public_definition_unsupported')
+            require(symbol['name'] not in definitions and symbol['name'] not in externals,
+                    'native_closure_duplicate_or_shadowed_definition')
+            section = inventory['sections'][symbol['section'] - 1]
+            require(symbol['value'] < section['size'], 'native_closure_public_definition_bounds')
+            definitions[symbol['name']] = item['placements'][symbol['section']] + symbol['value']
+    bindings = {**externals, **definitions}
+    emitted = []
+    for item in inputs:
+        placed = place_sections(item['object'], item['placements'], bindings, image_base=image_base)
+        emitted.extend({**section, 'objectSha256': item['sha256']} for section in placed['sections'])
+    return {'schema': 'agentdecompile.native-coff-closure-selection/v1',
+            'diagnosticOnly': True, 'accepted': False, 'byteVerified': False,
+            'wholeImageVerified': False, 'closureSelected': True,
+            'orderedObjectSha256': [item['sha256'] for item in inputs],
+            'layoutSha256': digest(canonical(list(placements))),
+            'externalBindingsSha256': digest(canonical(externals)),
+            'metadataPolicy': dict(metadata_policy), 'roots': roots,
+            'metadata': [{'objectSha256': item['sha256'], **entry}
+                         for item in inputs for entry in item['metadata']],
+            'sections': emitted,
+            'claim': 'Explicit-input reconstruction selection and emitted fixups only; not producer authenticity, source acceptance, original linker selection or whole-image proof.'}
+
+
+def _native_emitted_region(obj: bytes) -> dict:
+    """Qualify one relocation-free primary range from compiler FPO metadata."""
+    from .coff_object import compiler_function_extents, parse_object_inventory
+
+    inventory = parse_object_inventory(obj)
+    extents = compiler_function_extents(obj)['records']
+    functions = [symbol for symbol in inventory['symbols'].values()
+                 if symbol['section'] > 0 and (symbol['type'] & 0x30) == 0x20]
+    if len(functions) != 1 or functions[0]['storageClass'] != 2:
+        raise ValueError('native_ambiguous_primary_function')
+    entry = functions[0]
+    bound = [extent for extent in extents if extent['symbolIndex'] == entry['index']]
+    if len(bound) != 1 or bound[0]['offset'] != entry['value']:
+        raise ValueError('native_missing_independent_primary_extent')
+    extent = bound[0]
+    section = inventory['sections'][entry['section'] - 1]
+    if not (section['characteristics'] & 0x20 and section['characteristics'] & 0x20000000):
+        raise ValueError('native_primary_not_executable_code')
+    if section['relocations']:
+        raise ValueError('native_primary_relocations_unsupported')
+    for other in inventory['sections']:
+        if other['index'] == entry['section'] or not other['size']:
+            continue
+        # Object metadata is not runtime contribution. Associated code/data
+        # (including EH and SafeSEH) requires a separate supported closure.
+        if (other['characteristics'] & (0x200 | 0x800)
+                or other['name'].startswith('.debug') and other['characteristics'] & 0x02000000):
+            continue
+        raise ValueError('native_associated_runtime_contribution_unsupported')
+    return {**extent, 'symbol': entry['name'],
+            'objectOffset': section['offset'] + extent['offset'],
+            'sectionSize': section['size'],
+            'unqualifiedSectionBytes': section['size'] - extent['size'],
+            'comdatSelection': inventory['sectionDefinitions'].get(entry['section'], {}).get('selection', 0),
+            'sha256': digest(section['data'][extent['offset']:extent['offset'] + extent['size']])}
+
+
+def _issue_native_compile_observation(producer, event: dict) -> NativeCompileObservation:
+    """Issue only from the owned compile/link capture, not caller JSON imports."""
+    from . import compile_link, compiler_msvc71
+
+    # The existing owned producer function is a stable process-local identity,
+    # including across in-place code reloads; JSON does not confer membership.
+    if producer is not compile_link.compile_and_link_tree:
+        raise ValueError('unowned_native_emission_producer')
+    invocation = event.get('invocation')
+    if (not isinstance(invocation, dict) or invocation.get('script') is not True
+            or not isinstance(invocation.get('compiler'), str)
+            or Path(invocation['compiler']).resolve() != Path(compiler_msvc71.__file__).resolve()):
+        raise ValueError('unsupported_native_emission_adapter')
+    source, obj = event.get('sourceBytes'), event.get('objectBytes')
+    normalized = event.get('normalizedInputBytes')
+    if (not isinstance(source, bytes) or not isinstance(obj, bytes)
+            or not isinstance(normalized, bytes) or not normalized
+            or not source or not obj or max(len(source), len(obj), len(normalized)) > 64 * 1024**2
+            or digest(source) != event.get('sourceSha256')
+            or digest(normalized) != event.get('normalizedInputSha256')
+            or digest(obj) != event.get('objectSha256')):
+        raise ValueError('invalid_native_emission_capture')
+    fresh, reused = event.get('freshCompilation'), event.get('reusedObject')
+    if (type(fresh) is not bool or type(reused) is not bool or fresh == reused
+            or invocation.get('compilerExecuted') is not fresh):
+        raise ValueError('invalid_native_emission_execution_basis')
+    record = {key: event.get(key) for key in (
+        'sourcePath', 'objectPath', 'sourceSha256', 'normalizedInputSha256',
+        'objectSha256', 'sourceLanguage', 'freshCompilation', 'reusedObject',
+        'compilerIdentity', 'invocation')}
+    record.update({'schema': 'agentdecompile.native-emission-observation/v1',
+                   'diagnosticOnly': True, 'byteVerified': False,
+                   'wholeImageVerified': False, 'accepted': False,
+                   'emittedRegionQualified': False,
+                   'claim': 'Owned same-build MSVC emission only; not complete toolchain, target binding, COMDAT selection or linked contribution proof.'})
+    try:
+        record['emittedRegion'] = _native_emitted_region(obj)
+        record['emittedRegionQualified'] = True
+    except ValueError as exc:
+        record['emittedRegionRefusal'] = str(exc)
+    payload = json.dumps(record, sort_keys=True, allow_nan=False)
+    if len(payload.encode()) > 2 * 1024**2:
+        raise ValueError('native_emission_metadata_capacity')
+    observation = NativeCompileObservation(payload)
+    _NATIVE_COMPILES[observation] = (payload, source, obj)
+    return observation
+
+
+def native_emitted_region(observation) -> tuple[dict | None, bytes | None, str | None]:
+    """Read a producer-issued region; retained JSON cannot recreate authority."""
+    if not isinstance(observation, NativeCompileObservation):
+        return None, None, 'untrusted_native_compile_observation'
+    captured = _NATIVE_COMPILES.get(observation)
+    if captured is None or captured[0] != observation.record_json:
+        return None, None, 'untrusted_native_compile_observation'
+    record = observation.record
+    if not record['emittedRegionQualified']:
+        return record, None, record.get('emittedRegionRefusal', 'native_region_unqualified')
+    try:
+        region = _native_emitted_region(captured[2])
+        if region != record['emittedRegion']:
+            raise ValueError('native_emitted_region_changed')
+        data = captured[2][region['objectOffset']:region['objectOffset'] + region['size']]
+        return record, data, None
+    except ValueError as exc:
+        return record, None, str(exc)
+
+
+def observe_native_target_region(observation, *, target_raw: bytes, address: int,
+                                 size: int, db, binary_id: int) -> dict:
+    """Compare a captured native range to an independently selected DB region.
+
+    This is an emission comparison, not a reconstruction/writer capability.
+    COMDAT selection, toolchain closure and linked-image causality are unproved.
+    """
+    result = {'schema': 'agentdecompile.native-target-observation/v1',
+              'diagnosticOnly': True, 'accepted': False, 'byteVerified': False,
+              'wholeImageVerified': False, 'rawEqual': False,
+              'claim': 'Captured native emitted-range comparison only; not linked contribution proof.'}
+    record, emitted, refusal = native_emitted_region(observation)
+    if record is not None:
+        result['compilation'] = record
+    if refusal:
+        return {**result, 'reason': refusal}
+    try:
+        if (not isinstance(target_raw, bytes) or not 0 < len(target_raw) <= 512 * 1024**2
+                or type(address) is not int or type(size) is not int or size <= 0
+                or db is None or type(binary_id) is not int):
+            raise ValueError('invalid_native_selected_target_capture')
+        target_sha = digest(target_raw)
+        selected = _db_row(db, binary_id, address, size, target_sha256=target_sha)
+        region = pe_region(target_raw, address, size)
+        if record['emittedRegion']['size'] != size:
+            raise ValueError('native_emitted_target_extent_mismatch')
+        target = target_raw[region['offset']:region['offset'] + size]
+        result.update({'selectedDatabaseRow': selected, 'targetSha256': target_sha,
+                       'targetRegion': region, 'rawEqual': emitted == target,
+                       'differentByteCount': sum(a != b for a, b in zip(emitted, target)),
+                       'reason': 'native_emitted_range_equal' if emitted == target else 'native_emitted_range_differs'})
+    except ValueError as exc:
+        result['reason'] = str(exc)
+    return result
+
+
+@dataclass(frozen=True, eq=False)
+class NativeLinkObservation:
+    """Owned ordered-input/map capture; not complete native linker authority."""
+    record_json: str
+
+    @property
+    def record(self):
+        return json.loads(self.record_json)
+
+
+def _issue_native_link_observation(producer, capture: dict) -> NativeLinkObservation:
+    from . import compile_link
+
+    if producer is not compile_link.link_msvc:
+        raise ValueError('unowned_native_link_producer')
+    mapping = capture.get('mapBytes')
+    image = capture.get('imageBytes')
+    output = capture.get('output')
+    if (not isinstance(mapping, bytes) or not 0 < len(mapping) <= 8 * 1024**2
+            or not isinstance(image, bytes) or not 0 < len(image) <= 256 * 1024**2
+            or capture.get('freshLinkedCandidate') is not True
+            or digest(mapping) != capture.get('map', {}).get('sha256')
+            or not isinstance(output, dict) or output.get('size') != len(image)
+            or output.get('sha256') != digest(image)):
+        raise ValueError('invalid_native_link_capture')
+    record = {key: value for key, value in capture.items()
+              if key not in ('mapBytes', 'imageBytes')}
+    record.update({'schema': 'agentdecompile.native-link-observation/v1',
+                   'diagnosticOnly': True, 'accepted': False,
+                   'linkedSourceContributionVerified': False,
+                   'claim': 'Observed ordered explicit objects, linker image, map and output only; libraries/environment/dependencies and ICF selection remain uncertified.'})
+    payload = canonical(record).decode()
+    if len(payload.encode()) > 2 * 1024**2:
+        raise ValueError('native_link_metadata_capacity')
+    observation = NativeLinkObservation(payload)
+    _NATIVE_LINKS[observation] = (payload, mapping, image)
+    return observation
+
+
+def native_link_selection_evidence(compilation, linking) -> dict:
+    """Compare a fresh, relocation-free emission at the linker-mapped PE VA.
+
+    The map and final-image bytes are retained only in process-local authority.
+    A raw byte match proves this function's observed contribution in this one
+    linked candidate, not complete linker closure, source correctness, target
+    equivalence, or whole-image ownership. COMDAT and relocation-bearing code
+    remain outside this narrow path.
+    """
+    result = {'selectedObjectMapped': False, 'comdatSelectionVerified': False,
+              'nativeEligibleLinkClosure': False, 'diagnosticOnly': True,
+              'accepted': False, 'reason': 'untrusted_native_link_observation'}
+    if not isinstance(linking, NativeLinkObservation):
+        return result
+    captured = _NATIVE_LINKS.get(linking)
+    if captured is None or captured[0] != linking.record_json:
+        return result
+    if not isinstance(compilation, NativeCompileObservation):
+        return {**result, 'reason': 'untrusted_native_compile_observation'}
+    compiled_capture = _NATIVE_COMPILES.get(compilation)
+    if compiled_capture is None or compiled_capture[0] != compilation.record_json:
+        return {**result, 'reason': 'untrusted_native_compile_observation'}
+    compiled = compilation.record
+    if compiled.get('freshCompilation') is not True or compiled.get('reusedObject') is not False:
+        return {**result, 'reason': 'native_link_contribution_requires_fresh_compilation'}
+    # A MAP records symbol selection independently of whether we can place the
+    # function's relocations, unwind closure or emitted range. Do not require a
+    # placement capability merely to inspect owned linker provenance.
+    from .coff_object import parse_object_inventory
+
+    try:
+        inventory = parse_object_inventory(compiled_capture[2])
+        functions = [entry for entry in inventory['symbols'].values()
+                     if entry['storageClass'] == 2 and entry['section'] > 0
+                     and (entry['type'] & 0x30) == 0x20
+                     and entry['value'] < inventory['sections'][entry['section'] - 1]['size']
+                     and inventory['sections'][entry['section'] - 1]['characteristics'] & 0x20
+                     and inventory['sections'][entry['section'] - 1]['characteristics'] & 0x20000000]
+        if len(functions) != 1:
+            raise ValueError('native_map_primary_symbol_ambiguous')
+        symbol = functions[0]['name']
+    except ValueError as exc:
+        return {**result, 'reason': str(exc)}
+    _, _data, refusal = native_emitted_region(compilation)
+    result.update({'emittedRegionQualified': refusal is None,
+                   'emittedRegionRefusal': refusal})
+    record = linking.record
+    objects = record.get('objects')
+    if not isinstance(objects, list) or len(objects) > 4096:
+        return {**result, 'reason': 'native_link_object_inventory_unsupported'}
+    matching = [entry for entry in objects
+                if entry.get('sha256') == compiled['objectSha256']
+                and entry.get('path') == compiled['objectPath']]
+    if len(matching) != 1:
+        return {**result, 'reason': 'native_compile_not_unique_link_input'}
+    try:
+        text = captured[1].decode('ascii')
+    except UnicodeDecodeError:
+        return {**result, 'reason': 'native_link_map_encoding_unsupported'}
+    pattern = re.compile(r'^\s*([0-9A-Fa-f]{4}):([0-9A-Fa-f]{8,16})\s+(\S+)\s+([0-9A-Fa-f]{8,16})\s+f\s+(\S+)\s*$')
+    rows = [match for line in text.splitlines() if (match := pattern.fullmatch(line))
+            and match.group(3) == symbol]
+    if len(rows) != 1:
+        return {**result, 'reason': 'native_link_map_symbol_missing_or_ambiguous'}
+    from pathlib import PureWindowsPath
+
+    origin = rows[0].group(5)
+    # Library-member notation is not an explicit object input. A basename is
+    # accepted only when it uniquely resolves within the ordered owned inputs.
+    drive_qualified_path = re.match(r'^[A-Za-z]:[\\/]', origin) is not None
+    if ':' in origin and not drive_qualified_path:
+        return {**result, 'reason': 'native_link_library_or_path_origin_unsupported'}
+    basename = PureWindowsPath(origin).name.casefold()
+    owners = [entry for entry in objects
+              if PureWindowsPath(str(entry['path'])).name.casefold() == basename]
+    if len(owners) != 1 or owners[0] != matching[0]:
+        return {**result, 'reason': 'native_link_map_object_origin_ambiguous'}
+    linked_address = int(rows[0].group(4), 16)
+    _, emitted, refusal = native_emitted_region(compilation)
+    if refusal or emitted is None:
+        return {**result, 'reason': refusal or 'native_emitted_bytes_unavailable'}
+    if symbol != compiled.get('emittedRegion', {}).get('symbol'):
+        return {**result, 'reason': 'native_map_symbol_differs_from_emitted_function'}
+    image = captured[2]
+    if (not isinstance(image, bytes) or len(image) != record.get('output', {}).get('size')
+            or digest(image) != record.get('output', {}).get('sha256')):
+        return {**result, 'reason': 'native_linked_image_capture_invalid'}
+    try:
+        region = pe_region(image, linked_address, len(emitted))
+        start = region['offset']
+        linked_bytes = image[start:start + len(emitted)]
+    except (ValueError, struct.error) as exc:
+        return {**result, 'reason': f'native_linked_function_region_unmapped: {exc}'}
+    raw_equal = linked_bytes == emitted
+    return {**result, 'selectedObjectMapped': True,
+            'symbol': symbol, 'linkedAddress': linked_address,
+            'linkedSection': int(rows[0].group(1), 16),
+            'linkedSectionOffset': int(rows[0].group(2), 16),
+            'object': matching[0], 'map': record['map'], 'output': record['output'],
+            'linkedImageRegion': region,
+            'linkedContributionRawEqual': raw_equal,
+            'linkedContributionSha256': digest(linked_bytes),
+            'emittedRegionSha256': digest(emitted),
+            'diagnosticOnly': True, 'accepted': False,
+            'reason': ('fresh_compiled_function_bytes_observed_at_mapped_pe_address'
+                       if raw_equal else 'mapped_pe_bytes_differ_from_fresh_compiler_emission')}
+
+
+@dataclass(frozen=True, eq=False)
+class NativePlacementObservation:
+    """Owned memory-writer observation, separate from linked-image authority."""
+    record_json: str
+
+    @property
+    def record(self):
+        return json.loads(self.record_json)
+
+
+def _native_placement_entry(observation, *, target_raw, address, size, db, binary_id):
+    """Qualify one owned hole without allocating a whole preserved-floor image."""
+    comparison = observe_native_target_region(observation, target_raw=target_raw,
+                                              address=address, size=size, db=db,
+                                              binary_id=binary_id)
+    if not comparison['rawEqual']:
+        raise ValueError(comparison['reason'])
+    record, data, refusal = native_emitted_region(observation)
+    if refusal:
+        raise ValueError(refusal)
+    if record['emittedRegion']['comdatSelection']:
+        raise ValueError('native_comdat_link_selection_unproved')
+    captured = _NATIVE_COMPILES[observation]
+    if not is_real_c(captured[1].decode('utf-8')):
+        raise ValueError('native_assembly_floor_not_source_contribution')
+    identity = digest(canonical({'object': record['objectSha256'],
+                                 'source': record['sourceSha256'],
+                                 'address': address, 'size': size}))
+    return {'identity': identity, 'region': comparison['targetRegion'], 'comparison': comparison,
+            'objectOffset': record['emittedRegion']['objectOffset'], 'data': data}
+
+
+def _native_closure_target(target_raw, image_base):
+    """Check the supported PE policy before omitting compiler link metadata."""
+    if not isinstance(target_raw, bytes) or not 0 < len(target_raw) <= 64 * 1024**2:
+        raise ValueError('native_closure_target_capacity')
+    try:
+        pe = struct.unpack_from('<I', target_raw, 0x3c)[0]
+        optional = pe + 24
+        machine, count = struct.unpack_from('<HH', target_raw, pe + 4)
+        optional_size = struct.unpack_from('<H', target_raw, pe + 20)[0]
+        if (target_raw[:2] != b'MZ' or target_raw[pe:pe + 4] != b'PE\0\0'
+                or machine != 0x14c or not 1 <= count <= 96 or optional_size < 96
+                or struct.unpack_from('<H', target_raw, optional)[0] != 0x10b
+                or struct.unpack_from('<I', target_raw, optional + 28)[0] != image_base):
+            raise ValueError('native_closure_target_header_or_image_base')
+        directories = struct.unpack_from('<I', target_raw, optional + 92)[0]
+        if directories > 16 or 96 + directories * 8 > optional_size:
+            raise ValueError('native_closure_target_directory_bounds')
+        # This writer does not regenerate a base-relocation or SafeSEH table.
+        # A preserved table would retain target-derived selection authority.
+        for index in (5, 10):
+            if directories > index and any(struct.unpack_from('<II', target_raw,
+                                                             optional + 96 + index * 8)):
+                raise ValueError('native_closure_target_relocation_or_load_config_unsupported')
+        table = optional + optional_size
+        if table + count * 40 > len(target_raw):
+            raise ValueError('native_closure_target_section_table')
+        sections = []
+        for index in range(count):
+            start = table + index * 40
+            virtual_size, rva, raw_size, offset = struct.unpack_from('<IIII', target_raw, start + 8)
+            flags = struct.unpack_from('<I', target_raw, start + 36)[0]
+            if raw_size and (offset < table + count * 40 or offset + raw_size > len(target_raw)):
+                raise ValueError('native_closure_target_raw_bounds')
+            sections.append({'index': index + 1, 'offset': offset, 'size': raw_size,
+                             'virtualSize': virtual_size, 'rva': rva, 'characteristics': flags})
+        spans = sorted((item['offset'], item['offset'] + item['size'])
+                       for item in sections if item['size'])
+        if any(left[1] > right[0] for left, right in zip(spans, spans[1:])):
+            raise ValueError('native_closure_target_raw_overlap')
+        return sections
+    except struct.error as exc:
+        raise ValueError('native_closure_target_truncated') from exc
+
+
+def _native_closure_plan(closure, *, target_raw, db, binary_id):
+    """Relocate authentic captures; JSON layout is never producer authority."""
+    from .coff_object import parse_object_inventory
+
+    if (not isinstance(closure, dict) or set(closure) != {
+            'observations', 'placements', 'externals', 'image_base', 'metadata_policy',
+            'primary_regions', 'target_sha256'} or not isinstance(target_raw, bytes)
+            or closure['target_sha256'] != digest(target_raw)
+            or db is None or type(binary_id) is not int):
+        raise ValueError('native_closure_request_or_target_identity')
+    capabilities = closure['observations']
+    if not isinstance(capabilities, (list, tuple)) or not 0 < len(capabilities) <= 64:
+        raise ValueError('native_closure_capture_capacity')
+    objects, inventories = [], {}
+    for capability in capabilities:
+        captured = _NATIVE_COMPILES.get(capability) if isinstance(capability, NativeCompileObservation) else None
+        if captured is None or captured[0] != capability.record_json:
+            raise ValueError('untrusted_native_compile_observation')
+        record = capability.record
+        if (digest(captured[1]) != record['sourceSha256']
+                or digest(captured[2]) != record['objectSha256']
+                or not is_real_c(captured[1].decode('utf-8'))):
+            raise ValueError('native_closure_source_or_object_identity')
+        objects.append({'object': captured[2], 'sha256': record['objectSha256']})
+        inventories[record['objectSha256']] = parse_object_inventory(captured[2])
+    sections = _native_closure_target(target_raw, closure['image_base'])
+    selection = select_native_coff_closure(objects, closure['placements'], closure['externals'],
+        image_base=closure['image_base'], metadata_policy=closure['metadata_policy'])
+    primary = closure['primary_regions']
+    if not isinstance(primary, (list, tuple)) or len(primary) != len(capabilities):
+        raise ValueError('native_closure_primary_capacity')
+    selected = {}
+    for entry in primary:
+        if not isinstance(entry, dict) or set(entry) != {'objectSha256', 'section', 'address', 'size'}:
+            raise ValueError('native_closure_primary_record')
+        object_hash, number = entry['objectSha256'], entry['section']
+        if not isinstance(object_hash, str):
+            raise ValueError('native_closure_primary_identity')
+        inventory = inventories.get(object_hash)
+        if (inventory is None or object_hash in selected or type(number) is not int
+                or not 1 <= number <= len(inventory['sections'])):
+            raise ValueError('native_closure_primary_identity')
+        owner = inventory['sections'][number - 1]
+        functions = [symbol for symbol in inventory['symbols'].values()
+                     if symbol['storageClass'] == 2 and symbol['section'] == number
+                     and (symbol['type'] & 0x30) == 0x20]
+        if (not owner['characteristics'] & 0x20 or not owner['characteristics'] & 0x20000000
+                or len(functions) != 1 or functions[0]['value'] != 0
+                or type(entry['address']) is not int or not 0 <= entry['address'] < 1 << 32
+                or type(entry['size']) is not int or owner['size'] != entry['size']):
+            raise ValueError('native_closure_primary_extent')
+        selected[object_hash] = (entry, _db_row(db, binary_id, entry['address'], entry['size'],
+                                            target_sha256=closure['target_sha256']))
+    plan = []
+    for emitted in selection['sections']:
+        data, address = emitted['data'], emitted['address']
+        offset = file_region_offset(target_raw, address, len(data))
+        if offset is None:
+            raise ValueError('native_closure_region_unmapped_or_ambiguous')
+        mapped = [section for section in sections
+                  if section['offset'] <= offset and offset + len(data) <= section['offset'] + section['size']]
+        if len(mapped) != 1:
+            raise ValueError('native_closure_region_raw_mapping')
+        object_hash, number = emitted['objectSha256'], emitted['section']
+        owner = inventories[object_hash]['sections'][number - 1]
+        code = bool(owner['characteristics'] & 0x20)
+        target_flags = mapped[0]['characteristics']
+        if (code and not (target_flags & 0x20 and target_flags & 0x20000000)
+                or not code and not target_flags & 0x40
+                or (owner['characteristics'] & 0xe0000000) != (target_flags & 0xe0000000)):
+            raise ValueError('native_closure_region_permissions')
+        entry, database = selected[object_hash]
+        is_primary = number == entry['section']
+        if is_primary and (address != entry['address'] or len(data) != entry['size']):
+            raise ValueError('native_closure_primary_placement_changed')
+        if data != target_raw[offset:offset + len(data)]:
+            raise ValueError('native_closure_placed_region_differs')
+        identity = digest(canonical({'object': object_hash, 'section': number,
+                                     'address': address, 'size': len(data)}))
+        comparison = {'targetSha256': closure['target_sha256'], 'rawEqual': True,
+                      'selectedDatabaseRow': database if is_primary else None}
+        plan.append({'identity': identity, 'region': {'address': address, 'offset': offset,
+                    'size': len(data), 'sha256': digest(data), 'sectionIndex': mapped[0]['index']},
+                    'comparison': comparison, 'objectSha256': object_hash, 'objectSection': number,
+                    'objectOffset': owner['offset'], 'data': data,
+                    'contributionKind': 'primary-c' if is_primary else
+                        'associated-code' if code else 'associated-data'})
+    if sum(item['contributionKind'] == 'primary-c' for item in plan) != len(capabilities):
+        raise ValueError('native_closure_primary_not_selected')
+    audit = {key: value for key, value in selection.items() if key != 'sections'}
+    audit['sections'] = []
+    for section in selection['sections']:
+        entry = {key: value for key, value in section.items() if key not in ('data', 'comdat')}
+        definition = section['comdat']
+        entry['comdat'] = ({key: value for key, value in definition.items()
+                            if key not in ('raw', 'unused')} if definition else None)
+        audit['sections'].append(entry)
+    return plan, audit
+
+
+def place_native_regions(*, target_raw: bytes, placements=(), db, binary_id: int,
+                         overwrite_with_floor=(), native_closure=None) -> tuple[NativePlacementObservation, bytes]:
+    """Reserve disjoint native holes and record actual in-memory byte writers.
+
+    Entries are (issued native capability, independently selected address, size).
+    The optional native_closure selects captured COFF code/data/EH sections.
+    Output bytes are not a stock linker result; floor never receives C credit.
+    """
+    from itertools import islice
+
+    entries = tuple(islice(iter(placements), 65))
+    if len(entries) > 64 or (not entries and native_closure is None):
+        raise ValueError('native_placement_capacity_or_empty')
+    plan = []; metadata_size = 0
+    for observation, address, size in entries:
+        item = _native_placement_entry(observation, target_raw=target_raw, address=address,
+                                       size=size, db=db, binary_id=binary_id)
+        plan.append(item)
+        metadata_size += len(canonical(item['comparison'])) + 1024
+        if metadata_size > 8 * 1024**2:
+            raise ValueError('native_placement_metadata_capacity')
+    closure_audit = None
+    if native_closure is not None:
+        closure_plan, closure_audit = _native_closure_plan(native_closure, target_raw=target_raw,
+                                                          db=db, binary_id=binary_id)
+        plan.extend(closure_plan)
+        # Store a detached snapshot of layout/policy, retaining only genuine
+        # process-local capabilities. Caller mutation cannot change the plan.
+        entries = {'legacy': entries, 'closure': {
+            key: tuple(value) if key == 'observations' else json.loads(canonical(value))
+            for key, value in native_closure.items()}}
+    ordered = sorted(plan, key=lambda item: item['region']['offset'])
+    if any(left['region']['offset'] + left['region']['size'] > right['region']['offset']
+           for left, right in zip(ordered, ordered[1:])):
+        raise ValueError('native_overlapping_replacement_holes')
+    image = bytearray(len(target_raw)); writes = []; cursor = 0
+    for item in ordered:
+        lo, size = item['region']['offset'], item['region']['size']
+        if cursor < lo:
+            image[cursor:lo] = target_raw[cursor:lo]
+            writes.append({'offset': cursor, 'size': lo - cursor, 'origin': 'preserved-floor'})
+        image[lo:lo + size] = item['data']
+        writes.append({'offset': lo, 'size': size, 'origin': 'compiled-object',
+                       'invocation': item['identity'], 'objectOffset': item['objectOffset'],
+                       'contributionKind': item.get('contributionKind', 'primary-c')})
+        cursor = lo + size
+    if cursor < len(image):
+        image[cursor:] = target_raw[cursor:]
+        writes.append({'offset': cursor, 'size': len(image) - cursor, 'origin': 'preserved-floor'})
+    overwrite_requests = tuple(islice(iter(overwrite_with_floor), 4097))
+    if len(overwrite_requests) > 4096:
+        raise ValueError('native_floor_overwrite_capacity')
+    if any(type(identity) is not str or len(identity) != 64
+           or not re.fullmatch('[0-9a-f]{64}', identity) for identity in overwrite_requests):
+        raise ValueError('native_invalid_floor_overwrite_identity')
+    overwritten = set(overwrite_requests)
+    if overwritten - {item['identity'] for item in plan}:
+        raise ValueError('native_unknown_floor_overwrite')
+    for item in ordered:
+        if item['identity'] in overwritten:
+            lo, size = item['region']['offset'], item['region']['size']
+            image[lo:lo + size] = target_raw[lo:lo + size]
+            writes.append({'offset': lo, 'size': size, 'origin': 'preserved-floor',
+                           'reason': 'fallback_after_native_write'})
+    image = bytes(image)
+    record = {'schema': 'agentdecompile.native-placement-observation/v1',
+              'targetSha256': digest(target_raw), 'outputSha256': digest(image),
+              'size': len(image), 'writes': writes, 'finalWriters': final_writers(writes, len(image)),
+              'plan': [{key: value for key, value in item.items() if key != 'data'} for item in plan],
+              'closureSelection': closure_audit,
+              'diagnosticOnly': True, 'accepted': False, 'sourceVerified': False,
+              'linkedSourceContributionVerified': False, 'nativeEligibleLinkClosure': False,
+              'wholeImageVerified': False,
+              'claim': 'Observed in-memory native-object placement with explicit preserved floor; not toolchain closure or linked-image proof.'}
+    payload = canonical(record).decode()
+    if len(payload.encode()) > 8 * 1024**2:
+        raise ValueError('native_placement_metadata_capacity')
+    observation = NativePlacementObservation(payload)
+    _NATIVE_PLACEMENTS[observation] = (payload, target_raw, image, entries)
+    return observation, image
+
+
+def evaluate_native_placement(observation, *, output_raw: bytes, db, binary_id: int) -> dict:
+    """Replay the owned memory writer; withdraw credit after floor overwrites."""
+    result = {'nativePlacedBytes': 0, 'nativePlacedRegions': 0, 'preservedFloorBytes': 0,
+              'accepted': False, 'sourceVerified': False, 'wholeImageVerified': False,
+              'linkedSourceContributionVerified': False, 'nativeEligibleLinkClosure': False,
+              'diagnosticOnly': True, 'reason': 'untrusted_native_placement_observation'}
+    if not isinstance(observation, NativePlacementObservation):
+        return result
+    captured = _NATIVE_PLACEMENTS.get(observation)
+    if captured is None or captured[0] != observation.record_json:
+        return result
+    record = observation.record
+    if not isinstance(output_raw, bytes) or output_raw != captured[2]:
+        return {**result, 'reason': 'native_placement_output_changed'}
+    try:
+        writers = final_writers(record['writes'], len(output_raw))
+        if writers != record['finalWriters']:
+            raise ValueError('native_final_writer_accounting_changed')
+        if isinstance(captured[3], dict):
+            plan = [_native_placement_entry(capability, target_raw=captured[1],
+                     address=address, size=size, db=db, binary_id=binary_id)
+                    for capability, address, size in captured[3]['legacy']]
+            closure_plan, selection = _native_closure_plan(captured[3]['closure'],
+                target_raw=captured[1], db=db, binary_id=binary_id)
+            plan.extend(closure_plan)
+            if (selection != record['closureSelection'] or
+                    [{key: value for key, value in item.items() if key != 'data'}
+                     for item in plan] != record['plan']):
+                raise ValueError('native_closure_selection_or_target_changed')
+            counts = {'primaryCBytes': 0, 'associatedCodeBytes': 0, 'associatedDataBytes': 0}
+            for item in plan:
+                selected = [write for write in writers if write.get('invocation') == item['identity']
+                            and write['origin'] == 'compiled-object']
+                if not selected:
+                    continue  # A later floor writer withdraws all contribution credit.
+                region = item['region']
+                if (len(selected) != 1 or selected[0]['offset'] != region['offset']
+                        or selected[0]['size'] != region['size']
+                        or selected[0]['objectOffset'] != item['objectOffset']
+                        or selected[0]['contributionKind'] != item.get('contributionKind', 'primary-c')
+                        or output_raw[region['offset']:region['offset'] + region['size']] != item['data']):
+                    raise ValueError('native_closure_final_object_write_changed')
+                result['nativePlacedRegions'] += 1
+                result['nativePlacedBytes'] += len(item['data'])
+                counts[{'primary-c': 'primaryCBytes', 'associated-code': 'associatedCodeBytes',
+                        'associated-data': 'associatedDataBytes'}[item.get('contributionKind', 'primary-c')]] += len(item['data'])
+            return {**result, **counts,
+                    'preservedFloorBytes': sum(write['size'] for write in writers
+                                               if write['origin'] == 'preserved-floor'),
+                    'wholeFileByteIdentical': output_raw == captured[1],
+                    'closureSelected': True,
+                    'reason': 'observed_native_closure_memory_writer_preserved_floor'}
+        for (capability, address, size), item in zip(captured[3], record['plan']):
+            comparison = observe_native_target_region(capability, target_raw=captured[1],
+                                                      address=address, size=size, db=db,
+                                                      binary_id=binary_id)
+            if comparison != item['comparison']:
+                raise ValueError('native_selected_target_binding_changed')
+            _, data, refusal = native_emitted_region(capability)
+            if refusal:
+                raise ValueError(refusal)
+            selected = [write for write in writers if write.get('invocation') == item['identity']
+                        and write['origin'] == 'compiled-object']
+            if not selected:
+                continue
+            if len(selected) != 1:
+                raise ValueError('native_fragmented_final_writer')
+            write = selected[0]; region = item['region']
+            if (write['offset'] != region['offset'] or write['size'] != region['size']
+                    or write['objectOffset'] != item['objectOffset']
+                    or output_raw[write['offset']:write['offset'] + write['size']] != data):
+                raise ValueError('native_final_object_write_changed')
+            result['nativePlacedRegions'] += 1
+            result['nativePlacedBytes'] += len(data)
+        result.update({'preservedFloorBytes': sum(write['size'] for write in writers
+                                                  if write['origin'] == 'preserved-floor'),
+                       'wholeFileByteIdentical': output_raw == captured[1],
+                       'reason': 'observed_native_memory_writer_preserved_floor'})
+    except (OSError, ValueError, KeyError, TypeError, sqlite3.Error) as exc:
+        result.update({'nativePlacedBytes': 0, 'nativePlacedRegions': 0, 'reason': str(exc)})
+    return result
+
+
+def publish_native_regions(*, target_path, output_path, target_raw, placements=(), db, binary_id,
+                           native_closure=None):
+    """Publish a new diagnostic reconstruction from owned native captures.
+
+    This is not a stock linker result. Every nonselected byte is preserved
+    target floor, not recovered source. A failed publication leaves any owned
+    partial file diagnostic-only; an existing path is never overwritten.
+    """
+    from .compile_link import _read_observation_bytes
+
+    if not isinstance(target_raw, bytes) or not 0 < len(target_raw) <= 64 * 1024**2:
+        raise ValueError('native_publication_target_capacity')
+    target = Path(target_path).resolve(strict=True)
+    output = Path(output_path).absolute()
+    if output.resolve() == target:
+        raise ValueError('native_publication_output_conflicts_with_target')
+    if _read_observation_bytes(target) != target_raw:
+        raise ValueError('native_publication_target_changed')
+    observation, image = place_native_regions(target_raw=target_raw, placements=placements,
+                                              db=db, binary_id=binary_id,
+                                              native_closure=native_closure)
+    captured = _NATIVE_PLACEMENTS[observation]
+    sources = []
+    capabilities = (tuple(entry[0] for entry in captured[3]['legacy'])
+                    + captured[3]['closure']['observations'] if isinstance(captured[3], dict)
+                    else tuple(entry[0] for entry in captured[3]))
+    for capability in capabilities:
+        event = _NATIVE_COMPILES[capability]
+        source = Path(capability.record['sourcePath'])
+        if _read_observation_bytes(source) != event[1]:
+            raise ValueError('native_publication_source_changed')
+        sources.append((source, event[1]))
+    checked = evaluate_native_placement(observation, output_raw=image, db=db, binary_id=binary_id)
+    if checked.get('nativePlacedRegions') != len(observation.record['plan']):
+        raise ValueError('native_publication_final_writer_refused:' + checked['reason'])
+    # Exclusive creation is the existing reconstruction owner's publication
+    # policy: no replacement of the linked candidate, input or retained output.
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, 'O_NOFOLLOW', 0)
+    fd = os.open(output, flags, 0o600)
+    with os.fdopen(fd, 'wb') as handle:
+        handle.write(image)
+        handle.flush()
+        os.fsync(handle.fileno())
+        written = os.fstat(handle.fileno())
+    readback = _read_observation_bytes(output)
+    current = output.stat(follow_symlinks=False)
+    stable = ('st_dev', 'st_ino', 'st_size', 'st_mtime_ns', 'st_ctime_ns')
+    if (any(getattr(written, key) != getattr(current, key) for key in stable)
+            or readback != image or _read_observation_bytes(target) != target_raw
+            or any(_read_observation_bytes(source) != data for source, data in sources)):
+        raise ValueError('native_publication_input_or_output_changed')
+    checked = evaluate_native_placement(observation, output_raw=readback, db=db, binary_id=binary_id)
+    if checked.get('nativePlacedRegions') != len(observation.record['plan']):
+        raise ValueError('native_publication_readback_refused:' + checked['reason'])
+    record = observation.record
+    return {'schema': 'agentdecompile.native-placement-publication/v1',
+            'status': 'published', 'output': {'path': str(output), 'size': len(readback),
+                                             'sha256': digest(readback)},
+            'targetSha256': digest(target_raw), 'placement': record, 'evaluation': checked,
+            'coverageSha256': digest(canonical(record['finalWriters'])),
+            'compilerProducedWholeImage': False, 'wholeImageVerified': False,
+            'sourceVerified': False, 'linkedSourceContributionVerified': False,
+            'accepted': False, 'diagnosticOnly': True,
+            'claim': 'Published native-object diagnostic reconstruction; all other bytes are preserved target floor, not recovered source or stock linked output.'}
 
 
 @dataclass(frozen=True, eq=False)

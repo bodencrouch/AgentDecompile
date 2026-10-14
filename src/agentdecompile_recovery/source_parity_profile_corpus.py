@@ -261,12 +261,15 @@ def default_profiles() -> list[tuple[str, Path]]:
     env_root = os.environ.get("VC_ROOT")
     if env_root:
         profiles.append(("env-vc-root", Path(env_root).expanduser().resolve()))
-    vc71 = Path("target/toolchain-acquire/vctoolkit2003/msitools-extract/Program Files/Microsoft Visual C++ Toolkit 2003")
+    repo_root = Path(__file__).resolve().parents[2]
+    vc71 = repo_root / "target/toolchain-acquire/vctoolkit2003/installed-nvme/VC7.1"
     if (vc71 / "bin" / "cl.exe").exists():
         profiles.append(("vc71", vc71.resolve()))
-    vc80 = Path("/run/media/brunner56/MyBook/Toolchains/msvc8.0-main")
-    if (vc80 / "bin" / "cl.exe").exists():
-        profiles.append(("vc80", vc80.resolve()))
+    vc80_root = os.environ.get("VC80_ROOT")
+    if vc80_root:
+        vc80 = Path(vc80_root).expanduser()
+        if (vc80 / "bin" / "cl.exe").exists():
+            profiles.append(("vc80", vc80.resolve()))
     return profiles
 
 

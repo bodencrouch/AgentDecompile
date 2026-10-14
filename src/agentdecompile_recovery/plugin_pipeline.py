@@ -311,16 +311,17 @@ class PluginPipeline:
                     previous_attempts.append(attempt_map)
                     context["previousAttempts"] = previous_attempts
                     context = self.prepare_retry(context, previous_attempts)
-                    if context.get("autonomyStop"):
-                        self.emit(
-                            {
-                                "type": "autonomy-stop",
-                                "attemptNumber": attempt_number,
-                                "action": (context.get("autonomousPolicy") or {}).get("action"),
-                                "reason": context.get("autonomyStopReason"),
-                            }
-                        )
-                        break
+                if context.get("autonomyStop"):
+                    self.emit(
+                        {
+                            "type": "autonomy-stop",
+                            "attemptNumber": attempt_number,
+                            "action": (context.get("autonomousPolicy") or {}).get("action"),
+                            "code": context.get("autonomyStopCode"),
+                            "reason": context.get("autonomyStopReason"),
+                        }
+                    )
+                    break
         finally:
             if self.background_coordinator is not None:
                 self.background_coordinator.cancel_all()

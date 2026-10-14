@@ -410,6 +410,226 @@ Compilation and byte verification have not been performed by this export. Read `
         'claim': manifest['claim']}
 
 
+def build_project_archive(params: dict[str, Any], cancel: threading.Event,
+                          on_output: Callable[[str], None] | None = None) -> dict[str, Any]:
+    """Package a recorded project snapshot, never acquire or regenerate analysis.
+
+    Membership uses the same durable project resolver as the workbench. The
+    inventory and names share one SQLite snapshot; recorded fingerprints allow
+    recovery witnesses to survive an unavailable original executable.
+    """
+    from .common import corpus_file_identity, corpus_read_snapshot
+    from .project_universe import canonical, project_universe, read_json
+
+    root = live_root()
+    expected = str(params.get('corpus_identity') or '')
+    project_id = str(params.get('project_id') or '')
+    if root is None or not expected or not project_id:
+        raise ValueError('Select a persisted project and its corpus identity before downloading source.')
+    workspace = root.resolve()
+    sessions_path = workspace / 'workbench-sessions.json'
+    sessions_digest = hashlib.sha256(_read_limited(sessions_path, cancel)).hexdigest()
+    universe = project_universe(limit=1)
+    if universe.get('corpusIdentity') != expected:
+        raise ValueError('The selected corpus changed; refresh project facts before exporting.')
+    projects = [p for p in universe.get('projects', []) if p.get('id') == project_id]
+    if len(projects) != 1:
+        raise ValueError('The selected project is no longer present in persisted workspace state.')
+    project = {key: projects[0].get(key) for key in ('id', 'title', 'locator', 'kind')}
+    if params.get('locator') and canonical(params['locator']) != canonical(project['locator']):
+        raise ValueError('The requested project locator does not match its persisted identity.')
+    members = [m for m in universe.get('builds', []) if project_id in m.get('projectIds', [])]
+    if not members:
+        raise ValueError('No recorded project members are available; no empty source download was published.')
+    export_id = uuid.uuid4().hex
+    title = re.sub(r'[^A-Za-z0-9._-]+', '-', str(project['title'] or 'project')).strip('-')[:160] or 'project'
+    filename = title + '-source.zip'
+    directory = workspace / 'exports' / 'source-archives' / export_id
+    if directory.resolve() != directory:
+        raise ValueError('Source archives must remain inside the selected workspace.')
+    directory.mkdir(parents=True, exist_ok=False)
+    temporary, destination = directory / 'source.zip.partial', directory / 'source.zip'
+    allowed = [workspace]
+    configured = os.environ.get('AGENT_DECOMPILE_RECOVERED_DIR', '').strip()
+    if configured:
+        allowed.append(Path(configured).expanduser().resolve())
+    manifest: dict[str, Any] = {'schemaVersion': 2, 'scope': 'project', 'project': project,
+        'exportId': export_id, 'createdAt': time.time(), 'corpusIdentity': expected,
+        'claim': 'Recorded source snapshot, not a fresh build, max-C acceptance or byte-parity receipt.',
+        'generationTask': {'requested': False, 'reason': 'Reuse recorded artifacts only.'},
+        'members': [], 'files': [], 'warnings': list(universe.get('errors') or [])}
+    totals = {'members': len(members), 'boundMembers': 0, 'inventoryFunctions': 0,
+              'sourceFunctions': 0, 'assemblyListingFunctions': 0, 'assemblySubstrateFunctions': 0}
+    used = 0
+    try:
+        with corpus_read_snapshot(expected) as (con, basis), zipfile.ZipFile(
+                temporary, 'w', compression=zipfile.ZIP_DEFLATED, compresslevel=6) as archive:
+            con.row_factory = sqlite3.Row
+            con.set_progress_handler(lambda: int(cancel.is_set()), 1000)
+            tables = {r[0] for r in con.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+            binaries = {r['id']: dict(r) for r in con.execute('SELECT * FROM binary')}
+            errors: list[str] = []
+            receipts = []
+            for path in sorted((workspace / 'preparations').glob('*.json')):
+                _checked(cancel)
+                if re.fullmatch(r'[0-9a-f]{32}', path.stem):
+                    receipt = read_json(path, errors)
+                    if receipt.get('id') == path.stem:
+                        receipts.append(receipt)
+            manifest['warnings'].extend(errors)
+
+            def put(name: str, content: bytes, kind: str, provenance: dict, *, metadata: bool = False) -> str:
+                nonlocal used
+                _checked(cancel)
+                if (len(content) > (_MAX_INPUT_BYTES if metadata else _MAX_FILE_BYTES)
+                        or len(manifest['files']) >= _MAX_FILES):
+                    raise ValueError('Project archive exceeds its per-file or file-count safety limit.')
+                used += len(content)
+                if used > _MAX_INPUT_BYTES:
+                    raise ValueError('Project archive exceeds its aggregate input-byte safety limit.')
+                digest = hashlib.sha256(content).hexdigest()
+                archive.writestr(name, content)
+                manifest['files'].append({'path': name, 'sha256': digest, 'bytes': len(content),
+                                          'claim': kind, 'provenance': provenance})
+                if temporary.stat().st_size > _MAX_OUTPUT_BYTES:
+                    raise ValueError('Project archive exceeds its output-byte safety limit.')
+                return name
+
+            for index, member in enumerate(members, 1):
+                _checked(cancel)
+                if on_output:
+                    on_output(f'Packaging recorded source for project member {index}/{len(members)}: {member.get("name", "")}')
+                item = {'membership': member, 'functions': [], 'warnings': []}
+                manifest['members'].append(item)
+                ids = list(dict.fromkeys(member.get('binaryIds') or []))
+                if len(ids) != 1 or ids[0] not in binaries or member.get('repositoryBindingState') == 'unresolved':
+                    item['missingReason'] = 'Project member has no unique recorded corpus binding.'
+                    continue
+                binary = binaries[ids[0]]
+                fingerprint = str(binary.get('md5') or '').lower()
+                bound = bool(re.fullmatch(r'[0-9a-f]{32}', fingerprint))
+                item['binary'] = binary
+                item['targetBinding'] = 'recorded import fingerprint' if bound else 'no recorded fingerprint'
+                totals['boundMembers'] += 1
+                inventory = [dict(r) for r in con.execute('SELECT addr,name FROM func WHERE binary_id=? ORDER BY addr', (binary['id'],))]
+                if 'logical_name' in tables and 'identity' in tables:
+                    names = {}
+                    for row in con.execute('SELECT i.addr,ln.name FROM identity i JOIN logical_name ln ON ln.logical_id=i.logical_id WHERE i.binary_id=? ORDER BY i.confidence DESC,i.logical_id', (binary['id'],)):
+                        names.setdefault(row[0], row[1])
+                    for row in inventory:
+                        row['logicalName'] = names.get(row['addr'])
+                known = {int(row['addr']): [] for row in inventory}
+                prefix = f'members/{index:04d}-{binary["id"]}'
+                seen = set()
+
+                def witness(address: int, text: str, provenance: dict, assembly: bool = False) -> None:
+                    if address not in known or not text.strip():
+                        return
+                    content = text.encode('utf-8')
+                    kind, digest = _body_kind(text, assembly), hashlib.sha256(content).hexdigest()
+                    if (address, kind, digest) in seen:
+                        return
+                    seen.add((address, kind, digest))
+                    folder = 'source' if kind == 'advisory-c' else 'assembly' if kind.startswith('assembly-') else 'context'
+                    name = put(f'{prefix}/{folder}/0x{address:08x}-{digest[:16]}.{ "asm" if assembly else "c"}', content, kind, provenance)
+                    known[address].append({'path': name, 'claim': kind, 'sha256': digest})
+
+                stores = []
+                for receipt in receipts:
+                    for program, checkpoint in (receipt.get('checkpoints') or {}).items():
+                        if not isinstance(checkpoint, dict) or not bound:
+                            continue
+                        if (checkpoint.get('binaryId') != binary['id'] or checkpoint.get('slug') != binary['slug']
+                                or checkpoint.get('programFingerprint') != fingerprint
+                                or checkpoint.get('knowledgeFingerprint') != fingerprint
+                                or canonical(checkpoint.get('repoPath')) != canonical(binary['repo_path'])):
+                            continue
+                        if canonical(receipt.get('locator')) != canonical(member.get('locator')) or str(program).lstrip('/') != str(member.get('program')).lstrip('/'):
+                            continue
+                        path = workspace / 'recovery' / receipt['id'] / str(binary['id']) / f'knowledge-{fingerprint}.sqlite'
+                        if canonical(checkpoint.get('knowledgeDb')) != str(path) or _safe_file(path, [workspace]) is None:
+                            continue
+                        stores.append({'path': str(path), 'program': program, 'runId': receipt['id'], 'programFingerprint': fingerprint, 'kind': 'recorded fingerprint-bound knowledge'})
+                # Reuse unique-basename legacy witnesses without upgrading their provenance.
+                from .actions.catalog import env_defaults
+                kb = Path(str(env_defaults().get('kb') or ''))
+                basename = Path(binary['repo_path']).name
+                if kb.is_file() and sum(Path(b['repo_path']).name == basename for b in binaries.values()) == 1:
+                    stores.append({'path': str(kb.resolve()), 'program': basename, 'kind': 'unique-basename legacy knowledge; freshness unverified'})
+                for store in stores:
+                    try:
+                        with sqlite3.connect(Path(store['path']).as_uri() + '?mode=ro', uri=True, timeout=10) as kbcon:
+                            for entry, code, asm in kbcon.execute('SELECT entry_hex,decompiled,asm FROM func_knowledge WHERE program=?', (store['program'],)):
+                                _checked(cancel)
+                                try:
+                                    address = int(str(entry), 16)
+                                except ValueError:
+                                    continue
+                                if code:
+                                    witness(address, str(code), store)
+                                if asm:
+                                    witness(address, str(asm), store, True)
+                    except sqlite3.Error as exc:
+                        item['warnings'].append(str(exc))
+                    if store.get('runId'):
+                        work = Path(store['path']).parent
+                        from itertools import chain
+                        paths = iter((work / 'ghidra_types.h',))
+                        tree = work / 'source'
+                        if tree.is_dir() and tree.resolve() == tree:
+                            paths = chain(paths, tree.rglob('*'))
+                        for path in paths:
+                            safe = _safe_file(path, [work])
+                            if safe and (safe.suffix.lower() in _SOURCE_SUFFIXES or safe.name in _BUILD_NAMES):
+                                content = _read_limited(safe, cancel)
+                                kind = _body_kind(content.decode('utf-8', errors='replace'), safe.suffix.lower() in {'.s', '.asm'})
+                                put(f'{prefix}/recorded-layout/{store["runId"]}/{safe.relative_to(work).as_posix()}', content, kind, store)
+                if 'recovered_function' in tables:
+                    for row in con.execute('SELECT addr,path FROM recovered_function WHERE binary_id=? AND addr IS NOT NULL', (binary['id'],)):
+                        path = Path(str(row['path']))
+                        safe = _safe_file(path if path.is_absolute() else workspace / path, allowed)
+                        if safe:
+                            witness(int(row['addr']), _read_limited(safe, cancel).decode('utf-8', errors='replace'), {'kind': 'recorded recovered_function; freshness unverified', 'path': str(safe)})
+                        else:
+                            item['warnings'].append(f'Recorded source missing or outside allowed roots: {path}')
+                for row in inventory:
+                    entries = known[int(row['addr'])]
+                    kinds = {entry['claim'] for entry in entries}
+                    for key, kind in [('sourceFunctions', 'advisory-c'), ('assemblyListingFunctions', 'assembly-listing'), ('assemblySubstrateFunctions', 'assembly-substrate')]:
+                        totals[key] += kind in kinds
+                    item['functions'].append({**row, 'addr': f'0x{int(row["addr"]):08x}', 'files': entries,
+                        'byteVerified': None, 'compiles': None, 'missingReason': None if 'advisory-c' in kinds else 'No recorded address-bound C body; assembly evidence is not a C replacement.'})
+                totals['inventoryFunctions'] += len(inventory)
+                item['inventoryFunctions'] = len(inventory)
+                if not inventory:
+                    item['missingReason'] = 'No recorded function inventory for this member.'
+            totals['missingSourceFunctions'] = totals['inventoryFunctions'] - totals['sourceFunctions']
+            manifest['coverage'] = {**totals, 'compiles': None, 'byteVerified': None, 'wholeImageVerified': False}
+            manifest['partial'] = bool(manifest['warnings']) or totals['boundMembers'] != totals['members'] or totals['missingSourceFunctions'] > 0 or any(m.get('missingReason') or m.get('warnings') or m.get('targetBinding') == 'no recorded fingerprint' for m in manifest['members'])
+            if hashlib.sha256(_read_limited(sessions_path, cancel)).hexdigest() != sessions_digest:
+                raise ValueError('Project membership changed while exporting; retry from the current project.')
+            if corpus_file_identity(live_db()) != basis:
+                raise ValueError('The corpus changed while exporting; no archive was published.')
+            put('manifest.json', json.dumps(manifest, ensure_ascii=False, indent=2).encode(), 'coverage manifest', {}, metadata=True)
+            put('README.md', ('# Project source snapshot\n\n'+manifest['claim']+'\n\nEvery recorded member is inventoried in manifest.json. Missing C and missing assembly remain explicit gaps; this export does not invent executable .S fallbacks or certify existing layouts as buildable.\n').encode(), 'claim boundary', {})
+        _checked(cancel)
+        current = project_universe(limit=1)
+        def membership_key(value: dict) -> str:
+            return json.dumps([{k: m.get(k) for k in ('id', 'program', 'locator', 'binaryIds', 'repositoryBindingState')}
+                for m in value.get('builds', []) if project_id in m.get('projectIds', [])], sort_keys=True)
+        if current.get('corpusIdentity') != expected or membership_key(current) != membership_key(universe):
+            raise ValueError('Project membership or corpus changed during export; no archive was published.')
+        (directory / 'download.json').write_text(json.dumps({'filename': filename}), encoding='utf-8')
+        temporary.replace(destination)
+    except BaseException:
+        temporary.unlink(missing_ok=True)
+        raise
+    return {'ok': True, 'scope': 'project', 'project': project, 'exportId': export_id,
+            'filename': filename, 'downloadUrl': f'/dashboard/api/workbench/source-archives/{export_id}/download',
+            'partial': manifest['partial'], 'coverage': manifest['coverage'], 'claim': manifest['claim'],
+            'bytes': destination.stat().st_size}
+
+
 def _worker_main(request_path: str) -> int:
     """Process-only entrypoint. Input is JSON/path data; no MCP or JVM state crosses."""
     cancel = threading.Event()
@@ -417,7 +637,7 @@ def _worker_main(request_path: str) -> int:
         params = json.loads(Path(request_path).read_text(encoding='utf-8'))
         def emit(message: str) -> None:
             print(json.dumps({'event': 'progress', 'message': message}), flush=True)
-        result = build_archive(params, cancel, emit)
+        result = (build_project_archive if params.get('_projectSourceArchive') else build_archive)(params, cancel, emit)
         result.update({'workerPid': os.getpid(), 'parentPid': os.getppid(),
                        'resolveWorkerPid': params.get('_resolveWorkerPid'),
                        'processIsolated': True, 'ownershipResolved': True})
@@ -451,7 +671,16 @@ def create_source_archive_router() -> APIRouter:
         path = _safe_file(directory / 'source.zip', [directory])
         if path is None:
             return JSONResponse({'error': 'Source archive not found'}, status_code=404)
-        return FileResponse(path, filename='source-'+export_id+'.zip', media_type='application/zip', headers={'X-Content-Type-Options': 'nosniff', 'Cache-Control': 'no-store'})
+        filename = 'source-' + export_id + '.zip'
+        metadata = _safe_file(directory / 'download.json', [directory])
+        if metadata is not None and metadata.stat().st_size <= 4096:
+            try:
+                proposed = json.loads(metadata.read_text(encoding='utf-8')).get('filename')
+                if isinstance(proposed, str) and re.fullmatch(r'[A-Za-z0-9._-]{1,180}\.zip', proposed):
+                    filename = proposed
+            except (OSError, ValueError, AttributeError):
+                pass
+        return FileResponse(path, filename=filename, media_type='application/zip', headers={'X-Content-Type-Options': 'nosniff', 'Cache-Control': 'no-store'})
 
     return router
 

@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import sqlite3
 import sys
 from pathlib import Path
@@ -14,6 +15,7 @@ from .archive import check_extraction, list_archive, summarize_entries
 from .contract import STAGE_ALIASES, stages_catalog, resolve_stage
 from .pipeline import run_corpus_pipeline, write_calibrate_global_receipt
 from .registry import add_binary, load_corpus, new_corpus, save_corpus
+from .verb_admission import VerbAdmission, declare
 
 
 def _hashed(slug: object) -> str:
@@ -296,12 +298,31 @@ def build_parser(prog: str | None = None) -> argparse.ArgumentParser:
     )
     sub = parser.add_subparsers(dest="cmd", required=True)
 
+    def _declare(target: argparse.ArgumentParser, admission: VerbAdmission) -> None:
+        """Declare a verb's admission on its parser and in the shared registry.
+
+        The catalogue reads ``admission`` off the parser (aliases share the
+        object); the registry serves ``admission_for``.  The three legacy
+        attributes stay populated from the declaration.
+        """
+        verb = target.prog.rsplit(" ", 1)[-1]
+        aliases = [name for name, other in sub._name_parser_map.items() if other is target and name != verb]
+        target.admission = declare(verb, admission, *aliases)
+        target.mutating = admission.mutating
+        target.long_running = admission.long_running
+        target.identity_scope = admission.identity_scope
+
     init = sub.add_parser("init", help="Create an empty corpus file")
     init.danger = init.mutating = True
     init.add_argument("--id", required=True, dest="corpus_id")
     init.add_argument("--out", type=Path, required=True)
 
     add = sub.add_parser("add-binary", help="Register another binary in the corpus")
+    _declare(add, VerbAdmission(
+        mutating=True, long_running=False, identity_scope="", read_only=False,
+        snapshot="none", output_scope="none", drains_on_pause=True, boots_analyzer=False,
+        lane="corpus", budget_class="micro", cancel="never",
+    ))
     add.add_argument("--corpus", type=Path, required=True)
     add.add_argument("--id", required=True, dest="binary_id")
     add.add_argument("--path", required=True)
@@ -319,8 +340,12 @@ def build_parser(prog: str | None = None) -> argparse.ArgumentParser:
         "remove-binary",
         help="Delete one binary and its per-binary rows from a store",
     )
-    rmbin.danger = rmbin.mutating = True
-    rmbin.identity_scope = "database"
+    rmbin.danger = True
+    _declare(rmbin, VerbAdmission(
+        mutating=True, long_running=False, identity_scope="database", read_only=False,
+        snapshot="none", output_scope="none", drains_on_pause=True, boots_analyzer=False,
+        lane="corpus", budget_class="small", cancel="never",
+    ))
     rmbin.add_argument("--db", type=Path, required=True)
     rmbin.add_argument("--repo", dest="repo_path")
     rmbin.add_argument("--slug")
@@ -375,6 +400,11 @@ def build_parser(prog: str | None = None) -> argparse.ArgumentParser:
     check_extraction.add_argument("--json", action="store_true", dest="output_json")
 
     init_store = sub.add_parser("init-store", help="Create an empty identity SQLite store")
+    _declare(init_store, VerbAdmission(
+        mutating=True, long_running=False, identity_scope="database", read_only=False,
+        snapshot="none", output_scope="none", drains_on_pause=True, boots_analyzer=False,
+        lane="corpus", budget_class="micro", cancel="never",
+    ))
     init_store.add_argument("--db", type=Path, required=True)
 
     write_snap = sub.add_parser("write-snapshot", help="Write {id}.functions.json from a JSON array")
@@ -408,6 +438,12 @@ def build_parser(prog: str | None = None) -> argparse.ArgumentParser:
         aliases=["export-hook-pack"],
         help="Write a Phasor-shaped hook pack from logical identities (VA is a cache)",
     )
+    # Writes only the output tree, never the store: no identity scope.
+    _declare(hookpack, VerbAdmission(
+        mutating=False, long_running=False, identity_scope="", read_only=False,
+        snapshot="none", output_scope="output-tree", drains_on_pause=True, boots_analyzer=False,
+        lane="general", budget_class="small", cancel="sigterm",
+    ))
     hookpack.add_argument("--db", type=Path, required=True)
     hookpack.add_argument("--out", type=Path, required=True)
     hookpack.add_argument("--format", choices=("v1", "v2"), default="v1",
@@ -454,12 +490,22 @@ def build_parser(prog: str | None = None) -> argparse.ArgumentParser:
         "verify-determinism",
         help="Export the hook pack from two temp copies of a store and byte-diff the results",
     )
+    _declare(verify_det, VerbAdmission(
+        mutating=False, long_running=True, identity_scope="", read_only=True,
+        snapshot="temp-copy", output_scope="none", drains_on_pause=False, boots_analyzer=False,
+        lane="general", budget_class="medium", cancel="sigterm",
+    ))
     verify_det.add_argument("--db", type=Path, required=True)
 
     rebaseline = sub.add_parser(
         "rebaseline",
         help="Record a package-basis change as a supersession and re-stamp every binary row",
     )
+    _declare(rebaseline, VerbAdmission(
+        mutating=True, long_running=False, identity_scope="database", read_only=False,
+        snapshot="none", output_scope="receipts-dir", drains_on_pause=True, boots_analyzer=False,
+        lane="corpus", budget_class="small", cancel="never",
+    ))
     rebaseline.add_argument("--db", type=Path, required=True)
     rebaseline.add_argument(
         "--receipts", type=Path, required=True,
@@ -484,13 +530,61 @@ def build_parser(prog: str | None = None) -> argparse.ArgumentParser:
         "backfill",
         help="Re-derive binary columns from raw images; one receipt per (pass, binary) makes it resumable",
     )
+    _declare(backfill, VerbAdmission(
+        mutating=True, long_running=True, identity_scope="database", read_only=False,
+        snapshot="none", output_scope="receipts-dir", drains_on_pause=True, boots_analyzer=False,
+        lane="corpus", budget_class="large", cancel="sigterm",
+    ))
     backfill.add_argument("--db", type=Path, required=True)
     backfill.add_argument("--pass", dest="passes", action="append", required=True, metavar="NAME")
     backfill.add_argument("--receipts", type=Path, required=True)
     backfill.add_argument("--no-resume", dest="resume", action="store_false")
 
+    admit = sub.add_parser(
+        "admit",
+        help="Admit analyzed builds to the content-hash key. Placeholders are quarantined. Duplicates are merged.",
+    )
+    _declare(admit, VerbAdmission(
+        mutating=True, long_running=True, identity_scope="database", read_only=False,
+        snapshot="none", output_scope="receipts-dir", drains_on_pause=True, boots_analyzer=True,
+        lane="admission", budget_class="large", cancel="sigterm",
+    ))
+    admit.add_argument("--db", type=Path, required=True, help="The corpus store.")
+    admit.add_argument("--receipts", type=Path, required=True, help="Directory for one receipt per build.")
+    admit.add_argument(
+        "--work-dir",
+        type=Path,
+        default=None,
+        help="Corpus work directory. Raw images land under extract/raw. Defaults to AGENT_DECOMPILE_CORPUS_WORK_DIR.",
+    )
+    admit.add_argument(
+        "--resolvers",
+        default=None,
+        metavar="A,B,C",
+        help="Raw image resolvers to try, in order. Defaults to the built-in order.",
+    )
+    admit.add_argument(
+        "--placeholders",
+        choices=["quarantine", "exclude", "drop"],
+        default="quarantine",
+        help="What to do with rows that have no analysis. Drop deletes them.",
+    )
+    admit.add_argument("--dry-run", action="store_true", help="Compute the summary. Write nothing.")
+    admit.add_argument("--no-resume", dest="resume", action="store_false", help="Ignore existing receipts.")
+    admit.add_argument("--row-deadline-s", type=float, default=120.0, help="Seconds allowed per build.")
+    admit.add_argument(
+        "--deadline-s",
+        type=float,
+        default=None,
+        help="Seconds allowed for the whole run. Defaults to AGENT_DECOMPILE_ADMIT_DEADLINE_S or 1800.",
+    )
+
     match_pair = sub.add_parser("match-pair", help="Run the store matcher on one directed pair")
-    match_pair.identity_scope = "pair"
+    _declare(match_pair, VerbAdmission(
+        mutating=True, long_running=True, identity_scope="pair", read_only=False,
+        snapshot="none", output_scope="none", drains_on_pause=True, boots_analyzer=False,
+        lane="match", budget_class="medium", cancel="sigterm",
+    ))
     match_pair.add_argument("--db", type=Path, required=True)
     match_pair.add_argument("--src", required=True)
     match_pair.add_argument("--dst", required=True)
@@ -499,12 +593,62 @@ def build_parser(prog: str | None = None) -> argparse.ArgumentParser:
     match_pair.add_argument("--progress-json", action="store_true", help="Emit matcher progress JSONL while scoring")
 
     logical_build = sub.add_parser("logical-build", help="Rebuild name-first logical identities")
-    logical_build.identity_scope = "database"
+    _declare(logical_build, VerbAdmission(
+        mutating=True, long_running=True, identity_scope="database", read_only=False,
+        snapshot="none", output_scope="none", drains_on_pause=True, boots_analyzer=False,
+        lane="corpus", budget_class="large", cancel="sigterm",
+    ))
     logical_build.add_argument("--db", type=Path, required=True)
+
+    attest = sub.add_parser(
+        "attest",
+        help="Run the keyed verbs against a private copy of a store and write one receipt per verb",
+        description=(
+            "Copy the store, run each selected verb on the copy under its own deadline, "
+            "write sorted receipts with hashed build names, and compare with the previous run. "
+            "Exit 0 when nothing changed, 3 when a receipt changed, 4 when a verb hung, failed or refused."
+        ),
+    )
+    _declare(attest, VerbAdmission(
+        mutating=False, long_running=True, identity_scope="", read_only=True,
+        snapshot="private-snapshot", output_scope="receipts-dir", drains_on_pause=False, boots_analyzer=False,
+        lane="attest", budget_class="unbounded", cancel="sigterm",
+    ))
+    attest.add_argument("--db", type=Path, required=True, help="Store to attest. It is copied, never opened for writing.")
+    attest.add_argument("--receipts", type=Path, required=True, help="Receipts directory outside the repo. One subdirectory per run.")
+    attest.add_argument("--workdir", type=Path, default=None, help="Where the copy and verb outputs live. Default: a temp dir, removed afterwards.")
+    attest.add_argument("--verbs", default=None, help="Comma-separated catalogue verbs to run, in catalogue order.")
+    attest.add_argument("--profile", default=None, help="Named verb set: full, keyed-only, admission, smoke. Default: full.")
+    attest.add_argument("--fresh-per-verb", action="store_true", help="Copy the store again before every verb.")
+    attest.add_argument("--allow-refusals", action="store_true", help="Count a verb refusal as a change (exit 3) instead of a failure (exit 4).")
+    attest.add_argument("--deadline-s", type=float, default=None, help="Overall deadline. Default: the verb deadlines plus 60 seconds.")
+    attest.add_argument("--verb-deadline", action="append", metavar="NAME=SECS", help="Override one verb's deadline. Repeatable.")
+    attest.add_argument("--snapshot", choices=("backup", "reflink"), default="backup", help="How the copy is made. Default: backup.")
+    attest.add_argument("--pythonpath", default=None, help="Extra PYTHONPATH entry for the verb processes.")
+    # --deadline-floor / --history (H15): declared by the verb module so the
+    # refusal line and the parser never disagree.
+    from .attest import add_arguments as _attest_arguments
+
+    _attest_arguments(attest)
 
     pkg = sub.add_parser("package", help="Copy a workspace tree to an output directory")
     pkg.add_argument("--workspace", type=Path, required=True)
     pkg.add_argument("--out", type=Path, required=True)
+
+    data_packs = sub.add_parser(
+        "data-packs",
+        help="List the L3 data packs under the declared root and their content hashes",
+    )
+    _declare(data_packs, VerbAdmission(
+        mutating=False, long_running=False, identity_scope="", read_only=True,
+        snapshot="none", output_scope="none", drains_on_pause=False, boots_analyzer=False,
+        lane="general", budget_class="micro", cancel="sigterm",
+    ))
+    data_packs.add_argument(
+        "--root", type=Path, default=None,
+        help="Pack root directory. Default: AGENT_DECOMPILE_DATA_PACKS_ROOT or the config directory's data_packs.json.",
+    )
+    data_packs.add_argument("--json", action="store_true", help="Print the report as JSON.")
 
     cal = sub.add_parser("calibrate", help="Sweep score/margin from an evaluation JSON list")
     cal.add_argument("--from-json", type=Path, required=True)
@@ -521,8 +665,12 @@ def build_parser(prog: str | None = None) -> argparse.ArgumentParser:
     calg.add_argument("--compiler-profile", type=Path)
 
     merge_parts = sub.add_parser("merge-parts", help="Merge per-program part databases into one store")
-    merge_parts.danger = merge_parts.mutating = True
-    merge_parts.identity_scope = "database"
+    merge_parts.danger = True
+    _declare(merge_parts, VerbAdmission(
+        mutating=True, long_running=True, identity_scope="database", read_only=False,
+        snapshot="none", output_scope="none", drains_on_pause=True, boots_analyzer=False,
+        lane="corpus", budget_class="large", cancel="sigterm",
+    ))
     merge_parts.add_argument("--parts-dir", type=Path, required=True)
     merge_parts.add_argument("--db", type=Path, required=True)
 
@@ -592,7 +740,11 @@ def build_parser(prog: str | None = None) -> argparse.ArgumentParser:
     apply_ann.add_argument("--no-comments", action="store_true")
 
     bulk = sub.add_parser("ghidra-bulk", help="Normalize + compile Ghidra decompiled C")
-    bulk.long_running = True
+    _declare(bulk, VerbAdmission(
+        mutating=True, long_running=True, identity_scope="database", read_only=False,
+        snapshot="none", output_scope="output-tree", drains_on_pause=True,
+        boots_analyzer=True, lane="compile", budget_class="large", cancel="sigterm",
+    ))
     bulk.add_argument("--program", required=True)
     bulk.add_argument("--repo", required=True)
     bulk.add_argument("--db", type=Path, required=True)
@@ -602,7 +754,7 @@ def build_parser(prog: str | None = None) -> argparse.ArgumentParser:
     bulk.add_argument("--compiler", type=Path)
     bulk.add_argument("--sample", type=int)
     bulk.add_argument("--resume-failures-sha256", help="Continue identical inputs using the exact current failure receipt")
-    bulk.add_argument("--workers", type=int, default=2)
+    bulk.add_argument("--workers", type=int, default=1)
     bulk.add_argument("--write", action="store_true", default=True)
     bulk.add_argument("--no-write", dest="write", action="store_false")
     bulk.add_argument("--skip-existing", action="store_true", default=True)
@@ -630,17 +782,23 @@ def build_parser(prog: str | None = None) -> argparse.ArgumentParser:
         "compile-link",
         help="Compile workspace units and link one executable (not byte-accuracy)",
     )
-    clink.long_running = True
+    _declare(clink, VerbAdmission(
+        mutating=True, long_running=True, identity_scope="", read_only=False,
+        snapshot="none", output_scope="output-tree", drains_on_pause=True,
+        boots_analyzer=False, lane="compile", budget_class="large", cancel="sigterm",
+    ))
     clink.add_argument("--src-dir", type=Path, required=True)
     clink.add_argument("--out", type=Path, required=True)
     clink.add_argument("--compiler", type=Path)
     clink.add_argument("--sample", type=int)
     clink.add_argument("--obj-dir", type=Path)
-    clink.add_argument("--workers", type=int, default=2)
+    clink.add_argument("--workers", type=int, default=1)
     clink.add_argument("--vcroot", type=Path,
                        help="VC7 toolchain root for a direct MSVC/Wine link")
     clink.add_argument("--wineprefix", type=Path,
                        help="Wine prefix for a direct MSVC/Wine link")
+    clink.add_argument("--cache-input-manifest", type=Path,
+                       help="complete compiler/header/runtime input closure required to reuse objects")
     clink.add_argument("--no-entrypoint", dest="entrypoint", action="store_false")
 
     xplace = sub.add_parser("cross-place", help="Publish separately admitted recipient candidates; never replace accepted source")
@@ -650,6 +808,8 @@ def build_parser(prog: str | None = None) -> argparse.ArgumentParser:
     xplace.add_argument("--db", type=Path, required=True)
     xplace.add_argument("--out-dir", type=Path, required=True)
     xplace.add_argument("--repo", required=True)
+    xplace.add_argument("--source-dir", type=Path,
+                        help="existing source tree; defaults to the source directory under out-dir")
     xplace.add_argument("--raw-dir", type=Path, required=True, help="Current original images by binary slug")
     xplace.add_argument("--watch", action="store_true")
     xplace.add_argument("--interval", type=float, default=8.0)
@@ -662,28 +822,75 @@ def build_parser(prog: str | None = None) -> argparse.ArgumentParser:
         help="Relocation-aware objdiff-0 check: which recovered C compiles to "
              "the shipped bytes (asm-floor shims excluded from the count)",
     )
+    _declare(vbx, VerbAdmission(
+        mutating=True, long_running=True, identity_scope="", read_only=False,
+        snapshot="none", output_scope="none", drains_on_pause=True, boots_analyzer=False,
+        lane="compile", budget_class="large", cancel="sigterm",
+    ))
     vbx.add_argument("--verified-dir", type=Path, required=True)
-    vbx.add_argument("--raw", type=Path, required=True)
+    vbx.add_argument(
+        "--raw",
+        type=Path,
+        help="original executable image; omit to extract FileBytes from the selected Ghidra project",
+    )
+    vbx.add_argument(
+        "--ghidra-filebytes-receipt",
+        type=Path,
+        help="reuse a previously materialized Ghidra FileBytes image only when its receipt matches --raw",
+    )
     vbx.add_argument("--db", type=Path, required=True)
     vbx.add_argument("--binary-id", type=int, required=True)
     vbx.add_argument("--out", type=Path, required=True)
+    vbx.add_argument("--resume-state", type=Path,
+                     help="reuse a prior verifier state as diagnostic/cache input without overwriting it")
     vbx.add_argument("--maxc-bin-dir", type=Path, help="emit slot-fitting compiled "
                      "bytes for ANY compiling function (byte-exact or not) for the max-C image")
     vbx.add_argument("--bin-dir", type=Path, help="emit <addr>.bin substitution "
                      "inputs for reloc-free byte-exact real-C functions")
     vbx.add_argument("--compiler", type=Path)
-    vbx.add_argument("--workers", type=int, default=3)
+    vbx.add_argument("--compiler-options",
+                     help="override CL_OPT only for this job's owned MSVC compiler invocations; shared environment is unchanged")
+    vbx.add_argument("--workers", type=int, default=1)
     vbx.add_argument("--limit", type=int, default=None)
+    vbx.add_argument("--offset", type=int, default=None,
+                     help="zero-based position in the non-assembly-first candidate order")
+    vbx.add_argument("--candidate", action="append", default=[], metavar="NAME_OR_ADDRESS",
+                     help="verify one exact C/C++ basename or unique hex address; repeatable")
     vbx.add_argument("--no-incremental", action="store_true",
                      help="ignore cached results and freshly recompile every selected file")
 
     vbx.add_argument("--cache-input-manifest", type=Path, help="Declared compiler/header/library input closure for verified cache reuse")
     vbx.add_argument("--transient-retry-seconds", type=float, default=300.0)
 
+    replay = sub.add_parser(
+        "replay-native-object",
+        help="Diagnose placement of a retained native object without recompiling or publishing recovery",
+    )
+    _declare(replay, VerbAdmission(
+        mutating=False, long_running=False, identity_scope="", read_only=True,
+        snapshot="none", output_scope="none", drains_on_pause=True, boots_analyzer=False,
+        lane="read", budget_class="small", cancel="sigterm",
+    ))
+    replay.add_argument("--source", type=Path, required=True,
+                        help="recovery source bound to the retained compiler diagnostic")
+    replay.add_argument("--diagnostic-id", required=True,
+                        help="retained compiler diagnostic identifier")
+    replay.add_argument("--binding-contract", type=Path,
+                        help="override automatic target-derived constraints with a digest-bound placement contract")
+    replay.add_argument("--entry-symbol",
+                        help="select the retained entry symbol only when automatic selection is ambiguous")
+    replay.add_argument("--raw", type=Path,
+                        help="original target image; defaults to the captured Ghidra FileBytes snapshot in the retained manifest")
+
     vpd = sub.add_parser(
         "verify-periodic",
         help="Content-aware incremental verification with bounded time-based full audits",
     )
+    _declare(vpd, VerbAdmission(
+        mutating=True, long_running=True, identity_scope="", read_only=False,
+        snapshot="none", output_scope="none", drains_on_pause=True,
+        boots_analyzer=False, lane="compile", budget_class="large", cancel="sigterm",
+    ))
     vpd.add_argument("--verified-dir", type=Path, required=True)
     vpd.add_argument("--raw", type=Path, required=True)
     vpd.add_argument("--db", type=Path, required=True)
@@ -692,7 +899,7 @@ def build_parser(prog: str | None = None) -> argparse.ArgumentParser:
     vpd.add_argument("--maxc-bin-dir", type=Path)
     vpd.add_argument("--bin-dir", type=Path)
     vpd.add_argument("--compiler", type=Path)
-    vpd.add_argument("--workers", type=int, default=3)
+    vpd.add_argument("--workers", type=int, default=1)
     vpd.add_argument("--limit", type=int, default=None)
     vpd.add_argument("--full-every", type=int, default=0, help="Legacy explicit pass-count audit; zero disables")
     vpd.add_argument("--full-interval-seconds", type=float, default=86400.0)
@@ -717,8 +924,11 @@ def build_parser(prog: str | None = None) -> argparse.ArgumentParser:
         "verify-direct-full-image",
         help="Fresh direct VC7 compile/link, function objdiff receipt, and whole-file comparison",
     )
-    vdfi.mutating = True
-    vdfi.long_running = True
+    _declare(vdfi, VerbAdmission(
+        mutating=True, long_running=True, identity_scope="", read_only=False,
+        snapshot="none", output_scope="none", drains_on_pause=True,
+        boots_analyzer=False, lane="compile", budget_class="unbounded", cancel="sigterm",
+    ))
     vdfi.add_argument("--target", type=Path, required=True)
     vdfi.add_argument("--src-dir", type=Path, required=True)
     vdfi.add_argument("--raw", type=Path, required=True)
@@ -729,6 +939,12 @@ def build_parser(prog: str | None = None) -> argparse.ArgumentParser:
     vdfi.add_argument("--wineprefix", type=Path, required=True)
     vdfi.add_argument("--work-dir", type=Path, required=True)
     vdfi.add_argument("--workers", type=int, default=1)
+    vdfi.add_argument("--native-placement-contract", type=Path,
+                     help="Optional digest-bound COFF layout for captured native code/data/EH; diagnostic only")
+    vdfi.add_argument("--candidate", action="append", default=[],
+                     help="Opt-in source-relative compile unit (repeatable); subset diagnostics are not full-source recovery proof")
+    vdfi.add_argument("--compiler-options",
+                     help="Opt-in owned MSVC adapter options for this job only; shared environment is unchanged")
 
     wir = sub.add_parser(
         "whole-image-relink",
@@ -1188,7 +1404,7 @@ def main(argv: list[str] | None = None, prog: str | None = None) -> int:
         from .rebaseline import rebaseline as run_rebaseline
         from .store import connect
 
-        def run_it():
+        def rebaseline_with_errors():
             try:
                 return run_rebaseline(
                     connect(args.db),
@@ -1210,7 +1426,7 @@ def main(argv: list[str] | None = None, prog: str | None = None) -> int:
         # summary says which. An export that refused after the re-stamp
         # landed keeps exit 0: the supersession stands, and the refusal is
         # recorded under run.export and named once on stderr.
-        result = _run_keyed_verb(run_it)
+        result = _run_keyed_verb(rebaseline_with_errors)
         if result is REFUSED:
             return 2
         print(json.dumps(result, sort_keys=True, indent=2))
@@ -1225,7 +1441,7 @@ def main(argv: list[str] | None = None, prog: str | None = None) -> int:
         from .logical import ContentHashError
         from .store import connect
 
-        def run_it():
+        def backfill_with_errors():
             try:
                 return run_backfill(connect(args.db), args.passes, receipts_dir=args.receipts, resume=args.resume)
             except ContentHashError:
@@ -1233,11 +1449,56 @@ def main(argv: list[str] | None = None, prog: str | None = None) -> int:
             except ValueError as exc:
                 raise SystemExit(f"error: {exc}") from exc
 
-        result = _run_keyed_verb(run_it)
+        result = _run_keyed_verb(backfill_with_errors)
         if result is REFUSED:
             return 2
         print(json.dumps(result, sort_keys=True))
         return 0
+    if args.cmd == "admit":
+        from .admission import AdmissionError, PlaceholderHandling, admit as run_admit
+        from .raw_images import RawImageError
+        from .store import connect
+
+        work_dir = args.work_dir
+        if work_dir is None:
+            env_work = os.environ.get("AGENT_DECOMPILE_CORPUS_WORK_DIR", "").strip()
+            work_dir = Path(env_work) if env_work else None
+        if work_dir is None:
+            # Without a work directory raw images would land under the
+            # current directory, which no later verb would find.
+            print("error: work_dir: pass --work-dir or set AGENT_DECOMPILE_CORPUS_WORK_DIR", file=sys.stderr)
+            return 2
+        # Every other verb finds raw images through this variable; keep the
+        # two in step for the rest of this process.
+        os.environ.setdefault("AGENT_DECOMPILE_CORPUS_WORK_DIR", str(work_dir))
+        order = tuple(n.strip() for n in args.resolvers.split(",") if n.strip()) if args.resolvers else None
+
+        def run_admit_it():
+            return run_admit(
+                connect(args.db),
+                receipts_dir=args.receipts,
+                work_dir=work_dir,
+                resolver_order=order,
+                placeholders=PlaceholderHandling(args.placeholders),
+                dry_run=args.dry_run,
+                resume=args.resume,
+                row_deadline_s=args.row_deadline_s,
+                deadline_s=args.deadline_s,
+            )
+
+        # Refusals are exit 2 with one named line: a held lock (through
+        # _run_keyed_verb), an unknown resolver, a store without the
+        # admission columns. 0: every analyzed build is admitted or a
+        # duplicate. 3: some stay unresolved or contested. 4: deadline.
+        try:
+            summary = _run_keyed_verb(run_admit_it)
+        except (RawImageError, AdmissionError) as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 2
+        if summary is REFUSED:
+            return 2
+        print(json.dumps(summary, sort_keys=True))
+        return int(summary["exit_code"])
     if args.cmd == "match-pair":
         from .propagate import run_pair
         from .store import connect
@@ -1259,10 +1520,39 @@ def main(argv: list[str] | None = None, prog: str | None = None) -> int:
             return 2
         print(json.dumps(result))
         return 0
+    if args.cmd == "attest":
+        from .attest import AttestRefused, run_cli
+
+        # The attestation's own refusals (a side file as --db, an unknown verb
+        # or profile, the store inside the receipts tree) are exit 2 with one
+        # named line. Every verb outcome, a hang included, is a receipt, and
+        # the exit code is the index's.
+        try:
+            return run_cli(args)
+        except AttestRefused as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 2
     if args.cmd == "package":
         from .package_project import package_project
 
         print(json.dumps(package_project(args.workspace, args.out)))
+        return 0
+    if args.cmd == "data-packs":
+        from .data_packs import PackError, describe, format_describe
+        from .determinism_basis import BasisError
+
+        # A malformed pack, a duplicate class pair or a declared root that is
+        # not a directory is a named refusal: one line, exit 2. No root at all
+        # is not a refusal; the report says no_root and exits 0.
+        try:
+            report = describe(args.root)
+        except (PackError, BasisError) as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 2
+        if args.json:
+            print(json.dumps(report, sort_keys=True, indent=2))
+        else:
+            print(format_describe(report))
         return 0
     if args.cmd == "calibrate":
         from .calibrate import calibrate_evaluations
@@ -1444,6 +1734,7 @@ def main(argv: list[str] | None = None, prog: str | None = None) -> int:
             entrypoint=getattr(args, "entrypoint", True),
             vcroot=args.vcroot,
             wineprefix=str(args.wineprefix) if args.wineprefix else None,
+            cache_input_manifest=args.cache_input_manifest,
         )
         print(json.dumps(result, indent=2))
         return 0 if result.get("ok") else 1
@@ -1457,6 +1748,8 @@ def main(argv: list[str] | None = None, prog: str | None = None) -> int:
             "--repo", args.repo,
             "--raw-dir", str(args.raw_dir),
         ]
+        if args.source_dir:
+            argv += ["--source-dir", str(args.source_dir)]
         if args.watch:
             argv.append("--watch")
             argv += ["--interval", str(args.interval)]
@@ -1465,26 +1758,98 @@ def main(argv: list[str] | None = None, prog: str | None = None) -> int:
         if args.byteexact_receipt:
             argv += ["--byteexact-receipt", str(args.byteexact_receipt)]
         return cross_main(argv)
+    if args.cmd == "replay-native-object":
+        from .verify_recovered_byteexact import replay_retained_placement
+
+        result = replay_retained_placement(
+            source=args.source,
+            diagnostic_id=args.diagnostic_id,
+            binding_contract=args.binding_contract,
+            raw_path=args.raw,
+            entry_symbol=args.entry_symbol,
+        )
+        print(json.dumps(result, sort_keys=True, allow_nan=False))
+        return 0 if result.get("ok") else 2
     if args.cmd == "verify-byteexact":
+        from .verification_selection import validate_selection
+
+        selection_errors = validate_selection(candidate=args.candidate, offset=args.offset, limit=args.limit)
+        if selection_errors:
+            parser.error("; ".join(selection_errors))
+        import tempfile
+
+        verifier_scratch = args.out.parent / ".verify-scratch" / args.out.stem
+        verifier_scratch.mkdir(parents=True, exist_ok=True)
+        # The verifier's source/object staging and Ghidra FileBytes spool are
+        # job-local and must follow the project/output volume, not a quota-
+        # constrained global /tmp mount.
+        os.environ["AGENT_DECOMPILE_VERIFIER_TMPDIR"] = str(verifier_scratch)
+        os.environ["TMPDIR"] = str(verifier_scratch)
+        tempfile.tempdir = str(verifier_scratch)
         from .verify_recovered_byteexact import main as vbx_main
-        argv = ["--verified-dir", str(args.verified_dir), "--raw", str(args.raw),
+        db_path = args.db.resolve()
+        inferred_projects_root = db_path.parent.parent if db_path.parent.name == "db" else db_path.parent
+        os.environ.setdefault("AGENT_DECOMPILE_PROJECTS_ROOT", str(inferred_projects_root))
+        raw = args.raw
+        ghidra_target_receipt = args.ghidra_filebytes_receipt
+        if raw is None:
+            with sqlite3.connect(f"{db_path.as_uri()}?mode=ro", uri=True) as con:
+                con.row_factory = sqlite3.Row
+                binary = con.execute(
+                    "SELECT repo_path, content_sha256 FROM binary WHERE id=?",
+                    (int(args.binary_id),),
+                ).fetchone()
+            if binary is None or not binary["content_sha256"]:
+                print(json.dumps({
+                    "ok": False,
+                    "error": "The selected binary has no registered content hash for Ghidra FileBytes verification.",
+                }, sort_keys=True))
+                return 2
+            from .dashboard.target_image import materialize_ghidra_file_bytes_target
+
+            target = materialize_ghidra_file_bytes_target(
+                db_path,
+                int(args.binary_id),
+                args.out.parent / "ghidra-target-materialization",
+                program=str(binary["repo_path"] or ""),
+                program_fingerprint=str(binary["content_sha256"]),
+                expected_sha256=str(binary["content_sha256"]),
+            )
+            if not target.get("ok"):
+                print(json.dumps({"ok": False, "ghidraTarget": target}, sort_keys=True))
+                return 2
+            raw = Path(str(target["targetPath"]))
+            ghidra_target_receipt = Path(str(target["receiptPath"]))
+        argv = ["--verified-dir", str(args.verified_dir), "--raw", str(raw),
                 "--db", str(args.db), "--binary-id", str(args.binary_id),
                 "--out", str(args.out), "--workers", str(args.workers)]
+        if ghidra_target_receipt is not None:
+            argv += ["--ghidra-filebytes-receipt", str(ghidra_target_receipt)]
         if args.compiler:
             argv += ["--compiler", str(args.compiler)]
         else:
-            from .ghidra_bulk import _find_compiler
-            argv += ["--compiler", str(_find_compiler(args.out.parent, args.db))]
+            # The byte verifier uses AgentDecompile's versioned adapter so
+            # compiler status and toolchain provenance have one owned path.
+            adapter = Path(__file__).with_name("compiler_msvc71.py").resolve()
+            argv += ["--compiler", str(adapter)]
+        if args.compiler_options is not None:
+            argv.append("--compiler-options=" + args.compiler_options)
         if args.bin_dir:
             argv += ["--bin-dir", str(args.bin_dir)]
         if getattr(args, "maxc_bin_dir", None):
             argv += ["--maxc-bin-dir", str(args.maxc_bin_dir)]
         if args.limit is not None:
             argv += ["--limit", str(args.limit)]
+        if args.offset is not None:
+            argv += ["--offset", str(args.offset)]
+        for candidate in args.candidate:
+            argv += ["--candidate", candidate]
         if getattr(args, "no_incremental", False):
             argv += ["--no-incremental"]
         if args.cache_input_manifest:
             argv += ["--cache-input-manifest", str(args.cache_input_manifest)]
+        if args.resume_state:
+            argv += ["--resume-state", str(args.resume_state)]
         argv += ["--transient-retry-seconds", str(args.transient_retry_seconds)]
         return vbx_main(argv)
     if args.cmd == "verify-periodic":
@@ -1523,13 +1888,20 @@ def main(argv: list[str] | None = None, prog: str | None = None) -> int:
     if args.cmd == "verify-direct-full-image":
         from .verify_direct_full_image import main as vdfi_main
 
-        return vdfi_main([
+        argv = [
             "--target", str(args.target), "--src-dir", str(args.src_dir),
             "--raw", str(args.raw), "--db", str(args.db), "--binary-id", str(args.binary_id),
             "--compiler", str(args.compiler), "--vcroot", str(args.vcroot),
             "--wineprefix", str(args.wineprefix), "--work-dir", str(args.work_dir),
             "--workers", str(args.workers),
-        ])
+        ]
+        if args.native_placement_contract is not None:
+            argv += ["--native-placement-contract", str(args.native_placement_contract)]
+        for candidate in args.candidate:
+            argv += ["--candidate", candidate]
+        if args.compiler_options is not None:
+            argv.append("--compiler-options=" + args.compiler_options)
+        return vdfi_main(argv)
     if args.cmd == "whole-image-relink":
         from .whole_image_relink import main as wir_main
         argv = ["--target", str(args.target), "--db", str(args.db),
@@ -1654,4 +2026,8 @@ def main(argv: list[str] | None = None, prog: str | None = None) -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    from .ghidra_env import exit_after_jvm
+
+    _rc = main()
+    exit_after_jvm(_rc)
+    sys.exit(_rc)

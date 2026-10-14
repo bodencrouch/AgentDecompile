@@ -139,6 +139,134 @@ def patch_validate_references(text: str) -> tuple[str, bool]:
     return text, False
 
 
+def _valid_plugin_scalar(value: str) -> bool:
+    """Check quoted scalars and balanced flow collections without altering them."""
+
+    single_quoted = r"'(?:[^']|'')*'"
+    double_quoted = r'"(?:[^"\\]|\\(?:[0abtnvfre "/\\N_LP]|x[0-9a-fA-F]{2}|u[0-9a-fA-F]{4}|U[0-9a-fA-F]{8}))*"'
+    quoted = rf"(?:{single_quoted}|{double_quoted})"
+    if value.startswith(("'", '"')):
+        return re.fullmatch(rf"{quoted}[ \t]*(?:#.*)?", value) is not None
+    if value.startswith(("{", "[")):
+        closing: list[str] = []
+        index = 0
+        while index < len(value):
+            char = value[index]
+            if char == "#" and index > 0 and value[index - 1].isspace():
+                return False  # a comment cannot supply an outstanding delimiter
+            if char in "\"'" and index > 0 and value[index - 1] in "{[:, \t":
+                scalar = re.match(quoted, value[index:])
+                if scalar is None:
+                    return False
+                index += scalar.end()
+                if index < len(value) and value[index] not in " \t,:]}":
+                    return False
+                continue
+            if char in "{[":
+                closing.append("}" if char == "{" else "]")
+            elif char in "}]":
+                if not closing or closing.pop() != char:
+                    return False
+                if not closing:
+                    return re.fullmatch(r"[ \t]*(?:#.*)?", value[index + 1:]) is not None
+            index += 1
+        return False  # the outer collection must close on this line
+    return True
+
+
+def _source_assembly_plugin_meta(text: str) -> str | None:
+    """Disable auto-reference of an original DLL also supplied as source.
+
+    Preserve the GUID and importer settings. Only a GUID-only meta (optionally
+    with fileFormatVersion) may be expanded; ambiguous or malformed headers
+    and policy fields are left untouched. Return None for unsupported/malformed
+    metadata so callers can distinguish it from an already configured meta.
+    """
+
+    lines = text.splitlines(keepends=True)
+    headers: dict[str, str] = {}
+    importer_index: int | None = None
+    for index, line in enumerate(lines):
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        if line.startswith((" ", "\t")):
+            indent = line[:len(line) - len(line.lstrip())]
+            if importer_index is None or "\t" in indent or len(indent) % 2:
+                return None
+            # Accept Unity's block mappings/sequences, but do not repair broken
+            # lines or incomplete inline collections by adding policy fields.
+            if stripped.startswith("- ") and stripped[2:].lstrip().startswith(("'", '"', "{", "[")):
+                if not _valid_plugin_scalar(stripped[2:].lstrip()):
+                    return None
+                continue
+            entry = re.fullmatch(r"(?:- )?[^:\s][^:]*:[ \t]*(.*)", stripped)
+            if entry is None:
+                if not stripped.startswith("- ") or not _valid_plugin_scalar(stripped[2:].lstrip()):
+                    return None
+                continue
+            if not _valid_plugin_scalar(entry[1]):
+                return None
+            continue
+        header = re.fullmatch(r"(fileFormatVersion|guid|PluginImporter):[ \t]*(.*)", stripped)
+        if header is None or header[1] in headers:
+            return None
+        key, value = header.groups()
+        headers[key] = value
+        if key == "PluginImporter":
+            if value:
+                return None
+            importer_index = index
+        elif importer_index is not None:
+            return None
+
+    guid = headers.get("guid", "")
+    if not re.fullmatch(r"[0-9a-fA-F]{32}", guid):
+        return None
+    if headers.get("fileFormatVersion", "2") != "2":
+        return None
+    newline = "\r\n" if "\r\n" in text else "\n"
+    if importer_index is None:
+        patched = _PLUGIN_META_TEMPLATE.format(guid=guid).replace(
+            "  isExplicitlyReferenced: 0", "  isExplicitlyReferenced: 1"
+        )
+        return patched.replace("\n", newline)
+
+    # Edit only direct importer fields, never similarly named platform settings.
+    replacements: dict[int, str] = {}
+    missing: list[str] = []
+    for key, value in (("isExplicitlyReferenced", "1"), ("validateReferences", "0")):
+        fields = [
+            index for index in range(importer_index + 1, len(lines))
+            if re.match(rf"  {key}[ \t]*:", lines[index])
+        ]
+        if len(fields) > 1:
+            return None
+        if not fields:
+            missing.append(f"  {key}: {value}{newline}")
+            continue
+        index = fields[0]
+        field = re.fullmatch(rf"  {key}:[ \t]*[01]([ \t]*(?:#[^\r\n]*)?)(\r?\n)?", lines[index])
+        if field is None:
+            return None
+        replacements[index] = f"  {key}: {value}{field[1]}{field[2] or ''}"
+
+    for index, replacement in replacements.items():
+        lines[index] = replacement
+    if missing:
+        if not lines[importer_index].endswith("\n"):
+            lines[importer_index] += newline
+        lines[importer_index + 1:importer_index + 1] = missing
+    return "".join(lines)
+
+
+def patch_source_assembly_plugin(text: str) -> tuple[str, bool]:
+    """Apply the source/DLL policy, preserving malformed or configured metadata."""
+
+    patched = _source_assembly_plugin_meta(text)
+    return (text, False) if patched is None else (patched, patched != text)
+
+
 def read_editor_version(project_settings_dir: Path) -> str | None:
     """Read ``m_EditorVersion`` out of a ``ProjectSettings/ProjectVersion.txt``."""
 
@@ -167,6 +295,20 @@ def _ilspy_project_artifact(relative: Path) -> bool:
     if relative.suffix.lower() in ILSPY_PROJECT_SUFFIXES:
         return True
     return relative.name in ILSPY_PROJECT_ARTIFACTS
+
+
+def _has_usable_cs_source(assembly_dir: Path) -> bool:
+    """Require nonempty readable source that will survive the ILSpy exclusion."""
+
+    for source in assembly_dir.rglob("*.cs"):
+        if not source.is_file() or _ilspy_project_artifact(source.relative_to(assembly_dir)):
+            continue
+        try:
+            if source.read_text(encoding="utf-8-sig").strip():
+                return True
+        except (OSError, UnicodeError):
+            continue
+    return False
 
 
 # --------------------------------------------------------------------------
@@ -339,7 +481,11 @@ def augment_package_manifest(
 # --------------------------------------------------------------------------
 
 
-def write_plugin_meta_policy(plugins_dir: Path) -> list[str]:
+def write_plugin_meta_policy(
+    plugins_dir: Path,
+    *,
+    source_assemblies: set[str] | None = None,
+) -> list[str]:
     """Ensure every ``.dll`` under ``plugins_dir`` imports with reference validation off.
 
     Shipped third-party binaries reference types Unity cannot resolve at import
@@ -355,10 +501,15 @@ def write_plugin_meta_policy(plugins_dir: Path) -> list[str]:
     is derived from the plugin's path (md5, 32 lowercase hex) so repeated runs
     keep the same GUID instead of rebinding every reference.
 
+    Original DLLs in ``ShippedManaged`` whose stems match ``source_assemblies``
+    also get ``isExplicitlyReferenced: 1`` to avoid compiling against both the
+    source and binary definitions. Their malformed metadata is never replaced.
+
     Returns the paths of the ``.meta`` files created or modified.
     """
 
     plugins_dir = Path(plugins_dir)
+    source_assemblies = source_assemblies or set()
     touched: list[str] = []
     if not plugins_dir.is_dir():
         return touched
@@ -368,19 +519,71 @@ def write_plugin_meta_policy(plugins_dir: Path) -> list[str]:
             continue
         meta = Path(f"{dll}.meta")
         relative = dll.relative_to(plugins_dir).as_posix()
+        source_duplicate = (
+            dll.stem in source_assemblies
+            and dll.relative_to(plugins_dir).parts[0] == "ShippedManaged"
+        )
         if not meta.exists():
-            meta.write_text(_PLUGIN_META_TEMPLATE.format(guid=meta_guid_for(relative)), encoding="utf-8")
+            patched = _PLUGIN_META_TEMPLATE.format(guid=meta_guid_for(relative))
+            if source_duplicate:
+                patched, _ = patch_source_assembly_plugin(patched)
+            meta.write_text(patched, encoding="utf-8")
             touched.append(str(meta))
             continue
         try:
-            text = meta.read_text(encoding="utf-8", errors="replace")
-        except OSError:  # noqa: S112 - an unreadable meta is left exactly as the exporter wrote it
+            if source_duplicate:
+                with meta.open(encoding="utf-8", newline="") as stream:
+                    text = stream.read()
+            else:
+                text = meta.read_text(encoding="utf-8", errors="replace")
+        except (OSError, UnicodeError):  # noqa: S112 - unreadable/malformed metadata is preserved
             continue
-        patched, changed = patch_validate_references(text)
+        patched, changed = (
+            patch_source_assembly_plugin(text) if source_duplicate else patch_validate_references(text)
+        )
         if changed:
-            meta.write_text(patched, encoding="utf-8")
+            if source_duplicate:
+                with meta.open("w", encoding="utf-8", newline="") as stream:
+                    stream.write(patched)
+            else:
+                meta.write_text(patched, encoding="utf-8")
             touched.append(str(meta))
     return touched
+
+
+def _source_assembly_plugin_receipt(
+    plugins_dir: Path, source_assemblies: set[str], touched: list[str],
+) -> dict[str, Any]:
+    """Report configured policies even when this invocation changed no metadata."""
+
+    configured: list[str] = []
+    skipped: list[str] = []
+    shipped_dir = plugins_dir / "ShippedManaged"
+    for dll in sorted(shipped_dir.rglob("*.dll")):
+        if not dll.is_file() or dll.stem not in source_assemblies:
+            continue
+        meta = Path(f"{dll}.meta")
+        try:
+            with meta.open(encoding="utf-8", newline="") as stream:
+                text = stream.read()
+        except (OSError, UnicodeError):
+            skipped.append(str(meta))
+            continue
+        patched = _source_assembly_plugin_meta(text)
+        if patched is None or patched != text:
+            skipped.append(str(meta))
+        else:
+            configured.append(str(meta))
+    return {
+        "sourceAssemblyPolicy": "isExplicitlyReferenced: 1; validateReferences: 0",
+        "explicitlyReferencedCount": len(configured),
+        "explicitlyReferencedMetaPaths": configured[:200],
+        "explicitlyReferencedMetaPathsTruncated": max(0, len(configured) - 200),
+        "explicitlyReferencedChangedCount": len(set(configured) & set(touched)),
+        "explicitlyReferencedSkippedCount": len(skipped),
+        "explicitlyReferencedSkippedMetaPaths": skipped[:200],
+        "explicitlyReferencedSkippedMetaPathsTruncated": max(0, len(skipped) - 200),
+    }
 
 
 # --------------------------------------------------------------------------
@@ -565,6 +768,7 @@ def compose_unity_project(
     # Scripts: ILSpy output layered over AssetRipper's stub tree.
     scripts: dict[str, Any] = {"applied": False, "reason": "no managed source provided"}
     script_tree: dict[str, int] | None = None
+    source_assemblies: set[str] = set()
     if managed_source is not None:
         managed_source = Path(managed_source).resolve()
         target_scripts = target_project / "Assets" / "Scripts"
@@ -572,6 +776,10 @@ def compose_unity_project(
             warnings.append(f"managed source tree not found: {managed_source}")
             scripts = {"applied": False, "reason": f"managed source not a directory: {managed_source}"}
         else:
+            source_assemblies = {
+                path.name for path in managed_source.iterdir()
+                if path.is_dir() and _has_usable_cs_source(path)
+            }
             scripts = resolve_script_conflicts(target_scripts, managed_source)
             scripts["applied"] = True
             script_tree = merge_tree(
@@ -585,8 +793,9 @@ def compose_unity_project(
     # Plugins: the one import policy no exporter emits.
     plugins_dir = target_project / "Assets" / "Plugins"
     metas_before = {str(path) for path in plugins_dir.rglob("*.dll.meta")} if plugins_dir.is_dir() else set()
-    plugin_metas = write_plugin_meta_policy(plugins_dir)
+    plugin_metas = write_plugin_meta_policy(plugins_dir, source_assemblies=source_assemblies)
     generated = [path for path in plugin_metas if path not in metas_before]
+    source_assembly_plugins = _source_assembly_plugin_receipt(plugins_dir, source_assemblies, plugin_metas)
 
     # StreamingAssets ship outside the serialized data and must land at this exact path.
     streaming: dict[str, Any] = {"copied": False, "source": None}
@@ -630,6 +839,7 @@ def compose_unity_project(
             "policy": "validateReferences: 0",
             "patchedCount": len(plugin_metas) - len(generated),
             "generatedCount": len(generated),
+            **source_assembly_plugins,
         },
         "scripts": scripts,
         "streamingAssets": streaming,

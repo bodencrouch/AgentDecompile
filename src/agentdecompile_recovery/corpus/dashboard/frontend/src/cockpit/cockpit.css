@@ -1,5 +1,3 @@
-@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&family=Saira+Semi+Condensed:wght@600;700&display=swap");
-
 /* Cockpit: one screen. Left = programs, centre = program map, right = products / lens,
    bottom = machine lanes. Graphite dark palette; every rule is scoped under .cockpit. */
 .cockpit {

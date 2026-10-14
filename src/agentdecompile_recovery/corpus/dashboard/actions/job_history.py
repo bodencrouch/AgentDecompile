@@ -15,10 +15,11 @@ _ID = re.compile(r'^[a-f0-9]{12,32}$')
 # The workbench asks for a compact activity snapshot frequently.  Rebuilding an
 # index of every retained workflow receipt for each individual job lookup made
 # a busy project appear disconnected even though its coordinator was running.
-# Keep a very short-lived index: live jobs still come from JobStore memory, and
-# a persisted receipt becomes visible on the following refresh.
+# Reuse the aggregate index across ordinary workbench polls. Same-process
+# writes invalidate it synchronously, while receipts written by another
+# process become visible on the next bounded refresh.
 _RECORDS_CACHE: tuple[float, dict[str, dict]] | None = None
-_RECORDS_TTL_SECONDS = 0.35
+_RECORDS_TTL_SECONDS = 5.0
 
 def directory() -> Path | None:
     root = live_root()
@@ -29,7 +30,14 @@ def owner() -> dict:
     return {'ownerPid': os.getpid(), 'ownerHost': socket.gethostname(), 'ownerStart': _process_start(os.getpid())}
 
 def write(payload: dict) -> None:
-    root = directory()
+    # A queued/in-flight flush belongs to its captured execution scope, never
+    # to whichever database the UI happens to have selected when it finishes.
+    captured = payload.get('executionRoot')
+    if not isinstance(captured, str) or not Path(captured).is_absolute():
+        raise OSError('Job persistence requires a captured absolute executionRoot')
+    if not _ID.fullmatch(str(payload.get('id') or '')):
+        raise OSError('Job persistence requires a valid job identity')
+    root = Path(captured) / 'workbench-jobs'
     if root is None:
         return
     root.mkdir(parents=True, exist_ok=True, mode=0o700)
@@ -38,6 +46,13 @@ def write(payload: dict) -> None:
     with os.fdopen(os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600), 'w', encoding='utf-8') as handle:
         handle.write(json.dumps(payload, default=str))
     temporary.replace(target)
+    # Keep the aggregate view promptly consistent with receipts written by
+    # this process. records() uses the same lock while reading and replacing
+    # its snapshot, so no stale snapshot can survive this write's completion.
+    global _RECORDS_CACHE
+    with _LOCK:
+        _CACHE.pop(str(target), None)
+        _RECORDS_CACHE = None
 
 def cancel_requested(job_id: str) -> bool:
     root = directory()
@@ -91,6 +106,62 @@ def _legacy(path: Path, data: dict) -> list[dict]:
                        'historySource': str(path), **{key: data.get(key) for key in ('ownerPid','ownerHost','ownerStart')}})
     return output
 
+def _execution_owner_alive(owner: object) -> bool | None:
+    """Return exact local child identity liveness; None means unknown/legacy."""
+    if not isinstance(owner, dict) or owner.get('identity_unavailable'):
+        return None
+    pid = owner.get('pid')
+    start_ticks = owner.get('start_ticks')
+    boot_id = owner.get('boot_id')
+    if type(pid) is not int or pid <= 0 or not isinstance(start_ticks, str) or not boot_id:
+        return None
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return None
+    try:
+        from ...supervision import process_identity
+        current = process_identity(pid)
+    except (OSError, ValueError, TypeError):
+        return None
+    if current.get('identity_unavailable'):
+        return None
+    return current.get('start_ticks') == start_ticks and current.get('boot_id') == boot_id
+
+def _project_active_job(data: dict) -> dict:
+    """Project stale state without treating server death as child death."""
+    result = dict(data)
+    if result.get('status') not in {'queued', 'running', 'cancelling'}:
+        return result
+    from ..preparation import _owner_alive
+    owner_alive = _owner_alive(result)
+    if not owner_alive and _execution_owner_alive(result.get('executionOwner')) is not False:
+        # A dead dashboard process does not prove its separately supervised
+        # child has stopped. Unknown identity is retained.
+        owner_alive = True
+    if not owner_alive:
+        result['status'] = 'interrupted'
+        result['finishedAt'] = result.get('finishedAt') or time.time()
+        result['error'] = result.get('error') or (
+            'The owning process and its recorded execution child stopped '
+            'before recording completion; retained output is available for reconciliation.'
+        )
+    return result
+
+def _job_receipt(path: Path) -> dict | None:
+    """Read and project one durable job without rebuilding the history index."""
+    try:
+        if path.is_symlink() or not path.is_file():
+            return None
+        data = json.loads(path.read_text(encoding='utf-8'))
+        if not isinstance(data, dict) or not _ID.fullmatch(str(data.get('id') or '')):
+            return None
+        return _project_active_job(data)
+    except (OSError, ValueError, TypeError):
+        return None
+
 def records() -> dict[str, dict]:
     global _RECORDS_CACHE
     root = live_root()
@@ -99,7 +170,9 @@ def records() -> dict[str, dict]:
     now = time.monotonic()
     result: dict[str, dict] = {}
     with _LOCK:
-        if _RECORDS_CACHE is not None and now - _RECORDS_CACHE[0] < _RECORDS_TTL_SECONDS:
+        root_key = str(root.resolve())
+        if (_RECORDS_CACHE is not None and getattr(records, '_cache_root', None) == root_key
+                and now - _RECORDS_CACHE[0] < _RECORDS_TTL_SECONDS):
             return dict(_RECORDS_CACHE[1])
         paths = [p for folder in ('preparations', 'workbench-batches', 'workbench-jobs') for p in (root / folder).glob('*.json') if not p.is_symlink()]
         for path in paths:
@@ -108,25 +181,14 @@ def records() -> dict[str, dict]:
                 cached = _CACHE.get(str(path))
                 if cached is None or cached[0] != signature:
                     data = json.loads(path.read_text(encoding='utf-8'))
-                    # Reconcile durable jobs owned by a process that is no
-                    # longer present.  A receipt from a previous server must
-                    # not remain ``running`` forever, while a live owner is
-                    # never touched.  This is intentionally limited to the
-                    # explicit owner-death signal; long-running Ghidra jobs
-                    # are not inferred stale from age alone.
-                    if path.parent.name == 'workbench-jobs' and data.get('status') in {'queued', 'running', 'cancelling'}:
-                        from ..preparation import _owner_alive
-                        if not _owner_alive(data):
-                            data['status'] = 'interrupted'
-                            data['finishedAt'] = data.get('finishedAt') or time.time()
-                            data['error'] = data.get('error') or 'The owning process stopped before recording completion; retained output is available for reconciliation.'
-                            # Read-side projection only. A delayed owner-death
-                            # observation must never overwrite a newer terminal
-                            # receipt/resource reservation written by JobStore.
+                    # Cache the durable source, not a time-sensitive owner
+                    # liveness projection. That projection is recomputed below.
                     rows = [data] if path.parent.name == 'workbench-jobs' else _legacy(path, data)
                     _CACHE[str(path)] = (signature, rows)
                 else:
                     rows = cached[1]
+                if path.parent.name == 'workbench-jobs':
+                    rows = [_project_active_job(row) for row in rows]
                 for row in rows:
                     if not _ID.fullmatch(str(row.get('id') or '')):
                         continue
@@ -138,9 +200,17 @@ def records() -> dict[str, dict]:
             except (OSError, ValueError, TypeError):
                 continue
         _RECORDS_CACHE = (now, result)
+        records._cache_root = root_key
     return dict(result)
 
 def historical(job_id: str) -> dict | None:
     if not _ID.fullmatch(job_id):
         return None
+    root = directory()
+    if root is not None:
+        # JobStore receipts are the canonical source for individual job
+        # requests. Legacy preparations/batches are consulted only if absent.
+        direct = _job_receipt(root / (job_id + '.json'))
+        if direct is not None and direct.get('id') == job_id:
+            return direct
     return records().get(job_id)

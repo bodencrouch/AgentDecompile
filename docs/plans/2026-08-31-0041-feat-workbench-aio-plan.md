@@ -199,7 +199,7 @@ Tests: two jobs start without waiting; workbench poll refreshes binaries/functio
 
 Covers R10, R11, AE5.
 
-Files: `src/agentdecompile_recovery/corpus/compile_link.py`, `tests/test_corpus_workspace_skeleton.py`, living plan mermaid in `docs/plans/2026-08-30-corpus-semantic-pipeline-living-plan.md`.
+Files: `src/agentdecompile_recovery/corpus/compile_link.py`, `tests/test_corpus_workspace_skeleton.py`, historical pipeline diagram formerly indexed with the corpus-pipeline proposal.
 
 Tests: missing `.link-stamp` forces relink; empty env HTML has no kotorxid defaults.
 

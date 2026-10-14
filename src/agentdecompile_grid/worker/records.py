@@ -20,6 +20,8 @@ those validators' shapes plus the attribution fields this side needs:
 * ``POISON``   ``{task_id, reason, evidence: {timeouts: [key_id...], lineages, threshold, by}, kind, timeouts, lineages, threshold, by, nonce}``
 * ``VERIFIED`` / ``REFUTED``
                ``{task_id, result_ref, outcome, verifier_key, method, producer_key, verifier_lineage, evidence | evidence_ref, nonce}``
+               (the verdict *object* is ``tasks.results.verification_to_record`` — the one tagged spelling;
+               ``verification_to_record`` here delegates to it)
 * ``NOTE``     ``{task_id, kind, key_id, note, detail, nonce}`` — never load-bearing (unverifiable,
                verify-timeout, launch-failed ...).
 
@@ -151,11 +153,17 @@ def task_result_from_record(rec: Mapping[str, Any]) -> TaskResult:
 
 
 def verification_to_record(v: Verification) -> dict[str, Any]:
-    return {"task_id": v.task_id, "result_ref": str(v.result_ref), "outcome": v.outcome.value, "verifier_key": v.verifier_key, "method": v.method, "evidence": dict(v.evidence)}
+    """One spelling: ``tasks.results.verification_to_record`` (tagged ``schema``/``record``/``refs``);
+    the sandbox child and the verifier loop both emit and read this shape."""
+    from ..tasks.results import verification_to_record as _tagged
+
+    return _tagged(v)
 
 
 def verification_from_record(rec: Mapping[str, Any]) -> Verification:
-    return Verification(task_id=rec["task_id"], result_ref=ObjectRef(rec["result_ref"]), outcome=VerificationOutcome(rec["outcome"]), verifier_key=rec["verifier_key"], method=rec["method"], evidence=dict(rec.get("evidence", {})))
+    from ..tasks.results import verification_from_record as _tagged
+
+    return _tagged(rec)
 
 
 # --------------------------------------------------------------------------- readers

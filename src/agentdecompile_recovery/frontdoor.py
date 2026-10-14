@@ -228,6 +228,17 @@ def build_parser(prog: str | None = None) -> argparse.ArgumentParser:
     )
     parser.add_argument("--force", action="store_true", help="Rerun selected stages even when receipts exist.")
     parser.add_argument(
+        "--rerun-stage",
+        action="append",
+        default=[],
+        metavar="STAGE",
+        help=(
+            "Rerun a source-recovery stage and invalidate its declared downstream work; "
+            "currently supports generate-source-candidates, synthesize-source-tasks, "
+            "and plan-strategy. Use --force for other stages. May be repeated."
+        ),
+    )
+    parser.add_argument(
         "--reuse-ghidra-acquisition",
         action=argparse.BooleanOptionalAction,
         default=True,
@@ -260,6 +271,7 @@ def build_parser(prog: str | None = None) -> argparse.ArgumentParser:
             "unity-export-assets",
             "unity-decompile-managed",
             "unity-compose-project",
+            "unity-recover-excluded-media",
             "unity-editor-validate",
             "unity-repair",
             "report",
@@ -298,7 +310,18 @@ def build_parser(prog: str | None = None) -> argparse.ArgumentParser:
         help="plugin uses the upstream-style setup/programmatic/retry lifecycle.",
     )
     parser.add_argument("--source-synthesis-limit", type=int, default=50, help="Maximum source tasks to inspect in this invocation.")
+    parser.add_argument("--source-synthesis-offset", type=int, default=0, help="Skip this many eligible source tasks before synthesis; use to resume a bounded candidate window.")
     parser.add_argument("--source-synthesis-max-variants", type=int, default=8)
+    parser.add_argument(
+        "--diagnostic-priority-state",
+        type=Path,
+        action="append",
+        default=[],
+        help=(
+            "Prior byteexact-cache/v3 state used only to prioritize identical target functions; "
+            "repeat for multiple states. Fresh compilation and objdiff remain required."
+        ),
+    )
     parser.add_argument("--source-synthesis-verify-packaged-source", action="store_true")
     parser.add_argument("--source-synthesis-upgrade-packaged-source", action="store_true")
     parser.add_argument("--source-synthesis-strategies", help="Comma-separated strategy/tag/rule filter.")
@@ -479,6 +502,7 @@ def run_one_shot(args: argparse.Namespace, *, prog: str = DEFAULT_PROG) -> int:
             repo_root=repo_root(),
             project=project,
             project_program=getattr(args, "project_program", None),
+            prior_bundle=getattr(args, "acquisition_bundle", None),
             max_files=int(getattr(args, "context_max_files", 1000) or 1000),
             reuse_ghidra_acquisition=bool(getattr(args, "reuse_ghidra_acquisition", True)),
         )
@@ -550,6 +574,7 @@ def run_one_shot(args: argparse.Namespace, *, prog: str = DEFAULT_PROG) -> int:
         preferred_name=args.preferred_name,
         resume=args.resume,
         force=args.force,
+        rerun_stages=tuple(args.rerun_stage),
         stop_after=args.stop_after,
         json_output=args.json,
         progress_width=args.progress_width,
@@ -559,8 +584,11 @@ def run_one_shot(args: argparse.Namespace, *, prog: str = DEFAULT_PROG) -> int:
         function_analysis=args.function_analysis,
         context_paths=tuple(context_paths),
         context_pack=args.context_pack,
-        acquisition_bundle=args.acquisition_bundle
-        or (Path(str(acquisition_receipt["bundleDir"])) if acquisition_receipt and acquisition_receipt.get("bundleDir") else None),
+        acquisition_bundle=(
+            Path(str(acquisition_receipt["bundleDir"]))
+            if acquisition_receipt and acquisition_receipt.get("bundleDir")
+            else args.acquisition_bundle
+        ),
         source_task_limit=args.source_task_limit,
         source_task_offset=args.source_task_offset,
         source_synthesis_engine=args.source_synthesis_engine,
@@ -571,7 +599,9 @@ def run_one_shot(args: argparse.Namespace, *, prog: str = DEFAULT_PROG) -> int:
             compiler_hint=compiler_hint,
         ),
         source_synthesis_limit=args.source_synthesis_limit,
+        source_synthesis_offset=args.source_synthesis_offset,
         source_synthesis_max_variants=args.source_synthesis_max_variants,
+        source_synthesis_diagnostic_priority_states=tuple(args.diagnostic_priority_state),
         source_synthesis_verify_packaged_source=args.source_synthesis_verify_packaged_source,
         source_synthesis_upgrade_packaged_source=args.source_synthesis_upgrade_packaged_source,
         source_synthesis_strategies=parse_csv_string(args.source_synthesis_strategies),

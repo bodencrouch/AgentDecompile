@@ -1,9 +1,11 @@
 # `/capabilities` — capability discovery
 
 Follow [AGENTS](../../AGENTS.md) and [STRATEGY](../../STRATEGY.md).
-Use the existing 8080 `GET /api/v1/actions` for current recovery actions and
-parameters. Its `corpus.export-hookpack` action is implemented; listing a verb
-is not runtime-workflow proof.
+Active recovery uses the checkout-pinned `.venv/bin/agentdecompile-cli` from the
+repository root; frontends are deferred. Reuse existing local or shared Ghidra
+project bytes and analysis when available. Inspect the CLI's current help and
+advertised parameters before choosing an operation. A listed verb is not proof
+that its runtime workflow or outputs have been validated.
 
 MCP capabilities are described by `agentdecompile://capabilities`, the advertised
 `tools/list` and [TOOLS_LIST](../../TOOLS_LIST.md). Counts and names can change;

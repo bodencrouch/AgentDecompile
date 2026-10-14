@@ -15,7 +15,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_VC_ROOT = Path("/run/media/brunner56/MyBook/Toolchains/msvc8.0-main")
+DEFAULT_VC_ROOT = ROOT / "target/toolchain-acquire/vctoolkit2003/installed-nvme/VC7.1"
 DEFAULT_WINEPREFIX = ROOT / "target/toolchain-acquire/vctoolkit2003/wineprefix"
 IDENT_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 

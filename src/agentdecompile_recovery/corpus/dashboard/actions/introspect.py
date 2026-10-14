@@ -15,6 +15,7 @@ from agentdecompile_recovery.corpus.dashboard.actions.catalog import (
     ActionSpec,
     FieldSpec,
 )
+from agentdecompile_recovery.corpus.verb_admission import VerbAdmission
 
 _SKIP_DESTS = frozenset({"help", "version"})
 _CLICK_DANGER_COMMANDS = frozenset({"init", "delete", "import"})
@@ -130,7 +131,24 @@ def specs_from_argparse(
             fields = tuple(replace(field, from_context="report_file", help="JSON report file; defaults to the current workspace's recovery-report.json.") if field.name == "out" else field for field in fields)
         danger = bool(getattr(sub, "danger", False))
         native_verify = group == "recover" and command == "verify-package"
-        mutating = native_verify or bool(getattr(sub, "mutating", False))
+        # A declared verb carries its whole VerbAdmission on the parser
+        # (aliases share the object); the three legacy fields come from it.
+        # An undeclared verb keeps the legacy getattr path and resolves to
+        # the conservative default at admission time (H5).
+        admission = getattr(sub, "admission", None)
+        if not isinstance(admission, VerbAdmission):
+            admission = None
+        if admission is not None:
+            # Keep the pre-existing verifier safety override: it performs
+            # long-running native/object verification even though the
+            # recover parser does not yet declare typed admission metadata.
+            mutating = native_verify or admission.mutating
+            long_running = native_verify or admission.long_running
+            identity_scope = admission.identity_scope
+        else:
+            mutating = native_verify or bool(getattr(sub, "mutating", False))
+            long_running = native_verify or bool(getattr(sub, "long_running", False))
+            identity_scope = str(getattr(sub, "identity_scope", ""))
         rows.append(
             ActionSpec(
                 id=f"{group}.{command}",
@@ -143,9 +161,10 @@ def specs_from_argparse(
                 pages=_pages(fields, mutating),
                 danger=danger,
                 mutating=mutating,
-                long_running=native_verify or bool(getattr(sub, "long_running", False)),
-                identity_scope=str(getattr(sub, "identity_scope", "")),
+                long_running=long_running,
+                identity_scope=identity_scope,
                 ghidra_exclusive=bool(getattr(sub, "ghidra_exclusive", False)),
+                admission=admission,
             )
         )
     return rows
@@ -266,6 +285,33 @@ def mcp_specs() -> list[ActionSpec]:
         params = get_tool_params(name)
         meta = get_tool_metadata(name)
         writes = bool(meta and meta.writes_state)
+        # Only a declared resource contract may narrow the conservative MCP
+        # admission. This query reads Ghidra references and may open a project.
+        corpus_db_access = getattr(meta, "corpus_db_access", "unknown") if meta else "unknown"
+        ghidra_session_access = getattr(meta, "ghidra_session_access", "unknown") if meta else "unknown"
+        # Compatibility for a live process whose older registry module was
+        # correctly rejected by in-place reload: this canonical enum is the
+        # one provider tool whose read-only Ghidra/DB contract is source-audited.
+        if (meta and name == Tool.GET_REFERENCES.value and not writes
+                and corpus_db_access == "unknown" and ghidra_session_access == "unknown"):
+            corpus_db_access, ghidra_session_access = "none", "query"
+        reference_query = bool(meta and corpus_db_access == "none" and ghidra_session_access == "query")
+        admission = (
+            VerbAdmission(
+                mutating=False,
+                long_running=False,
+                identity_scope="",
+                read_only=True,
+                snapshot="none",
+                output_scope="none",
+                drains_on_pause=True,
+                boots_analyzer=False,
+                lane="ghidra",
+                budget_class="small",
+                cancel="sigterm",
+            )
+            if reference_query else None
+        )
         schema = schemas.get(name, {})
         properties = schema.get('properties', {})
         by_norm = {normalize_identifier(key): value for key, value in properties.items()}
@@ -305,6 +351,9 @@ def mcp_specs() -> list[ActionSpec]:
                 danger=danger,
                 mutating=writes,
                 long_running=bool(meta and meta.long_running),
+                identity_scope=admission.identity_scope if admission else "",
+                ghidra_exclusive=reference_query,
+                admission=admission,
             )
         )
     return out

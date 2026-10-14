@@ -2,8 +2,8 @@
 
 Inputs: ``tu`` -- the self-contained TU text object (header + body; the bulk path already emits
 header-free text, ghidra_bulk.py:622-626).  Params: ``toolchain_identity_hash`` (the content
-hash of the toolchain tree, U132), ``profile``, ``opt`` (``/O2``), ``flags`` (extra compiler
-flags).  The toolchain itself is **never** an input: a node maps the hash to a local tree it
+hash of the toolchain's declared manifest, ``toolchain.identity_hash_for``, U132), ``profile``,
+``opt`` (``/O2``), ``flags`` (extra compiler flags).  The toolchain itself is **never** an input: a node maps the hash to a local tree it
 proved by canary (``register_toolchain``), and a task whose hash it cannot resolve is refused by
 name before any input is fetched.  Capability: ``toolchain:<toolchain_identity_hash>``.
 
@@ -62,6 +62,7 @@ from agentdecompile_grid.core import (
 from agentdecompile_grid.objects.base import IntegrityError, InvalidRef, validate_ref
 from agentdecompile_grid.view.applier import ensure_tables, view_hook
 
+from .toolchain import ToolchainManifest, manifest_for_root, verify_tree
 from ._common import (
     PlannableKind,
     Infra,
@@ -112,10 +113,12 @@ _IDENTITY_CACHE: dict[str, tuple[str, int]] = {}
 
 
 def toolchain_identity(root: str | Path) -> tuple[str, int]:
-    """``(sha256, file count)`` over the tree's content: path- and mtime-free (U132).
+    """``(identity_hash, entry count)`` of the tree's manifest: path- and mtime-free (U132).
 
-    Each regular file contributes ``relpath\\0size\\0sha256(bytes)``; symlinks contribute their
-    target text; entries are sorted by relative path.  Cached per process by resolved root.
+    The identity is ``toolchain.identity_hash_for`` over the declared manifest -- the in-tree
+    ``toolchain-manifest.json`` when the tree carries one, else a manifest declared from every
+    regular file's bytes.  Only ``(relative path, sha256)`` pairs enter the hash: no size, no
+    mode, no time, no absolute path.  Cached per process by resolved root.
     """
     resolved = Path(root).expanduser().resolve()
     key = str(resolved)
@@ -123,22 +126,8 @@ def toolchain_identity(root: str | Path) -> tuple[str, int]:
         return _IDENTITY_CACHE[key]
     if not resolved.is_dir():
         raise Refused(f"toolchain-root-missing:{digest(key.encode())[:12]}")
-    lines: list[bytes] = []
-    count = 0
-    for path in sorted(p for p in resolved.rglob("*") if not p.is_dir()):
-        rel = path.relative_to(resolved).as_posix().encode("utf-8")
-        if path.is_symlink():
-            lines.append(rel + b"\0link\0" + os.readlink(path).encode("utf-8", "replace"))
-            continue
-        h = hashlib.sha256()
-        size = 0
-        with path.open("rb") as fh:
-            for chunk in iter(lambda: fh.read(1 << 20), b""):
-                h.update(chunk)
-                size += len(chunk)
-        lines.append(rel + b"\0" + str(size).encode() + b"\0" + h.hexdigest().encode())
-        count += 1
-    value = (hashlib.sha256(b"\n".join(lines)).hexdigest(), count)
+    manifest = manifest_for_root(resolved)
+    value = (manifest.identity_hash, len(manifest.entries))
     _IDENTITY_CACHE[key] = value
     return value
 
@@ -155,15 +144,29 @@ def default_compile_script() -> Path | None:
     return None
 
 
-def register_toolchain(root: str | Path, *, wineprefix: str | Path | None = None,
+def register_toolchain(root: str | Path, *, manifest: ToolchainManifest | None = None, wineprefix: str | Path | None = None,
                        script: str | Path | None = None, replace: bool = True) -> ToolchainRoot:
-    """Hash *root* and register it so tasks keyed ``toolchain:<hash>`` resolve to it."""
-    identity, count = toolchain_identity(root)
+    """Register *root* so tasks keyed ``toolchain:<hash>`` resolve to it.
+
+    With *manifest* (the canary's declared manifest) the identity is the manifest's and the tree
+    is checked against it first (``toolchain-tree-mismatch:<hash>`` names a missing or altered
+    declared file); without one the tree's own manifest (``toolchain_identity``) is used.  Files
+    the manifest does not declare never enter the identity.
+    """
+    resolved_root = Path(root).expanduser().resolve()
+    if manifest is not None:
+        report = verify_tree(resolved_root, manifest)
+        if not report.ok:
+            raise Refused(f"toolchain-tree-mismatch:{manifest.identity_hash[:12]}:missing={len(report.missing)},mismatched={len(report.mismatched)}")
+        identity, count = manifest.identity_hash, len(manifest.entries)
+        _IDENTITY_CACHE[str(resolved_root)] = (identity, count)
+    else:
+        identity, count = toolchain_identity(resolved_root)
     resolved_script = Path(script).resolve() if script else default_compile_script()
     if resolved_script is None or not resolved_script.is_file():
         raise Refused("compile-wrapper-missing:scripts/cl-compile.sh")
     tc = ToolchainRoot(
-        root=Path(root).expanduser().resolve(), identity_hash=identity, script=resolved_script,
+        root=resolved_root, identity_hash=identity, script=resolved_script,
         wineprefix=Path(wineprefix).expanduser().resolve() if wineprefix else None, files=count,
     )
     TOOLCHAINS.register(identity, tc, replace=replace)
@@ -295,6 +298,7 @@ def _bound_compile_receipt(
 class CompileAttempt(PlannableKind):
     name = "compile-attempt"
     version = 1
+    basis_field_set = "toolchain"     # a toolchain change re-keys compile ids; a pin-policy change does not (§2.8)
     budget = BudgetClass.SMALL
     capabilities = (CAPABILITY_PREFIX + "<toolchain_identity_hash>",)   # template; the spec carries the value
     INPUTS: Mapping[str, str] = {"tu": "translation unit text (header + body), 2-30 KB"}

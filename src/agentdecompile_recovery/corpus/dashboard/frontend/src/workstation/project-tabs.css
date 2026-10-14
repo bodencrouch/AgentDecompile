@@ -1,0 +1,8 @@
+.ws-project-tabs{flex:none;min-width:0}
+.ws-project-tabs .ws-sessions button{font-size:12px}
+.ws-project-focus{display:flex;align-items:center;gap:10px;padding:5px 10px;border-bottom:1px solid var(--border);background:var(--bg)}
+.ws-project-scope{flex:1;min-width:0;color:var(--muted);font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ws-project-focus label{display:flex;align-items:center;gap:7px;min-width:0;font-size:12px}
+.ws-project-focus select{max-width:min(35vw,420px);font-size:12px}
+.ws-project-focus small{font-size:10px}
+@media(max-width:700px){.ws-project-focus{flex-wrap:wrap;gap:5px}.ws-project-scope{flex-basis:100%}.ws-project-focus label{flex:1}.ws-project-focus select{flex:1;max-width:100%;min-width:0}.ws-project-focus small{display:none}.ws-project-tabs .ws-sessions button{min-height:44px}}

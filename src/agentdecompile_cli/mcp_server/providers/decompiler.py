@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import logging
+import time
 
 from typing import TYPE_CHECKING, Any
 
@@ -307,14 +308,16 @@ class DecompilerToolProvider(ToolProvider):
         """Perform the actual decompilation with retry logic."""
         logger.debug("diag.enter %s", "mcp_server/providers/decompiler.py:DecompilerToolProvider._perform_decompilation")
         decomp = lease.decompiler
+        deadline = time.monotonic() + timeout if timeout > 0 else None
         dr: GhidraDecompileResults = decomp.decompileFunction(target_func, timeout, monitor)
 
         if dr and dr.decompileCompleted():
             return self._extract_successful_decompilation(dr, target_func)
 
         # Try retry with fresh interface if session decomp failed
-        if session_decomp is not None and lease.reused_session:
-            retry_result = self._try_retry_decompilation(target_func, timeout, monitor, decomp, program)
+        remaining = int(deadline - time.monotonic()) if deadline is not None else timeout
+        if session_decomp is not None and lease.reused_session and (deadline is None or remaining > 0):
+            retry_result = self._try_retry_decompilation(target_func, remaining, monitor, decomp, program)
             if retry_result:
                 return retry_result
 

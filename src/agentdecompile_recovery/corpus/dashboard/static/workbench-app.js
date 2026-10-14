@@ -40,6 +40,10 @@
     panel: "/dashboard/panel"
   };
 
+  // The full history feed is comparatively expensive; selected-job detail is
+  // fetched independently so the active operation can still update promptly.
+  const JOB_POLL_MS = Object.freeze({ list: 30000, detail: 5000, timeout: 60000 });
+
   const SURFACES = [
     { id: "wb-overview", title: "Overview", keys: ["overview", "corpus"] },
     { id: "wb-ingest", title: "Project", keys: ["add", "drop", "gpr", "upload", "project", "source", "binary"] },
@@ -253,7 +257,7 @@
     return stem || "Project";
   }
 
-  const SLUG_FIELD_NAMES = new Set(["id", "slug", "binary-id", "binary_id", "binary-id"]);
+  const SLUG_FIELD_NAMES = new Set(["id", "slug"]);
   const PATH_FIELD_NAMES = new Set(["binary", "path", "repo-path", "repo_path", "archive", "directory", "from-json", "manifest", "snapshot-dir", "snapshot_dir"]);
   const PROGRAM_FIELD_NAMES = new Set(["program", "programpath", "program-path", "from", "repo"]);
   const WORK_DIR_FIELD_NAMES = new Set(["work-dir", "work_dir", "out-dir", "out_dir", "outdir", "out", "workspace", "snapshot-dir", "snapshot_dir"]);
@@ -269,6 +273,8 @@
     if (!field) return "text";
     if (field.kind === "bool") return "bool";
     if (field.choices && field.choices.length) return "choices";
+    if (field.kind === "array" || field.kind === "object") return "json";
+    if (field.kind === "int" || field.kind === "float") return "number";
     const name = normFieldName(field.name);
     if (field.from_context === "slug" || SLUG_FIELD_NAMES.has(name)) return "slug";
     if (field.from_context === "addr" || ADDR_FIELD_NAMES.has(name)) return "addr";
@@ -278,7 +284,6 @@
     if (field.from_context === "program" || PROGRAM_FIELD_NAMES.has(name)) return "program";
     if (name === "role") return "role";
     if (field.kind === "path" && (PATH_FIELD_NAMES.has(name) || name.indexOf("dir") >= 0)) return "path";
-    if (field.kind === "int" || field.kind === "float") return "number";
     if (field.kind === "text") return "textarea";
     return "text";
   }
@@ -335,6 +340,24 @@
           })}
         </select>
         ${hint}
+      </label>`;
+    }
+
+    if (kind === "json") {
+      const initial = value != null ? value : field.default;
+      const initialText = initial == null ? ""
+        : typeof initial === "string" ? initial
+        : JSON.stringify(initial, null, 2);
+      const guidance = field.kind === "array"
+        ? 'Enter a JSON array, for example ["path/to/shard/*"].'
+        : 'Enter a JSON object, for example {"key":"value"}.';
+      return html`<label key=${field.name} className="wb-tool-field">
+        <span>${label}</span>
+        <textarea name=${field.name} defaultValue=${initialText}
+          placeholder=${field.kind === "array" ? '["value"]' : '{"key":"value"}'}
+          required=${field.required} />
+        ${hint}
+        <span className="wb-field-hint">${guidance}</span>
       </label>`;
     }
 
@@ -453,7 +476,7 @@
       });
       return html`<label key=${field.name} className="wb-tool-field">
         <span>${label}</span>
-        <input name=${field.name} list=${safeList} defaultValue=${value || paths[0] || ""} required=${field.required} />
+        <input name=${field.name} list=${safeList} defaultValue=${value || ""} required=${field.required} />
         <datalist id=${safeList}>${paths.map(function (item) {
           return html`<option key=${item} value=${item} />`;
         })}</datalist>
@@ -2062,9 +2085,12 @@
     </section>`;
   }
 
-  function selectPreparationRun(runs, locator, program, slug) {
+  function selectPreparationRun(runs, locator, program, slug, database) {
     const normalizedLocator = String(locator || "").replace(/\/+$/, "");
+    const normalizedDatabase = String(database || "").replace(/\\/g, "/").replace(/\/+$/, "");
     return (runs || []).filter(function (run) {
+      const runDatabase = String(run.corpusDb || "").replace(/\\/g, "/").replace(/\/+$/, "");
+      if (!normalizedDatabase || runDatabase !== normalizedDatabase) return false;
       const runLocator = String(run.locator || "").replace(/\/+$/, "");
       if (normalizedLocator) {
         return runLocator === normalizedLocator && (!program || !run.program || run.program === program || (run.programs || []).includes(program));
@@ -2803,6 +2829,20 @@
       if (field.kind === "bool") {
         value = el.checked;
         if (!value && !field.required) return;
+      } else if (field.kind === "array" || field.kind === "object") {
+        const raw = el.value.trim();
+        if (!raw) return;
+        try {
+          value = JSON.parse(raw);
+        } catch (_err) {
+          throw new Error(field.name + " must be valid JSON");
+        }
+        if (field.kind === "array" && !Array.isArray(value)) {
+          throw new Error(field.name + " must be a JSON array");
+        }
+        if (field.kind === "object" && (!value || typeof value !== "object" || Array.isArray(value))) {
+          throw new Error(field.name + " must be a JSON object");
+        }
       } else {
         value = el.value;
         if (value === "" || value == null) return;
@@ -2810,6 +2850,8 @@
       const def = defaultToolValue(field, ctx);
       if (field.kind === "bool") {
         if (Boolean(value) === Boolean(def === true || def === "true")) return;
+      } else if (field.kind === "array" || field.kind === "object") {
+        if (field.default != null && JSON.stringify(value) === JSON.stringify(field.default)) return;
       } else if (String(value) === String(def || "")) return;
       params[field.name] = value;
     });
@@ -2902,6 +2944,7 @@
     (prevList || []).forEach(function (job) { prev[job.id] = job.status; });
     const parts = [];
     (nextList || []).forEach(function (job) {
+      if (job.external === true) return;
       const was = prev[job.id];
       if (was === job.status) return;
       const id = String(job.id || "unknown").slice(0, 80);
@@ -2932,6 +2975,52 @@
 
   function JobLiveRegion({ text }) {
     return html`<div id="wb-job-live" className="sr-only" aria-live="polite" aria-atomic="true">${text || ""}</div>`;
+  }
+
+  function textPermuterActivity(job) {
+    if (!job || job.actionId !== "corpus.text-permuter" || !job.log) return null;
+    let phase = "prepare";
+    let candidate = null;
+    let outcome = "";
+    String(job.log).split(/\r?\n/).forEach(function (line) {
+      if (/repairing context/i.test(line)) {
+        phase = "prepare";
+        candidate = null;
+        outcome = "";
+      }
+      if (/sleeping [\d.]+s before next pass/i.test(line)) phase = "waiting";
+      const started = line.match(/^\s*(\d+)\/(\d+)\s+compile and compare\s+(.+?)\s+@\s+(0x[0-9a-f]+)/i);
+      if (started) {
+        candidate = { index: Number(started[1]), total: Number(started[2]), name: started[3], address: started[4] };
+        phase = "compile";
+        outcome = "";
+      }
+      const finished = line.match(/^\s*(?:DONE|BYTE-EXACT)\s+(\d+)\/(\d+):\s*(.*)$/i);
+      if (finished && candidate && Number(finished[1]) === candidate.index) {
+        phase = "result";
+        outcome = finished[3];
+      }
+    });
+    const activeStage = phase === "prepare" ? 0 : phase === "compile" ? 1 : phase === "result" ? 2 : -1;
+    const phaseLabel = phase === "prepare" ? "Preparing context"
+      : phase === "compile" ? "Compiling and comparing"
+      : phase === "result" ? "Candidate result recorded"
+      : "Waiting for next pass";
+    return html`<section className="wb-job-flow" aria-label="Text permuter activity">
+      <div className="wb-job-flow-track" aria-hidden="true">
+        <span className=${"wb-job-flow-node" + (activeStage === 0 ? " active" : "")}>C candidate</span>
+        <span className="wb-job-flow-arrow">→</span>
+        <span className=${"wb-job-flow-node" + (activeStage === 1 ? " active" : "")}>Compile + compare</span>
+        <span className="wb-job-flow-arrow">→</span>
+        <span className=${"wb-job-flow-node" + (activeStage === 2 ? " active" : "")}>Byte result</span>
+      </div>
+      <p className="wb-job-flow-caption">
+        <span className="wb-job-flow-signal" aria-hidden="true"></span>
+        ${phaseLabel}
+        ${candidate ? html` · ${candidate.name} <code>${candidate.address}</code>` : null}
+        ${outcome ? html` — ${outcome}` : null}
+      </p>
+    </section>`;
   }
 
   /* Accelerators are stored as specs and rendered per platform, so a Linux menu never
@@ -3143,6 +3232,7 @@
         || (item.keys || []).some(function (key) { return matchText(key); });
     }).slice(0, 14);
     const jobHits = (jobs || []).filter(function (job) {
+      if (job.external === true) return false;
       return matchText(job.id) || matchText(job.actionId) || matchText(job.status);
     }).slice(0, 8);
     const commandHits = (commands || []).filter(function (cmd) {
@@ -3338,10 +3428,15 @@
 
   function LogDock({
     entries, tab, onTab, open, onToggle, selectedId, onSelect,
-    jobs, selectedJobId, jobDetail, onSelectJob, onCancel, actions, height, onResize
+    jobs, selectedJobId, jobDetail, onSelectJob, onCancel, actions, height, onResize,
+    showAllJobs, onShowAllJobs
   }) {
     const list = jobs || [];
     const running = list.filter(function (job) { return job.status === "running" || job.status === "queued"; });
+    const activeIds = new Set(running.map(function (job) { return job.id; }));
+    const visibleJobs = showAllJobs ? list : running.concat(list.filter(function (job) {
+      return !activeIds.has(job.id) && job.external !== true;
+    }).slice(0, 100));
     const detail = jobDetail || null;
     const logText = detail && detail.log ? String(detail.log).slice(-12000) : "";
     const rows = (entries || []).slice().reverse();
@@ -3374,21 +3469,33 @@
             </li>`;
           }) : html`<li className="wb-hint">No log lines yet.</li>`}
         </ul>` : html`<div className="wb-jobs-dock-body">
+          ${list.length > visibleJobs.length || showAllJobs ? html`<div className="wb-toolbar">
+            <span className="wb-hint">${showAllJobs ? "Showing all " + list.length + " recorded jobs." : "Showing all active jobs and the newest 100 records."}</span>
+            <button type="button" className="wb-btn wb-btn-mini" aria-expanded=${showAllJobs}
+              onClick=${function () { onShowAllJobs(!showAllJobs); }}>${showAllJobs ? "Show recent" : "Show all (" + list.length + ")"}</button>
+          </div>` : null}
           <ul className="wb-job-list">
-            ${list.length ? list.map(function (job) {
+            ${visibleJobs.length ? visibleJobs.map(function (job) {
               const on = job.id === selectedJobId;
-              const live = job.status === "running" || job.status === "queued";
+              const live = job.external !== true && (job.status === "running" || job.status === "queued");
+              const progress = job.externalProgress;
+              const label = job.title || actionTitle(job.actionId, actions);
               return html`<li key=${job.id} className=${on ? "on" : ""}>
-                <button type="button" className="wb-job-row" onClick=${function () { onSelectJob(job.id); }}>
+                ${job.external === true ? html`<div className="wb-job-row">
                   <code>${job.id}</code>
-                  <span>${actionTitle(job.actionId, actions)}</span>
+                  <span>${label}${progress ? " · " + progress.completed + "/" + progress.total + " candidates" : ""}</span>
+                  <span className="st-running">running · observed externally</span>
+                </div>` : html`<button type="button" className="wb-job-row" onClick=${function () { onSelectJob(job.id); }}>
+                  <code>${job.id}</code>
+                  <span>${label}</span>
                   <span className=${"st-" + (job.status || "unknown")}>${job.status}${job.resourceDisposition === "quarantined" || job.ownershipUnresolved === true ? " · ownership unresolved" : ""}</span>
-                </button>
+                </button>`}
                 ${live ? html`<button type="button" className="wb-btn danger wb-job-cancel"
                   onClick=${function (ev) { ev.stopPropagation(); onCancel(job.id); }}>Cancel</button>` : null}
               </li>`;
             }) : html`<li className="wb-hint">No jobs yet.</li>`}
           </ul>
+          ${textPermuterActivity(detail)}
           ${selectedJobId && logText ? html`<pre className="wb-job-log">${logText}</pre>`
             : selectedJobId ? html`<p className="wb-hint">Loading log…</p>` : null}
         </div>`}
@@ -3398,10 +3505,16 @@
 
   const LIST_LIMITS = ["all", 10, 20, 50, 100, 200];
 
-  function FuncPager({ limit, shown, total, onLimit, compact }) {
+  function FuncPager({ limit, shown, total, hasMore, onLimit, compact }) {
     const clipped = limit !== "all" && shown && total && shown < total;
+    const pageFull = limit !== "all" && Number(limit) > 0 && shown >= Number(limit);
+    const count = hasMore
+      ? shown + " shown · more available"
+      : clipped ? shown + " of " + total + " functions"
+        : pageFull ? shown + " shown · choose All for the complete list"
+          : (total || shown || 0) + " functions";
     return html`<div className=${"wb-pager" + (compact ? " wb-pager-compact" : "")}>
-      <span className="wb-pager-count">${clipped ? shown + " of " + total : (total || shown || 0) + " functions"}</span>
+      <span className="wb-pager-count">${count}</span>
       <label className="wb-pager-size">
         <span className="sr-only">How many functions to show</span>
         <select value=${String(limit)} onChange=${function (ev) { onLimit(ev.target.value); }}>
@@ -3495,7 +3608,8 @@
     const [paletteQuery, setPaletteQuery] = useState("");
     const [commandFilter, setCommandFilter] = useState("");
     const [funcOffset, setFuncOffset] = useState(0);
-    const [funcLimit, setFuncLimit] = useState("all");
+    const [funcLimit, setFuncLimit] = useState(100);
+    const [funcHasMore, setFuncHasMore] = useState(false);
     const DEFAULT_FUNCTION_ACTION = "mcp.decompile-function";
     const [pendingActionId, setPendingActionId] = useState("");
     const [lastActionId, setLastActionId] = useState(DEFAULT_FUNCTION_ACTION);
@@ -3505,8 +3619,8 @@
     const [logTab, setLogTab] = useState("log");
     const [selectedJobId, setSelectedJobId] = useState("");
     const [jobDetail, setJobDetail] = useState(null);
+    const [showAllJobs, setShowAllJobs] = useState(false);
     const [sideW, setSideW] = useState(function () { return Number(readUiPref("wb-side-w", "360")) || 360; });
-    const [explorerH, setExplorerH] = useState(function () { return Number(readUiPref("wb-explorer-h", "240")) || 240; });
     const [logH, setLogH] = useState(function () { return Number(readUiPref("wb-log-h", "180")) || 180; });
     const [moreOpen, setMoreOpen] = useState(false);
     const [density, setDensity] = useState(function () { return readUiPref("wb-density", "compact"); });
@@ -3564,13 +3678,22 @@
 
     const loadCorpusStatus = useCallback(async function () {
       try {
-        const res = await fetch(API.corpusStatus, { cache: "no-store" });
+        const query = new URLSearchParams({
+          locator: currentLocator() || "",
+          slug: slug || "",
+          program: program || ""
+        });
+        const res = await fetch(API.corpusStatus + "?" + query.toString(), { cache: "no-store" });
         const data = await res.json();
         setCorpusStatus(data);
       } catch (err) {
         setCorpusStatus({ ok: false, error: String(err && err.message || err) });
       }
-    }, []);
+    }, [slug, program, activeSession, sessions, dossier]);
+
+    useEffect(function () {
+      loadCorpusStatus();
+    }, [loadCorpusStatus]);
 
     const loadPreparations = useCallback(async function () {
       if (preparationInFlight.current) return;
@@ -3597,6 +3720,7 @@
       if (!useSlug && !program) {
         setRows([]);
         setTotal(0);
+        setFuncHasMore(false);
         setFuncNote("");
         return;
       }
@@ -3613,6 +3737,7 @@
       if (seq !== funcSeqRef.current) return;
       setRows(data.results || []);
       setTotal(data.total || 0);
+      setFuncHasMore(data.hasMore === true);
       if (!data.ok && data.error) setFuncNote(humanError(data.error));
       else if (!(data.results || []).length) {
         setFuncNote(humanError(data.error) || (program
@@ -4044,7 +4169,6 @@
       };
       window.DashboardUI = window.AgentDecompileUI;
       loadBinaries();
-      loadCorpusStatus();
       loadContext();
       loadActions();
       loadBrowse("");
@@ -4218,14 +4342,40 @@
         return undefined;
       }
       let dead = false;
-      fetch(API.jobs + "/" + encodeURIComponent(selectedJobId), { cache: "no-store" })
-        .then(function (res) { return res.json(); })
-        .then(function (data) {
-          if (!dead) setJobDetail(data.job || null);
-        })
-        .catch(function () { if (!dead) setJobDetail(null); });
-      return function () { dead = true; };
-    }, [selectedJobId, jobs]);
+      let timer = null;
+      let requestTimeout = null;
+      let controller = null;
+      setJobDetail(null);
+      async function refreshJobDetail() {
+        controller = new AbortController();
+        requestTimeout = setTimeout(function () { controller.abort(); }, JOB_POLL_MS.timeout);
+        try {
+          const res = await fetch(API.jobs + "/" + encodeURIComponent(selectedJobId), {
+            cache: "no-store", signal: controller.signal
+          });
+          const data = await res.json();
+          if (dead) return;
+          const detail = data.job || null;
+          setJobDetail(detail);
+          if (detail && ["queued", "running", "cancelling"].indexOf(detail.status) >= 0) {
+            timer = setTimeout(refreshJobDetail, JOB_POLL_MS.detail);
+          }
+        } catch (_) {
+          if (dead) return;
+          timer = setTimeout(refreshJobDetail, JOB_POLL_MS.detail);
+        } finally {
+          clearTimeout(requestTimeout);
+          requestTimeout = null;
+        }
+      }
+      refreshJobDetail();
+      return function () {
+        dead = true;
+        clearTimeout(timer);
+        clearTimeout(requestTimeout);
+        if (controller) controller.abort();
+      };
+    }, [selectedJobId]);
 
     useEffect(function () {
       function onPaletteKey(ev) {
@@ -4333,10 +4483,20 @@
 
     useEffect(function () {
       let last = "";
+      let disposed = false;
+      let inFlight = false;
+      let controller = null;
       async function poll() {
+        if (disposed || inFlight) return;
+        inFlight = true;
+        controller = new AbortController();
+        const requestTimeout = setTimeout(function () {
+          if (controller) controller.abort();
+        }, JOB_POLL_MS.timeout);
         try {
-          const res = await fetch(API.jobs, { cache: "no-store" });
+          const res = await fetch(API.jobs, { cache: "no-store", signal: controller.signal });
           const data = await res.json();
+          if (disposed) return;
           const list = data.jobs || [];
           const note = jobsSnapshotRef.current === null ? "" : jobLiveAnnouncement(jobsSnapshotRef.current, list);
           jobsSnapshotRef.current = list;
@@ -4345,23 +4505,44 @@
             showToast(note, /failed|cancelled/.test(note) ? "error" : "info");
           }
           setJobs(list);
+          const managed = list.filter(function (job) { return job.external !== true; });
+          const live = managed.find(function (job) { return job.status === "running"; })
+            || managed.find(function (job) { return job.status === "queued"; });
+          if (live) {
+            setSelectedJobId(function (current) {
+              return current && list.some(function (job) { return job.id === current; }) ? current : live.id;
+            });
+          }
           const sig = list.map(function (job) { return job.id + job.status + job.returncode; }).join("|");
           if (sig !== last) {
             last = sig;
             loadBinaries();
             loadFuncs();
           }
-          const live = list.find(function (job) { return job.status === "running"; });
-          if (live) {
-            const detailRes = await fetch(API.jobs + "/" + live.id, { cache: "no-store" });
+          const liveDetailJob = live && /analyze|decompile|match-function|export-c|one-shot|recover/.test(String(live.actionId || ""))
+            && String(live.actionId || "").indexOf("add-binary") < 0 ? live : null;
+          if (liveDetailJob) {
+            const detailRes = await fetch(API.jobs + "/" + liveDetailJob.id, {
+              cache: "no-store", signal: controller.signal
+            });
             const body = await detailRes.json();
+            if (disposed) return;
             if (body.job) setReaction({ id: body.job.actionId || live.id, data: body });
           }
         } catch (_err) { /* keep last frame */ }
+        finally {
+          clearTimeout(requestTimeout);
+          inFlight = false;
+          controller = null;
+        }
       }
       poll();
-      const timer = setInterval(poll, 1500);
-      return function () { clearInterval(timer); };
+      const timer = setInterval(poll, JOB_POLL_MS.list);
+      return function () {
+        disposed = true;
+        clearInterval(timer);
+        if (controller) controller.abort();
+      };
     }, [loadBinaries, loadFuncs]);
 
     async function registerLocator(locator, extraSlug, options) {
@@ -5354,7 +5535,13 @@
     function runFromActionStrip() {
       const act = actions.find(function (item) { return item.id === pendingActionId; });
       if (!act) return;
-      const params = readActionParams(actionFormRef.current, act, toolContext);
+      let params;
+      try {
+        params = readActionParams(actionFormRef.current, act, toolContext);
+      } catch (err) {
+        showToast(String((err && err.message) || err), "error");
+        return;
+      }
       executeAction(pendingActionId, params, { danger: act.danger, mutating: act.mutating });
     }
 
@@ -5861,7 +6048,7 @@
 
     function renderEditorBody() {
       const tab = centerTab || "decompile";
-      const recoveryRun = selectPreparationRun(preparationRuns, currentLocator(), program, slug);
+      const recoveryRun = selectPreparationRun(preparationRuns, currentLocator(), program, slug, envDefaults.db);
       if (tab === "graph") {
         return html`<${Surface} id="wb-graph" title="Call trees">
           <p className="wb-hint">Incoming and outgoing calls for this function. This is not Ghidra Function Graph.</p>
@@ -6184,6 +6371,7 @@
       if (tab === "wb-fnbrowse") {
         return html`<${Surface} id="wb-fnbrowse" title="Functions" actions=${html`<div className="wb-surface-actions">
           <${FuncPager} limit=${funcLimit} shown=${rows.length} total=${total}
+            hasMore=${funcHasMore}
             onLimit=${function (n) { setFuncLimit(n); setFuncOffset(0); }} />
           <button type="button" className="wb-btn wb-btn-mini"
             onClick=${function () { loadFuncs(slug, query); showToast("Function list reloaded", "success"); }}>Refresh</button>
@@ -6203,6 +6391,7 @@
           ${rows.length ? html`<table id="wb-fnbrowse-table" className="wb-fnb-table">
             <thead>
               <tr>
+                <th scope="col">Select</th>
                 <th scope="col">Name</th>
                 <th scope="col">Location</th>
                 <th scope="col">Function Signature</th>
@@ -6212,13 +6401,18 @@
             <tbody>
               ${rows.map(function (row) {
                 const on = selected && selected.addr === row.addr;
-                return html`<tr key=${row.addr} className=${on ? "on" : ""}
+                const checked = checkedAddrs.indexOf(row.addr) >= 0;
+                return html`<tr key=${row.addr} className=${(on ? "on" : "") + (checked ? " checked" : "")}
                   onContextMenu=${function (ev) {
                     if (!on) selectRow(row);
                     openCtx(ev, functionCtxItems(row));
                   }}
                   onClick=${function () { selectRow(row); }}
                   onDoubleClick=${function () { selectRow(row); jumpTo("decompile"); }}>
+                  <td><input type="checkbox" checked=${checked}
+                    aria-label=${"Select " + (row.name || row.addr)}
+                    onClick=${function (ev) { onFuncCheck(ev, row); }}
+                    onChange=${function () { /* controlled by onClick */ }} /></td>
                   <td>${row.name}</td>
                   <td><code>${row.addr}</code></td>
                   <td className="wb-sig">${row.signature || "—"}</td>
@@ -6239,6 +6433,7 @@
           </div>`}
           ${rows.length ? html`<${FuncPager} limit=${funcLimit} shown=${rows.length}
             total=${total}
+            hasMore=${funcHasMore}
             onLimit=${function (n) { setFuncLimit(n); setFuncOffset(0); }} />` : null}
         </${Surface}>`;
       }
@@ -6786,7 +6981,7 @@
             ].map(decorateCommandItem);
             openCtx(ev, items);
           }}>
-          <div id="wb-sources" className="wb-sidebar-section" style=${{ flex: "0 0 " + explorerH + "px", height: explorerH + "px" }}>
+          <div id="wb-sources" className="wb-sidebar-section" style=${{ flex: "1 1 auto", height: "auto", minHeight: 0, overflow: "auto" }}>
             <header className="wb-sidebar-head">
               <h3>Explorer</h3>
               <button type="button" className="wb-text-action" data-cmd="file.add-binaries"
@@ -6849,53 +7044,6 @@
               ${!projectCard ? html`<li className="wb-empty">This tab is the project. File → Open a .gpr, a repos folder, or a ghidra:// URL.</li>` : null}
             </ul>
           </div>
-          <${SplitHandle} axis="y" label="Resize explorer"
-            onDrag=${function (ev) { beginResize(ev, explorerH, setExplorerH, "wb-explorer-h", "y", 80, 720, false); }} />
-          <div id="wb-functions" className="wb-sidebar-section">
-            <h3>Functions ${total ? "(" + total + ")" : ""} ${checkedAddrs.length ? html`<span className="wb-sel-chip">${checkedAddrs.length} selected <button type="button" className="wb-sel-clear" aria-label="Clear function selection" onClick=${function () { setCheckedAddrs([]); setCheckAnchor(""); }}>×</button></span>` : null}</h3>
-            <span id="wb-func-meta" className="sr-only">${total || 0} functions${checkedAddrs.length ? ", " + checkedAddrs.length + " selected" : ""}</span>
-            ${html`<${FuncPager} compact=${true}
-              limit=${funcLimit} shown=${rows.length} total=${total}
-              onLimit=${function (n) { setFuncLimit(n); setFuncOffset(0); }} />`}
-            <div id="wb-func-window" className="wb-func-window" tabindex="0"
-              onContextMenu=${function (ev) {
-                openCtx(ev, [
-                  { title: checkedAddrs.length
-                      ? "Clear " + checkedAddrs.length + " selected"
-                      : "Nothing selected",
-                    danger: Boolean(checkedAddrs.length),
-                    run: function () { setCheckedAddrs([]); setCheckAnchor(""); } },
-                  "—",
-                  { id: "run.last" },
-                  { id: "run.cross-place" },
-                  "—",
-                  { id: "view.listing" },
-                  { id: "view.graph" }
-                ].map(decorateCommandItem));
-              }}>
-              ${rows.map(function (row) {
-                const on = selected && selected.addr === row.addr ? " on" : "";
-                const checked = checkedAddrs.indexOf(row.addr) >= 0;
-                return html`<div key=${row.addr} className=${"wb-func-row" + on + (checked ? " checked" : "")}
-                  onContextMenu=${function (ev) {
-                    if (!selected || selected.addr !== row.addr) selectRow(row);
-                    openCtx(ev, functionCtxItems(row));
-                  }}
-                  onClick=${function (ev) { onFuncRowClick(ev, row); }}>
-                  <input type="checkbox" className="wb-func-check" checked=${checked}
-                    aria-label=${"Select " + (row.name || row.addr)}
-                    onClick=${function (ev) { onFuncCheck(ev, row); }}
-                    onChange=${function () { /* controlled by onClick */ }} />
-                  <code title=${row.addr}>${row.addr}</code><span title=${row.name || ""}>${row.name}</span>
-                </div>`;
-              })}
-              ${!rows.length ? html`<p className="wb-hint">${funcNote || "Select a program to list functions."}</p>` : null}
-            </div>
-            <p className="wb-sidebar-foot">
-              <button type="button" className="wb-text-action" data-cmd="view.browse"
-                onClick=${function () { runCommand("view.browse"); }}>Browse all functions</button>
-            </p>
-          </div>
         </aside>
         <${SplitHandle} axis="x" label="Resize explorer"
           onDrag=${function (ev) { beginResize(ev, sideW, setSideW, "wb-side-w", "x", 180, 900, false); }} />
@@ -6942,6 +7090,8 @@
         onSelectJob=${selectJobInDock}
         onCancel=${cancelJob}
         actions=${actions}
+        showAllJobs=${showAllJobs}
+        onShowAllJobs=${setShowAllJobs}
         height=${logH}
         onResize=${function (ev) { beginResize(ev, logH, setLogH, "wb-log-h", "y", 72, 640, true); }} />
         <input id="wb-bin-slug" type="hidden" value=${newSlug} />

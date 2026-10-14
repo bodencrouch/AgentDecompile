@@ -22,8 +22,6 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 from urllib.parse import urlparse, urlunparse
 
-from mcp import types
-
 from agentdecompile_cli.app_logger import norm_arg_keys
 from agentdecompile_cli.registry import (
     Tool,
@@ -35,6 +33,8 @@ from agentdecompile_cli.registry import (
 )
 
 if TYPE_CHECKING:
+    from mcp import types
+
     from agentdecompile_cli.registry import (
         ToolRegistry,
     )
@@ -59,6 +59,8 @@ _EXECUTOR_PARAM_ALIASES: dict[str, tuple[str, ...]] = {
 def create_success_response(data: dict[str, Any]) -> list[types.TextContent]:
     """Create a standardized MCP success response (single TextContent with JSON body)."""
     logger.debug("diag.enter %s", "executor.py:create_success_response")
+    from mcp import types  # noqa: PLC0415 - lazy: importing mcp costs ~0.7 s
+
     return [types.TextContent(type="text", text=_json.dumps(data))]
 
 
@@ -66,6 +68,8 @@ def create_error_response(error: str | Exception) -> list[types.TextContent]:
     """Create a standardized MCP error response."""
     logger.debug("diag.enter %s", "executor.py:create_error_response")
     error_msg = str(error) if isinstance(error, Exception) else error
+    from mcp import types  # noqa: PLC0415
+
     return [types.TextContent(type="text", text=_json.dumps({"success": False, "error": error_msg}))]
 
 

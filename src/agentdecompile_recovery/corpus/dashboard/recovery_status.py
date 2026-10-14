@@ -43,9 +43,23 @@ def _scope(con: sqlite3.Connection, tables: set[str], locator: str, slug: str, p
         ids = {row[0] for row in con.execute('SELECT id FROM binary')}
     elif locator:
         if 'program_binding' in tables:
-            for row in con.execute('SELECT b.id,p.program FROM program_binding p JOIN binary b ON b.repo_path=p.source_path WHERE rtrim(p.locator,\'/\')=?', (locator,)):
-                if not program or _program(row['program']) == _program(program):
-                    ids.add(row['id'])
+            bound_rows = list(con.execute(
+                'SELECT b.id,p.program FROM program_binding p JOIN binary b ON b.repo_path=p.source_path WHERE rtrim(p.locator,\'/\')=?',
+                (locator,),
+            ))
+            exact = [row for row in bound_rows if not program or _program(row['program']) == _program(program)]
+            if exact:
+                ids.update(row['id'] for row in exact)
+            elif program and '/' not in _program(program) and '\\' not in str(program):
+                # The UI often displays a project item's basename. Resolve it
+                # only when that basename names one corpus binary in this
+                # exact project; never guess across same-named variants.
+                basename = str(program).rstrip('/').rsplit('/', 1)[-1].casefold()
+                matches = [row for row in bound_rows
+                           if str(row['program']).replace('\\', '/').rstrip('/').rsplit('/', 1)[-1].casefold() == basename]
+                match_ids = {row['id'] for row in matches}
+                if len(match_ids) == 1:
+                    ids.update(match_ids)
         for run in runs:
             for key, checkpoint in (run.get('checkpoints') or {}).items():
                 if program and _program(key) != _program(program):

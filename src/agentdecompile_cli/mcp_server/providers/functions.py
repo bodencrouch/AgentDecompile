@@ -53,7 +53,7 @@ class FunctionToolProvider(ToolProvider):
         return [
             types.Tool(
                 name="list-functions",
-                description="List functions in the current program with optional filtering and pagination.",
+                description="List existing functions and undefined candidates without starting auto-analysis. Results may be incomplete before analyze-program runs; zero matches do not prove absence.",
                 inputSchema={
                     "type": "object",
                     "properties": {
@@ -108,6 +108,16 @@ class FunctionToolProvider(ToolProvider):
         ]
 
     async def _handle_list(self, args: dict[str, Any], *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
+        response = await self._list_existing_functions(args, program_info=program_info)
+        payload = self._response_to_payload(response)
+        payload.update(
+            inventoryScope="existing-listing",
+            analysisTriggered=False,
+            note="This request reads the existing listing without running analysis. Function discovery may be incomplete; zero matches do not prove absence. Run analyze-program explicitly when discovery is required.",
+        )
+        return create_success_response(payload)
+
+    async def _list_existing_functions(self, args: dict[str, Any], *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
         """List functions in the current program, with optional filtering and pagination.
 
         Iterates through all functions in the active program, optionally filtering by regex
@@ -136,6 +146,10 @@ class FunctionToolProvider(ToolProvider):
         """
         logger.debug("diag.enter %s", "mcp_server/providers/functions.py:FunctionToolProvider._handle_list")
         self._require_program(program_info=program_info)
+        mode = self._get_str(args, "mode", default="all").strip().lower()
+        query = self._get_str(args, "query", "searchstring").strip()
+        if mode == "search" and not query:
+            raise ValueError("list-functions mode=search requires query (or searchString)")
         pattern = self._get_str(args, "namepattern", "pattern", "filter", "regex")
         include_ext = self._get_bool(args, "includeexternals", "externals", default=True)
         offset, max_results = self._get_pagination_params(args, default_limit=100)
@@ -161,7 +175,24 @@ class FunctionToolProvider(ToolProvider):
         if lower is not None and upper is not None and lower.compareTo(upper) > 0:
             raise ValueError("addressMin cannot exceed addressMax")
 
+        query_lower = query.lower()
+        looks_like_address = bool(re.fullmatch(r"(0x)?[0-9a-f]+", query_lower)) and (
+            query_lower.startswith("0x") or any(ch.isdigit() for ch in query_lower) or len(query_lower) >= 6
+        )
+        query_addr = query_lower.removeprefix("0x") if looks_like_address else ""
+        try:
+            query_regex = re.compile(query, re.IGNORECASE) if query else None
+        except re.error:
+            query_regex = None
+
         def matches(row):
+            name = str(row.get("name", ""))
+            if query and not (
+                query_lower in name.lower()
+                or (query_regex and query_regex.search(name))
+                or (query_addr and query_addr in str(row.get("address", "")).lower().removeprefix("0x"))
+            ):
+                return False
             if convention and row.get("callingConvention") != convention:
                 return False
             if "inline" in args and row.get("isInline", False) != self._get_bool(args, "inline"):
@@ -198,7 +229,8 @@ class FunctionToolProvider(ToolProvider):
         ]
 
         paginated, has_more = self._paginate_results(all_matching, offset, max_results)
-        return self._create_paginated_response(paginated, offset, max_results, total=len(all_matching), mode="list")
+        extra = {"query": query} if query else {}
+        return self._create_paginated_response(paginated, offset, max_results, total=len(all_matching), mode="search" if mode == "search" else "list", **extra)
 
     @staticmethod
     def _response_to_payload(response: list[types.TextContent]) -> dict[str, Any]:

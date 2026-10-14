@@ -125,7 +125,15 @@ def react_index_response(*, fallback_url: str = "/dashboard?mode=static") -> Res
             status_code=503,
             fallback_url=fallback_url,
         )
-    return FileResponse(entry, headers=SECURITY_HEADERS)
+    headers = {
+        **SECURITY_HEADERS,
+        "Content-Security-Policy": SECURITY_HEADERS["Content-Security-Policy"].replace(
+            "style-src 'self' 'unsafe-inline';",
+            "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+            "font-src 'self' https://fonts.gstatic.com data:;",
+        ),
+    }
+    return FileResponse(entry, headers=headers)
 
 
 def _static_fallback_url(request: Request) -> str:

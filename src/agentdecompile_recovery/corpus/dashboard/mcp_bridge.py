@@ -459,7 +459,7 @@ def ensure_program(
     key = f"{loc}\0{path or name}"
     with _LOCK:
         cached = _OPENED.get(key)
-    if cached == "ready" and not exclusive:
+    if cached == "ready" and not exclusive and not require_live:
         if not include_inventory:
             return {
                 "ok": True,
@@ -589,12 +589,41 @@ def ensure_program(
 
 
 def _apply_server_auth(args: dict[str, Any]) -> None:
-    user = (os.environ.get("AGENT_DECOMPILE_GHIDRA_SERVER_USERNAME") or "").strip()
+    # Prefer the shared-server profile already owned by the selected corpus
+    # configuration. The dashboard and CLI must use the same Ghidra auth
+    # mechanism; key-auth servers do not have a password to recover.
+    try:
+        from agentdecompile_recovery.corpus.corpus_config import load_ghidra_server
+
+        shared = load_ghidra_server()
+    except Exception:
+        shared = {}
+    user = (
+        os.environ.get("AGENT_DECOMPILE_GHIDRA_SERVER_USERNAME")
+        or os.environ.get("AGENT_DECOMPILE_GHIDRA_SERVER_USER")
+        or shared.get("username")
+        or ""
+    ).strip()
     password = (os.environ.get("AGENT_DECOMPILE_GHIDRA_SERVER_PASSWORD") or "").strip()
+    keyfile = (
+        os.environ.get("AGENT_DECOMPILE_GHIDRA_SERVER_KEYFILE")
+        or os.environ.get("AGENTDECOMPILE_GHIDRA_SERVER_KEYFILE")
+        or shared.get("ssh_key")
+        or ""
+    ).strip()
     if user:
-        args.setdefault("server_username", user)
+        # MCP tool schemas use camelCase names. Snake-case values are silently
+        # ignored by the schema validator, leaving the provider without a
+        # username and making its configured SSH key look like no auth.
+        args.setdefault("serverUsername", user)
     if password:
-        args.setdefault("server_password", password)
+        args.setdefault("serverPassword", password)
+    if keyfile:
+        from pathlib import Path
+
+        path = Path(keyfile).expanduser()
+        if path.is_file():
+            os.environ.setdefault("AGENT_DECOMPILE_GHIDRA_SERVER_KEYFILE", str(path.resolve()))
 
 
 def _ensure_initialized(*, timeout: float) -> None:

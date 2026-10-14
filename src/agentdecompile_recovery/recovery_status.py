@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import os
+
 from pathlib import Path
 from typing import Any
 
@@ -25,6 +27,268 @@ def _queue_counts(queue: dict[str, Any] | None) -> dict[str, int] | None:
         value = queue.get(key)
         counts[key] = len(value) if isinstance(value, list) else 0
     return counts
+
+
+_UNITY_RECEIPTS: dict[str, tuple[str, str, tuple[str, ...]]] = {
+    "probe": (
+        "unity-probe",
+        "probe.json",
+        ("detected", "unityVersion", "scriptingBackend", "sceneCount", "managedAssemblyCount", "dataDir", "claimBoundary"),
+    ),
+    "plan": ("unity-plan", "plan.json", ("blockedReason", "claimBoundary")),
+    "export": (
+        "unity-export-assets",
+        "assetripper.json",
+        ("mode", "exportedProject", "hasProjectVersion", "memoryFailureSuspected", "stagedContainerCount", "reason", "claimBoundary"),
+    ),
+    "managed": (
+        "unity-decompile-managed",
+        "managed.json",
+        ("requested", "decompiled", "failed", "totalFileCount", "strippedCount", "outDir", "claimBoundary"),
+    ),
+    "compose": (
+        "unity-compose-project",
+        "compose.json",
+        ("exportedProject", "targetProject", "totalFilesCopied", "openable", "warnings", "claimBoundary"),
+    ),
+    "editorValidation": (
+        "unity-editor-validate",
+        "validate.json",
+        ("projectPath", "clean", "validatorRan", "returnCode", "timedOut", "scenes", "claimBoundary"),
+    ),
+    "repair": (
+        "unity-repair",
+        "repair.json",
+        ("projectPath", "disposition", "attemptCount", "finalErrorCount", "unfixedErrorCount", "unimplementedRecipeCounts", "unverifiedRepairs", "claimBoundary"),
+    ),
+}
+_UNITY_REQUIRED_STAGES = tuple(_UNITY_RECEIPTS)
+_UNITY_FAILURE_STATUSES = frozenset({"error", "failed", "timeout", "refused"})
+
+
+def _path_string(value: Any) -> str | None:
+    if value in (None, ""):
+        return None
+    try:
+        return os.path.abspath(os.path.expanduser(str(value)))
+    except (OSError, TypeError, ValueError):
+        return str(value)
+
+
+def build_unity_recovery_summary(
+    work_dir: Path,
+    *,
+    project_path: Path | str | None = None,
+    requested: bool | None = None,
+) -> dict[str, Any]:
+    """Build a read-only Unity receipt summary and configured-run outcome.
+
+    A Unity project is an explicit deliverable only when ``project_path`` was
+    configured. In that case skipped/missing stages on a detected Unity target
+    are incomplete, while a confirmed non-Unity target remains benign.
+    """
+
+    work_dir = work_dir.resolve()
+    unity_dir = work_dir / "unity"
+    state = _load_json(work_dir / "state.json") or {}
+    report = _load_json(work_dir / "report.json") or {}
+    state_stages = state.get("stages") if isinstance(state.get("stages"), dict) else {}
+
+    settings: dict[str, Any] = {}
+    has_current_settings = False
+    for stage_name, _receipt_name, _fields in _UNITY_RECEIPTS.values():
+        stage_state = state_stages.get(stage_name) if isinstance(state_stages, dict) else None
+        config = stage_state.get("config") if isinstance(stage_state, dict) else None
+        candidate = config.get("unitySettings") if isinstance(config, dict) else None
+        if isinstance(candidate, dict):
+            settings = candidate
+            has_current_settings = True
+            break
+
+    if project_path is None:
+        project_path = settings.get("projectOut")
+    old_summary = report.get("unity") if isinstance(report.get("unity"), dict) else {}
+    if project_path is None and not has_current_settings:
+        project_path = old_summary.get("projectPath")
+    resolved_project = _path_string(project_path)
+    if requested is None:
+        if has_current_settings:
+            requested = bool(settings.get("projectOut"))
+        else:
+            requested = bool(resolved_project or old_summary.get("requested"))
+
+    receipts: dict[str, dict[str, Any]] = {}
+    for key, (stage_name, filename, fields) in _UNITY_RECEIPTS.items():
+        path = unity_dir / filename
+        receipt = _load_json(path) or {}
+        stage_state = state_stages.get(stage_name) if isinstance(state_stages, dict) else None
+        state_status = stage_state.get("status") if isinstance(stage_state, dict) else None
+        summary = stage_state.get("summary") if isinstance(stage_state, dict) else None
+        status = receipt.get("status")
+        if status is None and isinstance(summary, dict):
+            status = summary.get("status")
+        if status is None:
+            status = state_status
+        item: dict[str, Any] = {
+            "status": status,
+            "present": path.is_file(),
+            "receiptPath": str(path),
+        }
+        reason = receipt.get("reason") or receipt.get("blockedReason")
+        if reason is None and isinstance(stage_state, dict):
+            reason = stage_state.get("reason") or (summary.get("reason") if isinstance(summary, dict) else None)
+        if reason is not None:
+            item["reason"] = reason
+        for field in fields:
+            if field in receipt:
+                item[field] = receipt[field]
+        if key == "plan":
+            export = receipt.get("export")
+            if isinstance(export, dict):
+                item["export"] = {
+                    "mode": export.get("mode"),
+                    "reason": export.get("reason"),
+                    "includedContainerCount": len(export.get("includedContainers") or []),
+                    "excludedContainers": export.get("excludedContainers") or [],
+                    "stagedBytes": export.get("stagedBytes"),
+                    "totalBytes": export.get("totalBytes"),
+                }
+            editor = receipt.get("editor")
+            if isinstance(editor, dict):
+                item["editor"] = {
+                    name: editor.get(name)
+                    for name in ("selectedVersion", "executable", "match", "versionDrift")
+                    if name in editor
+                }
+        if key == "editorValidation":
+            compile_result = receipt.get("compile")
+            if isinstance(compile_result, dict):
+                item["compile"] = {
+                    name: compile_result.get(name)
+                    for name in ("errorCount", "warningCount", "compilationFailed")
+                    if name in compile_result
+                }
+        if key == "repair":
+            final_validation = receipt.get("finalValidation")
+            if isinstance(final_validation, dict):
+                item["finalValidation"] = {
+                    name: final_validation.get(name)
+                    for name in ("status", "clean", "returnCode", "timedOut")
+                    if name in final_validation
+                }
+                final_compile = final_validation.get("compile")
+                if isinstance(final_compile, dict):
+                    item["finalValidation"]["compile"] = {
+                        name: final_compile.get(name)
+                        for name in ("errorCount", "warningCount", "compilationFailed")
+                        if name in final_compile
+                    }
+                final_scenes = final_validation.get("scenes")
+                if isinstance(final_scenes, dict):
+                    item["finalValidation"]["scenes"] = {
+                        name: final_scenes.get(name)
+                        for name in ("opened", "total", "missingScripts")
+                        if name in final_scenes
+                    }
+        if key == "managed":
+            item["decompiledCount"] = len(receipt.get("decompiled") or [])
+            item["failedCount"] = len(receipt.get("failed") or [])
+        receipts[key] = item
+
+    probe = receipts["probe"]
+    detected = probe.get("detected") if probe.get("present") else None
+    issues: list[dict[str, Any]] = []
+    terminal_status: str | None = None
+    exit_code = 0
+    if requested and detected is False and str(probe.get("status") or "").lower() in {"complete", "skipped"}:
+        outcome = "not-applicable"
+    elif requested and detected is False:
+        outcome = "failed"
+        terminal_status = "failed"
+        exit_code = 1
+        issues.append({"stage": "probe", "status": probe.get("status") or "unknown", "reason": "Unity probe failed before it could establish the target type"})
+    elif not requested:
+        outcome = "not-configured"
+    elif detected is not True:
+        outcome = "partial"
+        terminal_status = "partial"
+        exit_code = 1
+        issues.append({"stage": "probe", "status": probe.get("status") or "missing", "reason": "Unity detection did not produce a positive receipt"})
+    else:
+        failed = False
+        for key in _UNITY_REQUIRED_STAGES:
+            item = receipts[key]
+            status = str(item.get("status") or "missing").strip().lower()
+            repair_validation = receipts["repair"].get("finalValidation") or {}
+            repaired_cleanly = (
+                receipts["repair"].get("status") == "complete"
+                and isinstance(repair_validation, dict)
+                and repair_validation.get("clean") is True
+            )
+            if key == "repair" and status == "skipped" and receipts["editorValidation"].get("clean") is True:
+                continue
+            if key == "editorValidation" and repaired_cleanly:
+                # The first Editor pass is diagnostic; a successful repair
+                # receipt can supersede its compile errors with a clean final pass.
+                continue
+            if not item.get("present") and status not in _UNITY_FAILURE_STATUSES:
+                issues.append({"stage": key, "status": status, "reason": "receipt is missing"})
+                continue
+            if status == "complete":
+                if key == "plan" and (item.get("export") or {}).get("excludedContainers"):
+                    omissions = (item.get("export") or {}).get("excludedContainers")
+                    issues.append(
+                        {
+                            "stage": key,
+                            "status": status,
+                            "reason": "the export plan omits Unity containers",
+                            "omittedContainers": omissions,
+                        }
+                    )
+                elif key == "editorValidation" and item.get("clean") is not True:
+                    issues.append({"stage": key, "status": status, "reason": "Editor validation did not confirm a clean project"})
+                elif key == "export" and item.get("hasProjectVersion") is not True:
+                    issues.append({"stage": key, "status": status, "reason": "export lacks ProjectVersion.txt evidence"})
+                elif key == "compose" and (item.get("openable") or {}).get("ready") is not True:
+                    issues.append({"stage": key, "status": status, "reason": "composed project is missing openable-project markers"})
+                continue
+            issue = {"stage": key, "status": status, "reason": item.get("reason") or item.get("blockedReason") or "Unity stage did not complete"}
+            issues.append(issue)
+            if status in _UNITY_FAILURE_STATUSES:
+                failed = True
+        if failed:
+            outcome = "failed"
+            terminal_status = "failed"
+            exit_code = 1
+        elif issues:
+            outcome = "partial"
+            terminal_status = "partial"
+            exit_code = 1
+        else:
+            outcome = "complete"
+            terminal_status = "complete"
+
+    return {
+        "status": outcome,
+        "requested": bool(requested),
+        "configured": bool(resolved_project),
+        "detected": detected,
+        "terminalStatus": terminal_status,
+        "exitCode": exit_code,
+        "projectPath": resolved_project,
+        "managedSourcePath": str(unity_dir / "managed-csharp"),
+        "exportOmissions": (receipts["plan"].get("export") or {}).get("excludedContainers") or [],
+        "receipts": receipts,
+        "issues": issues,
+        "managedSourceBoundary": (
+            "decompiled C# is derived from shipped managed assemblies; it is not byte-verified native "
+            "C/C++ and does not establish recovery of the developers' original source"
+        ),
+        "nativeSourceBoundary": (
+            "native byte-verification claims remain separate and are reported only by the native "
+            "recovery proof receipts"
+        ),
+    }
 
 
 def build_recovery_status(work_dir: Path) -> dict[str, Any]:
@@ -76,6 +340,14 @@ def build_recovery_status(work_dir: Path) -> dict[str, Any]:
     if seeds is None and isinstance((acquire or {}).get("contextSeeds"), dict):
         seeds = acquire.get("contextSeeds")  # type: ignore[assignment]
 
+    report_data = report or {}
+    report_unity = report_data.get("unity") if isinstance(report_data.get("unity"), dict) else {}
+    unity = build_unity_recovery_summary(
+        work_dir,
+        project_path=report_unity.get("projectPath"),
+        requested=True if report_unity.get("requested") is True else None,
+    )
+
     terminal = None
     for source in (claim, analysis, state, report):
         if not source:
@@ -87,6 +359,19 @@ def build_recovery_status(work_dir: Path) -> dict[str, Any]:
                 break
         if terminal:
             break
+
+    # A configured Unity deliverable is part of the reconstruct outcome. Older
+    # claim reports may predate Unity receipts, so current receipt evidence wins
+    # when it shows a failed or incomplete configured Unity run.
+    unity_terminal = unity.get("terminalStatus")
+    terminal_rank = {"unknown": 0, "matched": 1, "complete": 1, "partial": 2, "failed": 3}
+    current_terminal = terminal or "unknown"
+    if (
+        unity_terminal in {"failed", "partial"}
+        and current_terminal not in {"blocked:toolchain", "cancelled"}
+        and terminal_rank.get(str(unity_terminal), 0) > terminal_rank.get(str(current_terminal), 0)
+    ):
+        terminal = str(unity_terminal)
 
     stage = None
     if state:
@@ -122,6 +407,7 @@ def build_recovery_status(work_dir: Path) -> dict[str, Any]:
         "stage": stage,
         "hasReport": report is not None,
         "hasClaimReport": claim is not None,
+        "unity": unity,
         "counts": {
             "verified": verified_count,
             "advisory": advisory_count,
@@ -374,6 +660,12 @@ def build_recovery_status(work_dir: Path) -> dict[str, Any]:
             "exportManifest": str(work_dir / "export" / "manifest.json")
             if (work_dir / "export" / "manifest.json").is_file()
             else None,
+            "unityProject": unity.get("projectPath"),
+            "unityReceipts": {
+                key: value.get("receiptPath")
+                for key, value in unity.get("receipts", {}).items()
+                if value.get("present")
+            },
             "verified": str(verified) if verified.is_dir() else None,
             "advisory": str(advisory) if advisory.is_dir() else None,
         },

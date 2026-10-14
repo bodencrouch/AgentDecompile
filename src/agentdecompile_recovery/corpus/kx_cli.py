@@ -70,6 +70,10 @@ def register(sub: argparse._SubParsersAction) -> None:
 
     harvest = sub.add_parser("harvest-shards", help="Collect permuter shard outputs into recovered tree")
     harvest.long_running = True
+    # Harvest writes recovered C, the coverage ledger, and the attempt ledger.
+    # Keep that side effect visible in the dashboard's generated action
+    # contract so it is never presented as a read-only operation.
+    harvest.danger = harvest.mutating = True
     harvest.add_argument("patterns", nargs="+")
     harvest.add_argument("--program", required=True)
     harvest.add_argument("--recovered-dir", type=Path, required=True)
@@ -77,6 +81,9 @@ def register(sub: argparse._SubParsersAction) -> None:
     harvest.add_argument("--attempts", type=Path, required=True)
     harvest.add_argument("--db", type=Path)
     harvest.add_argument("--binary-id", type=int)
+    harvest.add_argument("--near-miss-dir", type=Path,
+                         help="stage compiled nonzero-diff C separately for later verification")
+    harvest.add_argument("--near-miss-max-diff", type=int, default=1)
     harvest.add_argument("--dry-run", action="store_true")
 
     legacy = sub.add_parser("verify-legacy-recovered", help="Verify legacy recovered projects byte-for-byte")
@@ -395,10 +402,15 @@ def dispatch(args: argparse.Namespace) -> int | None:
                     if program is None:
                         meta.append({"repo_path": repo_path, "skipped": "no-program"})
                         continue
-                    meta.extend(eb.export(program, dest))
+                    # This legacy command intentionally refreshes exports; the
+                    # standalone extraction front door remains no-clobber.
+                    meta.extend(eb.export(program, dest, overwrite=True))
             except Exception as exc:
                 meta.append({"repo_path": repo_path, "error": str(exc)})
         manifest = args.out_dir / "_manifest.json"
+        if any("error" in row or "skipped" in row for row in meta):
+            print(json.dumps({"success": False, "manifestPreserved": str(manifest), "entries": meta}, indent=2))
+            return 1
         manifest.write_text(json.dumps(meta, indent=1), encoding="utf-8")
         print(json.dumps({"manifest": str(manifest), "entries": len(meta)}, indent=2))
         return 0

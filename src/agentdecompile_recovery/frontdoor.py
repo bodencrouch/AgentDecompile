@@ -49,6 +49,12 @@ LEGACY_COMMANDS = {
 UPSTREAM_COMMANDS = {"run", "atlas", "index-codebase"}
 
 
+def frontdoor_unity_config_kwargs(args: argparse.Namespace) -> dict[str, Any]:
+    """Map all Unity options supported by the recovery front door."""
+
+    return unity_config_kwargs(args)
+
+
 def repo_root() -> Path:
     return Path(__file__).resolve().parents[2]
 
@@ -423,6 +429,11 @@ def parse_csv_string(value: str | None) -> tuple[str, ...]:
 
 
 def run_one_shot(args: argparse.Namespace) -> int:
+    try:
+        unity_options = frontdoor_unity_config_kwargs(args)
+    except ValueError as exc:
+        print(f"agentdecompile-reconstruct: {exc}", file=sys.stderr)
+        return 2
     if args.force:
         args.resume = False
     if getattr(args, "vc_root", None) and not getattr(args, "source_synthesis_vc_root", None):
@@ -455,6 +466,13 @@ def run_one_shot(args: argparse.Namespace) -> int:
     args.context = context_paths
 
     project = getattr(args, "project", None)
+    unity_only = bool(getattr(args, "unity_only", False))
+    if unity_only and (context_paths or project is not None):
+        print(
+            "agentdecompile-reconstruct: --unity-only cannot be combined with Ghidra/context inputs",
+            file=sys.stderr,
+        )
+        return 2
     if project is not None:
         from .ghidra_context import project_input_error
 
@@ -589,7 +607,7 @@ def run_one_shot(args: argparse.Namespace) -> int:
         skip_enrichment=bool(args.skip_enrichment),
         project=project,
         project_program=getattr(args, "project_program", None),
-        **unity_config_kwargs(args),
+        **unity_options,
     )
     rc = RecoveryRunner(config).run()
     write_critical_path(work_dir)
@@ -608,12 +626,18 @@ def run_one_shot(args: argparse.Namespace) -> int:
     if terminal != "blocked:toolchain" and state_path.exists():
         try:
             state = json.loads(state_path.read_text(encoding="utf-8"))
-            if state.get("terminalStatus") == "blocked:toolchain" or state.get("status") == "blocked:toolchain":
+            state_terminal = str(state.get("terminalStatus") or state.get("status") or "")
+            if state_terminal == "blocked:toolchain":
                 terminal = "blocked:toolchain"
+            elif rc != 0 and state_terminal in {"partial", "failed"}:
+                # A configured Unity deliverable may complete the runner's
+                # orchestration loop while remaining partial. Keep that honest
+                # terminal state (and its nonzero exit) in the CLI claim.
+                terminal = state_terminal
         except (OSError, json.JSONDecodeError, TypeError, ValueError):
             # Best-effort status enrichment; keep orchestration outcome if parse fails.
             pass
-    if report_path.exists() or terminal == "blocked:toolchain":
+    if report_path.exists() or terminal in {"blocked:toolchain", "partial", "failed"}:
         if rc == 0 and (work_dir / "source-synthesis" / "summary.json").exists():
             try:
                 synth = json.loads((work_dir / "source-synthesis" / "summary.json").read_text(encoding="utf-8"))

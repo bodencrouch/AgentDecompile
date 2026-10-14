@@ -4,11 +4,12 @@ from __future__ import annotations
 
 import hashlib
 import json
-import signal
 import shutil
+import signal
 import subprocess
 import sys
 import time
+
 from contextlib import redirect_stdout
 from dataclasses import dataclass
 from io import StringIO
@@ -19,20 +20,20 @@ from . import acquisition_registry
 from .acquisition_bundle import load_bundle, validate_bundle_target
 from .context_export import ExportConfig, export_context
 from .context_pack import build_context_pack
+from .critical_path import write_critical_path
 from .export_package import build_export_package
 from .functions import analyze_function_candidates_with_objdump, discover_function_candidates, write_function_candidates
 from .inventory import build_binary_inventory, write_inventory
-from .critical_path import write_critical_path
+from .languages import RecoveryLanguageProfile
 from .proof_ladder import write_proof_ladder
-from .sourcegen import generate_source_candidates
+from .snapshot import snapshot_existing_recovery
 from .source_export import export_recovered_source
 from .source_parity_synthesize import main as source_parity_synthesize_main
 from .source_plugin_runner import SourcePluginRunConfig, run_source_plugin_pipeline
+from .sourcegen import generate_source_candidates
 from .state import RunState, atomic_write_json, config_fingerprint, now
 from .strategy import build_strategy
-from .snapshot import snapshot_existing_recovery
 from .targets import TargetIdentity, identify_binary
-from .languages import RecoveryLanguageProfile
 from .tools import (
     ASSETRIPPER_ENV,
     ILSPYCMD_ENV,
@@ -47,7 +48,6 @@ from .tools import (
     run_steamless,
 )
 
-
 ROOT = Path(__file__).resolve().parents[2]
 
 # Stages that consume acquisition / context-pack facts. Early inventory stages must
@@ -60,6 +60,19 @@ ACQUISITION_SENSITIVE_STAGES = frozenset(
         "report",
     }
 )
+
+UNITY_STAGE_NAMES = frozenset(
+    {
+        "unity-probe",
+        "unity-plan",
+        "unity-export-assets",
+        "unity-decompile-managed",
+        "unity-compose-project",
+        "unity-editor-validate",
+        "unity-repair",
+    }
+)
+UNITY_FINGERPRINT_STAGES = UNITY_STAGE_NAMES | {"report"}
 
 
 @dataclass(frozen=True)
@@ -126,6 +139,12 @@ class RecoveryConfig:
     unity_repair_attempts: int = 3
     unity_editor_timeout: int = 3600
     unity_assetripper_cli: Path | None = None
+    unity_assetripper_remote_host: str | None = None
+    unity_assetripper_remote_root: str | None = None
+    unity_assetripper_remote_input: str | None = None
+    unity_assetripper_remote_port: int = 18085
+    unity_assetripper_ssh_host_key_alias: str | None = None
+    unity_only: bool = False
     unity_ilspycmd: Path | None = None
     unity_install_mcp_bridge: bool = False
 
@@ -175,6 +194,11 @@ class RecoveryRunner:
         signal.signal(signal.SIGTERM, self._cancel)
         self.run_dir.mkdir(parents=True, exist_ok=True)
         selected = self.selected_stages()
+        # Terminal data belongs to this invocation. In particular, a resumed
+        # successful run must not inherit a previous Unity partial/failure claim.
+        self.state.data.pop("terminalStatus", None)
+        self.state.data.pop("unity", None)
+        self.state.save()
         stage_timings: list[dict[str, Any]] = []
         for index, stage in enumerate(self.stages, start=1):
             if stage.name not in selected:
@@ -252,7 +276,7 @@ class RecoveryRunner:
             duration = round(time.monotonic() - started, 3)
             receipt.update(
                 {
-                    "status": "complete",
+                    "status": self.stage_result_status(stage, summary),
                     "completedAt": now(),
                     "durationSeconds": duration,
                     "outputs": [str(path) for path in stage.outputs],
@@ -262,15 +286,64 @@ class RecoveryRunner:
                 }
             )
             self.state.save()
-            self.state.event("stage-complete", stage=stage.name, summary=summary)
-            stage_timings.append({"stage": stage.name, "status": "complete", "durationSeconds": duration})
+            result_status = receipt["status"]
+            self.state.event(
+                "stage-complete" if result_status == "complete" else "stage-outcome",
+                stage=stage.name,
+                status=result_status,
+                summary=summary,
+            )
+            stage_timings.append({"stage": stage.name, "status": result_status, "durationSeconds": duration})
             print(
                 f"stage-timing: {stage.name} {duration}s",
                 file=sys.stderr,
                 flush=True,
             )
         self._write_stage_timings(stage_timings)
+        unity_selected = bool(selected.intersection(UNITY_STAGE_NAMES))
+        if self.config.unity_project_out is not None and unity_selected:
+            from .recovery_status import build_unity_recovery_summary
+
+            unity = build_unity_recovery_summary(
+                self.run_dir,
+                project_path=self.config.unity_project_out,
+                requested=True,
+            )
+            atomic_write_json(self._unity_dir() / "summary.json", unity)
+            unity_terminal = unity.get("terminalStatus")
+            if unity_terminal in {"partial", "failed"}:
+                self.state.data["status"] = unity_terminal
+                self.state.data["terminalStatus"] = unity_terminal
+                self.state.data["unity"] = unity
+                report_path = self.run_dir / "report.json"
+                if "report" in selected and report_path.is_file():
+                    try:
+                        report = json.loads(report_path.read_text(encoding="utf-8"))
+                    except (OSError, json.JSONDecodeError, TypeError, ValueError):
+                        report = None
+                    if isinstance(report, dict):
+                        report["unity"] = unity
+                        atomic_write_json(report_path, report)
+                self.state.save()
+                return int(unity.get("exitCode") or 1)
+            if unity_terminal == "complete":
+                self.state.data["status"] = "complete"
+                self.state.data["terminalStatus"] = "complete"
+                self.state.data["unity"] = unity
+                self.state.save()
         return 0
+
+    @staticmethod
+    def stage_result_status(stage: Stage, summary: dict[str, Any]) -> str:
+        """Preserve a Unity receipt's outcome so failed work cannot resume as complete."""
+
+        if stage.name not in UNITY_STAGE_NAMES:
+            return "complete"
+        status = summary.get("status")
+        if not isinstance(status, str) or not status.strip():
+            return "unknown"
+        normalized = status.strip().lower()
+        return "complete" if normalized in {"complete", "completed"} else normalized
 
     def _write_stage_timings(self, rows: list[dict[str, Any]]) -> None:
         payload = {
@@ -283,6 +356,18 @@ class RecoveryRunner:
 
     def selected_stages(self) -> set[str]:
         names = [stage.name for stage in self.stages]
+        if self.config.unity_only:
+            if self.config.unity_project_out is None:
+                raise SystemExit("--unity-only requires --unity-project-out <dir>")
+            unity_names = [name for name in names if name in UNITY_STAGE_NAMES]
+            if self.config.stop_after is not None:
+                if self.config.stop_after not in unity_names:
+                    raise SystemExit(
+                        "--unity-only --stop-after must name a Unity stage; choices: "
+                        + ", ".join(unity_names)
+                    )
+                return set(unity_names[: unity_names.index(self.config.stop_after) + 1])
+            return set(unity_names)
         if self.config.stop_after is None:
             return set(names)
         if self.config.stop_after not in names:
@@ -351,6 +436,40 @@ class RecoveryRunner:
             "stageTimeout": self.config.stage_timeout,
             "stage": stage.name,
         }
+        if stage.name in UNITY_FINGERPRINT_STAGES:
+            ssh_setting = self.config.unity_assetripper_ssh_host_key_alias
+            ssh_jump_host = None
+            ssh_host_key_alias = ssh_setting
+            if ssh_setting and ssh_setting.startswith("ssh-jump::"):
+                jump_and_alias = ssh_setting.removeprefix("ssh-jump::")
+                ssh_jump_host, separator, ssh_host_key_alias = jump_and_alias.partition("::")
+                if not separator or not ssh_host_key_alias:
+                    ssh_host_key_alias = None
+            config["unitySettings"] = {
+                "projectOut": str(self.config.unity_project_out) if self.config.unity_project_out else None,
+                "editor": str(self.config.unity_editor) if self.config.unity_editor else None,
+                "editorVersion": self.config.unity_editor_version,
+                "maxMemoryGb": self.config.unity_max_memory_gb,
+                "includeResourcesAssets": self.config.unity_include_resources_assets,
+                "repairAttempts": self.config.unity_repair_attempts,
+                "editorTimeout": self.config.unity_editor_timeout,
+                "assetripperCli": str(self.config.unity_assetripper_cli) if self.config.unity_assetripper_cli else None,
+                "assetripperRemoteHost": self.config.unity_assetripper_remote_host,
+                "assetripperRemoteRoot": self.config.unity_assetripper_remote_root,
+                "assetripperRemoteInput": self.config.unity_assetripper_remote_input,
+                "assetripperRemoteOutput": (
+                    self.config.unity_assetripper_remote_input.removeprefix("existing-export::").split("::", 1)[0]
+                    if self.config.unity_assetripper_remote_input
+                    and self.config.unity_assetripper_remote_input.startswith("existing-export::")
+                    else None
+                ),
+                "assetripperRemotePort": self.config.unity_assetripper_remote_port,
+                "assetripperSshJumpHost": ssh_jump_host,
+                "assetripperSshHostKeyAlias": ssh_host_key_alias,
+                "unityOnly": self.config.unity_only,
+                "ilspycmd": str(self.config.unity_ilspycmd) if self.config.unity_ilspycmd else None,
+                "installMcpBridge": self.config.unity_install_mcp_bridge,
+            }
         if stage.name in ACQUISITION_SENSITIVE_STAGES:
             # Stable bundle identity — not ephemeral --context path lists — so mid-run
             # re-acquire invalidates only stages that consume acquisition facts.
@@ -1237,19 +1356,100 @@ class RecoveryRunner:
         if plan.get("status") == "blocked":
             return self._unity_skip(out_path, str(plan.get("blockedReason") or "plan blocked"))
 
-        cli = resolve_assetripper_cli(ROOT, self.config.unity_assetripper_cli)
-        if cli is None:
-            raise ToolchainError(
-                "assetripper-missing",
-                detail=f"set {ASSETRIPPER_ENV} or place an AssetRipper binary under target/assetripper/",
+        if self.config.unity_assetripper_remote_host is not None:
+            if not self.config.unity_assetripper_remote_root:
+                raise ToolchainError(
+                    "assetripper-remote-root-missing",
+                    detail="--unity-assetripper-remote-root is required with --unity-assetripper-remote-host",
+                )
+            export_plan = plan.get("export") if isinstance(plan.get("export"), dict) else {}
+            if export_plan.get("mode") == "staged":
+                raise ToolchainError(
+                    "assetripper-remote-staged-plan-unsupported",
+                    detail=(
+                        "the remote AssetRipper API loads the supplied game folder as-is and cannot "
+                        "apply a staged container filter; opt into a full export with "
+                        "--unity-include-resources-assets or use a local exporter"
+                    ),
+                )
+            from .unity_remote import export_unity_project_remote
+
+            remote_input_setting = self.config.unity_assetripper_remote_input
+            remote_output_path = None
+            reuse_loaded_session = False
+            if remote_input_setting and remote_input_setting.startswith("existing-export::"):
+                output_and_input = remote_input_setting.removeprefix("existing-export::")
+                remote_output_path, separator, attached_input = output_and_input.partition("::")
+                remote_input_path = attached_input if separator and attached_input else None
+            else:
+                remote_input_path = remote_input_setting
+                reuse_loaded_session = bool(
+                    remote_input_path
+                    and remote_input_path.startswith("preloaded-session::")
+                )
+                if reuse_loaded_session:
+                    remote_input_path = remote_input_path.removeprefix("preloaded-session::")
+
+            ssh_setting = self.config.unity_assetripper_ssh_host_key_alias
+            ssh_jump_host = None
+            ssh_host_key_alias = ssh_setting
+            if ssh_setting and ssh_setting.startswith("ssh-jump::"):
+                jump_and_alias = ssh_setting.removeprefix("ssh-jump::")
+                ssh_jump_host, separator, ssh_host_key_alias = jump_and_alias.partition("::")
+                if not separator or not ssh_host_key_alias:
+                    ssh_host_key_alias = None
+
+            receipt = export_unity_project_remote(
+                self.unity_install_root(),
+                self._unity_dir() / "assetripper",
+                ssh_target=self.config.unity_assetripper_remote_host,
+                remote_root=self.config.unity_assetripper_remote_root,
+                remote_input_path=remote_input_path,
+                remote_output_path=remote_output_path,
+                reuse_loaded_session=reuse_loaded_session,
+                ssh_host_key_alias=ssh_host_key_alias,
+                ssh_jump_host=ssh_jump_host,
+                server_port=self.config.unity_assetripper_remote_port,
             )
-        receipt = export_unity_project(
-            self.unity_install_root(),
-            self._unity_dir() / "assetripper",
-            assetripper_cli=cli,
-            plan=plan,
-            staging_dir=self._unity_dir() / "staging",
-        )
+        else:
+            if any(
+                (
+                    self.config.unity_assetripper_remote_root,
+                    self.config.unity_assetripper_remote_input,
+                    self.config.unity_assetripper_remote_port != 18085,
+                    self.config.unity_assetripper_ssh_host_key_alias,
+                )
+            ):
+                raise ToolchainError(
+                    "assetripper-remote-host-missing",
+                    detail="remote AssetRipper options require --unity-assetripper-remote-host",
+                )
+            cli = resolve_assetripper_cli(ROOT, self.config.unity_assetripper_cli)
+            if cli is None:
+                raise ToolchainError(
+                    "assetripper-missing",
+                    detail=f"set {ASSETRIPPER_ENV} or place an AssetRipper binary under target/assetripper/",
+                )
+            receipt = export_unity_project(
+                self.unity_install_root(),
+                self._unity_dir() / "assetripper",
+                assetripper_cli=cli,
+                plan=plan,
+                staging_dir=self._unity_dir() / "staging",
+            )
+        export_plan = plan.get("export") if isinstance(plan.get("export"), dict) else {}
+        receipt["assetPlan"] = {
+            key: export_plan.get(key)
+            for key in (
+                "mode",
+                "reason",
+                "includedContainers",
+                "excludedContainers",
+                "stagedBytes",
+                "totalBytes",
+                "memoryBudgetBytes",
+            )
+        }
         atomic_write_json(out_path, receipt)
         return {
             "status": receipt.get("status"),
@@ -1257,6 +1457,11 @@ class RecoveryRunner:
             "exportedProject": receipt.get("exportedProject"),
             "hasProjectVersion": receipt.get("hasProjectVersion"),
             "memoryFailureSuspected": receipt.get("memoryFailureSuspected"),
+            "transport": receipt.get("transport"),
+            "addressFamily": receipt.get("addressFamily"),
+            "remoteRunRoot": receipt.get("remoteRunRoot"),
+            "outputRsyncStats": receipt.get("outputRsyncStats"),
+            "assetPlan": receipt.get("assetPlan"),
             "reason": receipt.get("reason"),
         }
 
@@ -1396,14 +1601,20 @@ class RecoveryRunner:
         }
 
     def stage_report(self, _stage: Stage) -> dict[str, Any]:
-        from .readability_repair import write_readability_repair_queue
         from .proof_target import write_proof_target_queue
+        from .readability_repair import write_readability_repair_queue
+        from .recovery_status import build_unity_recovery_summary
 
         write_readability_repair_queue(self.run_dir)
         proof_target_queue = write_proof_target_queue(self.run_dir)
         export_manifest = build_export_package(self.run_dir)
         proof_ladder = write_proof_ladder(self.run_dir)
         critical_path = write_critical_path(self.run_dir)
+        unity = build_unity_recovery_summary(
+            self.run_dir,
+            project_path=self.config.unity_project_out,
+            requested=self.config.unity_project_out is not None,
+        )
         report = {
             "schema": "agentdecompile.recover.report.v1",
             "generatedAt": now(),
@@ -1457,6 +1668,7 @@ class RecoveryRunner:
             "byteAuthority": json.loads((self.run_dir / "byte-authority/result.json").read_text(encoding="utf-8")),
             "legacyAdapter": json.loads((self.run_dir / "legacy-adapter.json").read_text(encoding="utf-8")),
             "snapshotExistingRecovery": json.loads((self.run_dir / "snapshot-existing-recovery.json").read_text(encoding="utf-8")),
+            "unity": unity,
             "fullSourceParity": False,
         }
         atomic_write_json(self.run_dir / "report.json", report)
@@ -1468,6 +1680,7 @@ class RecoveryRunner:
             "exportPackage": str(self.run_dir / "export" / "manifest.json"),
             "proofLadder": str(self.run_dir / "proof-ladder.json"),
             "criticalPath": str(self.run_dir / "critical-path.json"),
+            "unity": unity,
             "fullSourceParity": False,
         }
 

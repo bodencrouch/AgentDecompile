@@ -14,9 +14,19 @@ project needs, or how to avoid running out of memory on a large title.
 
 ## Stages
 
-Seven stages run between `snapshot-existing-recovery` and `report`. They are
-inert for non-Unity targets: each writes a `skipped` receipt and returns, so
-adding them changed nothing for PE/ELF runs.
+For a focused, bounded class export from a Unity install, use
+`agentdecompile-recover unity-export --install-root <game> --out-dir <assets>`.
+Repeat `--type` to select any combination of `Texture2D`, `Sprite`,
+`AudioClip`, `TextAsset`, and `Font`; omitting it preserves the all-supported-
+types export. For example, `--type TextAsset` avoids decoding textures when
+only serialized text is needed. The receipt's `selectedTypes` records the
+coverage actually requested.
+
+Seven Unity stages run between `snapshot-existing-recovery` and `report` in a
+normal recovery. `--unity-only` selects just these stages and omits unrelated
+binary/Ghidra work and the generic report; it requires `--unity-project-out` and
+writes a dedicated `unity/summary.json`. The stages are inert for non-Unity
+targets in a normal recovery: each writes a `skipped` receipt and returns.
 
 | Stage | Receipt | Does |
 |---|---|---|
@@ -31,6 +41,62 @@ adding them changed nothing for PE/ELF runs.
 Facts and decisions are deliberately split across the first two receipts: a plan
 can be re-derived under a different budget without re-probing, and a surprising
 plan is always traceable to the fact that produced it.
+
+## Receipt, resume, and terminal status
+
+Unity stage receipts retain their own outcome: `error`, `partial`, `blocked`,
+and `skipped` are never promoted to a completed stage. Resume reuses only
+`complete` receipts with existing outputs and matching fingerprints. Every
+Unity option (project destination, Editor/version, memory/export choice,
+AssetRipper local/remote transport, ILSpy paths, repair limit/timeout,
+Unity-only selection, and MCP-bridge option) is in the Unity-stage and
+aggregate-report fingerprints.
+
+When `--unity-project-out` is set and the probe confirms a Unity target, an
+unresolved error receipt makes the reconstruct command fail; missing, skipped,
+blocked, or partial Unity work makes it partial and returns nonzero. A clean
+final validation from the repair receipt can resolve errors found by the initial
+diagnostic Editor pass. A successful configured project requires a complete
+export, managed decompilation, compose, clean final Editor validation, and
+repair completion (or repair skipped because the initial validation was already
+clean). A confirmed non-Unity target remains benign.
+`report.json` and read-only recovery status summarize all seven Unity receipts
+and the configured project path; a staged export that omits containers remains
+partial and lists those omissions. Managed C# is explicitly reported as derived
+source, separate from byte-verified native source receipts.
+
+### Remote AssetRipper and Unity-only runs
+
+When local memory is limited, the remote flags can use an already-running
+headless AssetRipper over SSH. Both SSH and rsync force IPv4, and the adapter
+binds its forwarding endpoint to `127.0.0.1`. Ports `8080` and `5174` are
+reserved and rejected; the default remote AssetRipper port is `18085`.
+
+```bash
+uv run agentdecompile-recover recover "/path/to/game-install" \
+  --work-dir "/large-volume/tvs-recovery-run" \
+  --unity-only \
+  --unity-project-out "/large-volume/tvs-output/UnityProject" \
+  --unity-max-memory-gb 14 \
+  --unity-include-resources-assets \
+  --unity-assetripper-remote-host "root@192.0.2.10" \
+  --unity-assetripper-ssh-host-key-alias "100.64.0.8" \
+  --unity-assetripper-remote-root "/srv/tvs-assetripper" \
+  --unity-assetripper-remote-input "/srv/tvs-assetripper/input" \
+  --unity-assetripper-remote-port 18085
+```
+
+Use `--unity-assetripper-remote-input` only after the input transfer has
+finished: this read-only reuse mode verifies that the directory exists, but it
+does not hash or re-copy its contents. Without that option the CLI creates a
+fresh remote run directory and copies the input with rsync. The transport
+receipt records IPv4, the remote run path, input/output transfer results, and
+local `ProjectVersion.txt` presence. It does not claim Unity Editor validation
+or byte identity with developers' original sources. The existing remote API
+loads the supplied folder as-is, so the CLI refuses a staged plan instead of
+silently ignoring its container filter; request full inclusion explicitly with
+`--unity-include-resources-assets` when choosing the full asset set, and monitor
+available memory on the remote host.
 
 ## What is derived, and from where
 

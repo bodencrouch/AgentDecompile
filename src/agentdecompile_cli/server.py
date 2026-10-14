@@ -533,6 +533,19 @@ def _setup_project_paths(parser: Any, args: Any) -> tuple[str, str, Path | None]
     return str(project_path), resolved_project_name, None
 
 
+def _bind_corpus_config_dir(project_directory: str) -> None:
+    """Default corpus settings to the selected project workspace.
+
+    An explicit config directory remains authoritative. Keeping this default
+    tied to the resolved project path lets dashboard-side shared-server auth
+    load the same workspace profile as the rest of the recovery pipeline.
+    """
+    if os.environ.get("AGENT_DECOMPILE_CORPUS_CONFIG_DIR", "").strip():
+        return
+    config_dir = Path(project_directory).expanduser().resolve() / "config"
+    os.environ["AGENT_DECOMPILE_CORPUS_CONFIG_DIR"] = str(config_dir)
+
+
 def _initialize_pyghidra(verbose_analysis: bool) -> None:
     """Initialize PyGhidra and apply session/output patches."""
     logger.debug("diag.enter %s", "server.py:_initialize_pyghidra")
@@ -867,6 +880,7 @@ def main() -> None:
 
     # Setup project paths
     project_directory, project_name, project_path_gpr = _setup_project_paths(parser, args)
+    _bind_corpus_config_dir(project_directory)
     sys.stderr.write(f"[main] project_directory={project_directory!r}, project_name={project_name!r}, project_path_gpr={project_path_gpr!r}\n")
 
     # Initialize PyGhidra

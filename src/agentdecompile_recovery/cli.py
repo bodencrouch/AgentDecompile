@@ -55,6 +55,11 @@ def add_unity_arguments(parser: argparse.ArgumentParser) -> None:
         type=Path,
         help="Compose an openable Unity project at this directory. Enables the Unity stages when the target is a Unity game.",
     )
+    group.add_argument(
+        "--unity-only",
+        action="store_true",
+        help="Run only Unity reconstruction stages, avoiding unrelated binary/Ghidra stages and the generic report.",
+    )
     group.add_argument("--unity-editor", type=Path, help="Unity Editor executable. Defaults to the best Unity Hub match for the game's own version.")
     group.add_argument("--unity-editor-version", help="Editor version to prefer. Defaults to the version read from the shipped player.")
     group.add_argument("--unity-max-memory-gb", type=float, help="Memory budget for asset export. Defaults to a fraction of host available RAM.")
@@ -67,6 +72,41 @@ def add_unity_arguments(parser: argparse.ArgumentParser) -> None:
     group.add_argument("--unity-repair-attempts", type=int, default=3, help="Maximum validate/repair iterations before reporting unresolved errors.")
     group.add_argument("--unity-editor-timeout", type=int, default=3600, help="Timeout in seconds for each headless Editor invocation.")
     group.add_argument("--unity-assetripper-cli", type=Path, help="AssetRipper binary. Defaults to env/repo-managed discovery.")
+    group.add_argument(
+        "--unity-assetripper-remote-host",
+        help="Use an already-running headless AssetRipper service on this SSH host; SSH and rsync transport are forced to IPv4.",
+    )
+    group.add_argument(
+        "--unity-assetripper-remote-root",
+        help="Absolute POSIX workspace root on the remote host for isolated AssetRipper run outputs (required with --unity-assetripper-remote-host).",
+    )
+    group.add_argument(
+        "--unity-assetripper-remote-input",
+        help="Optional existing remote game directory to reuse read-only; may be combined with --unity-assetripper-remote-output when attaching to an existing export.",
+    )
+    group.add_argument(
+        "--unity-assetripper-remote-output",
+        help="Attach to an exact retained remote_root/runs/<32-hex-id>/output, wait for AssetRipper's terminal completion marker, and copy without starting another export. Pair with --unity-assetripper-remote-input if the run used a separately stored input directory.",
+    )
+    group.add_argument(
+        "--unity-assetripper-remote-reuse-loaded",
+        action="store_true",
+        help="Reuse the already-loaded remote AssetRipper session after verifying its PID, input path, and completed-load log markers; requires --unity-assetripper-remote-input.",
+    )
+    group.add_argument(
+        "--unity-assetripper-remote-port",
+        type=int,
+        default=18085,
+        help="Loopback port of the existing remote AssetRipper service (8080 and 5174 are protected).",
+    )
+    group.add_argument(
+        "--unity-assetripper-ssh-host-key-alias",
+        help="Optional SSH HostKeyAlias (for example the peer's Tailscale IPv4 when connecting by its public IPv4).",
+    )
+    group.add_argument(
+        "--unity-assetripper-ssh-jump-host",
+        help="Optional IPv4 SSH jump host, such as root@100.111.132.16, used for both SSH and rsync transport.",
+    )
     group.add_argument("--unity-ilspycmd", type=Path, help="ilspycmd binary. Defaults to env/PATH/dotnet-tools discovery.")
     group.add_argument(
         "--unity-install-mcp-bridge",
@@ -78,8 +118,40 @@ def add_unity_arguments(parser: argparse.ArgumentParser) -> None:
 def unity_config_kwargs(args: argparse.Namespace) -> dict[str, Any]:
     """Map parsed Unity flags onto RecoveryConfig fields."""
 
+    remote_input = getattr(args, "unity_assetripper_remote_input", None)
+    remote_output = getattr(args, "unity_assetripper_remote_output", None)
+    reuse_loaded_session = bool(
+        getattr(args, "unity_assetripper_remote_reuse_loaded", False)
+    )
+    if remote_output and reuse_loaded_session:
+        raise ValueError(
+            "--unity-assetripper-remote-output cannot be combined with --unity-assetripper-remote-reuse-loaded"
+        )
+    if remote_input and remote_input.startswith("existing-export::") and reuse_loaded_session:
+        raise ValueError(
+            "an existing-export remote input cannot be combined with --unity-assetripper-remote-reuse-loaded"
+        )
+    if reuse_loaded_session:
+        if not remote_input:
+            raise ValueError(
+                "--unity-assetripper-remote-reuse-loaded requires --unity-assetripper-remote-input"
+            )
+        # Encode this transport behavior in the existing remote-input setting so
+        # compatible hot reloads do not change RecoveryConfig's dataclass layout.
+        remote_input = f"preloaded-session::{remote_input}"
+    if remote_output:
+        # Preserve the existing RecoveryConfig layout for in-process hot reloads.
+        remote_input = f"existing-export::{remote_output}::{remote_input or ''}"
+    ssh_host_key_alias = getattr(args, "unity_assetripper_ssh_host_key_alias", None)
+    ssh_jump_host = getattr(args, "unity_assetripper_ssh_jump_host", None)
+    if ssh_jump_host:
+        if ssh_host_key_alias and ssh_host_key_alias.startswith("ssh-jump::"):
+            raise ValueError("do not combine --unity-assetripper-ssh-jump-host with an encoded jump setting")
+        ssh_host_key_alias = f"ssh-jump::{ssh_jump_host}::{ssh_host_key_alias or ''}"
+
     return {
         "unity_project_out": getattr(args, "unity_project_out", None),
+        "unity_only": bool(getattr(args, "unity_only", False)),
         "unity_editor": getattr(args, "unity_editor", None),
         "unity_editor_version": getattr(args, "unity_editor_version", None),
         "unity_max_memory_gb": getattr(args, "unity_max_memory_gb", None),
@@ -87,6 +159,11 @@ def unity_config_kwargs(args: argparse.Namespace) -> dict[str, Any]:
         "unity_repair_attempts": int(getattr(args, "unity_repair_attempts", 3) or 3),
         "unity_editor_timeout": int(getattr(args, "unity_editor_timeout", 3600) or 3600),
         "unity_assetripper_cli": getattr(args, "unity_assetripper_cli", None),
+        "unity_assetripper_remote_host": getattr(args, "unity_assetripper_remote_host", None),
+        "unity_assetripper_remote_root": getattr(args, "unity_assetripper_remote_root", None),
+        "unity_assetripper_remote_input": remote_input,
+        "unity_assetripper_remote_port": int(getattr(args, "unity_assetripper_remote_port", 18085) or 18085),
+        "unity_assetripper_ssh_host_key_alias": ssh_host_key_alias,
         "unity_ilspycmd": getattr(args, "unity_ilspycmd", None),
         "unity_install_mcp_bridge": bool(getattr(args, "unity_install_mcp_bridge", False)),
     }
@@ -437,6 +514,15 @@ def build_parser() -> argparse.ArgumentParser:
     )
     unity_export.add_argument("--install-root", type=Path, required=True, help="Unity game install directory (containing a *_Data folder).")
     unity_export.add_argument("--out-dir", type=Path, required=True, help="Output directory for exported assets.")
+    from .unity_assets import EXPORTABLE_TYPES
+
+    unity_export.add_argument(
+        "--type",
+        dest="object_types",
+        action="append",
+        choices=sorted(EXPORTABLE_TYPES),
+        help="Unity object type to export; repeat to select several (default: all supported types).",
+    )
 
     decomp_atlas = sub.add_parser(
         "decomp-atlas",
@@ -1109,7 +1195,11 @@ def run_unity_export(args: argparse.Namespace) -> int:
     from .unity_assets import export_primary_content
 
     try:
-        receipt = export_primary_content(install_root=args.install_root, output_dir=args.out_dir)
+        receipt = export_primary_content(
+            install_root=args.install_root,
+            output_dir=args.out_dir,
+            object_types=set(args.object_types) if args.object_types else None,
+        )
     except ImportError as exc:
         print(json.dumps({"schema": "agentdecompile.unity-primary-content-export.v1", "status": "error", "reason": str(exc)}, indent=2, sort_keys=True))
         return 1

@@ -105,11 +105,12 @@ _ACTIONS: list[ActionSpec] | None = None
 
 
 def list_actions() -> list[ActionSpec]:
-    global _ACTIONS
-    if _ACTIONS is None:
-        from agentdecompile_recovery.corpus.dashboard.actions.introspect import generate_actions
+    # Regenerate from the parser and MCP registry at each boundary. The
+    # dashboard hot-reloads Python modules in-process; caching these derived
+    # rows forever kept the API/UI on stale flags after a code reload.
+    from agentdecompile_recovery.corpus.dashboard.actions.introspect import generate_actions
 
-        _ACTIONS = generate_actions() + [ActionSpec(
+    return generate_actions() + [ActionSpec(
             id="review.list", title="Read candidate review", group="workbench",
             backend="match-review", command="list",
             fields=(FieldSpec("db", required=True, from_context="db"), FieldSpec("selection"),
@@ -179,7 +180,6 @@ def list_actions() -> list[ActionSpec]:
                 FieldSpec("compilerPreset", required=True),
             ),
         )]
-    return _ACTIONS
 
 
 def action_by_id(action_id: str) -> ActionSpec | None:

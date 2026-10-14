@@ -48,6 +48,35 @@ Use the existing 8080 workbench and `GET /api/v1/actions` for recovery; inspect
 advertised parameters rather than inventing action names or argv. The following
 CLI forms document implementation only and do not authorize a direct bypass.
 
+For a group of binaries, `corpus.register-group` accepts one JSON manifest and
+registers all entries only after every path and input hash has been read. Relative
+paths resolve from the manifest. Repeating the same IDs/paths/metadata registered
+through this command is a no-op. A conflicting ID requires explicit `--replace`;
+a second donor is always refused. The command's JSON output records the manifest
+and per-binary SHA-256/size and is retained with its cataloged job output.
+Registration only establishes exact inputs; it does not import binaries into
+Ghidra, analyze them, create function snapshots, or promise recovered C/WASM.
+`corpus.run` still requires pre-created `{id}.functions.json` snapshots, while
+`workbench.prepare` operates on programs already available in an opened Ghidra
+project. A truly one-shot drop-to-export flow still needs to connect those stages.
+Only call a C artifact matched when its build-specific compile/objdiff evidence
+passes the gates. WASM additionally needs a named toolchain/ABI/runtime target; it
+is not a generic decompiler export format.
+
+```json
+{
+  "binaries": [
+    {"id": "k1-gog", "path": "swkotor.exe", "game": "K1", "arch": "x86", "bits": 32},
+    {"id": "k1-linux", "path": "swkotor-linux", "game": "K1", "arch": "x86", "bits": 32}
+  ]
+}
+```
+
+Submit it through the advertised `corpus.register-group` action (or the
+implementation CLI reference `agentdecompile-corpus register-group --manifest
+group.json --corpus k1.json`). A donor can be marked per row with `"role":
+"donor"` and, when available, `"debug": "stabs"` or `"dwarf"`.
+
 ```bash
 uv run agentdecompile-corpus init --id my-corpus --out target/corpus.json
 uv run agentdecompile-corpus add-binary --corpus target/corpus.json \

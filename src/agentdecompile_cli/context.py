@@ -23,11 +23,13 @@ import logging
 import multiprocessing
 import time
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
+from threading import RLock
 from typing import TYPE_CHECKING, Any
 
 from agentdecompile_cli.app_logger import basename_hint
+from agentdecompile_cli.startup_progress import report_slow_local_operation
 
 try:
     import chromadb  # pyright: ignore[reportMissingImports, reportMissingModuleSource]
@@ -72,7 +74,7 @@ class ProgramInfo:
     name: str
     program: GhidraProgram
     flat_api: GhidraFlatProgramAPI | None
-    decompiler: GhidraDecompInterface
+    decompiler: GhidraDecompInterface | None
     metadata: dict[str, Any]  # Ghidra program metadata
     ghidra_analysis_complete: bool
     file_path: Path | None = None
@@ -83,6 +85,7 @@ class ProgramInfo:
     domain_object_consumer: Any | None = None
     # Resolved DomainFile for shared checkout / version-control flows (see ProjectToolProvider).
     domain_file: GhidraDomainFile | None = None
+    _decompiler_lock: Any = field(default_factory=RLock, init=False, repr=False, compare=False)
 
     def get_decompiler(self) -> GhidraDecompInterface | None:
         """Return the decompiler, lazily initializing it on first access if needed.
@@ -91,26 +94,27 @@ class ProgramInfo:
         stored as None to save ~15-30 MB of JVM memory per unused program.  The
         first call to ``get_decompiler()`` creates and caches the interface.
         """
-        if self.decompiler is not None:
-            return self.decompiler
-        if self.program is None:
-            return None
-        try:
-            from agentdecompile_cli.mcp_utils.decompiler_util import open_decompiler_for_program
+        with self._decompiler_lock:
+            if self.decompiler is not None:
+                return self.decompiler
+            if self.program is None:
+                return None
+            try:
+                from agentdecompile_cli.mcp_utils.decompiler_util import open_decompiler_for_program
 
-            self.decompiler = open_decompiler_for_program(self.program)
-            logger.info(
-                "lazy_decompiler_init program=%s",
-                self.name or "unknown",
-            )
-        except Exception as exc:
-            logger.warning(
-                "lazy_decompiler_init_failed program=%s exc_type=%s",
-                self.name or "unknown",
-                type(exc).__name__,
-            )
-            return None
-        return self.decompiler
+                self.decompiler = open_decompiler_for_program(self.program)
+                logger.info(
+                    "lazy_decompiler_init program=%s",
+                    self.name or "unknown",
+                )
+            except Exception as exc:
+                logger.warning(
+                    "lazy_decompiler_init_failed program=%s exc_type=%s",
+                    self.name or "unknown",
+                    type(exc).__name__,
+                )
+                return None
+            return self.decompiler
 
     @property
     def analysis_complete(self) -> bool:
@@ -150,6 +154,7 @@ class PyGhidraContext:
         wait_for_analysis: bool = False,
         symbols_path: str | Path | None = None,
         sym_file_path: str | Path | None = None,
+        load_programs: bool = True,
     ):
         """Initializes a new Ghidra project context.
 
@@ -174,7 +179,6 @@ class PyGhidraContext:
         self.project: GhidraProject = self._get_or_create_project()
 
         self.programs: dict[str, ProgramInfo] = {}
-        self._init_project_programs()
 
         self.agentdecompile_dir: Path = self.project_path / "agentdecompile" if agentdecompile_dir is None else Path(agentdecompile_dir)
 
@@ -212,6 +216,9 @@ class PyGhidraContext:
         self.executor: concurrent.futures.ThreadPoolExecutor | None = concurrent.futures.ThreadPoolExecutor(max_workers=self.max_workers) if self.threaded else None
         self.import_executor: concurrent.futures.ThreadPoolExecutor | None = concurrent.futures.ThreadPoolExecutor(max_workers=1) if self.threaded else None
         self.wait_for_analysis: bool = bool(wait_for_analysis)
+
+        if load_programs:
+            self._init_project_programs()
 
     def close(self, save: bool = True):
         """Saves changes to all open programs and closes the project."""
@@ -266,7 +273,8 @@ class PyGhidraContext:
     def _init_project_programs(self):
         """Initializes the programs dictionary with existing programs in the project."""
         logger.debug("diag.enter %s", "context.py:PyGhidraContext._init_project_programs")
-        all_binary_paths: list[str] = self.list_binaries()
+        with report_slow_local_operation("enumerating existing project programs"):
+            all_binary_paths: list[str] = self.list_binaries()
         for binary_path_s in all_binary_paths:
             binary_path_str: str = str(binary_path_s)
             if not binary_path_str.startswith("/"):
@@ -277,11 +285,12 @@ class PyGhidraContext:
                 continue
             binary_path: Path = Path(binary_path_str)
             try:
-                program: GhidraProgram | None = self.project.openProgram(
-                    str(binary_path.parent),
-                    binary_path.name,
-                    False,
-                )
+                with report_slow_local_operation("opening an existing project program"):
+                    program: GhidraProgram | None = self.project.openProgram(
+                        str(binary_path.parent),
+                        binary_path.name,
+                        False,
+                    )
             except Exception as exc:
                 logger.warning(
                     "pyghidra_startup_open_program_exc basename=%s exc_type=%s",
@@ -295,7 +304,8 @@ class PyGhidraContext:
                     basename_hint(binary_path.name),
                 )
                 continue
-            program_info: ProgramInfo | None = self._init_program_info(program)
+            with report_slow_local_operation("initializing an existing project program"):
+                program_info: ProgramInfo | None = self._init_program_info(program)
             if program_info is None:
                 logger.warning(
                     "pyghidra_program_info_init_failed basename=%s",
@@ -676,7 +686,7 @@ class PyGhidraContext:
             name=program.name,
             program=program,
             flat_api=GhidraFlatProgramAPI(program),
-            decompiler=self.setup_decompiler(program),
+            decompiler=None,
             metadata=metadata,
             ghidra_analysis_complete=False,
             file_path=metadata["Executable Location"],

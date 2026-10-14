@@ -55,6 +55,17 @@ _ANALYSIS_GATE_EXEMPT_TOOLS: frozenset[str] = frozenset(
         "svradmin",
         "debuginfo",
         "getcurrentprogram",
+        # Memory inspection reads existing bytes/listing entries; analysis is explicit.
+        "inspectmemory",
+        "readbytes",
+        # Function inventory reads only the currently defined listing.
+        "listfunctions",
+        # Symbol name discovery reads the existing symbol table; analysis is explicit.
+        "searchsymbols",
+        # A bounded function decompile must not start unbounded full-image analysis.
+        # Resolve existing functions and let Ghidra report missing listing data.
+        "decompilefunction",
+        "decompile",
         # Version-control lifecycle tools do not require an analyzed listing yet.
         "checkoutprogram",
         "checkinprogram",

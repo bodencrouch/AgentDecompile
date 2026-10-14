@@ -128,9 +128,13 @@ def specs_from_argparse(
         fields = _fields(sub)
         if group == "corpus" and command == "export-run-report":
             fields = tuple(replace(field, from_context="report_file", help="JSON report file; defaults to the current workspace's recovery-report.json.") if field.name == "out" else field for field in fields)
-        danger = bool(getattr(sub, "danger", False))
+        identity_scope = str(getattr(sub, "identity_scope", ""))
+        # An identity-scoped CLI command writes shared corpus state. Derive
+        # mutation/safety treatment from that existing semantic contract so a
+        # newly added scoped command cannot silently appear read-only.
+        danger = bool(getattr(sub, "danger", False)) or bool(identity_scope)
         native_verify = group == "recover" and command == "verify-package"
-        mutating = native_verify or bool(getattr(sub, "mutating", False))
+        mutating = native_verify or bool(getattr(sub, "mutating", False)) or bool(identity_scope)
         rows.append(
             ActionSpec(
                 id=f"{group}.{command}",
@@ -143,8 +147,8 @@ def specs_from_argparse(
                 pages=_pages(fields, mutating),
                 danger=danger,
                 mutating=mutating,
-                long_running=native_verify or bool(getattr(sub, "long_running", False)),
-                identity_scope=str(getattr(sub, "identity_scope", "")),
+                long_running=native_verify or bool(getattr(sub, "long_running", False)) or bool(identity_scope),
+                identity_scope=identity_scope,
                 ghidra_exclusive=bool(getattr(sub, "ghidra_exclusive", False)),
             )
         )

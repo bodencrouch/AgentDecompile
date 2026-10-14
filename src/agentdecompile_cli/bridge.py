@@ -32,27 +32,43 @@ from pathlib import Path
 from urllib.parse import urlparse
 from typing import TYPE_CHECKING, Any, Callable
 
-from mcp.server.models import InitializationOptions
-
-from httpx import AsyncClient, HTTPStatusError, Timeout
-from mcp.server import Server
-from mcp.server.stdio import stdio_server
-from mcp.shared.message import SessionMessage
-from mcp.types import (
-    CallToolResult,
-    JSONRPCMessage,
-    JSONRPCNotification,
-    LoggingCapability,
-    ServerCapabilities,
-    TextContent,
-    Tool,
-)
+from httpx import AsyncClient, ConnectError, ConnectTimeout, HTTPStatusError, Timeout
 
 from agentdecompile_cli.app_logger import basename_hint, redact_session_id
 from agentdecompile_cli.executor import get_server_start_message, normalize_backend_url
-from agentdecompile_cli.mcp_server.session_context import get_current_mcp_session_id
-from agentdecompile_cli.mcp_utils.tool_reference import build_initialize_instructions
 from agentdecompile_cli.registry import resolve_tool_name
+
+# The MCP SDK (``mcp``, ``mcp.server.*``, ``mcp.types``) costs ~0.7 s to import and
+# only the stdio-bridge half of this module needs it, so names from it are
+# resolved lazily: function-local imports at each use site, plus the module
+# ``__getattr__`` below so ``bridge.Tool`` / ``from ...bridge import Server`` still work.
+_LAZY_MODULE_ATTRS: dict[str, tuple[str, str]] = {
+    "InitializationOptions": ("mcp.server.models", "InitializationOptions"),
+    "Server": ("mcp.server", "Server"),
+    "stdio_server": ("mcp.server.stdio", "stdio_server"),
+    "SessionMessage": ("mcp.shared.message", "SessionMessage"),
+    "CallToolResult": ("mcp.types", "CallToolResult"),
+    "JSONRPCMessage": ("mcp.types", "JSONRPCMessage"),
+    "JSONRPCNotification": ("mcp.types", "JSONRPCNotification"),
+    "LoggingCapability": ("mcp.types", "LoggingCapability"),
+    "ServerCapabilities": ("mcp.types", "ServerCapabilities"),
+    "TextContent": ("mcp.types", "TextContent"),
+    "Tool": ("mcp.types", "Tool"),
+    "get_current_mcp_session_id": ("agentdecompile_cli.mcp_server.session_context", "get_current_mcp_session_id"),
+    "build_initialize_instructions": ("agentdecompile_cli.mcp_utils.tool_reference", "build_initialize_instructions"),
+}
+
+
+def __getattr__(name: str) -> Any:
+    target = _LAZY_MODULE_ATTRS.get(name)
+    if target is None:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    import importlib
+
+    value = getattr(importlib.import_module(target[0]), target[1])
+    globals()[name] = value
+    return value
+
 
 logger = logging.getLogger(__name__)
 
@@ -72,6 +88,11 @@ def _backend_host_port_for_logs(url: str) -> str:
 
 
 if TYPE_CHECKING:
+    from mcp.server import Server
+    from mcp.server.models import InitializationOptions
+    from mcp.shared.message import SessionMessage
+    from mcp.types import CallToolResult, ServerCapabilities, Tool
+
     from collections import deque
     from collections.abc import Iterable
     from types import TracebackType
@@ -407,8 +428,10 @@ class RawMcpHttpBackend:
         had_session_id = bool(self._session_id)
         try:
             resp = await self._client.post(self._url, json=body, headers=self._headers())
-        except Exception as e:
-            # Retry once with a trailing slash for backends that strictly require it.
+        except (ConnectError, ConnectTimeout) as e:
+            # A connection failure occurs before dispatch. Read/write timeouts and
+            # protocol failures can happen after the server has accepted a tool;
+            # replaying those requests could execute a mutation or script twice.
             logger.debug(
                 "mcp_http_post_retry exc_type=%s retry_trailing_slash=True mcp_method=%s",
                 type(e).__name__,
@@ -859,6 +882,8 @@ def _session_message_with_id(msg: SessionMessage, new_id: int | str) -> SessionM
     if not hasattr(m, "model_copy"):
         return msg
     new_msg = m.model_copy(update={"id": new_id})
+    from mcp.shared.message import SessionMessage  # noqa: PLC0415 - lazy: importing mcp costs ~0.7 s
+
     return SessionMessage(message=new_msg, metadata=msg.metadata)
 
 
@@ -904,6 +929,8 @@ class _IdFixReadStream:
 
     async def __anext__(self) -> SessionMessage | Exception:
         logger.debug("diag.enter %s", "bridge.py:_IdFixReadStream.__anext__")
+        from mcp.shared.message import SessionMessage  # noqa: PLC0415 - lazy: importing mcp costs ~0.7 s
+
         item: SessionMessage | Exception = await self._read.__anext__()
         if isinstance(item, SessionMessage) and _is_jsonrpc_request(item):
             rid = getattr(item.message, "id", None)
@@ -934,6 +961,8 @@ class _IdFixWriteStream:
         msg: SessionMessage | Exception,
     ) -> None:
         logger.debug("diag.enter %s", "bridge.py:_IdFixWriteStream.send")
+        from mcp.shared.message import SessionMessage  # noqa: PLC0415 - lazy: importing mcp costs ~0.7 s
+
         if isinstance(msg, SessionMessage) and _is_jsonrpc_response_with_id_zero(msg):
             if self._request_ids:
                 new_id: int | str = self._request_ids.popleft()
@@ -990,6 +1019,9 @@ class JsonEnvelopeStream:
             raise
 
         if isinstance(item, Exception):
+            from mcp.shared.message import SessionMessage  # noqa: PLC0415 - lazy: importing mcp costs ~0.7 s
+            from mcp.types import JSONRPCMessage, JSONRPCNotification
+
             error_msg = str(item)
             notification = JSONRPCNotification(
                 jsonrpc="2.0",
@@ -1035,7 +1067,9 @@ class AgentDecompileStdioBridge:
             self.port = None
             self.url = normalize_backend_url(backend)
 
+        from mcp.server import Server  # noqa: PLC0415 - lazy: importing mcp costs ~0.7 s
         from agentdecompile_cli import _version
+        from agentdecompile_cli.mcp_utils.tool_reference import build_initialize_instructions
 
         self.server: Server = Server(
             "AgentDecompile",
@@ -1086,6 +1120,8 @@ class AgentDecompileStdioBridge:
 
     def _current_frontend_session_id(self) -> str:
         logger.debug("diag.enter %s", "bridge.py:AgentDecompileStdioBridge._current_frontend_session_id")
+        from agentdecompile_cli.mcp_server.session_context import get_current_mcp_session_id
+
         sid: str = get_current_mcp_session_id()
         if sid and sid != "default":
             return sid
@@ -1337,6 +1373,8 @@ class AgentDecompileStdioBridge:
     def _raw_tool_to_mcp(raw: dict[str, Any]) -> Tool:
         """Convert a raw tool dict from the backend to an MCP ``Tool`` object."""
         logger.debug("diag.enter %s", "bridge.py:AgentDecompileStdioBridge._raw_tool_to_mcp")
+        from mcp.types import Tool  # noqa: PLC0415 - lazy: importing mcp costs ~0.7 s
+
         return Tool.model_validate(raw)
 
     async def _handle_list_tools(self) -> list[Tool]:
@@ -1387,6 +1425,8 @@ class AgentDecompileStdioBridge:
     ) -> UnstructuredContent | StructuredContent | CombinationContent | CallToolResult:  # pyright: ignore[reportInvalidTypeForm]
         """Handle MCP call_tool request by forwarding to backend."""
         logger.debug("diag.enter %s", "bridge.py:AgentDecompileStdioBridge._handle_call_tool")
+        from mcp.types import CallToolResult, TextContent  # noqa: PLC0415 - lazy: importing mcp costs ~0.7 s
+
         backend_name = resolve_tool_name(name) if isinstance(name, str) else None
         if backend_name is None:
             backend_name = name
@@ -1508,6 +1548,8 @@ class AgentDecompileStdioBridge:
         """
         logger.debug("diag.enter %s", "bridge.py:AgentDecompileStdioBridge._create_initialization_options")
         sys.stderr.write("Creating initialization options\n")
+        from mcp.types import LoggingCapability, ServerCapabilities  # noqa: PLC0415 - lazy: importing mcp costs ~0.7 s
+
         options: InitializationOptions = self.server.create_initialization_options()
         capabilities: ServerCapabilities | None = getattr(options, "capabilities", None)
         if capabilities is None:
@@ -1527,6 +1569,8 @@ class AgentDecompileStdioBridge:
         """
         logger.debug("diag.enter %s", "bridge.py:AgentDecompileStdioBridge.run")
         sys.stderr.write("Running bridge - stdio transport active\n")
+
+        from mcp.server.stdio import stdio_server  # noqa: PLC0415 - lazy: importing mcp costs ~0.7 s
 
         disconnect_kind = "none"
         try:

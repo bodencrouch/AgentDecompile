@@ -28,6 +28,7 @@ from __future__ import annotations
 import asyncio
 import copy
 import contextlib
+from contextvars import ContextVar
 import hashlib
 import json
 import logging
@@ -46,8 +47,6 @@ from urllib.parse import urlparse
 
 import click
 
-from ghidrecomp.decompile import decompile
-from httpx import AsyncClient, Timeout
 
 from agentdecompile_cli import __version__
 from agentdecompile_cli.executor import (
@@ -398,6 +397,8 @@ async def _probe_backend_health(url: str) -> bool:
         return False
     health_url = f"{parsed.scheme}://{parsed.hostname}:{parsed.port}/health"
     try:
+        from httpx import AsyncClient, Timeout  # noqa: PLC0415 - lazy: keeps CLI startup fast
+
         async with AsyncClient(timeout=Timeout(_LOCAL_SERVER_PROBE_TIMEOUT_S)) as client:
             response = await client.get(health_url)
             return response.status_code == 200
@@ -684,11 +685,11 @@ def _ensure_count_in_project_file_results(data: dict[str, Any] | Any) -> Any:
 
 
 def _get_error_result_message(data: Any) -> str | None:
-    """If data is a tool error result (success: false, error present), return the error message; else None."""
+    """Return a tool failure's message, including older responses without an error field."""
     logger.debug("diag.enter %s", "cli.py:_get_error_result_message")
     for payload in _iter_tool_result_dicts(data):
-        if payload.get("success") is False and "error" in payload:
-            return str(payload.get("error", "Tool returned an error"))
+        if payload.get("success") is False:
+            return str(payload.get("error") or "Tool reported failure without an error message")
     return None
 
 
@@ -704,15 +705,10 @@ def _markdown_mcp_content_indicates_error(data: dict[str, Any]) -> bool:
         text = item.get("text")
         if not isinstance(text, str):
             continue
-        if "## Modification conflict" in text:
-            return True
-        if "## Error" not in text:
-            continue
-        # response_formatter: ## Error then blockquote line "> **...**"
-        if "\n> **" in text or "\n\n> **" in text:
-            return True
+        # Only inspect the response heading. A successful script can print
+        # error-shaped text inside its captured-output code block.
         stripped = text.lstrip()
-        if stripped.startswith("## Error\n") or stripped.startswith("## Error\r\n"):
+        if stripped.startswith(("## Error\n", "## Error\r\n", "## Modification conflict\n", "## Modification conflict\r\n")):
             return True
     return False
 
@@ -731,6 +727,15 @@ def _tool_seq_step_succeeded(data: Any) -> bool:
     if _markdown_mcp_content_indicates_error(data):
         return False
     return True
+
+
+def _exit_on_tool_failure(data: Any) -> None:
+    """Apply the sequence failure rules after a direct command has displayed its result."""
+    if not _tool_seq_step_succeeded(data):
+        message = _get_error_result_message(data)
+        if message is not None:
+            click.echo(message, err=True)
+        sys.exit(1)
 
 
 def _is_no_program_loaded_error(data: Any) -> bool:
@@ -1160,16 +1165,115 @@ async def _call(ctx: click.Context, tool: str | Tool, **kwargs: Any) -> None:
 
     result: Any = await _call_raw(ctx, tool, payload)
 
-    # data is already a dict from AgentDecompileMcpClient._extract_result()
-    err_msg: str | None = _get_error_result_message(result)
-    if err_msg is not None:
-        click.echo(err_msg, err=True)
-        sys.exit(1)
-
     if tool == "list_project_files":
         result = _ensure_count_in_project_file_results(result)
 
     click.echo(format_output(result, _fmt(ctx)))
+    _exit_on_tool_failure(result)
+
+
+def _tool_data(result: Any) -> Any:
+    """Unwrap an MCP envelope whose text is JSON into that JSON; else return it unchanged."""
+    if not isinstance(result, dict):
+        return result
+    content = result.get("content")
+    if not isinstance(content, list):
+        return result
+    for item in content:
+        text = item.get("text") if isinstance(item, dict) else getattr(item, "text", None)
+        parsed = _safe_json_loads(text)
+        if isinstance(parsed, (dict, list)):
+            return parsed
+    return result
+
+
+
+def _envelope_text(result: Any) -> str | None:
+    """Join the text items of an MCP envelope, or None when it has none."""
+    content = result.get("content") if isinstance(result, dict) else getattr(result, "content", None)
+    if not isinstance(content, list):
+        return None
+    texts = [text for item in content if isinstance(text := (item.get("text") if isinstance(item, dict) else getattr(item, "text", None)), str)]
+    return "\n".join(texts) if texts else None
+
+
+
+_CLI_SESSION_OBSERVATION: ContextVar[bool] = ContextVar("cli_session_observation", default=False)
+
+
+async def _connection_session_status(
+    ctx: click.Context,
+    payload: dict[str, Any],
+    client_override: Any | None,
+) -> Any:
+    """CLI shorthand: observe the selected connection, never invent a workDir.
+
+    Use the same read-only tool and connection as an ordinary project listing.
+    The recovery MCP tool keeps its required workDir contract, including errors
+    for explicitly empty or misspelled arguments.
+    """
+    response_format = next((value for key, value in payload.items() if normalize_identifier(key) == normalize_identifier("responseFormat")), None)
+    data_output = str(_fmt(ctx) or "").strip().lower() in {"json", "xml", "table"}
+    structured = data_output or response_format == "json"
+    # This installed checkout uses the older format argument. Send both spellings
+    # for this read only, keeping all other tool rendering and local edits intact.
+    listing_payload = dict(payload)
+    listing_payload["format"] = "json" if structured else "markdown"
+    listing_payload["responseFormat"] = listing_payload["format"]
+    token = _CLI_SESSION_OBSERVATION.set(True)
+    try:
+        observed = await _call_raw(ctx, Tool.LIST_PROJECT_FILES.value, listing_payload, client_override)
+    finally:
+        _CLI_SESSION_OBSERVATION.reset(token)
+    if not _tool_seq_step_succeeded(observed):
+        # Direct commands inspect success/error; sequences also inspect MCP and
+        # markdown errors. Keep the original envelope and align their exit codes.
+        error = _get_error_result_message(observed) or _envelope_text(observed) or "The connection's project listing failed."
+        return {**(observed if isinstance(observed, dict) else {}), "success": False, "error": error}
+    hint = "For recovery-run status, pass an explicit workDir, for example: agentdecompile-cli status --work_dir /path/to/run."
+    data = {
+        "success": True,
+        "scope": "connection-session",
+        "observedUsing": Tool.LIST_PROJECT_FILES.value,
+        "recoveryWorkspaceInspected": False,
+        "projectFiles": _tool_data(observed),
+        "hint": hint,
+    }
+    if structured:
+        # The legacy renderer expects structured data directly for -f json/xml/table.
+        if data_output:
+            return data
+        text = json.dumps(data, ensure_ascii=False)
+    else:
+        observation = _envelope_text(observed) or format_output(_tool_data(observed), _fmt(ctx))
+        text = "## Connection / session status\n\nRead-only project listing succeeded for this connection. No recovery workspace was inspected.\n\n" + observation + "\n\n" + hint
+    return {"content": [{"type": "text", "text": text}], "isError": False}
+
+
+
+def _incomplete_script_error(code: Any) -> str | None:
+    """Recognize incomplete delimiters without imposing local Python grammar.
+
+    execute-script consumes Python source (not a file path); the server tries
+    eval then exec. Both require closed delimiters and multiline strings.
+    Full local compilation would reject syntax supported by a newer backend.
+    """
+    if not isinstance(code, str):
+        return None
+    import io
+    import tokenize
+
+    try:
+        for _ in tokenize.generate_tokens(io.StringIO(code).readline):
+            pass
+    except tokenize.TokenError as exc:
+        message, location = exc.args
+        if message in {"EOF in multi-line statement", "unexpected EOF in multi-line statement", "EOF in multi-line string"}:
+            return f"SyntaxError: {message} (script line {location[0]})"
+    except (SyntaxError, IndentationError):
+        # Version-specific grammar/indentation remains the backend's decision.
+        pass
+    return None
 
 
 async def _call_raw(
@@ -1177,6 +1281,8 @@ async def _call_raw(
     tool: str,
     payload: dict[str, Any],
     client_override: Any | None = None,
+    *,
+    allow_connection_status: bool = True,
 ) -> Any:
     """Call tool and return raw result for programmatic CLI workflows.
 
@@ -1196,9 +1302,17 @@ async def _call_raw(
     # Default to markdown for human-readable output. Use -f json when you need
     # machine-readable output (shell/json/xml/table modes parse structured data).
     logger.debug("diag.enter %s", "cli.py:_call_raw")
-    payload.setdefault("format", "markdown")
-
     call_tool_name, safe_payload = _resolve_tool_call_target(tool, payload)
+    if allow_connection_status and call_tool_name == Tool.STATUS.value and all(normalize_identifier(key) == normalize_identifier("responseFormat") for key in safe_payload):
+        return await _connection_session_status(ctx, safe_payload, client_override)
+    # Reject incomplete source before expensive connection/program resolution.
+    # Other syntax stays authoritative on the server's Python version.
+    if call_tool_name == Tool.EXECUTE_SCRIPT.value:
+        error = _incomplete_script_error(safe_payload.get("code"))
+        if error:
+            return {"success": False, "error": error, "state": "invalid-script", "validatedBy": "cli-tokenizer", "serverCalled": False}
+
+    safe_payload.setdefault("format", "markdown")
     prepared_payload, _ = _prepare_tool_payload_with_program_fallback(ctx, call_tool_name, dict(safe_payload))
 
     if tool_registry.is_valid_tool(call_tool_name):
@@ -1217,8 +1331,17 @@ async def _call_tool_locally(
 ) -> Any:
     backend = _get_local_backend(ctx)
     try:
-        await backend.initialize()
-        return await backend.call_tool(call_tool_name, payload)
+        # Explicit targets are opened lazily by the manager. Eager loading
+        # every program first makes one-function requests pay the whole
+        # project startup cost, including unrelated program databases.
+        has_program_target = any(
+            normalize_identifier(key) in {"programpath", "binaryname"}
+            and isinstance(value, str) and bool(value.strip())
+            for key, value in payload.items()
+        )
+        load_programs = not _CLI_SESSION_OBSERVATION.get() and not has_program_target
+        await backend.initialize(load_programs=load_programs)
+        return await backend.call_tool(call_tool_name, payload, load_programs=load_programs)
     except (ImportError, EnvironmentError) as exc:
         click.echo(f"Error (local mode): {exc}", err=True)
         sys.exit(1)
@@ -1233,6 +1356,11 @@ async def _run_tool_with_connected_client(
     call_tool_name: str,
     payload: dict[str, Any],
 ) -> Any:
+    if _CLI_SESSION_OBSERVATION.get():
+        # Status observes this session without opening another project/program.
+        result = await client.call_tool(call_tool_name, payload)
+        _persist_session_id(ctx, client)
+        return result
     bootstrap = await _maybe_bootstrap_shared_listing(ctx, client, call_tool_name, payload)
     if bootstrap is not None:
         return bootstrap
@@ -1960,6 +2088,25 @@ def _create_dynamic_commands(cli_group: click.Group) -> None:
         snake_params: list[str] = [to_snake_case(param) for param in tool_params]
         params_help: str = ", ".join(f"--{param}" for param in snake_params) if snake_params else "(none)"
         command_help: str = f"Call `{tool_name}`. Parameters: {params_help}"
+        if tool_name == Tool.STATUS.value:
+            command_help = (
+                "Inspect the current connection/session with no arguments (read-only project listing). "
+                "Pass --work_dir PATH for recovery-run status; this inspects that explicit workspace. "
+                "The MCP status tool itself requires workDir."
+            )
+        elif tool_name == Tool.EXECUTE_SCRIPT.value:
+            command_help = (
+                "Execute Python/Ghidra code on the server. Output is captured until the script completes. "
+                "The compatibility --timeout parameter is not enforced; bound individual operations inside the script. "
+                "A client wait limit does not terminate in-flight server work."
+            )
+
+        elif tool_name in {Tool.INSPECT_MEMORY.value, Tool.READ_BYTES.value}:
+            command_help += (
+                " Reads existing memory/listing entries without starting auto-analysis. "
+                "Use inspect-memory --mode read --address ADDRESS --length N for raw bytes; "
+                "run analyze explicitly when fresh analysis is needed."
+            )
 
         # Create parameter options for this tool
         def tool_command(_tool_name: str = tool_name, **kwargs: Any) -> None:
@@ -2028,7 +2175,11 @@ def _create_dynamic_commands(cli_group: click.Group) -> None:
                 snake_param,
                 type=option_type,
                 required=required,
-                help=f"{snake_param} parameter",
+                help=(
+                    "Compatibility parameter only; not enforced for in-process scripts."
+                    if tool_name == Tool.EXECUTE_SCRIPT.value and param == "timeout"
+                    else f"{snake_param} parameter"
+                ),
             )(tool_command)
 
         command_name = tool_name
@@ -2122,6 +2273,12 @@ class ForgivingCliGroup(click.Group):
             raise click.UsageError(f"Ambiguous command spelling: {cmd_name}", ctx)
         if unique_matches:
             return next(iter(unique_matches.values()))
+
+        # Common shorthand retains the canonical command options and behavior.
+        if normalized_name == normalize_identifier("decompile"):
+            shorthand = super().get_command(ctx, "decompile-function")
+            if shorthand is not None:
+                return shorthand
 
         canonical_name = tool_registry.resolve_tool_name(cmd_name)
         if canonical_name is None:
@@ -2260,7 +2417,7 @@ def main(
                 source = getter(name)
             except Exception:
                 source = None
-            if str(source).endswith("COMMANDLINE"):
+            if getattr(source, "name", None) == "COMMANDLINE" or str(source).endswith("COMMANDLINE"):
                 return True
         return _argv_contains_any_option(option_flags)
 
@@ -2508,6 +2665,8 @@ def ghidrecomp_command(
         semgrep_rules=list(semgrep_rules) if semgrep_rules else None,
         codeql_rules=codeql_rules,
     )
+    from ghidrecomp.decompile import decompile  # noqa: PLC0415 - lazy: pulls in pyghidra/ghidrecomp
+
     decompile(args)
 
 
@@ -3105,7 +3264,7 @@ _derive_convenience_commands(
 
 @main.group(
     "list-functions",
-    help="List/search functions (list-functions): all, search, similarity, undefined, count, by_identifiers",
+    help="List/search existing functions without auto-analysis. Results may be incomplete; run analyze-program explicitly for discovery. Modes: all, search, similarity, undefined, count, by_identifiers",
 )
 def list_functions_grp() -> None:
     logger.debug("diag.enter %s", "cli.py:list_functions_grp")
@@ -3459,13 +3618,13 @@ def migrate_metadata(
 # ---------------------------------------------------------------------------
 
 
-@main.group("memory", help="Inspect memory (inspect-memory): blocks, read, data_at, data_items, segments")
+@main.group("memory", help="Inspect existing memory without auto-analysis: blocks, read, data_at, data_items, segments")
 def memory_grp() -> None:
     logger.debug("diag.enter %s", "cli.py:memory_grp")
     pass
 
 
-@memory_grp.command("run", help="Run inspect-memory with --mode")
+@memory_grp.command("run", help="Inspect existing memory with --mode; run analyze explicitly for fresh analysis")
 @click.option("-b", "--binary", "program_path")
 @click.option("--mode", type=click.Choice(["blocks", "read", "data_at", "data_items", "segments"]), required=True)
 @click.option("--address")
@@ -4586,7 +4745,7 @@ def import_cmd(ctx: click.Context, path: str, no_analyze: bool) -> None:
 main.add_command(main.commands["import"], "import-binary")
 
 
-@main.command("read", help="Read bytes at address (inspect-memory mode=read)")
+@main.command("read", help="Read existing bytes without auto-analysis (inspect-memory mode=read)")
 @click.option("-b", "--binary", "program_path")
 @click.argument("address")
 @click.option("-s", "--size", "length", type=int, default=32)
@@ -4630,7 +4789,11 @@ main.add_command(main.commands["svr-admin"], "svrAdmin")
 
 @main.command(
     "eval",
-    help=("Execute Ghidra/PyGhidra API code on the server. The full Ghidra API is available (currentProgram, flatApi, toAddr, …). Example: eval -b /myapp 'currentProgram.getName()'"),
+    help=(
+        "Execute Ghidra/PyGhidra API code on the server. The full Ghidra API is available (currentProgram, flatApi, toAddr, …). "
+        "Output is captured until the script completes. A client wait limit does not terminate in-flight server work. "
+        "Example: eval -b /myapp 'currentProgram.getName()'"
+    ),
 )
 @click.argument("code")
 @click.option(
@@ -4644,7 +4807,7 @@ main.add_command(main.commands["svr-admin"], "svrAdmin")
     type=int,
     default=30,
     show_default=True,
-    help="Max execution time in seconds",
+    help="Compatibility parameter only; not enforced for in-process scripts. Bound individual operations inside the script.",
 )
 @click.pass_context
 def eval_cmd(ctx: click.Context, code: str, program_path: str | None, timeout: int) -> None:
@@ -4719,7 +4882,7 @@ def alias_cmd(name: str) -> None:
 
 @main.command(
     "tool",
-    help="Call any MCP tool by name with a JSON arguments object.",
+    help="Call any MCP tool by name with a JSON arguments object. Empty status arguments inspect the current connection/session; status with workDir inspects a recovery run.",
     epilog=TOOL_AGENT_EPILOG,
 )
 @click.argument("name", required=False, default=None)
@@ -4762,11 +4925,7 @@ def tool_cmd(
 
     async def _run() -> None:
         prepared_payload, inferred_program = _prepare_tool_payload_with_program_fallback(ctx, name, payload)
-        data = await _call_raw(ctx, name, prepared_payload)
-        err_msg = _get_error_result_message(data)
-        if err_msg is not None:
-            click.echo(err_msg, err=True)
-            sys.exit(1)
+        data = await _call_raw(ctx, name, prepared_payload, allow_connection_status=not any(value is None for value in payload.values()))
         display_data = _inject_inferred_program(data, inferred_program)
 
         if isinstance(display_data, dict):
@@ -4781,9 +4940,11 @@ def tool_cmd(
                             break
             if nested_json is not None:
                 click.echo(format_output(nested_json, "json"))
+                _exit_on_tool_failure(data)
                 return
 
         click.echo(format_output(display_data, _fmt(ctx)))
+        _exit_on_tool_failure(data)
 
     _run_async(_run())
 
@@ -4947,7 +5108,7 @@ def _run_parsed_tool_sequence(
                             if not prepared_arguments.get("path"):
                                 prepared_arguments["path"] = str(v).strip()
 
-                data = await _call_raw(ctx, name, prepared_arguments, client_override=client_override)
+                data = await _call_raw(ctx, name, prepared_arguments, client_override=client_override, allow_connection_status=not any(value is None for value in arguments.values()))
                 step_ok = _tool_seq_step_succeeded(data)
                 step_result = {
                     "index": index,
@@ -5024,6 +5185,30 @@ def tool_seq_file_cmd(ctx: click.Context, file: str, continue_on_error: bool) ->
         click.echo(f"tool-seq-file: invalid JSON in '{file_path}': {exc}", err=True)
         sys.exit(1)
     _run_parsed_tool_sequence(ctx, parsed_steps, continue_on_error=continue_on_error)
+
+
+@main.command("extract-binary", help="Export original stored FileBytes from an existing Ghidra project without analysis.")
+@click.argument("project", type=str)
+@click.option("--program", "program_path", required=True, help="Program path inside the project or shared folder.")
+@click.option("--output", "output_path", required=True, type=click.Path(path_type=Path), help="Destination; existing files are never overwritten.")
+@click.option("--shared", is_flag=True, help="PROJECT is a folder in the configured Ghidra Server repository.")
+@click.pass_context
+def extract_binary_cmd(ctx: click.Context, project: str, program_path: str, output_path: Path, shared: bool) -> None:
+    from agentdecompile_cli.binary_extract import extract
+
+    if shared:
+        options = ctx.obj or {}
+        if options.get("ghidra_server_password"):
+            raise click.ClickException("Shared extraction uses the existing SSH authenticator; configure GHIDRA_SERVER_SSH_KEY instead of a password.")
+        for key in ("host", "port", "repository", "username"):
+            value = options.get(f"ghidra_server_{key}")
+            if value is not None:
+                os.environ[f"GHIDRA_SERVER_{key.upper()}"] = str(value)
+    try:
+        result = extract(project, program_path, output_path, shared=shared)
+    except Exception as exc:
+        raise click.ClickException(str(exc)) from exc
+    click.echo(json.dumps(result, indent=2))
 
 
 def _run_embedded_cli(entrypoint: Any, args: tuple[str, ...]) -> None:

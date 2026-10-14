@@ -725,7 +725,12 @@ def _next_steps_strings(data: dict[str, Any]) -> list[str]:
         first: dict[str, Any] = results[0]
         addr = first.get("address", "")
         if addr:
-            steps.append(f"Decompile/disassemble/inspect containing function: `get-function function={addr}`.")
+            steps.append(f"Find code or data that uses this string: `get-references address={addr}`. A string address is data, not a function entry point.")
+        functions = first.get("referencingFunctions") or []
+        if isinstance(functions, list) and functions:
+            steps.append(f"Inspect a known referencing function: `get-function function={functions[0]}`.")
+        else:
+            steps.append("Inspect a function identified by the references, or resolve a symbol-name string with `list-functions query=<symbol_name>` before using `get-function`. String-table names alone do not prove a function exists.")
         steps.append("Try other keywords with `search-strings query=<word>`, or use `list-strings` to browse all strings.")
     else:
         # No results: context-aware suggestions when the user ran a search with a query
@@ -1119,10 +1124,13 @@ def _render_execute_script(data: dict[str, Any]) -> str:
     """Render execute-script response: status, combined stdout/stderr, and return value as code blocks."""
     logger.debug("diag.enter %s", "mcp_server/response_formatter.py:_render_execute_script")
     lines: list[str] = []
-    lines.append(_md_heading(2, "Script Execution Result"))
+    success = data.get("success", True)
+    lines.append(_md_heading(2, "Script Execution Result" if success else "Error"))
     lines.append("")
 
-    success = data.get("success", True)
+    if not success:
+        error = data.get("error") or next((line.strip() for line in reversed(str(data.get("stderr", "")).splitlines()) if line.strip()), "Script failed without an error message")
+        lines.extend([f"> **{error}**", ""])
     lines.append(_md_bold_kv("Status", "Success" if success else "Error"))
 
     stdout_text = str(data.get("stdout", ""))
@@ -1134,9 +1142,9 @@ def _render_execute_script(data: dict[str, Any]) -> str:
         executed_name = str(executed_program.get("name", ""))
         executed_path = str(executed_program.get("path", ""))
         if executed_name:
-            lines.append(_md_bold_kv("Executed Program", _md_code_inline(executed_name)))
+            lines.append(_md_bold_kv("Context Program", _md_code_inline(executed_name)))
         if executed_path and executed_path != executed_name:
-            lines.append(_md_bold_kv("Program Path", _md_code_inline(executed_path)))
+            lines.append(_md_bold_kv("Context Program Path", _md_code_inline(executed_path)))
 
     if stdout_text or stderr_text:
         lines.append("")
@@ -1205,6 +1213,10 @@ def _render_list_functions(data: dict[str, Any]) -> str:
     lines.append(_pagination_footer(data))
     lines.append("")
 
+    if data.get("note"):
+        lines.append(str(data["note"]))
+        lines.append("")
+
     results: list[dict[str, Any]] = data.get("results", [])
     if results:
         headers = ["Name", "Address", "Size", "Params", "External", "Thunk"]
@@ -1221,7 +1233,7 @@ def _render_list_functions(data: dict[str, Any]) -> str:
         ]
         lines.append(_md_table(headers, rows))
     else:
-        lines.append("*No functions found matching the criteria.*")
+        lines.append("*No entries in the existing listing match the criteria.*")
 
     return "\n".join(lines)
 
@@ -3219,6 +3231,8 @@ def render_tool_response(normalized_tool_name: str, data: dict[str, Any]) -> str
     # Modification conflicts get their own renderer (udiff + nextStep)
     if data.get("modificationConflict") is True or (data.get("success") is False and data.get("conflictId")):
         body = _render_conflict(data)
+    elif data.get("success") is False and normalized_tool_name == "executescript":
+        body = _render_execute_script(data)
     elif data.get("success") is False:
         body = _render_error(data)
     else:

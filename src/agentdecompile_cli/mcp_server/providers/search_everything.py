@@ -1624,7 +1624,15 @@ class SearchEverythingToolProvider(ToolProvider):
     ) -> list[dict[str, Any]]:
         logger.debug("diag.enter %s", "mcp_server/providers/search_everything.py:SearchEverythingToolProvider._search_symbols")
         results: list[dict[str, Any]] = []
-        for sym in collect_symbols(program, limit=per_scope_limit):
+        # The limit is a match budget, not a prefix of the symbol table. Filter
+        # names before collecting metadata so late matches remain discoverable.
+        def matches_name(name: str) -> bool:
+            return self._match_text(
+                text=name, queries=queries, mode=mode, case_sensitive=case_sensitive,
+                threshold=threshold, compiled_regexes=compiled_regexes,
+            ) is not None
+
+        for sym in collect_symbols(program, limit=per_scope_limit, name_filter=matches_name):
             if len(results) >= per_scope_limit:
                 break
             name: str = str(sym.get("name", ""))

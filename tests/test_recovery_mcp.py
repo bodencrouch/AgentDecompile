@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+
 from pathlib import Path
 from typing import Any
 
@@ -114,6 +115,141 @@ def test_build_recovery_status_includes_export_package(tmp_path: Path) -> None:
     assert status["paths"]["exportManifest"]
 
 
+def test_build_recovery_status_includes_unity_receipts_and_effective_outcome(tmp_path: Path) -> None:
+    work = tmp_path / "run"
+    unity = work / "unity"
+    unity.mkdir(parents=True)
+    project = tmp_path / "unity-project"
+    (work / "state.json").write_text(
+        json.dumps(
+            {
+                "stages": {
+                    "unity-probe": {
+                        "config": {"unitySettings": {"projectOut": str(project)}}
+                    }
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    (work / "claim-report.json").write_text(json.dumps({"terminalStatus": "matched"}), encoding="utf-8")
+    (work / "report.json").write_text(json.dumps({"terminalStatus": "matched"}), encoding="utf-8")
+    unity_receipts = {
+        "probe.json": {"status": "complete", "detected": True, "unityVersion": "2022.3.62f2"},
+        "plan.json": {"status": "complete", "export": {"mode": "staged", "excludedContainers": ["resources.assets"]}},
+        "assetripper.json": {"status": "complete", "hasProjectVersion": True, "exportedProject": str(tmp_path / "exported")},
+        "managed.json": {"status": "error", "reason": "synthetic ilspy failure", "failed": ["Assembly-CSharp"]},
+        "compose.json": {"status": "partial", "targetProject": str(project)},
+        "validate.json": {"status": "skipped", "clean": False, "reason": "no editor"},
+        "repair.json": {"status": "skipped", "reason": "no editor"},
+    }
+    for filename, receipt in unity_receipts.items():
+        (unity / filename).write_text(json.dumps(receipt), encoding="utf-8")
+
+    status = build_recovery_status(work)
+
+    assert status["terminalStatus"] == "failed"
+    assert status["unity"]["status"] == "failed"
+    assert status["unity"]["projectPath"] == str(project.resolve())
+    assert status["unity"]["receipts"]["plan"]["export"]["excludedContainers"] == ["resources.assets"]
+    assert status["unity"]["receipts"]["managed"]["status"] == "error"
+    assert "not byte-verified native" in status["unity"]["managedSourceBoundary"]
+    assert set(status["paths"]["unityReceipts"]) == {
+        "probe",
+        "plan",
+        "export",
+        "managed",
+        "compose",
+        "editorValidation",
+        "repair",
+    }
+
+
+def test_unity_clean_repair_supersedes_initial_editor_diagnostics(tmp_path: Path) -> None:
+    from agentdecompile_recovery.recovery_status import build_unity_recovery_summary
+
+    work = tmp_path / "run"
+    unity = work / "unity"
+    unity.mkdir(parents=True)
+    receipts = {
+        "probe.json": {"status": "complete", "detected": True},
+        "plan.json": {"status": "complete"},
+        "assetripper.json": {"status": "complete", "hasProjectVersion": True},
+        "managed.json": {"status": "complete", "decompiled": ["Assembly-CSharp"], "failed": []},
+        "compose.json": {"status": "complete", "openable": {"ready": True}},
+        "validate.json": {"status": "failed", "clean": False},
+        "repair.json": {"status": "complete", "finalValidation": {"status": "complete", "clean": True}},
+    }
+    for name, payload in receipts.items():
+        (unity / name).write_text(json.dumps(payload), encoding="utf-8")
+
+    outcome = build_unity_recovery_summary(work, project_path=tmp_path / "project", requested=True)
+
+    assert outcome["status"] == "complete"
+    assert outcome["terminalStatus"] == "complete"
+    assert outcome["exitCode"] == 0
+
+
+def test_unity_staged_export_is_reported_as_partial(tmp_path: Path) -> None:
+    from agentdecompile_recovery.recovery_status import build_unity_recovery_summary
+
+    work = tmp_path / "run"
+    unity = work / "unity"
+    unity.mkdir(parents=True)
+    receipts = {
+        "probe.json": {"status": "complete", "detected": True},
+        "plan.json": {"status": "complete", "export": {"mode": "staged", "excludedContainers": ["resources.assets"]}},
+        "assetripper.json": {"status": "complete", "hasProjectVersion": True, "mode": "staged"},
+        "managed.json": {"status": "complete", "decompiled": ["Assembly-CSharp"], "failed": []},
+        "compose.json": {"status": "complete", "openable": {"ready": True}},
+        "validate.json": {"status": "complete", "clean": True},
+        "repair.json": {"status": "skipped", "reason": "validation reported a clean project"},
+    }
+    for name, payload in receipts.items():
+        (unity / name).write_text(json.dumps(payload), encoding="utf-8")
+
+    outcome = build_unity_recovery_summary(work, project_path=tmp_path / "project", requested=True)
+
+    assert outcome["status"] == "partial"
+    assert outcome["terminalStatus"] == "partial"
+    assert outcome["exitCode"] == 1
+    assert outcome["exportOmissions"] == ["resources.assets"]
+
+
+def test_unity_incompleteness_does_not_hide_toolchain_block(tmp_path: Path) -> None:
+    work = tmp_path / "run"
+    unity = work / "unity"
+    unity.mkdir(parents=True)
+    (work / "claim-report.json").write_text(json.dumps({"terminalStatus": "blocked:toolchain"}), encoding="utf-8")
+    (work / "state.json").write_text(
+        json.dumps({"stages": {"unity-probe": {"config": {"unitySettings": {"projectOut": str(tmp_path / "project")}}}}}),
+        encoding="utf-8",
+    )
+    (unity / "probe.json").write_text(json.dumps({"status": "complete", "detected": True}), encoding="utf-8")
+
+    assert build_recovery_status(work)["terminalStatus"] == "blocked:toolchain"
+
+
+def test_current_unity_settings_clear_stale_report_project_path(tmp_path: Path) -> None:
+    from agentdecompile_recovery.recovery_status import build_unity_recovery_summary
+
+    work = tmp_path / "run"
+    work.mkdir()
+    (work / "state.json").write_text(
+        json.dumps({"stages": {"unity-probe": {"config": {"unitySettings": {"projectOut": None}}}}}),
+        encoding="utf-8",
+    )
+    (work / "report.json").write_text(
+        json.dumps({"unity": {"requested": True, "projectPath": str(tmp_path / "old-project")}}),
+        encoding="utf-8",
+    )
+
+    summary = build_unity_recovery_summary(work)
+
+    assert summary["requested"] is False
+    assert summary["projectPath"] is None
+
+
 @pytest.mark.asyncio
 async def test_provider_status_and_claim_report(tmp_path: Path) -> None:
     work = tmp_path / "run"
@@ -167,6 +303,77 @@ async def test_provider_reconstruct_uses_job_helper(monkeypatch: pytest.MonkeyPa
     payload = json.loads(result[0].text)
     assert payload["tool"] == "reconstruct"
     assert payload["terminalStatus"] == "partial"
+
+
+def test_frontdoor_preserves_unity_partial_exit_without_report(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    from agentdecompile_recovery import frontdoor
+
+    binary = tmp_path / "game"
+    binary.write_bytes(b"MZ")
+    work = tmp_path / "work"
+    args = frontdoor.build_parser().parse_args(
+        [str(binary), "--work-dir", str(work), "--unity-project-out", str(tmp_path / "project"), "--json"]
+    )
+
+    class PartialRunner:
+        def __init__(self, config: Any) -> None:
+            self.work_dir = config.work_dir
+
+        def run(self) -> int:
+            self.work_dir.mkdir(parents=True, exist_ok=True)
+            (self.work_dir / "state.json").write_text(
+                json.dumps({"terminalStatus": "partial", "status": "partial"}),
+                encoding="utf-8",
+            )
+            return 1
+
+    written_claims: list[str] = []
+    monkeypatch.setattr(frontdoor, "RecoveryRunner", PartialRunner)
+    monkeypatch.setattr(frontdoor, "write_critical_path", lambda _work: {})
+    monkeypatch.setattr(
+        frontdoor,
+        "write_claim_report",
+        lambda _work, *, terminal_status: written_claims.append(terminal_status) or work / "claim-report.json",
+    )
+
+    assert frontdoor.run_one_shot(args) == 1
+    assert written_claims == ["partial"]
+
+
+def test_frontdoor_maps_remote_assetripper_options_without_connecting(tmp_path: Path) -> None:
+    from agentdecompile_recovery import frontdoor
+
+    binary = tmp_path / "game"
+    binary.write_bytes(b"MZ")
+    args = frontdoor.build_parser().parse_args(
+        [
+            str(binary),
+            "--unity-only",
+            "--unity-project-out",
+            str(tmp_path / "project"),
+            "--unity-assetripper-remote-host",
+            "root@192.0.2.10",
+            "--unity-assetripper-remote-root",
+            "/tmp/tvs-run",
+            "--unity-assetripper-remote-input",
+            "/tmp/tvs-run/input",
+            "--unity-assetripper-remote-port",
+            "18085",
+            "--unity-assetripper-ssh-host-key-alias",
+            "100.64.0.8",
+        ]
+    )
+
+    options = frontdoor.frontdoor_unity_config_kwargs(args)
+    assert options["unity_only"] is True
+    assert options["unity_assetripper_remote_host"] == "root@192.0.2.10"
+    assert options["unity_assetripper_remote_root"] == "/tmp/tvs-run"
+    assert options["unity_assetripper_remote_input"] == "/tmp/tvs-run/input"
+    assert options["unity_assetripper_remote_port"] == 18085
+    assert options["unity_assetripper_ssh_host_key_alias"] == "100.64.0.8"
 
 
 def test_manager_registers_recovery_tools() -> None:

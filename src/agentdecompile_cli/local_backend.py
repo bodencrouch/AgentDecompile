@@ -25,6 +25,7 @@ to import even when PyGhidra is not installed; it raises ``ImportError`` only wh
 from __future__ import annotations
 
 import asyncio
+import importlib
 import json
 import logging
 import os
@@ -33,6 +34,8 @@ import time
 
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
+
+from agentdecompile_cli.startup_progress import report_slow_local_operation, report_slow_pyghidra_startup
 
 if TYPE_CHECKING:
     from mcp import types
@@ -98,6 +101,7 @@ class LocalToolBackend:
         self._threaded = threaded
 
         self._initialized: bool = False
+        self._programs_loaded: bool = False
         self._context: PyGhidraContext | None = None
         self._tool_manager: ToolProviderManager | None = None
         self._resource_manager: ResourceProviderManager | None = None
@@ -119,19 +123,29 @@ class LocalToolBackend:
     # Lifecycle
     # ------------------------------------------------------------------
 
-    async def initialize(self) -> None:
+    async def initialize(self, *, load_programs: bool = True) -> None:
         """Start PyGhidra, open/create the Ghidra project, and register all tool providers.
 
         Safe to call multiple times; subsequent calls are no-ops.
         """
         logger.debug("diag.enter %s", "local_backend.py:LocalToolBackend.initialize")
         if self._initialized:
+            if load_programs and not self._programs_loaded:
+                await asyncio.get_running_loop().run_in_executor(None, self._load_project_programs)
             return
 
         # Run the blocking initialisation in a thread so it doesn't block the event loop.
-        await asyncio.get_event_loop().run_in_executor(None, self._do_initialize)
+        try:
+            await asyncio.get_event_loop().run_in_executor(None, self._do_initialize, load_programs)
+        except Exception as exc:
+            from agentdecompile_cli.storage_diagnostics import storage_failure_message
 
-    def _do_initialize(self) -> None:
+            message = storage_failure_message(exc, self._project_path)
+            if message is not None:
+                raise RuntimeError(message) from exc
+            raise
+
+    def _do_initialize(self, load_programs: bool = True) -> None:
         """Blocking initialisation: PyGhidra start + project open + provider registration."""
         logger.debug("diag.enter %s", "local_backend.py:LocalToolBackend._do_initialize")
         _t0 = time.monotonic()
@@ -153,22 +167,31 @@ class LocalToolBackend:
                 "  export GHIDRA_INSTALL_DIR=/opt/ghidra-install/ghidra_12.0.4_PUBLIC"
             )
 
+        # Load Python-only transport dependencies before PyGhidra installs its
+        # Java import finder; probing every mcp/uvicorn submodule through that
+        # finder can otherwise dominate startup after the JVM is running.
+        with report_slow_local_operation("loading Python backend dependencies"):
+            importlib.import_module("mcp")
+
         logger.info("local_backend init pyghidra start project_path=%s project_name=%s", self._project_path, self._project_name)
         sys.stderr.write("Initializing PyGhidra (local mode)...\n")
-        pyghidra.start(verbose=self._verbose)
+        with report_slow_pyghidra_startup():
+            pyghidra.start(verbose=self._verbose)
         sys.stderr.write("PyGhidra initialized.\n")
 
         # --- Ghidra project ---
         from agentdecompile_cli.context import PyGhidraContext  # pyright: ignore[reportMissingImports]
 
         self._project_path.mkdir(parents=True, exist_ok=True)
-        self._context = PyGhidraContext(
-            project_name=self._project_name,
-            project_path=str(self._project_path),
-            force_analysis=self._force_analysis,
-            verbose_analysis=self._verbose,
-            threaded=self._threaded,
-        )
+        with report_slow_local_operation("opening the local project context"):
+            self._context = PyGhidraContext(
+                project_name=self._project_name,
+                project_path=str(self._project_path),
+                force_analysis=self._force_analysis,
+                verbose_analysis=self._verbose,
+                threaded=self._threaded,
+                load_programs=load_programs,
+            )
 
         # --- Import requested input binaries ---
         for binary_path in self._input_paths:
@@ -185,14 +208,34 @@ class LocalToolBackend:
                 sys.stderr.write(f"Warning: import failed for {binary_path}: {exc}\n")
 
         # --- Tool provider manager ---
-        from agentdecompile_cli.mcp_server.resource_providers import ResourceProviderManager  # pyright: ignore[reportMissingImports]
-        from agentdecompile_cli.mcp_server.tool_providers import ToolProviderManager  # pyright: ignore[reportMissingImports]
+        with report_slow_local_operation("loading and registering local tool providers"):
+            from agentdecompile_cli.mcp_server.resource_providers import ResourceProviderManager  # pyright: ignore[reportMissingImports]
+            from agentdecompile_cli.mcp_server.tool_providers import ToolProviderManager  # pyright: ignore[reportMissingImports]
 
-        self._tool_manager = ToolProviderManager()
-        self._tool_manager.register_all_providers()
-        self._resource_manager = ResourceProviderManager()
-        self._resource_manager.set_tool_provider_manager(self._tool_manager)
+            self._tool_manager = ToolProviderManager()
+            self._tool_manager.register_all_providers()
+            self._resource_manager = ResourceProviderManager()
+            self._resource_manager.set_tool_provider_manager(self._tool_manager)
 
+        self._seed_open_programs()
+        self._programs_loaded = load_programs or bool(self._input_paths)
+
+        # Store GhidraProject reference so providers can checkout/checkin
+        if hasattr(self._context, "project") and self._context.project is not None:
+            self._tool_manager.set_ghidra_project(self._context.project)
+
+        self._initialized = True
+        elapsed = time.monotonic() - _t0
+        sys.stderr.write(f"Local backend ready in {elapsed:.1f}s. Session: {_LOCAL_SESSION_ID!r}\n")
+        logger.info("local_backend_init_done elapsed_s=%.2f programs=%d", elapsed, len(self._context.programs))
+
+    def _load_project_programs(self) -> None:
+        if self._context is not None:
+            self._context._init_project_programs()
+            self._seed_open_programs()
+            self._programs_loaded = True
+
+    def _seed_open_programs(self) -> None:
         # Seed manager + session with already-open programs from the project
         from agentdecompile_cli.mcp_server.session_context import SESSION_CONTEXTS  # pyright: ignore[reportMissingImports]
 
@@ -214,15 +257,6 @@ class LocalToolBackend:
             self._tool_manager.set_program_info(first_prog_info)
             self._resource_manager.set_program_info(first_prog_info)
 
-        # Store GhidraProject reference so providers can checkout/checkin
-        if hasattr(self._context, "project") and self._context.project is not None:
-            self._tool_manager.set_ghidra_project(self._context.project)
-
-        self._initialized = True
-        elapsed = time.monotonic() - _t0
-        sys.stderr.write(f"Local backend ready in {elapsed:.1f}s. Session: {_LOCAL_SESSION_ID!r}\n")
-        logger.info("local_backend_init_done elapsed_s=%.2f programs=%d", elapsed, len(self._context.programs))
-
     def close(self) -> None:
         """Close the Ghidra project context (save changes)."""
         logger.debug("diag.enter %s", "local_backend.py:LocalToolBackend.close")
@@ -232,12 +266,13 @@ class LocalToolBackend:
             except Exception as exc:
                 logger.warning("local_backend close_error exc=%s", exc)
         self._initialized = False
+        self._programs_loaded = False
 
     # ------------------------------------------------------------------
     # Core tool execution
     # ------------------------------------------------------------------
 
-    async def call_tool(self, name: str, arguments: dict[str, Any]) -> dict[str, Any]:
+    async def call_tool(self, name: str, arguments: dict[str, Any], *, load_programs: bool = True) -> dict[str, Any]:
         """Execute a tool in-process via ToolProviderManager.
 
         Returns a dict matching the ``RawMcpHttpBackend.call_tool()`` shape::
@@ -247,8 +282,7 @@ class LocalToolBackend:
         This matches what ``_call_raw`` and all CLI formatting helpers expect.
         """
         logger.debug("diag.enter %s", "local_backend.py:LocalToolBackend.call_tool")
-        if not self._initialized:
-            await self.initialize()
+        await self.initialize(load_programs=load_programs)
 
         if self._tool_manager is None:
             return _error_response("Local backend not initialized (tool_manager is None)")
@@ -262,11 +296,34 @@ class LocalToolBackend:
             result: list[types.TextContent] = await self._tool_manager.call_tool(name, dict(arguments or {}))
         except Exception as exc:
             logger.warning("local_backend call_tool_exc tool=%s exc=%s", name, exc)
-            return _error_response(f"Tool '{name}' raised an exception: {exc}")
+            from agentdecompile_cli.storage_diagnostics import storage_failure_message
+
+            message = storage_failure_message(exc, self._project_path) or str(exc)
+            return _error_response(f"Tool '{name}' raised an exception: {message}")
         finally:
             CURRENT_MCP_SESSION_ID.reset(token)
 
-        return _text_content_to_response(result)
+        response = _text_content_to_response(result)
+        from agentdecompile_cli.storage_diagnostics import storage_failure_message
+
+        for item in response["content"]:
+            raw = item["text"]
+            if raw.lstrip().startswith(("## Error\n", "## Error\r\n")):
+                message = storage_failure_message(raw, self._project_path)
+                if message is not None:
+                    item["text"] = message
+                    response["isError"] = True
+                continue
+            try:
+                payload = json.loads(raw)
+            except (json.JSONDecodeError, TypeError):
+                continue
+            if isinstance(payload, dict) and payload.get("success") is False:
+                message = storage_failure_message(str(payload.get("error", "")), self._project_path)
+                if message is not None:
+                    payload["error"] = message
+                    item["text"] = json.dumps(payload)
+        return response
 
     async def list_tools(self) -> list[dict[str, Any]]:
         """Return a list of available tools (same keys as MCP tools/list response)."""

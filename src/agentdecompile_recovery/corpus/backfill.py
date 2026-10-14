@@ -125,10 +125,28 @@ def _receipt_path(receipts_dir: Path, pass_name: str, identity: str) -> Path:
     return receipts_dir / pass_name / f"{stem}.json"
 
 
-def _raw_image(repo_path: str) -> tuple[Path, bytes | None]:
+def _raw_image(
+    repo_path: str,
+    *,
+    raw_dir: Path | None = None,
+    binary_slug: str | None = None,
+) -> tuple[Path, bytes | None]:
     from .ghidra_bulk import raw_image_path
 
-    path = raw_image_path(repo_path)
+    if raw_dir is None:
+        path = raw_image_path(repo_path)
+    else:
+        path_slug = (repo_path or "").strip("/").replace("/", "__")
+        slugs = tuple(dict.fromkeys(filter(None, (binary_slug, path_slug))))
+        candidates = tuple(
+            candidate
+            for slug in slugs
+            for candidate in (
+                raw_dir / slug,
+                raw_dir / slug / "artifacts" / "raw_image",
+            )
+        )
+        path = next((candidate for candidate in candidates if candidate.is_file()), candidates[0])
     if not path.is_file():
         return path, None
     try:
@@ -153,6 +171,7 @@ def run(
     *,
     receipts_dir: Path,
     resume: bool = True,
+    raw_dir: Path | None = None,
 ) -> dict:
     """Run *passes* over every binary in id order. Returns a summary.
 
@@ -181,7 +200,9 @@ def run(
         for row in _binary_rows(con):
             binary_id = int(row["id"])
             slug = str(row.get("slug") or binary_id)
-            raw_path, raw = _raw_image(str(row.get("repo_path") or ""))
+            raw_path, raw = _raw_image(
+                str(row.get("repo_path") or ""), raw_dir=raw_dir, binary_slug=slug,
+            )
             identity = hashlib.sha256(raw).hexdigest() if raw is not None else slug
             key = {"pass": step.name, "identity": identity}
             receipt = _receipt_path(receipts_dir, step.name, identity)

@@ -233,14 +233,34 @@ def describe_source(repo_path: str) -> dict[str, object]:
 
 
 def shared_defaults() -> dict[str, object]:
-    host = (os.environ.get("AGENT_DECOMPILE_GHIDRA_SERVER_HOST") or "127.0.0.1").strip()
-    port_raw = (os.environ.get("AGENT_DECOMPILE_GHIDRA_SERVER_PORT") or "").strip()
+    from .corpus_config import load_ghidra_server
+
+    profile = load_ghidra_server()
+    host = (
+        os.environ.get("AGENT_DECOMPILE_GHIDRA_SERVER_HOST")
+        or profile.get("host")
+        or "127.0.0.1"
+    ).strip()
+    port_raw = (
+        os.environ.get("AGENT_DECOMPILE_GHIDRA_SERVER_PORT")
+        or profile.get("port")
+        or _DEFAULT_SERVER_PORT
+    )
     try:
-        port = int(port_raw or _DEFAULT_SERVER_PORT)
-    except ValueError:
+        port = int(port_raw)
+    except (TypeError, ValueError):
         port = _DEFAULT_SERVER_PORT
-    repository = (os.environ.get("AGENT_DECOMPILE_GHIDRA_SERVER_REPOSITORY") or "").strip()
-    user = (os.environ.get("AGENT_DECOMPILE_GHIDRA_SERVER_USER") or "").strip()
+    repository = (
+        os.environ.get("AGENT_DECOMPILE_GHIDRA_SERVER_REPOSITORY")
+        or profile.get("repository")
+        or ""
+    ).strip()
+    user = (
+        os.environ.get("AGENT_DECOMPILE_GHIDRA_SERVER_USERNAME")
+        or os.environ.get("AGENT_DECOMPILE_GHIDRA_SERVER_USER")
+        or profile.get("username")
+        or ""
+    ).strip()
     if not user:
         try:
             user = getpass.getuser() or ""
@@ -252,7 +272,7 @@ def shared_defaults() -> dict[str, object]:
         "repository": repository,
         "user": user,
         "protocol": "ghidra-rmi-ssl",
-        "defaultPort": _DEFAULT_SERVER_PORT,
+        "defaultPort": port,
         "ports": [port, port + 1, port + 2],
         "portRoles": {
             "registry": port,

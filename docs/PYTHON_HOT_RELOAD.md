@@ -17,21 +17,34 @@ pip install /home/brunner56/inplace-hotreload/dist/inplace_hotreload-0.1.0-py3-n
 inplace-hotreload --root /path/to/project/src --call application.server:main -- --port 8080
 ```
 
-For this repository, `scripts/watch-recovery-server.py` is now an exec-only
-compatibility launcher. It selects the server command's virtualenv Python and
-starts watching before importing `agentdecompile_cli.server:main`. It contains
-no child supervisor, polling replacement loop, cgroup control or restart fallback.
-Old `--work-dir` and `--state-file` arguments remain accepted but do not create
-replacement state. Do not launch a second server when 8080 is already owned.
+For this repository, `scripts/watch-recovery-server.py` is an exec-only
+compatibility launcher. It selects the server command's virtualenv Python,
+discovers the imported AgentDecompile source roots, and starts watching before
+importing `agentdecompile_cli.server:main`. Explicit `--watch` paths override
+discovery. It contains no child supervisor, polling replacement loop, cgroup
+control or restart fallback. Old `--work-dir` and `--state-file` arguments
+remain accepted but do not create replacement state. Do not launch a second
+server when 8080 is already owned.
 
 ## Edit and inspect
 
-Confirm the live module path before editing; the current runtime source is
-`/home/brunner56/agentdecompile-nvme/src`, not the canonical Git checkout.
-Preserve unrelated differences between those trees. `/health` reports
-`runtime.reload`: process identity, watched roots, applied/rejected/error events
-and source/applied hashes. Verify changed behavior through the actual consumer;
-an `applied` event alone is not behavior proof.
+Confirm the live module path before editing; the NVMe workspace, installed
+Python source, and canonical Git checkout can differ. Preserve unrelated
+differences between those trees. `/health` reports `runtime.reload`: process
+identity, watched roots, applied/rejected/error events and source/applied hashes.
+Verify changed behavior through the actual consumer; an `applied` event alone
+is not behavior proof.
+
+### Source-root incident — 2026-10-03
+
+The 8080 process reported a reload root of
+`/home/brunner56/agentdecompile-nvme/src` but `watchedFiles: 0`. Its venv's
+editable-install `.pth` points at
+`/run/media/brunner56/MyBook/Workspaces/ai-projects/AgentDecompile/src`, so
+application imports were outside the watched root. The launcher now discovers
+the imported package roots for a future bootstrap. The running process was not
+restarted; its in-place edits remain unapplied until a separately authorized,
+safe activation, so this incident is not a live hot-reload success receipt.
 
 Compatible function/method bodies, retained callbacks and immutable uppercase
 constants can update. Contract changes, mutable module state, effectful defaults,

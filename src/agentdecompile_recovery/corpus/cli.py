@@ -164,6 +164,17 @@ def build_parser() -> argparse.ArgumentParser:
     add.add_argument("--format", dest="file_format", default="")
     add.add_argument("--game", default="")
 
+    group = sub.add_parser(
+        "register-group",
+        help="Register a reviewed binary group from one JSON manifest and emit content-hash provenance",
+    )
+    group.mutating = True
+    group.long_running = True
+    group.add_argument("--manifest", type=Path, required=True, help="JSON object with a binaries array; paths may be relative to this file")
+    group.add_argument("--corpus", type=Path, required=True, help="Existing corpus manifest or output path for a new one")
+    group.add_argument("--corpus-id", default=None, help="ID used only when creating a new corpus")
+    group.add_argument("--replace", action="store_true", help="Replace an existing binary ID with the manifest entry")
+
     rmbin = sub.add_parser(
         "remove-binary",
         help="Delete one binary and its per-binary rows from a store",
@@ -304,9 +315,15 @@ def build_parser() -> argparse.ArgumentParser:
         "backfill",
         help="Re-derive binary columns from raw images; one receipt per (pass, binary) makes it resumable",
     )
+    backfill.mutating = True
+    backfill.identity_scope = "database"
     backfill.add_argument("--db", type=Path, required=True)
     backfill.add_argument("--pass", dest="passes", action="append", required=True, metavar="NAME")
     backfill.add_argument("--receipts", type=Path, required=True)
+    backfill.add_argument(
+        "--raw-dir", type=Path, default=None,
+        help="Optional root containing <slug> raw files or <slug>/artifacts/raw_image",
+    )
     backfill.add_argument("--no-resume", dest="resume", action="store_false")
 
     match_pair = sub.add_parser("match-pair", help="Run the store matcher on one directed pair")
@@ -384,7 +401,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     ingest_rec = sub.add_parser("ingest-recovered", help="Bind recovered C to existing identities")
-    ingest_rec.long_running = True
+    ingest_rec.danger = ingest_rec.mutating = ingest_rec.long_running = True
     ingest_rec.add_argument("--db", type=Path, required=True)
     ingest_rec.add_argument("--recovered-dir", type=Path, required=True)
     ingest_rec.add_argument("--coverage-dir", type=Path, required=True)
@@ -749,6 +766,21 @@ def main(argv: list[str] | None = None) -> int:
         save_corpus(args.corpus, corpus)
         print(json.dumps({"binaries": [b.id for b in corpus.binaries], "donorId": corpus.donor_id}))
         return 0
+    if args.cmd == "register-group":
+        from .register_group import register_group
+
+        try:
+            result = register_group(
+                args.manifest,
+                args.corpus,
+                corpus_id=args.corpus_id,
+                replace_existing=args.replace,
+            )
+        except (OSError, ValueError, TypeError, json.JSONDecodeError) as exc:
+            print(json.dumps({"success": False, "error": str(exc)}), file=sys.stderr)
+            return 2
+        print(json.dumps(result, indent=2, sort_keys=True))
+        return 0
     if args.cmd == "extract-stabs":
         from .machostabs import analyze
 
@@ -897,7 +929,7 @@ def main(argv: list[str] | None = None) -> int:
         from .rebaseline import rebaseline as run_rebaseline
         from .store import connect
 
-        def run_it():
+        def run_rebaseline_transaction():
             try:
                 return run_rebaseline(
                     connect(args.db),
@@ -919,7 +951,7 @@ def main(argv: list[str] | None = None) -> int:
         # summary says which. An export that refused after the re-stamp
         # landed keeps exit 0: the supersession stands, and the refusal is
         # recorded under run.export and named once on stderr.
-        result = _run_keyed_verb(run_it)
+        result = _run_keyed_verb(run_rebaseline_transaction)
         if result is REFUSED:
             return 2
         print(json.dumps(result, sort_keys=True, indent=2))
@@ -934,15 +966,28 @@ def main(argv: list[str] | None = None) -> int:
         from .logical import ContentHashError
         from .store import connect
 
-        def run_it():
+        def run_backfill_transaction():
             try:
-                return run_backfill(connect(args.db), args.passes, receipts_dir=args.receipts, resume=args.resume)
+                # The selected database is the authoritative project context.
+                # A dashboard may launch from another checkout/cwd, so infer
+                # that project's raw-image directory before falling back to
+                # the process-level configured path.
+                configured_raw = any(
+                    __import__("os").environ.get(name, "").strip()
+                    for name in ("AGENT_DECOMPILE_EXTRACT_RAW", "AGENT_DECOMPILE_CORPUS_WORK_DIR")
+                )
+                project_raw = args.db.expanduser().resolve().parent.parent / "corpus_work" / "extract" / "raw"
+                raw_dir = args.raw_dir or (None if configured_raw else (project_raw if project_raw.is_dir() else None))
+                return run_backfill(
+                    connect(args.db), args.passes, receipts_dir=args.receipts,
+                    resume=args.resume, raw_dir=raw_dir,
+                )
             except ContentHashError:
                 raise
             except ValueError as exc:
                 raise SystemExit(f"error: {exc}") from exc
 
-        result = _run_keyed_verb(run_it)
+        result = _run_keyed_verb(run_backfill_transaction)
         if result is REFUSED:
             return 2
         print(json.dumps(result, sort_keys=True))

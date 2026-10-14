@@ -433,13 +433,13 @@ def worker(params, envelope):
         if admission.digest(scan.path.read_bytes()) != envelope['scanDigest']:
             raise ValueError('worker_scan_intent_changed')
         with admission.read_database(params['db']) as con:
-            row = con.execute('SELECT id FROM binary WHERE repo_path=?', (params['repo'],)).fetchone()
-            if not row: raise ValueError('source_binary_not_in_database')
+            from .propagate import bid
+            source_binary_id = bid(con, params['repo'])
             report = ResultReport(ledger, 'worker', envelope['generation'])
             try:
                 for source, receipt in scan.pending():
                     scan.set_context(receipt)
-                    place_tree(src, int(row[0]), params['out-dir'], con,
+                    place_tree(src, source_binary_id, params['out-dir'], con,
                         raw_dir=params['raw-dir'], receipt_path=receipt,
                         no_compile_gate=bool(params.get('no-compile-gate')),
                         source_paths=[source], scan=scan, result_sink=report.add)

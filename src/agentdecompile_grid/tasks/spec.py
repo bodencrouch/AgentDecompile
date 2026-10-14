@@ -1,7 +1,7 @@
 """agentdecompile_grid.tasks.spec — builders and validators for ``TaskSpec``; canonical parameters.
 
-``task_id = sha256(canonical(kind, kind_version, inputs, params, basis_hash))`` is only stable if
-``params`` is canonical *before* the ``TaskSpec`` exists.  ``core.TaskSpec.from_record`` does a
+``task_id = sha256(canonical(kind, kind_version, inputs, params, basis_projection))`` is only stable
+if ``params`` (and the projection's values) are canonical *before* the ``TaskSpec`` exists.  ``core.TaskSpec.from_record`` does a
 plain ``dict()`` and ``canonical_json`` only sorts keys, so normalisation lives here and every
 builder in the grid goes through ``normalize_params``:
 
@@ -16,6 +16,12 @@ builder in the grid goes through ``normalize_params``:
   every node (the landed ``assert_portable_payload`` rule, applied at build time).
 * Normalisation is idempotent: normalising a normalised document returns an equal document, so
   a spec read back from a record re-validates without changing its id.
+* **Basis projection** (U158): ``spec_from_basis(kind, inputs, params, basis)`` is the canonical
+  builder: ``basis_hash = digest(basis)`` (audit, on the spec and every record) and
+  ``basis_projection = kind.basis_projection(basis)`` (in the id), values normalised like params.
+  ``validate_spec(spec, kind=...)`` runs ``core.check_basis_projection``: the projection's keys must
+  be exactly the kind's ``basis_fields``, refused by name otherwise — publish, execute, verify and
+  the view applier all go through it.
 
 Acceptance tests (named here, landed in the verification phase):
 
@@ -34,7 +40,10 @@ import re
 from enum import Enum
 from typing import Any, Iterable, Mapping, Sequence
 
-from ..core import BudgetClass, GridError, ObjectRef, ObjectStore, TaskKind, TaskSpec, canonical_json
+from ..core import (
+    BudgetClass, GridError, ObjectRef, ObjectStore, TaskKind, TaskSpec, canonical_json, check_basis_projection, digest_value,
+    kind_basis_projection,
+)
 from ..objects.base import InvalidRef, validate_ref
 
 BASIS_RE = re.compile(r"^[A-Za-z0-9:._-]{1,128}$")
@@ -233,10 +242,27 @@ def validate_kind_name(name: str) -> str:
     return name
 
 
+def normalize_projection(projection: Mapping[str, Any] | None, *, config: Any = None) -> dict[str, Any]:
+    """The basis projection with its values canonical like params (floats as repr strings, sorted keys)."""
+    if projection is None:
+        return {}
+    if not isinstance(projection, Mapping):
+        raise SpecError(f"basis_projection must be a mapping, got {type(projection).__name__}")
+    float_policy = config.tasks.float_policy if config is not None else "repr"
+    out: dict[str, Any] = {}
+    for path in sorted(projection):
+        if not isinstance(path, str) or not path:
+            raise SpecError(f"basis_projection: key {path!r} is not a basis field path")
+        out[path] = normalize_value(projection[path], path=f"basis_projection.{path}", float_policy=float_policy, portability="off")
+    return out
+
+
 def build_spec(kind: str, inputs: Mapping[str, Any] | None, params: Mapping[str, Any] | None, basis_hash: str, *,
                kind_version: int = 1, capabilities: Iterable[str] = (), budget: BudgetClass | str = BudgetClass.SMALL,
-               partition: str = "", config: Any = None) -> TaskSpec:
-    """A canonical ``TaskSpec``: params normalised, inputs validated, capabilities sorted and deduplicated."""
+               partition: str = "", config: Any = None, basis_projection: Mapping[str, Any] | None = None) -> TaskSpec:
+    """A canonical ``TaskSpec``: params normalised, inputs validated, capabilities sorted and deduplicated.
+    ``basis_projection`` is the kind's declared slice of the basis (``spec_from_basis`` computes it);
+    absent = the content-only projection ``{}`` that builtin kinds use."""
     validate_kind_name(kind)
     if isinstance(kind_version, bool) or not isinstance(kind_version, int) or kind_version < 1:
         raise SpecError(f"kind_version must be a positive int, got {kind_version!r}")
@@ -250,19 +276,35 @@ def build_spec(kind: str, inputs: Mapping[str, Any] | None, params: Mapping[str,
         kind=kind, kind_version=int(kind_version), inputs=validate_inputs(inputs),
         params=normalize_params(params, config=config), basis_hash=validate_basis_hash(basis_hash),
         capabilities=caps, budget=BudgetClass(budget), partition=partition,
+        basis_projection=normalize_projection(basis_projection, config=config),
     )
     return spec
 
 
 def spec_for_kind(kind: TaskKind | type, inputs: Mapping[str, Any] | None, params: Mapping[str, Any] | None,
                   basis_hash: str, *, capabilities: Iterable[str] = (), budget: BudgetClass | str | None = None,
-                  partition: str = "", config: Any = None) -> TaskSpec:
-    """``build_spec`` with version/budget/capabilities taken from the kind (extra capabilities merged in)."""
+                  partition: str = "", config: Any = None, basis_projection: Mapping[str, Any] | None = None) -> TaskSpec:
+    """``build_spec`` with version/budget/capabilities taken from the kind (extra capabilities merged in).
+    Without ``basis_projection`` the kind must declare ``basis_fields == ()`` (content-only); a kind
+    that declares fields needs ``spec_from_basis`` (or an explicit projection) or is refused by name."""
     caps = set(getattr(kind, "capabilities", ()) or ()) | set(capabilities)
     chosen = BudgetClass(budget) if budget is not None else BudgetClass(getattr(kind, "budget", BudgetClass.SMALL))
     spec = build_spec(kind.name, inputs, params, basis_hash, kind_version=int(kind.version), capabilities=caps,
-                      budget=chosen, partition=partition, config=config)
+                      budget=chosen, partition=partition, config=config, basis_projection=basis_projection)
     return validate_spec(spec, kind=kind, config=config)
+
+
+def spec_from_basis(kind: TaskKind | type, inputs: Mapping[str, Any] | None, params: Mapping[str, Any] | None,
+                    basis: Mapping[str, Any], *, capabilities: Iterable[str] = (), budget: BudgetClass | str | None = None,
+                    partition: str = "", config: Any = None) -> TaskSpec:
+    """The canonical builder from a *full* basis mapping (U158): ``basis_hash = digest(basis)`` for
+    audit, ``basis_projection = kind.basis_projection(basis)`` for the id.  ``core.TaskSpec.from_basis``
+    is the raw equivalent; this one canonicalises params and projection values and validates."""
+    if not isinstance(basis, Mapping):
+        raise SpecError(f"basis must be a mapping, got {type(basis).__name__}")
+    projection = kind_basis_projection(kind, basis)
+    return spec_for_kind(kind, inputs, params, digest_value(basis), capabilities=capabilities, budget=budget,
+                         partition=partition, config=config, basis_projection=projection)
 
 
 def allowed_budgets(kind: TaskKind | type) -> tuple[BudgetClass, ...]:
@@ -281,6 +323,9 @@ def validate_spec(spec: TaskSpec, *, kind: TaskKind | type | None = None, config
     canonical = normalize_params(spec.params, config=config)
     if canonical_json(canonical) != canonical_json(spec.params):
         raise SpecError(f"spec {spec.kind}: params are not canonical (floats as repr strings, sorted keys); rebuild with build_spec")
+    projection = normalize_projection(spec.basis_projection, config=config)
+    if canonical_json(projection) != canonical_json(dict(spec.basis_projection)):
+        raise SpecError(f"spec {spec.kind}: basis_projection is not canonical; rebuild with spec_from_basis")
     budget = BudgetClass(spec.budget)
     if budget is BudgetClass.UNBOUNDED and not (config is not None and config.budgets.allow_unbounded):
         raise SpecError(f"spec {spec.kind}: budget 'unbounded' is never offered (budgets.allow_unbounded is off)")
@@ -296,6 +341,7 @@ def validate_spec(spec: TaskSpec, *, kind: TaskKind | type | None = None, config
         missing = sorted(needed - set(spec.capabilities))
         if missing:
             raise SpecError(f"spec {spec.kind}: kind requires capabilities {missing} which the spec does not declare")
+        check_basis_projection(kind, spec)          # Refused by name: the projection keys must be the kind's basis_fields
         validator = getattr(kind, "validate_params", None)
         if callable(validator):
             validator(spec.params)
@@ -347,6 +393,7 @@ __all__ = [
     "SpecError", "SPEC_SCHEMA_VERSION", "BASIS_RE", "KIND_NAME_RE", "INPUT_NAME_RE", "ABSOLUTE_PATH_RE",
     "normalize_value", "normalize_params", "is_canonical",
     "param_float", "param_int", "param_str", "param_bool", "param_list", "param_mapping",
-    "validate_inputs", "validate_basis_hash", "validate_kind_name", "build_spec", "spec_for_kind", "allowed_budgets",
+    "validate_inputs", "validate_basis_hash", "validate_kind_name", "normalize_projection", "build_spec", "spec_for_kind",
+    "spec_from_basis", "allowed_budgets",
     "validate_spec", "spec_to_record", "spec_from_record", "write_spec", "read_spec", "describe_spec",
 ]

@@ -78,7 +78,6 @@ TOOLCHAIN_IDENTITY_HASH = "pinned:none"
 #: Dotted names of basis fields with no producer on this branch. Sorted.
 PENDING_FIELDS = (
     "analyzer.compiler_spec_ids",  # extractor reads it; no binary column, no project-free backfill
-    "data_packs",  # U19a
     "decoder",  # U4 picks the decoder; binary.decoder_revision stays NULL
     "external_channels.bsim_generator_revision",  # U5d
     "filler_set",  # U58
@@ -92,6 +91,11 @@ BASIS_HASH_EXCLUDED = ("corpus_manifest_hash", "analyzer.processor_spec_hash")
 
 #: Values that count as absent.
 _ABSENT = (None, "", "unknown")
+
+#: Paths whose empty list is a declared value, not an absence. ``data_packs``
+#: is ``[]`` for a store analyzed with no packs; ``data_packs_root_declared``
+#: beside it says whether that was "no root" or "empty root".
+_EMPTY_OK = ("$.data_packs",)
 
 
 class BasisError(ValueError):
@@ -162,7 +166,7 @@ def _check_present(value, path: str) -> None:
         for k in sorted(value):
             _check_present(value[k], f"{path}.{k}")
     elif isinstance(value, list):
-        if not value:
+        if not value and path not in _EMPTY_OK:
             raise BasisError(f"basis: {path} is empty")
         for i, v in enumerate(value):
             _check_present(v, f"{path}[{i}]")
@@ -188,9 +192,23 @@ def package_basis(analyzer_version: str | None) -> dict:
     This is exactly what ``basis_hash`` covers: the object minus
     :data:`BASIS_HASH_EXCLUDED`. Raises :class:`BasisError` when anything is
     absent, so an ingest under an unreadable install cannot stamp a hash.
+
+    ``data_packs`` is the sorted list of loaded L3 packs (``pack_id``,
+    ``engine_class``, ``arch_class``, ``schema_version``, ``content_hash``)
+    and ``data_packs_root_declared`` says whether a root was declared at all,
+    so "no root" and "declared but empty" hash apart. Packs are declared
+    inputs: the root comes from ``corpus_config.data_packs_root`` (an
+    explicit setting or ``AGENT_DECOMPILE_DATA_PACKS_ROOT``), which is the
+    one configuration read this object makes. Adding, removing or editing a
+    pack under the root moves ``basis_hash_for`` and every stamped store
+    then refuses with "re-baseline" until ``corpus rebaseline`` records the
+    supersession; that is the designed path. A malformed pack refuses here
+    as :class:`data_packs.PackError`.
     """
+    from .data_packs import PackRegistry
     from .policy_tables import threshold_params
 
+    registry = PackRegistry.from_config()
     obj = {
         "basis_version": BASIS_VERSION,
         "analyzer": {
@@ -204,6 +222,8 @@ def package_basis(analyzer_version: str | None) -> dict:
         "threshold_params": threshold_params(),
         "seeds": seeds(),
         "toolchain_identity_hash": TOOLCHAIN_IDENTITY_HASH,
+        "data_packs": registry.basis_entries(),
+        "data_packs_root_declared": registry.root_declared,
         "pending": sorted(PENDING_FIELDS),
     }
     _check_present({k: v for k, v in obj.items() if k != "pending"}, "$")
@@ -221,9 +241,17 @@ def corpus_manifest_hash(con) -> str:
     content_sha256 is the identity; md5 stands in when it is missing; the slug
     is the last resort so an image with no recorded hash still counts.
     Blank strings are treated as missing.
+
+    Scope (A4): once ``corpus admit`` has run, only admitted rows are in the
+    manifest -- placeholders, duplicates, contested and unresolved rows are
+    outside the key by design. Before admission (pre-migration store, or
+    migrated but never admitted) every row counts, as before.
     """
+    from .admission import admitted_predicate
+
     rows = con.execute(
         "SELECT COALESCE(NULLIF(TRIM(content_sha256), ''), NULLIF(TRIM(md5), ''), slug) FROM binary"
+        " WHERE 1=1" + admitted_predicate(con, "binary")
     ).fetchall()
     manifest = sorted(str(r[0]) for r in rows)
     return hashlib.sha256("\n".join(manifest).encode("utf-8")).hexdigest()
@@ -241,11 +269,27 @@ def _fmt_groups(groups: dict) -> str:
 
 
 def _identity_rows(con) -> list[dict]:
+    """Analyzer-identity columns of the rows the basis covers, by slug.
+
+    Scope (A4): admitted rows only once ``corpus admit`` has run; every row
+    before that. Placeholders are outside the basis by design. When
+    admission has run and no row is admitted the basis cannot be declared,
+    and that is said in the refusal rather than reported as an empty store.
+    """
+    from .admission import admission_scope, admitted_predicate
+
     cur = con.execute(
-        "SELECT slug, analyzer_version, processor_spec_hash, basis_hash FROM binary ORDER BY slug"
+        "SELECT slug, analyzer_version, processor_spec_hash, basis_hash FROM binary"
+        " WHERE 1=1" + admitted_predicate(con, "binary") + " ORDER BY slug"
     )
     names = [d[0] for d in cur.description]
-    return [dict(zip(names, r)) for r in cur.fetchall()]
+    rows = [dict(zip(names, r)) for r in cur.fetchall()]
+    if not rows and admission_scope(con) == "admitted":
+        raise BasisError(
+            "basis: no admitted builds (corpus admit ran and every analyzed row is unresolved, "
+            "duplicate or contested); resolve the raw images and re-run corpus admit"
+        )
+    return rows
 
 
 def basis(con) -> dict:
@@ -393,15 +437,19 @@ def stored_basis_rows(con) -> list[dict]:
     """Raw per-row basis identity, in the store's canonical row order.
 
     Reads ``slug``, ``content_sha256``, ``analyzer_version``, ``basis_hash``
-    and ``basis_source`` from every ``binary`` row, ordered by
+    and ``basis_source`` from every row the basis covers (A4 scope: admitted
+    rows once ``corpus admit`` has run, every row before that), ordered by
     ``content_sha256``, then ``repo_path``, then ``slug`` (never rowid).
     Unlike :func:`basis` this never refuses: a re-baseline must see the
     drifted rows to repair them. Callers name a row by its
     ``content_sha256`` or by ``sha256(slug)``, never by the slug.
     """
+    from .admission import admitted_predicate
+
     cur = con.execute(
         "SELECT slug, content_sha256, analyzer_version, basis_hash, basis_source FROM binary"
-        " ORDER BY content_sha256, repo_path, slug"
+        " WHERE 1=1" + admitted_predicate(con, "binary")
+        + " ORDER BY content_sha256, repo_path, slug"
     )
     names = [d[0] for d in cur.description]
     return [dict(zip(names, r)) for r in cur.fetchall()]

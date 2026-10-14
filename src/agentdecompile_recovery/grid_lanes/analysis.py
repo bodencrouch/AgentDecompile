@@ -46,6 +46,7 @@ class DeclaredAnalyzerKind(PlannableKind):
 
     name = ""
     version = 1
+    basis_field_set = "analyzer"      # analysis kinds key on analyzer identity (§2.8)
     budget = BudgetClass.MEDIUM
     capabilities = (ANALYZER_CAPABILITY,)
     INPUTS: Mapping[str, str] = {}
@@ -116,6 +117,7 @@ class DecompileChunk(DeclaredAnalyzerKind):
 @task_kind
 class BsimSigs(DeclaredAnalyzerKind):
     name = "bsim-sigs"
+    basis_fields_extra = ("external_channels.bsim_generator_revision",)   # pending basis field (U5d)
     budget = BudgetClass.MEDIUM     # micro per range in the design; MEDIUM here covers the per-node open (10-30 s)
     UNIT = "U141"
     INPUTS = {"packed_program": "pinned gzf"}

@@ -36,25 +36,27 @@ project name appears anywhere in this design; targets are described only by clas
 (format × architecture × toolchain × engine-adapter).**
 
 
-### Delta Update (2026-09-22, audit 4 — round 5 on the distributed design; grid skeleton landed)
-- **Landed:** the Phase 15 grid skeleton by parallel builders — U120 `d8447f6`, U121 `b147f99` (`7cc0b63`,
-  `c575411`), U122 `95e8428` (`515fd47`), U123 `eecfcaf`/`85784cc`, U124 `8eb5202`/`a4e4aca`; hotfixes
-  A1/A2/A3/A5 `a501e9d` (`fc638c4`, `be7ff81`, `79c2420`); R3 `40d50ce` (`6d95a40`); D8/D9 + harness (o)
-  `24b3050`/`a4095ba` (observed on the branch; the previous delta had them in flight). Docs: the distributed
-  design amended (round 5 A2/A3/A5/A6; licensing reasoning removed; §7.5/§8 restated for the walking
-  skeleton), Phase 15 in this plan, the register's "Distributed compute" section, Lane E on the diagram.
-  Earlier waves: Step 0 `0256ca0`; Phase 0 D1–D7 + U5c; U7/U7b `f935db7`; U22 `f5f6a88`; U1–U3 + U1b
-  `b271ba6`; U21c `0191303`; 3b `5bf8a11`.
-- **Partial:** U124 landed while the audit-4 brief still listed it in flight — its report is reconciled
-  against the other slices only in U125 (names, entry-point group, tag vocabulary); round-4 survivors
-  F1–F9/D1–D14 are recorded in the loop journal but not yet applied to the plan; the foundations audit is
-  pending resume; the A2.2 slice-convergence spike and O2 are unmeasured until U131 files receipts; the
-  U5c(b) build-order shuffle is still not in the gate; `src/agentdecompile_cli/_version.py` carries an
-  uncommitted local change of unknown origin (leave it to its owner).
-- **Next:** U125 integrator (one "grid of one" cycle: publish → work → verify → materialize), A4
-  real-corpus admission, U28x attest verb, 3d U25 re-baseline verb, R1 (repo off the USB drive), U104
-  admission flags (H5), U21a/U21b scrub, U19a; then the grid adapters in Phase 15 order (U158, U126,
-  U159–U162, U132, U163–U165 first) interleaved with the remaining phases.
+### Delta Update (2026-09-22, fourth iteration — repository resolver, admission flags, lane projection, attest follow-ups)
+- **Landed:** A4b `ghidra_repository` resolver + lock policies + backfill summary hygiene `a435ea7`/`2f88740`/`16f36fd`;
+  U158b `bba5348`, U158c `40fb92c` (lanes publish again: projection from the store basis); U104 `53fcad6`/`19467b9`
+  + H5 wiring `5a8d442`; U28x follow-ups `df9088f`/`a81cec1` (H15 measured deadline floor, `EXIT_TABLE`, hang receipts
+  carry `exit: "hang"` + `kill_signal` outside the comparison key, no slug reaches a backfill receipt, one-way legacy
+  receipt migration) + seams `37c62e2`. Earlier today: U125, U25+A3, A4, U28x/U168, U19a, U158, U126, docs.
+- **Attestation (copy of the real store, run 20260922T0842, config dir + lock policy `wait`):** rebaseline,
+  backfill ×2, verify-determinism (167 s, exit 0 — the H15 floor now refuses a cap below 1.25 × measured),
+  export-hookpack (72 s) all exit 0; **zero hangs**. `admit` still 8/30: every unresolved row reports
+  `repository_auth_failed` — the shared server's key path in the pipeline's `ghidra_server.json` is relative and is
+  not under the config dir, so the resolver reaches the server and is refused; that is operator configuration
+  (`GHIDRA_SERVER_SSH_KEY` or the dashboard's working directory), not code — the loop stops short of looking for
+  key material. 7 local projects stay locked by the running server (lock policy `wait` cannot help while the
+  server owns them); `logical-build` refuses on the 21 unhashed builds by design.
+- **Partial:** U158c hindsight — `TaskSpec.from_basis` hashes the full basis while the store hash omits
+  `BASIS_HASH_EXCLUDED`, so lanes build specs through `build_spec` with the store's declared hash (a doc/API
+  wart for the grid, not a defect); `registry.execute` refuses SMALL `match-score-shard` and template
+  capabilities (pre-existing, U137-class follow-up); `toolchain_identity_hash` in the store basis is still the
+  pinned constant (U132 in flight makes it real). Round-4 survivors pending; foundations audit running.
+- **Next:** integrate U132/U163; user decision on the server key path unblocks the last 22 admissions; then
+  U21a/U21b (alone), U129, U166, U137/U139/U141, U143/U150, U164/U165, grill round 4 (feasibility, risk-hangs).
 
 
 ## Program thesis (recorded 2026-09-21 from the user's own words; migrates to STRATEGY.md at convergence)
@@ -985,7 +987,7 @@ pause/resume plus its scope, never start. Phase 14 holds the units.
 - **U19. Compiler/toolchain profile** as a target-selected object (promote `TOOLCHAIN_SCRIPTS`
   + `COMPILER_PROFILES`; add GCC/clang/x64/ARM; drop the Wine/MSVC-only default in
   `ghidra_bulk._find_compiler`).
-- **U19a. Data-pack registry.** One loader for L3 packs: root path from config, `pack.json`
+- **U19a. Data-pack registry ✔ (`871c517`).** `data_packs[]` + `data_packs_root_declared` are basis fields; the basis now makes one configuration read (`corpus_config.data_packs_root`, env `AGENT_DECOMPILE_DATA_PACKS_ROOT`) — a process that does not inherit it computes a different hash and refuses with re-baseline (hindsight: the 'never from the process environment' sentence is superseded for this field). One loader for L3 packs: root path from config, `pack.json`
   (`schema_version, engine_class, arch_class, entries`), sorted discovery, content hash
   recorded in the basis (`data_packs[]`). An unknown engine plugs in by dropping a pack;
   core never enumerates engines. Acceptance: a fixture pack loads; removing it yields
@@ -1895,7 +1897,7 @@ one surface. Hangs and starvation are the top risk class (register H1–H6), so 
 first and U111 before any drawing unit. The Autonomy rule (governing principle) applies:
 every surface draws outputs that already exist; no surface is a gate, and the review lane
 is an override, so its starvation (H3) delays overrides and never coverage.
-- **U104. Verb admission flags** (`corpus/cli.py`, `dashboard/actions/introspect.py`,
+- **U104. Verb admission flags ✔ (`53fcad6`, `19467b9`, `5a8d442`: `VerbAdmission` declarations on thirteen verbs, the catalogue carries them, snapshot readers skip the identity lock, output-tree lock, pause drains by declaration, `FairLaneFifo` at acceptance with a starvation metric; the workflow control reaches `jobs.pause_scope` — H5 closed)** (`corpus/cli.py`, `dashboard/actions/introspect.py`,
   `dashboard/actions/jobs.py`). `backfill` → `mutating`, `long_running`,
   `identity_scope="database"`; `export-bundle` / `export-hookpack` → output-tree scope;
   `verify-determinism` → read-only on temp copies; `attest` (U28x) → read-only temp
@@ -2032,7 +2034,7 @@ ids as the detailed specification; read them through this map:
   `test_three_independent_timeouts_poison`, `test_killed_child_leaves_no_partial_result`,
   `test_never_self_verifies`, `test_byte_emitter_refuted`, `test_two_lineages_asserted`,
   `test_user_data_single_step`, `test_outbox_survives_restart`, `test_idle_only_admission`.
-- **U125. Integrator pass.** Reconcile the names each slice assumed against what landed:
+- **U125. Integrator pass ✔ (`86b9d6d`, `fe9d563`; walkthrough `docs/plans/2026-09-21-grid-of-one-walkthrough.md`).** Reconcile the names each slice assumed against what landed:
   `objects.open_store`; `tasks.registry.execute`/`stamp`; `tasks.results.*` and
   `results/<task_id>.index`; `PythonCanary` registration in `core.CANARIES`;
   `log.frontier.derive` as used by `publish`; the VERIFIED body = `Verification` field names;
@@ -2064,14 +2066,14 @@ ids as the detailed specification; read them through this map:
 
 **15.1 Adapters — each unit turns a declared adapter into a working one (listed in the order
 of the interfaces they unblock; interleaved with Phases 2–14 per the Recommended order)**
-- **U158. Basis projection per kind** (`tasks/registry.py`, `core.py`): `basis_fields(kind)`
+- **U158. Basis projection per kind ✔ (`ae7ee5c`; U158b `bba5348` every lane kind declares one basis field set; U158c `40fb92c` planners project from the snapshot's store basis — `basis-required` refusals at plan time for store-only fields)** (`tasks/registry.py`, `core.py`): `basis_fields(kind)`
   declared per kind as basis field paths (the basis object above is the vocabulary),
   `basis_projection(kind)` inside the task id, the full `basis_hash` on every record;
   publish, verify and consume refuse on a projection mismatch by name (design §2.8 table;
   never redo completed work). Acceptance: `test_basis_projection_declared_for_every_kind`,
   `test_pin_policy_change_leaves_compile_ids`,
   `test_toolchain_change_rekeys_only_compile_kinds`.
-- **U126. Ed25519 as the default signer; invites, revocation, rate limits**
+- **U126. Ed25519 as the default signer; invites, revocation, rate limits ✔ (`a61caef`, `05ac4a1`; one key-id scheme `ed25519:<sha256 pub>`, `keyring.allow_null=False` default, node key dirs re-minted)**
   (`log/signing.py` ed25519 working; `worker/identity.py`): invites signed by operator or
   fleet keys, a revocation-list object any fleet key may extend, per-key rate limits, 7-day
   key lifetime renewed after a canary re-run, the two-lineage invariant asserted.
@@ -2091,14 +2093,14 @@ of the interfaces they unblock; interleaved with Phases 2–14 per the Recommend
   size-capped, scoped to the expected output hash; the head CAS is the only live RPC; no
   inbound port on any node). Acceptance: `test_https_presigned_put_is_write_once`,
   `test_https_no_inbound_port_required`, `test_cas_contention_backoff`.
-- **U132. Toolchain manifest identity** (`grid_lanes/toolchain.py`,
+- **U132. Toolchain manifest identity ⏳ (`unit/u132-u163-toolchain`)** (`grid_lanes/toolchain.py`,
   `source_parity_synthesize.py:21705-21722`, `source_plugin_runner.py:369-394`):
   `toolchain_identity_hash` = sha256 of the sorted (relative path, content hash) pairs of a
   declared manifest — no host state, no install path, no file times; the canary fingerprint
   stays outside the identity. Acceptance: `test_toolchain_identity_path_and_mtime_free`,
   `test_toolchain_identity_ignores_files_outside_manifest`,
   `test_toolchain_identity_changes_on_one_manifest_byte`.
-- **U163. Toolchain canary** (`worker/canaries.py`, `grid_lanes/compile.py`): declared
+- **U163. Toolchain canary ⏳ (`unit/u132-u163-toolchain`)** (`worker/canaries.py`, `grid_lanes/compile.py`): declared
   manifest hash + probe TU compiled and masked-COFF-hashed against the pinned value;
   persistent wineserver probe; per-node concurrency cap measured; a fetched toolchain
   object passes the same canary as an owned install. Acceptance:
@@ -2165,7 +2167,7 @@ of the interfaces they unblock; interleaved with Phases 2–14 per the Recommend
   `test_backfill_replays_identically_on_both_surfaces`,
   `test_object_store_has_no_slug_or_repo_path`, `test_image_join_reproduces_legacy_rebuild`,
   `test_terminal_receipt_from_cache_hits_accepted`.
-- **U168. `corpus-attest` lane** (after U28x): the attest verb as a `subprocess-verb` kind
+- **U168. `corpus-attest` lane ✔ (`44e6553`)** (after U28x): the attest verb as a `subprocess-verb` kind
   over a copy-on-write snapshot, receipts as objects, a hang = a named timeout record.
   Acceptance: `test_attest_declared`, `test_attest_lane_hang_is_timeout_record`.
 - **U169. Similarity applier** (`view/similarity.py` working: verified `bsim-merge` objects
@@ -2256,17 +2258,17 @@ pretend otherwise.
    - **3b. Basis hardening** — the normative basis object (Determinism section) and
      migration 2 (`basis_hash`, `decoder_revision`, `analyzer_version`) **✔** (`5bf8a11`);
      D8, D9 and harness (o) ⏳ (`unit/d8d9-harness`); harness (p) waits for U30's `stable_key`.
-   - **3d. U25 re-baseline verb** — load-bearing since 3b: any package-constant change or a
+   - **3d. U25 re-baseline verb ✔ (`2dbd467`, `ca7fdb6`)** — `corpus rebaseline` records the supersession in `basis_supersession` (migration 3) and re-stamps in one transaction; divergence re-evaluation stays the U14 slot `RecomputeDivergence`; `ALGORITHM_VERSION` is now `phase0.3+key:content_sha256+dep:content_sha256_16` (A3). Attested on a copy of the real store: refuses (exit 2, hashed identities) until A4 admission scopes identity rows to admitted builds — the 60 placeholders block it today. Load-bearing since 3b: any package-constant change or a
      `PENDING_FIELDS` removal makes every stamped store refuse with "re-baseline", and the
      backfill fills NULLs only, so the verb that re-stamps under a recorded supersession must
      exist before the first such change (hindsight, charter §4).
-   - **3c. U28x inline-CLI attestation** — `corpus attest` against a copy-on-write temp
+   - **3c. U28x inline-CLI attestation ✔ (`f5b4dce`)** — `corpus attest --profile full` is the loop's instrument from this iteration on (exit 0 same / 3 changed / 4 hang, failure, refusal or missing verb; the comparison key excludes elapsed, head, status; stdout/stderr digests are over path-scrubbed text). `corpus attest` against a copy-on-write temp
      copy of the real store, wired into the loop; every later wave compares its receipts
      (U28 (r)) and a hang is a named failure, never a wait.
 4. **U1–U3 + U1b ✔** (`b58a2e1`, `b271ba6`) — v1-shaped; `--format v2` stays off until U23
    (the v1 loader matches the format string exactly and any other pack falls through to
    the legacy parser).
-   - **4b. U19a data-pack registry** + pack hashes in the basis.
+   - **4b. U19a data-pack registry ✔ (`871c517`)** + pack hashes in the basis.
 5. **U82 + U69 + U20 (`e_machine`) + U70** — before any further `binary` column lands and
    before any cross-build donor runs (U70 gates on U69).
 6. **U18 + U8/U11 + U61/U63** — donors now platform-gated; the CLI tree's structured

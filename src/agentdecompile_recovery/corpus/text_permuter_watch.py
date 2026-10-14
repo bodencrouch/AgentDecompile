@@ -31,6 +31,7 @@ failure every pass.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import re
 import sqlite3
@@ -159,6 +160,70 @@ def run_pass(t: Target, seconds_per_fn: float, min_size: int, limit: int | None)
     from kx import permuter_harness as ph
     from kx import text_permuter as tp
 
+    def retry_fingerprint(source, row):
+        """Bind a cached failure to the C, compiler and search budget tried."""
+        digest = hashlib.sha256()
+        digest.update(source.encode("utf-8", errors="replace"))
+        digest.update(json.dumps({
+            "compiler": t.compiler,
+            "diff": row.get("diff"),
+            "size": row.get("size"),
+            "secondsPerFunction": seconds_per_fn,
+            "minSize": min_size,
+            "strategy": "text-permuter-v1",
+        }, sort_keys=True, separators=(",", ":")).encode())
+        return digest.hexdigest()
+
+    rows = _clean_queue(t, min_size)
+    state = _load_state(t)
+    addr_to_file = _addr_to_file(t.candidate_dir)
+    fingerprinted_legacy = 0
+    reopened = 0
+    fingerprints: dict[str, str] = {}
+    pending = []
+    for row in rows:
+        address = row["addr"]
+        path = addr_to_file.get(int(address, 16))
+        if path is None:
+            if address not in state["closed"] and address not in state["unclosed"]:
+                pending.append(row)
+            continue
+
+        source = path.read_text(errors="replace")
+        fingerprint = retry_fingerprint(source, row)
+        fingerprints[address] = fingerprint
+        previous = state["unclosed"].get(address)
+        if isinstance(previous, dict):
+            prior_fingerprint = previous.get("retryFingerprint")
+            if prior_fingerprint is None:
+                # Old receipts did not record their inputs. Preserve the old
+                # suppression once and establish a baseline for future edits.
+                previous["retryFingerprint"] = fingerprint
+                fingerprinted_legacy += 1
+            elif prior_fingerprint != fingerprint:
+                del state["unclosed"][address]
+                reopened += 1
+
+        if address not in state["closed"] and address not in state["unclosed"]:
+            pending.append(row)
+
+    if limit:
+        pending = pending[:limit]
+    print(f"queue: {len(rows)} clean, {len(pending)} pending this pass "
+          f"({len(state['closed'])} already closed, {len(state['unclosed'])} already known-unclosed; "
+          f"{reopened} reopened after input change)", flush=True)
+
+    if not pending:
+        if fingerprinted_legacy or reopened:
+            _save_state(t, state)
+        print("No new or changed candidates to search; cached failures remain deferred "
+              "until candidate C, compiler, or search settings change.", flush=True)
+        return {"passPending": 0, "closedThisPass": 0,
+                "closedTotal": len(state["closed"]),
+                "unclosedTotal": len(state["unclosed"]), "attempted": 0,
+                "blocked": 0, "pendingRemaining": 0, "reopened": reopened,
+                "elapsedSeconds": 0.0}
+
     con = sqlite3.connect(f"file:{t.database}?mode=ro", uri=True)
     try:
         binary_id = _binary_id(con, t.repo_path)
@@ -170,47 +235,71 @@ def run_pass(t: Target, seconds_per_fn: float, min_size: int, limit: int | None)
     print("repairing context (compile-and-drop)...", flush=True)
     ph.CONTEXT_CACHE[t.repo_path] = ph.repair_context(ph.context_for(t.repo_path), t.compiler)
     print(f"context ready: {len(ph.CONTEXT_CACHE[t.repo_path].splitlines())} lines", flush=True)
-
-    rows = _clean_queue(t, min_size)
-    state = _load_state(t)
-    pending = [r for r in rows if r["addr"] not in state["closed"] and r["addr"] not in state["unclosed"]]
-    if limit:
-        pending = pending[:limit]
-    print(f"queue: {len(rows)} clean, {len(pending)} pending this pass "
-          f"({len(state['closed'])} already closed, {len(state['unclosed'])} already known-unclosed)",
-          flush=True)
-
-    addr_to_file = _addr_to_file(t.candidate_dir)
     t.work_dir.mkdir(exist_ok=True)
     t.byteexact_dir.mkdir(exist_ok=True)
 
     closed_this_pass = 0
+    attempted = 0
+    blocked: list[dict] = []
     t0 = time.time()
+
+    def checkpoint(index: int, current: str) -> None:
+        _save_state(t, state)
+        _write_status(t, running=True, pass_progress=index, pass_total=len(pending),
+                      closedTotal=len(state["closed"]), closedThisPass=closed_this_pass,
+                      attempted=attempted, blocked=len(blocked), currentFunction=current,
+                      elapsedSeconds=round(time.time() - t0, 1))
+
     for i, row in enumerate(pending, 1):
         addr = int(row["addr"], 16)
         f = addr_to_file.get(addr)
         if f is None:
+            blocked.append({"addr": row["addr"], "reason": "candidate_file_missing"})
+            checkpoint(i, f"{row['addr']}: candidate file missing")
+            print(f"  BLOCKED {row['addr']}: candidate file is missing", flush=True)
             continue
         src = f.read_text(errors="replace")
+        candidate_fingerprint = fingerprints.get(row["addr"]) or retry_fingerprint(src, row)
         size = size_map.get(addr, row.get("size", 0))
         fname = ph.defined_name(src, "")
         if not fname:
+            blocked.append({"addr": row["addr"], "file": f.name,
+                            "reason": "function_definition_not_found"})
+            checkpoint(i, f"{row['addr']} ({f.name}): C definition missing")
+            print(f"  BLOCKED {row['addr']} ({f.name}): no C function definition found",
+                  flush=True)
             continue
+        print(f"  {i}/{len(pending)} compile and compare {fname} @ {row['addr']}", flush=True)
         d = ph.build_case(t.repo_path, addr, size, fname, src, t.compiler, t.work_dir)
         if d is None:
+            blocked.append({"addr": row["addr"], "file": f.name,
+                            "func": fname, "reason": "build_case_unavailable"})
+            checkpoint(i, f"{fname} @ {row['addr']}: build unavailable")
+            print(f"  BLOCKED {row['addr']} ({fname}): build_case produced no candidate",
+                  flush=True)
             continue
         base_c = (d / "base.c").read_text()
         target = (d / "target_bytes.bin").read_bytes()
         ft = (d / "function.txt").read_text().strip()
         sym = ft if ft.startswith("_") else f"_{ft}"
 
+        attempted += 1
         base_diff, _ = tp.compile_and_score(base_c, target, sym)
         if base_diff is None:
-            state["unclosed"][row["addr"]] = {"reason": "base_c_does_not_compile"}
+            state["unclosed"][row["addr"]] = {
+                "reason": "base_c_does_not_compile",
+                "retryFingerprint": candidate_fingerprint,
+            }
+            checkpoint(i, f"{fname} @ {row['addr']}")
+            print(f"  DONE {i}/{len(pending)}: baseline C did not compile; no byte-exact match",
+                  flush=True)
             continue
         if base_diff == 0:
             state["closed"][row["addr"]] = {"func": fname, "reason": "already_byte_exact"}
             closed_this_pass += 1
+            checkpoint(i, f"{fname} @ {row['addr']}")
+            print(f"  BYTE-EXACT {i}/{len(pending)}: existing C already matches target bytes",
+                  flush=True)
             continue
 
         r = tp.search(base_c, target, fname, base_diff, seconds_per_fn, sym)
@@ -219,13 +308,19 @@ def run_pass(t: Target, seconds_per_fn: float, min_size: int, limit: int | None)
             state["closed"][row["addr"]] = {"func": fname, "base_diff": base_diff}
             closed_this_pass += 1
         else:
-            state["unclosed"][row["addr"]] = {"func": fname, "final_diff": r["diff"]}
+            state["unclosed"][row["addr"]] = {
+                "func": fname, "final_diff": r["diff"],
+                "retryFingerprint": candidate_fingerprint,
+            }
 
+        checkpoint(i, f"{fname} @ {row['addr']}")
+        if r["byte_exact"] and r["source"]:
+            print(f"  BYTE-EXACT {i}/{len(pending)}: mutation recovered the function bytes",
+                  flush=True)
+        else:
+            print(f"  DONE {i}/{len(pending)}: still {r['diff']} differing bytes; no exact match",
+                  flush=True)
         if i % 10 == 0:
-            _save_state(t, state)
-            _write_status(t, running=True, pass_progress=i, pass_total=len(pending),
-                          closedTotal=len(state["closed"]), closedThisPass=closed_this_pass,
-                          elapsedSeconds=round(time.time() - t0, 1))
             print(f"  {i}/{len(pending)}  closed this pass: {closed_this_pass}  "
                   f"(total closed: {len(state['closed'])})", flush=True)
 
@@ -233,8 +328,12 @@ def run_pass(t: Target, seconds_per_fn: float, min_size: int, limit: int | None)
     elapsed = round(time.time() - t0, 1)
     summary = {"passPending": len(pending), "closedThisPass": closed_this_pass,
                "closedTotal": len(state["closed"]), "unclosedTotal": len(state["unclosed"]),
+               "attempted": attempted, "blocked": len(blocked), "blockedExamples": blocked[:5],
+               "pendingRemaining": sum(r["addr"] not in state["closed"]
+                                       and r["addr"] not in state["unclosed"] for r in rows),
                "elapsedSeconds": elapsed}
-    print(f"\nPASS DONE: {closed_this_pass}/{len(pending)} closed this pass "
+    print(f"\nPASS DONE: {closed_this_pass} closed from {attempted} attempted; "
+          f"{len(blocked)} blocked out of {len(pending)} pending "
           f"({len(state['closed'])} closed total, {elapsed}s)", flush=True)
     return summary
 
@@ -260,11 +359,27 @@ def main(argv: list[str] | None = None) -> int:
     _write_status(t, running=True, mode="watch" if args.watch else "single-pass")
     try:
         if not args.watch:
-            run_pass(t, args.seconds_per_fn, args.min_size, args.limit)
-            _write_status(t, running=False, mode="single-pass", finishedAt=time.time())
+            summary = run_pass(t, args.seconds_per_fn, args.min_size, args.limit)
+            if summary["blocked"]:
+                error = f"{summary['blocked']} pending candidates could not be prepared"
+                _write_status(t, running=False, mode="single-pass", error=error,
+                              lastPass=summary, finishedAt=time.time())
+                return 2
+            _write_status(t, running=False, mode="single-pass", lastPass=summary,
+                          finishedAt=time.time())
             return 0
         while True:
             summary = run_pass(t, args.seconds_per_fn, args.min_size, args.limit)
+            if summary["blocked"]:
+                error = f"{summary['blocked']} pending candidates could not be prepared"
+                _write_status(t, running=False, mode="watch", error=error,
+                              lastPass=summary, finishedAt=time.time())
+                return 2
+            if summary["pendingRemaining"] == 0:
+                _write_status(t, running=False, mode="watch", lastPass=summary,
+                              idleReason="no pending candidates", finishedAt=time.time())
+                print("No pending candidates remain; watcher stopped.", flush=True)
+                return 0
             _write_status(t, running=True, mode="watch", lastPass=summary)
             print(f"sleeping {args.interval}s before next pass...", flush=True)
             time.sleep(args.interval)

@@ -18,7 +18,12 @@ _ID = re.compile(r'^[a-f0-9]{12,32}$')
 # Keep a very short-lived index: live jobs still come from JobStore memory, and
 # a persisted receipt becomes visible on the following refresh.
 _RECORDS_CACHE: tuple[float, dict[str, dict]] | None = None
-_RECORDS_TTL_SECONDS = 0.35
+# The dashboard refreshes its activity list every four seconds.  A sub-second
+# cache therefore forced every poll to re-stat and re-read the entire retained
+# receipt tree (often thousands of files), even when several tabs asked for
+# the same snapshot. Live JobStore entries are merged after this cache, so a
+# short receipt-cache window does not hide active job state transitions.
+_RECORDS_TTL_SECONDS = 5.0
 
 def directory() -> Path | None:
     root = live_root()

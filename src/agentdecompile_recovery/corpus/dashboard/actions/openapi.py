@@ -84,8 +84,58 @@ def create_actions_api_router() -> APIRouter:
 
     @router.get("/api/v1/jobs", summary="List running and recent jobs")
     async def api_list_jobs() -> JSONResponse:
-        rows = await asyncio.to_thread(list_jobs)
-        return JSONResponse({"ok": True, "jobs": [job.to_dict(include_log=False, include_details=False) for job in rows], "total": len(rows)})
+        rows = await asyncio.to_thread(list_jobs, compact=True)
+        jobs = [job.to_dict(include_log=False, include_details=False) for job in rows]
+        # Some corpus recovery workers are launched by external orchestrators.
+        # Report them as read-only observations so the dashboard does not imply
+        # that an unowned process can be cancelled through this job store.
+        import json
+        from pathlib import Path
+
+        from agentdecompile_recovery.corpus.dashboard.common import procs_by_cwd
+
+        for cwd, processes in procs_by_cwd().items():
+            manifest_path = Path(cwd) / "manifest.json"
+            for pid, command in processes:
+                padded_command = f" {command} "
+                if "mizuchi-build/dist/cli.js" not in command or " run " not in padded_command or "mizuchi.yaml" not in command:
+                    continue
+                try:
+                    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+                except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+                    continue
+                program = manifest.get("program") if isinstance(manifest, dict) else None
+                if not isinstance(program, str) or not program.strip():
+                    continue
+                external = {
+                    "id": f"observed-mizuchi-{pid}",
+                    "actionId": "external.mizuchi-worker",
+                    "title": f"External recovery · {Path(program).name} · {Path(cwd).name}",
+                    "status": "running",
+                    "external": True,
+                    "params": {"program": program, "workerRoot": cwd},
+                    "executionRoot": cwd,
+                    "progress": None,
+                    "externalProgress": None,
+                }
+                try:
+                    snapshots = list(Path(cwd).glob("partial-run-results*.json"))
+                    if snapshots:
+                        latest = max(snapshots, key=lambda item: item.stat().st_mtime_ns)
+                        result = json.loads(latest.read_text(encoding="utf-8"))
+                        partial = result.get("partial", {}) if isinstance(result, dict) else {}
+                        completed = partial.get("completedPrompts")
+                        total = partial.get("totalPrompts")
+                        if isinstance(completed, int) and isinstance(total, int):
+                            external["externalProgress"] = {
+                                "completed": completed,
+                                "total": total,
+                                "updatedAt": result.get("timestamp"),
+                            }
+                except (OSError, UnicodeDecodeError, json.JSONDecodeError, TypeError):
+                    pass
+                jobs.append(external)
+        return JSONResponse({"ok": True, "jobs": jobs, "total": len(jobs)})
 
     @router.get("/api/v1/jobs/{job_id}", summary="Job status and log")
     async def api_one_job(job_id: str) -> JSONResponse:

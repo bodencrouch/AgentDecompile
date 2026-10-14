@@ -320,6 +320,9 @@ def _public_run(row: dict[str, Any], *, detailed: bool = True, live_jobs: list[A
         'executionProgramPaths', 'stages', 'retryDecisions', 'objectiveBudget',
     }
     result = {key: row[key] for key in fields if key in row}
+    database = _recorded_database(row)
+    if database:
+        result['corpusDb'] = database
     if isinstance(result.get('objectiveBudget'), dict):
         result['objectiveBudget'] = {key: value for key, value in result['objectiveBudget'].items()
                                      if key in {'schema', 'objectiveId', 'maxActionAdmissions', 'consumed',
@@ -442,7 +445,11 @@ def list_runs(*, public: bool = False) -> list[dict[str, Any]]:
         for row in rows:
             row['queuePosition'] = positions.get(str(row['id']))
         from .actions.jobs import list_jobs
-        return [_public_run(row, detailed=row.get('status') in {'running', 'queued', 'paused'}, live_jobs=list_jobs(compact=True)) for row in rows]
+        # Take one coherent snapshot: rebuilding the retained job index for
+        # every preparation row multiplies one dashboard refresh by the full
+        # history scan (up to 100 times).
+        live_jobs = list_jobs(compact=True) if rows else []
+        return [_public_run(row, detailed=row.get('status') in {'running', 'queued', 'paused'}, live_jobs=live_jobs) for row in rows]
 
     from .actions import jobs
     with _LOCK:
@@ -843,8 +850,37 @@ def _context_id(context: dict[str, Any]) -> str:
     return hashlib.sha256(key.encode()).hexdigest()[:32]
 
 
+def _normalized_database(value):
+    if not value:
+        return ''
+    try:
+        return os.path.abspath(os.path.expanduser(str(value)))
+    except (OSError, RuntimeError, TypeError, ValueError):
+        return ''
+
+
+def _recorded_database(row):
+    """Return a corpus DB only when this receipt has one unambiguous owner."""
+    values = set()
+    recorded = _normalized_database(row.get('corpusDb'))
+    if recorded:
+        values.add(recorded)
+    for action in (row.get('actions') or {}).values():
+        if not isinstance(action, dict):
+            continue
+        params = action.get('params')
+        if isinstance(params, dict):
+            database = _normalized_database(params.get('db'))
+            if database:
+                values.add(database)
+    return next(iter(values)) if len(values) == 1 else ''
+
+
 def _merge_legacy_contexts(previous: dict[str, Any], locator: str, canonical_id: str) -> dict[str, Any] | None:
     if not locator:
+        return None
+    database = _normalized_database(live_db())
+    if not database:
         return None
     candidates = []
     for path in sorted(_directory().glob('*.json'), key=lambda p: p.stat().st_mtime, reverse=True)[:100]:
@@ -852,7 +888,10 @@ def _merge_legacy_contexts(previous: dict[str, Any], locator: str, canonical_id:
             legacy = json.loads(path.read_text())
         except (OSError, ValueError):
             continue
-        if legacy.get('id') == canonical_id or _project_context(legacy).get('locator') != locator or legacy.get('supersededBy'):
+        if (legacy.get('id') == canonical_id
+                or _project_context(legacy).get('locator') != locator
+                or legacy.get('supersededBy')
+                or _recorded_database(legacy) != database):
             continue
         candidates.append(legacy)
     for legacy in candidates:
@@ -935,6 +974,13 @@ def _submit(context: dict[str, Any], *, resume: bool = False, _admit: bool = Fal
         path = _directory() / (run_id + '.json')
         if path.exists():
             previous = _read(run_id)
+            database = _normalized_database(live_db())
+            if not database or _recorded_database(previous) != database:
+                raise ValueError(
+                    'This saved workflow is not proven to belong to the selected corpus database. '
+                    'Its receipt was preserved; start a new workflow for the selected database.'
+                )
+            previous['corpusDb'] = database
             live_legacy = _merge_legacy_contexts(previous, locator, run_id)
             if live_legacy:
                 return live_legacy
@@ -963,6 +1009,7 @@ def _submit(context: dict[str, Any], *, resume: bool = False, _admit: bool = Fal
             if live_legacy:
                 return live_legacy
         row = {'id': run_id, 'locator': locator, 'program': program, 'slug': slug,
+               'corpusDb': _normalized_database(live_db()),
                'status': 'queued', 'scope': 'project' if locator and not program else 'binary', 'ownerPid': os.getpid(), 'ownerStart': _process_start(os.getpid()), 'ownerHost': socket.gethostname(),
                'createdAt': previous.get('createdAt', time.time()),
                'updatedAt': time.time(), 'workflowVersion': VERSION,

@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 from collections import Counter
+from pathlib import Path
 from typing import Callable
 
 from . import match
@@ -43,10 +45,57 @@ def persist_status(result: dict, pair_class: str, src_key, dst_key, *, n_instr: 
 
 
 def bid(con, path: str) -> int:
-    row = con.execute("SELECT id FROM binary WHERE repo_path=?", (path,)).fetchone()
-    if row is None:
-        raise KeyError(path)
-    return row[0]
+    reference = str(path or "").strip()
+    if not reference:
+        raise LookupError("binary reference is empty")
+
+    row = con.execute("SELECT id FROM binary WHERE repo_path=?", (reference,)).fetchone()
+    if row is not None:
+        return int(row[0])
+
+    # A real file must identify the exact registered bytes. Never fall back to
+    # its basename: two releases can use the same filename while differing in
+    # content, layout, or ABI.
+    candidate = Path(reference)
+    if candidate.is_file():
+        content = candidate.read_bytes()
+        sha256 = hashlib.sha256(content).hexdigest()
+        md5 = hashlib.md5(content, usedforsecurity=False).hexdigest()
+        rows = con.execute(
+            "SELECT id,repo_path FROM binary WHERE lower(content_sha256)=? OR lower(md5)=?",
+            (sha256, md5),
+        ).fetchall()
+        if len(rows) == 1:
+            return int(rows[0][0])
+        if len(rows) > 1:
+            paths = ", ".join(str(item[1]) for item in rows)
+            raise LookupError(f"file content matches multiple corpus binaries: {paths}")
+        raise LookupError(
+            f"file is not registered in this corpus (MD5 {md5}, SHA-256 {sha256}): {reference}; "
+            "import and bind it before cross-matching"
+        )
+
+    # Non-file references from dashboard selectors may be slugs or a unique
+    # repo-path basename. Resolve from live corpus metadata rather than keeping
+    # a handwritten alias list; ambiguity is a hard refusal.
+    basename = reference.replace("\\", "/").rstrip("/").rsplit("/", 1)[-1]
+    if not basename:
+        raise LookupError(f"binary reference is not a registered repo path: {reference}")
+    rows = con.execute(
+        "SELECT id,repo_path FROM binary WHERE slug=? OR lower(repo_path)=lower(?) "
+        "OR (substr(repo_path, -length(?) - 1, 1)='/' "
+        "AND lower(substr(repo_path, -length(?)))=lower(?)) ORDER BY id",
+        (reference, reference, basename, basename, basename),
+    ).fetchall()
+    if len(rows) == 1:
+        return int(rows[0][0])
+    if len(rows) > 1:
+        paths = ", ".join(str(item[1]) for item in rows)
+        raise LookupError(f"binary reference is ambiguous; choose a registered repo path: {paths}")
+    raise LookupError(
+        f"binary is not registered in this corpus: {reference}; "
+        "choose a registered binary or import and bind this file first"
+    )
 
 
 def run_pair(

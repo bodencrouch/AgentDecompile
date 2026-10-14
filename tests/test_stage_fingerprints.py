@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+
 from pathlib import Path
 
 import pytest
@@ -83,6 +84,44 @@ def test_acquisition_sensitive_stages_track_bundle_identity(tmp_path: Path) -> N
         identity = with_a.stage_config(stage)["acquisitionIdentity"]
         assert identity["kind"] == "bundle"
         assert identity["factsSha256"]
+
+
+@pytest.mark.parametrize(
+    ("setting", "value"),
+    [
+        ("unity_project_out", "project-out"),
+        ("unity_editor", "unity-editor"),
+        ("unity_editor_version", "2022.3.62f2"),
+        ("unity_max_memory_gb", 8.0),
+        ("unity_include_resources_assets", True),
+        ("unity_repair_attempts", 2),
+        ("unity_editor_timeout", 1800),
+        ("unity_assetripper_cli", "assetripper"),
+        ("unity_assetripper_remote_host", "root@192.0.2.10"),
+        ("unity_assetripper_remote_root", "/tmp/remote-root"),
+        ("unity_assetripper_remote_input", "/tmp/remote-root/input"),
+        ("unity_assetripper_remote_port", 18086),
+        ("unity_assetripper_ssh_host_key_alias", "100.64.0.8"),
+        ("unity_only", True),
+        ("unity_ilspycmd", "ilspycmd"),
+        ("unity_install_mcp_bridge", True),
+    ],
+)
+def test_changed_unity_settings_invalidate_unity_and_report_fingerprints(
+    tmp_path: Path,
+    setting: str,
+    value: object,
+) -> None:
+    path_settings = {"unity_project_out", "unity_editor", "unity_assetripper_cli", "unity_ilspycmd"}
+    changed_value = tmp_path / str(value) if setting in path_settings else value
+    before = _runner(tmp_path)
+    after = _runner(tmp_path, **{setting: changed_value})
+
+    for stage in before.stages:
+        if stage.name.startswith("unity-") or stage.name == "report":
+            assert before.stage_fingerprint(stage) != after.stage_fingerprint(stage), stage.name
+        elif stage.name == "discover":
+            assert before.stage_fingerprint(stage) == after.stage_fingerprint(stage)
 
 
 def test_resolve_facts_prefers_acquisition_bundle_over_context_paths(tmp_path: Path) -> None:

@@ -432,6 +432,74 @@
   margin-right: var(--wb-space-2);
 }
 
+.workbench-page .wb-job-flow {
+  display: grid;
+  gap: var(--wb-space-2);
+  padding: var(--wb-space-2) var(--wb-space-3);
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-panel);
+}
+
+.workbench-page .wb-job-flow-track {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--wb-space-2);
+}
+
+.workbench-page .wb-job-flow-node {
+  padding: 2px var(--wb-space-2);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  color: var(--fg-body);
+  font-size: var(--wb-type-kicker);
+}
+
+.workbench-page .wb-job-flow-node.active {
+  border-color: var(--focus);
+  background: var(--sel);
+  color: var(--fg-head);
+}
+
+.workbench-page .wb-job-flow-arrow {
+  color: var(--fg-body);
+}
+
+.workbench-page .wb-job-flow-caption {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0 var(--wb-space-2);
+  margin: 0;
+  color: var(--fg-body);
+  font-size: var(--wb-type-kicker);
+  overflow-wrap: anywhere;
+}
+
+.workbench-page .wb-job-flow-signal {
+  display: inline-block;
+  flex: 0 0 auto;
+  width: .55rem;
+  height: .55rem;
+  border-radius: 50%;
+  background: var(--warning);
+  animation: wb-job-flow-pulse 1.25s ease-in-out infinite;
+}
+
+.workbench-page .wb-job-flow-caption code {
+  color: var(--addr);
+  font-family: var(--font-mono);
+}
+
+@keyframes wb-job-flow-pulse {
+  0%, 100% { opacity: .45; transform: scale(.82); }
+  50% { opacity: 1; transform: scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .workbench-page .wb-job-flow-signal { animation: none; }
+}
+
 .workbench-page .wb-job-log,
 .workbench-page .wb-jobs-dock-body > pre.wb-job-log {
   min-height: 0;

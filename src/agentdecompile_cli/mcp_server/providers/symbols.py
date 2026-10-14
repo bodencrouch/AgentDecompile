@@ -378,51 +378,13 @@ class SymbolToolProvider(ToolProvider):
         [TextContent(text='{"mode":"symbols","results":[...],"count":10,"total":42,"hasMore":true}')]
         """
         logger.debug("diag.enter %s", "mcp_server/providers/symbols.py:SymbolToolProvider._handle_search")
-        ghidra_tools = ghidra_tools_for_program(program_info)
         self._require_program(program_info=program_info)
         query: str = self._get_str(args, "query", "namepattern", "pattern", "search", "name")
         offset, max_results = self._get_pagination_params(args, default_limit=100)
 
-        def _rows_to_dicts(rows: list[Any]) -> list[dict[str, Any]]:
-            out: list[dict[str, Any]] = []
-            for r in rows:
-                if isinstance(r, dict):
-                    out.append(dict(r))
-                elif hasattr(r, "model_dump"):
-                    out.append(r.model_dump())
-                else:
-                    out.append(
-                        {
-                            "name": str(getattr(r, "name", "")),
-                            "address": str(getattr(r, "address", "")),
-                            "type": str(getattr(r, "type", "")),
-                            "namespace": str(getattr(r, "namespace", "") or ""),
-                            "source": str(getattr(r, "source", "") or ""),
-                        },
-                    )
-            return out
-
-        # Prefer GhidraTools when it returns matches. On empty (common for some shared-server /
-        # iterator edge cases), fall through to a full symbol-table scan — same substring semantics
-        # as GhidraTools.search_symbols_by_name (documented: case-insensitive substring).
-        # Queries containing '_' (e.g. LFG `sh_<runId>_`): GhidraTools.search_symbols_by_name can return a
-        # **non-empty but incomplete** subset; early return then drops labels (strict /lfg step 5/7/11).
-        if ghidra_tools and query and "_" not in query:
-            try:
-                gt_rows = ghidra_tools.search_symbols_by_name(query)
-                gt_dicts = _rows_to_dicts(list(gt_rows))
-                if gt_dicts:
-                    paginated, _has_more = self._paginate_results(gt_dicts, offset, max_results)
-                    return self._create_paginated_response(
-                        paginated,
-                        offset,
-                        max_results,
-                        total=len(gt_dicts),
-                        query=query,
-                    )
-            except Exception:
-                logger.debug("search-symbols GhidraTools path failed; using symbol table scan", exc_info=True)
-
+        # Search the symbol table directly. The wrapper eagerly materializes and
+        # hashes every dynamic symbol, then counts references for every match.
+        # Neither operation is needed for this paginated name search.
         # Direct API: iterate all symbols (includes labels) with substring match
         assert program_info is not None  # for type checker
         program: GhidraProgram = program_info.program
@@ -435,9 +397,9 @@ class SymbolToolProvider(ToolProvider):
             # Ghidra's getSymbolIterator(String, caseSensitive) matches the query with wildcard rules where '_'
             # is often a single-character wildcard; LFG / agent queries like sh_<runId>_ then return the wrong
             # set or nothing while substring search over the full table would find user labels.
-            if "_" not in query:
+            if not any(char in query for char in "_*?\\:"):
                 try:
-                    sym_it = st.getSymbolIterator(query, False)
+                    sym_it = st.getSymbolIterator("*" + query + "*", False)
                 except Exception:
                     sym_it = None
                     logger.debug("search-symbols getSymbolIterator(query) failed", exc_info=True)
@@ -467,7 +429,9 @@ class SymbolToolProvider(ToolProvider):
                         mode="search",
                     )
 
-        all_symbols = collect_symbols(program)
+        all_symbols = collect_symbols(
+            program, name_filter=(lambda name: qnorm in name.lower()) if qnorm else None,
+        )
 
         # Queries containing '_': merge collect_symbols matches with getDefinedSymbols (USER labels).
         # Bulk getAllSymbols scans can omit user labels on some shared-server checkouts while

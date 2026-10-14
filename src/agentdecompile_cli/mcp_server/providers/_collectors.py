@@ -572,6 +572,7 @@ def collect_symbols(
     *,
     symbol_type: GhidraSymbolType | None = None,
     limit: int | None = None,
+    name_filter: Callable[[str], bool] | None = None,
 ) -> list[dict[str, Any]]:
     logger.debug("diag.enter %s", "mcp_server/providers/_collectors.py:collect_symbols")
     st: GhidraSymbolTable = program.getSymbolTable()
@@ -589,6 +590,8 @@ def collect_symbols(
         if symbol_type is not None and sym.getSymbolType() != symbol_type:
             return
         disp = _sym_display_name(sym)
+        if name_filter is not None and not name_filter(disp):
+            return
         key = (str(sym.getAddress()), disp.lower())
         if key in seen_keys:
             return

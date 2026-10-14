@@ -164,7 +164,7 @@ def write_entrypoint(dest: Path) -> Path:
 
 def compile_unit_script(
     script: str, source: Path, obj: Path, *, name: str = "", timeout: int = 90,
-    preamble: str = "",
+    preamble: str = "", env=None,
 ) -> dict[str, Any]:
     """Operator compiler wrapper: ``script <source> <obj> [name]``."""
     obj.parent.mkdir(parents=True, exist_ok=True)
@@ -208,6 +208,7 @@ def compile_unit_script(
             ["bash", str(script), str(compile_source), str(compile_obj), name or source.stem],
             capture_output=True,
             text=True,
+            env=env,
             timeout=timeout,
             check=False,
         )
@@ -332,6 +333,13 @@ def compile_and_link_tree(
         write_entrypoint(main_c)
         units = [main_c, *units]
     script = Path(cc).suffix == ".sh" or Path(cc).name.startswith("compile-")
+    # Bind compiler wrappers to the same operator-selected environment as
+    # link.exe without changing process-global state across worker threads.
+    compile_env = os.environ.copy()
+    if wineprefix:
+        compile_env["WINEPREFIX"] = str(wineprefix)
+    if vcroot:
+        compile_env["VCROOT"] = str(vcroot)
 
     def _one(src: Path) -> tuple[Path, dict[str, Any]]:
         try:
@@ -356,7 +364,7 @@ def compile_and_link_tree(
             timeout = 300
         if script:
             result = compile_unit_script(str(cc), src, obj, name=src.stem, timeout=timeout,
-                                         preamble=PREAMBLE)
+                                         preamble=PREAMBLE, env=compile_env)
         else:
             result = compile_unit(str(cc), src, obj, timeout=timeout)
         return obj, result

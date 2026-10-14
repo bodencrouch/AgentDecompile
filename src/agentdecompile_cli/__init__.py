@@ -26,36 +26,51 @@ from agentdecompile_cli.env_compat import sync_agentdecompile_env_aliases
 # Keep compact and canonical env prefixes in lockstep for all submodules.
 sync_agentdecompile_env_aliases()
 
-from agentdecompile_cli.bridge import (
-    AgentDecompileMcpClient,
-    ClientError,
-    NotFoundError,
-    ServerNotRunningError,
-)
-from agentdecompile_cli.registry import (
-    RESOURCE_URI_CAPABILITIES,
-    RESOURCE_URI_DEBUG_INFO,
-    RESOURCE_URI_PROGRAMS,
-    RESOURCE_URI_STATIC_ANALYSIS,
-    RESOURCE_URIS,
-    ResourceUri,
-    Tool,
-    ToolName,
-    TOOLS,
-    TOOL_PARAMS,
-    build_tool_payload,
-    get_tool_params,
-    resolve_tool_name_enum,
-    to_camel_case_key,
-)
-from agentdecompile_cli.executor import (
-    get_client,
-    get_server_start_message,
-    handle_command_error,
-    handle_noisy_mcp_errors,
-    run_async,
-    show_connection_error,
-)
+# Lazy re-exports (PEP 562). Importing bridge/executor pulls in the MCP SDK
+# (~0.7 s), which CLI startup must not pay. ``from agentdecompile_cli import X``
+# keeps working: the attribute is resolved on first access.
+_LAZY_EXPORTS: dict[str, str] = {
+    "AgentDecompileMcpClient": "agentdecompile_cli.bridge",
+    "ClientError": "agentdecompile_cli.bridge",
+    "NotFoundError": "agentdecompile_cli.bridge",
+    "ServerNotRunningError": "agentdecompile_cli.bridge",
+    "RESOURCE_URI_CAPABILITIES": "agentdecompile_cli.registry",
+    "RESOURCE_URI_DEBUG_INFO": "agentdecompile_cli.registry",
+    "RESOURCE_URI_PROGRAMS": "agentdecompile_cli.registry",
+    "RESOURCE_URI_STATIC_ANALYSIS": "agentdecompile_cli.registry",
+    "RESOURCE_URIS": "agentdecompile_cli.registry",
+    "ResourceUri": "agentdecompile_cli.registry",
+    "Tool": "agentdecompile_cli.registry",
+    "ToolName": "agentdecompile_cli.registry",
+    "TOOLS": "agentdecompile_cli.registry",
+    "TOOL_PARAMS": "agentdecompile_cli.registry",
+    "build_tool_payload": "agentdecompile_cli.registry",
+    "get_tool_params": "agentdecompile_cli.registry",
+    "resolve_tool_name_enum": "agentdecompile_cli.registry",
+    "to_camel_case_key": "agentdecompile_cli.registry",
+    "get_client": "agentdecompile_cli.executor",
+    "get_server_start_message": "agentdecompile_cli.executor",
+    "handle_command_error": "agentdecompile_cli.executor",
+    "handle_noisy_mcp_errors": "agentdecompile_cli.executor",
+    "run_async": "agentdecompile_cli.executor",
+    "show_connection_error": "agentdecompile_cli.executor",
+}
+
+
+def __getattr__(name: str):
+    module_name = _LAZY_EXPORTS.get(name)
+    if module_name is None:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    import importlib
+
+    value = getattr(importlib.import_module(module_name), name)
+    globals()[name] = value
+    return value
+
+
+def __dir__() -> list[str]:
+    return sorted(set(globals()) | set(_LAZY_EXPORTS))
+
 
 __all__ = [
     "RESOURCE_URIS",

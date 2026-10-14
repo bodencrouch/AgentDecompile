@@ -64,6 +64,7 @@ from agentdecompile_cli.mcp_utils.program_analysis import (
 )
 from agentdecompile_cli.registry import (  # pyright: ignore[reportMissingImports]
     ADVERTISED_TOOL_PARAMS,
+    MODE_PARAM_ALIASES as MODE_PARAM_PRECEDENCE,
     TOOL_ALIASES,
     TOOL_PARAM_ALIASES,
     Tool,
@@ -435,6 +436,25 @@ def _infer_param_schema(param_name: str) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 
+def _function_search_contract_error(norm_tool_name: str, args: dict[str, Any], payload: Any) -> str | None:
+    """Reject successful providers that silently ignore a function search request."""
+    if norm_tool_name != "listfunctions" or str(args.get("mode", "")).strip().lower() != "search":
+        return None
+    if isinstance(payload, dict) and (payload.get("success") is False or payload.get("error")):
+        return None
+    query = next((str(args[key]).strip() for key in ("query", "searchstring") if args.get(key) is not None and str(args[key]).strip()), "")
+    if not query:
+        # Missing selectors remain the provider's validation responsibility.
+        return None
+    if isinstance(payload, dict) and str(payload.get("mode", "")).strip().lower() == "search" and payload.get("query") == query:
+        return None
+    return (
+        "The list-functions provider did not confirm the requested search mode and query. "
+        "Its result may be an unfiltered inventory and has been rejected. "
+        "Update or reconcile the backend's FunctionToolProvider search implementation, then retry this command."
+    )
+
+
 def create_success_response(
     data: dict[str, Any],
     *,
@@ -753,6 +773,20 @@ def resolve_domain_program_path(program: Any, fallback_path: str | None) -> str 
     except Exception as e:
         logger.debug("Unable to resolve program path from DomainFile; using fallback: %s", e)
     return fallback_path
+
+
+def uses_existing_string_listing(norm_tool_name: str, norm_args: dict[str, Any]) -> bool:
+    """Keep string inspection from implicitly starting analysis before dispatch."""
+    if norm_tool_name == "liststrings":
+        return True  # This handler always forces list mode.
+    if norm_tool_name != "managestrings":
+        return False
+    selectors = set(MODE_PARAM_PRECEDENCE)
+    selectors.update(key for key, targets in TOOL_PARAM_ALIASES.get(norm_tool_name, {}).items() if "mode" in targets)
+    read_modes = {"", "list", "search", "regex", "count", "similarity"}
+    # Do not exempt mutations or conflicting/unknown selectors before provider
+    # aliases are applied. Explicit analyze-program keeps its existing lifecycle.
+    return all(n(str(value)) in read_modes for key, value in norm_args.items() if key in selectors and value is not None)
 
 
 def analysis_timeout_error_response(
@@ -2831,6 +2865,7 @@ class ToolProviderManager:
             effective_program_info is not None
             and effective_program_info.program is not None
             and not analysis_gate_exempt_tool(norm_name)
+            and not uses_existing_string_listing(norm_name, norm_args)
             and not norm_args.get("autoprereqinvocation")
         ):
             from agentdecompile_cli.mcp_utils.program_analysis import wait_for_program_analysis_ready
@@ -2851,6 +2886,22 @@ class ToolProviderManager:
             result = await provider.call_tool(name, arguments, program_info=effective_program_info)
         except ProgramAnalysisTimeout as exc:
             return analysis_timeout_error_response(exc, resolved_prog_path)
+        # Verify search selectors while the response is still structured JSON,
+        # before markdown rendering can hide an incompatible provider's mode.
+        if norm_name == "listfunctions" and str(norm_args.get("mode", "")).strip().lower() == "search":
+            try:
+                search_payload = _json.loads(result[0].text) if result and isinstance(result[0], types.TextContent) else None
+            except (ValueError, TypeError):
+                search_payload = None
+            contract_error = _function_search_contract_error(norm_name, norm_args, search_payload)
+            if contract_error:
+                result = create_error_response(
+                    contract_error,
+                    context={"state": "incompatible-function-search-provider", "searchApplied": False},
+                    tool_name_normalized=norm_name,
+                    target_program_info=effective_program_info,
+                )
+
         logger.info(
             "mcp provider returned tool=%s provider=%s response_parts=%s",
             resolved_name,

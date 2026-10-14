@@ -110,7 +110,8 @@ class ScriptToolProvider(ToolProvider):
                     "Run an unrestricted Python script directly inside the Ghidra environment. "
                     "Use this tool as a last resort or for advanced bulk processing tasks when no other existing tool provides the required capability. "
                     "You have full access to Ghidra Java/Python APIs (like flatApi, currentProgram, monitor, getState()). "
-                    "To return a value back to your agent, assign the final data to a global variable named `__result__`."
+                    "To return a value back to your agent, assign the final data to a global variable named `__result__`. "
+                    "Output is captured until the script completes. Client timeouts do not terminate in-flight server work."
                 ),
                 inputSchema={
                     "type": "object",
@@ -127,7 +128,10 @@ class ScriptToolProvider(ToolProvider):
                         },
                         "timeout": {
                             "type": "integer",
-                            "description": "Maximum number of seconds to let the script run before forcefully terminating it (default: 30). Used to prevent infinite loops.",
+                            "description": (
+                                "Compatibility parameter only; not enforced for in-process scripts. "
+                                "It does not terminate Python or Ghidra work. Bound individual operations inside the script."
+                            ),
                             "default": 30,
                         },
                     },
@@ -382,6 +386,8 @@ class ScriptToolProvider(ToolProvider):
         """
         logger.debug("diag.enter %s", "mcp_server/providers/script.py:ScriptToolProvider._handle_execute")
         code: str = self._require_str(args, "code", "script", "expression", "source", name="code")
+        # Retain the accepted parameter without promising a hard deadline: the
+        # worker must finish before its native program/conflict context is released.
         timeout: int | None = self._get_int(args, "timeout", default=30)
         if timeout is None:
             timeout = 30

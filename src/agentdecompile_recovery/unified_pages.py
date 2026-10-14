@@ -911,19 +911,12 @@ def mount_unified_pages(app: FastAPI) -> None:
         # so it belongs running whenever the dashboard is up, not gated behind
         # someone opening Commands and clicking Run.
         #
-        # Two things this needs that a single startup-time attempt doesn't
-        # give it: (1) cross-process exclusion, since this server runs with
-        # --max-workers 2 and both workers fire this hook at nearly the same
-        # instant -- start_job's own duplicate check is in-process only, and
-        # relying on it alone launched two concurrent duplicate jobs the
-        # first time this ran; an atomic lockfile create (O_CREAT|O_EXCL) is
-        # what actually gives exactly one winner. (2) retrying periodically
-        # rather than once, since a worker can legitimately lose the lock
-        # race against a lock that *looks* live but whose owning job then
-        # gets killed by the next restart (observed: rapid successive
-        # restarts left every attempt "interrupted" and no job ever settled
-        # into steady state) -- a startup-only hook has no way to notice and
-        # self-heal without another restart. A periodic watchdog does.
+        # Cross-process exclusion is needed because this server can run more
+        # than one worker, but periodic retries are not: the text-permuter
+        # exits normally when its queue has no pending candidates, so a
+        # watchdog that retries forever creates a stream of empty jobs. New
+        # candidate work must trigger another pass through the pipeline, not
+        # a timer that repeatedly scans unchanged state.
         import logging
         import os
         import threading
@@ -989,12 +982,10 @@ def mount_unified_pages(app: FastAPI) -> None:
                 logging.getLogger(__name__).exception("text-permuter autostart failed")
 
         def watchdog() -> None:
-            while True:
-                try:
-                    try_launch_once()
-                except Exception:
-                    logging.getLogger(__name__).exception("text-permuter watchdog tick failed")
-                time.sleep(45)
+            try:
+                try_launch_once()
+            except Exception:
+                logging.getLogger(__name__).exception("text-permuter startup attempt failed")
 
         threading.Thread(target=watchdog, name="text-permuter-autostart", daemon=True).start()
 

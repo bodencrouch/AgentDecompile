@@ -147,13 +147,22 @@ _EXPORTERS = {
 }
 
 
-def export_data_file(source: Path, dest_dir: Path) -> tuple[int, int, list[str]]:
+def export_data_file(
+    source: Path,
+    dest_dir: Path,
+    object_types: set[str] | None = None,
+) -> tuple[int, int, list[str]]:
     """Export supported asset types from one Unity data file.
 
     Returns ``(exported_count, failed_count, failure_messages)``. Reads and
     frees one object at a time so peak memory does not scale with how many
     objects the file contains.
     """
+
+    selected_types = EXPORTABLE_TYPES if object_types is None else set(object_types)
+    invalid_types = selected_types - EXPORTABLE_TYPES
+    if invalid_types:
+        raise ValueError(f"Unsupported Unity object types: {', '.join(sorted(invalid_types))}")
 
     unitypy = _require_unitypy()
     exported = 0
@@ -162,7 +171,7 @@ def export_data_file(source: Path, dest_dir: Path) -> tuple[int, int, list[str]]
     env = unitypy.load(str(source))
     for obj in env.objects:
         type_name = obj.type.name
-        if type_name not in EXPORTABLE_TYPES:
+        if type_name not in selected_types:
             continue
         try:
             data = obj.read()
@@ -179,7 +188,11 @@ def export_data_file(source: Path, dest_dir: Path) -> tuple[int, int, list[str]]
     return exported, failed, failures
 
 
-def export_primary_content(install_root: Path, output_dir: Path) -> dict[str, Any]:
+def export_primary_content(
+    install_root: Path,
+    output_dir: Path,
+    object_types: set[str] | None = None,
+) -> dict[str, Any]:
     """Export textures, sprites, audio, text assets, and fonts from a Unity
     install directory into ``output_dir``, one type-named subfolder each.
 
@@ -187,6 +200,11 @@ def export_primary_content(install_root: Path, output_dir: Path) -> dict[str, An
     full project-reconstruction tool (e.g. AssetRipper) when that's needed
     and the asset graph fits in available memory.
     """
+
+    selected_types = EXPORTABLE_TYPES if object_types is None else set(object_types)
+    invalid_types = selected_types - EXPORTABLE_TYPES
+    if invalid_types:
+        raise ValueError(f"Unsupported Unity object types: {', '.join(sorted(invalid_types))}")
 
     install_root = install_root.resolve()
     output_dir = output_dir.resolve()
@@ -199,6 +217,7 @@ def export_primary_content(install_root: Path, output_dir: Path) -> dict[str, An
             "status": "error",
             "reason": "no *_Data directory found under install root",
             "installRoot": str(install_root),
+            "selectedTypes": sorted(selected_types),
         }
 
     files = discover_data_files(data_dir)
@@ -206,7 +225,7 @@ def export_primary_content(install_root: Path, output_dir: Path) -> dict[str, An
     total_exported = 0
     total_failed = 0
     for source in files:
-        exported, failed, failures = export_data_file(source, output_dir)
+        exported, failed, failures = export_data_file(source, output_dir, selected_types)
         total_exported += exported
         total_failed += failed
         per_file.append(
@@ -225,6 +244,7 @@ def export_primary_content(install_root: Path, output_dir: Path) -> dict[str, An
         "installRoot": str(install_root),
         "dataDir": str(data_dir),
         "outputDir": str(output_dir),
+        "selectedTypes": sorted(selected_types),
         "filesScanned": len(files),
         "totalExported": total_exported,
         "totalFailed": total_failed,

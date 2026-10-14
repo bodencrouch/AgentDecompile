@@ -1329,6 +1329,15 @@ class JobStore:
                         job.action_id == "corpus.match-pair"
                         and job.params.get("_preparationUnlimited") is True
                     )
+                    # The watcher drains a finite, checkpointed mismatch queue
+                    # and exits when it is exhausted. The generic 30-minute job
+                    # cap is shorter than the measured K1 pass (~9 hours).
+                    watcher_timeout = (
+                        12 * 60 * 60
+                        if job.action_id == "corpus.text-permuter"
+                        and job.params.get("watch") is True
+                        else None
+                    )
                     def observe_owner(identity: dict) -> None:
                         with self._lock:
                             job.execution_owner = dict(identity)
@@ -1403,6 +1412,7 @@ class JobStore:
                     else:
                         code, log = _default_executor(
                             argv, cwd, cancel, on_output=publish_log,
+                            timeout_seconds=watcher_timeout,
                             unlimited=unlimited_match, on_started=observe_owner,
                             on_clearance=observe_clearance if job.action_id in LOCAL_RECONCILIATION_ACTIONS | _EXTERNAL_ACTION_CONTRACTS.keys() else None,
                         )

@@ -130,6 +130,12 @@ def list_actions() -> list[ActionSpec]:
                 FieldSpec("maxActionAdmissions", kind="int", help="Optional nonnegative initial action-admission allocation. Omit for unlimited accounting. Resume preserves the existing allocation and spending."),
             ),
         ), ActionSpec(
+            id="workbench.publish-capability", title="Publish accepted capability", group="workbench",
+            backend="capability-publication", command="publish-capability", mutating=True, danger=True,
+            summary="Retain independently signed, input-bound capability acceptance and reconcile affected blocked work. Does not enroll authority or attest recovery completion.",
+            fields=(FieldSpec("envelope", kind="object", required=True,
+                              help="Claim and independent producer/reviewer Ed25519 attestations under the configured capability acceptance policy."),),
+        ), ActionSpec(
             id="workbench.merge-evidence", title="Bind compared knowledge", group="workbench",
             backend="merge-evidence", command="merge-evidence", mutating=True, identity_scope="database",
             summary="Bind accepted matches without rebuilding existing identities. Fill missing source attribution while retaining human metadata.",
@@ -444,7 +450,7 @@ def build_command(action: ActionSpec, params: dict[str, Any]) -> list[str]:
         if launcher is None:
             raise ValueError("Ghidra support/bsim not found; configure GHIDRA_INSTALL_DIR")
         return [str(launcher), "commitsigs", str(params["bsimUrl"]), str(params["signatureDirectory"])]
-    if action.backend in {"workflow-control", "activity-snapshot", "merge-evidence", "source-archive", "matching", "resource-reconciliation-report", "resource-reconcile", "match-review"}:
+    if action.backend in {"capability-publication", "workflow-control", "activity-snapshot", "merge-evidence", "source-archive", "matching", "resource-reconciliation-report", "resource-reconcile", "match-review"}:
         return [action.id]
     if action.backend == "preparation":
         return ["workbench.prepare"]

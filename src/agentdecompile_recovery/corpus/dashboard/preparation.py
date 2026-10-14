@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Any
 
 from .common import live_db, live_root, query_db
-from . import admission_budget, mcp_budget
+from . import admission_budget, mcp_budget, capability_continuation
 from .retry_policy import MAX_ACTION_ATTEMPTS, decide_retry, refusal_outcome
 from agentdecompile_recovery.corpus.ghidra_project import ghidra_program_path
 from agentdecompile_recovery.corpus.donor_schedule import spanning_forest_pairs
@@ -44,10 +44,16 @@ except Exception:
     stateDone = None
 needsAnalysis = False if pending is False else (True if stateDone is False else (False if stateDone is True else True if pending is None else pending))
 try:
-    observedProgramPath = str(globals().get('programPath') or currentProgram.getDomainFile().getPathname())
+    observedProgramPath = str(currentProgram.getDomainFile().getPathname())
 except Exception:
     observedProgramPath = ''
-__result__ = json.dumps({'programPath': observedProgramPath, 'needsAnalysis': needsAnalysis, 'executablePath': str(currentProgram.getExecutablePath()), 'architecture': str(currentProgram.getLanguageID()), 'ghidraVersion': str(Application.getApplicationVersion()), 'workSize': int(currentProgram.getFunctionManager().getFunctionCount())})"""
+def observedValue(method):
+    try:
+        value = getattr(currentProgram, method)()
+        return str(value) if value is not None else ''
+    except Exception:
+        return ''
+__result__ = json.dumps({'identityVersion': 2, 'requestedProgramPath': str(globals().get('programPath') or ''), 'programName': observedValue('getName'), 'executableMD5': observedValue('getExecutableMD5'), 'executableSHA256': observedValue('getExecutableSHA256'), 'programPath': observedProgramPath, 'needsAnalysis': needsAnalysis, 'executablePath': str(currentProgram.getExecutablePath()), 'architecture': str(currentProgram.getLanguageID()), 'ghidraVersion': str(Application.getApplicationVersion()), 'workSize': int(currentProgram.getFunctionManager().getFunctionCount())})"""
 
 
 def _same_program_path(left: Any, right: Any) -> bool:
@@ -76,20 +82,34 @@ def _effective_recovery_family(stored: Any, locator: Any, program: Any, binary_i
     return stored_family or f'unclassified:{binary_id}'
 
 
-def _discard_unverified_probe(checkpoint: dict[str, Any], requested: str, observed: str = '') -> bool:
+def _discard_unverified_probe(checkpoint: dict[str, Any], requested: str, observed: str = '', *, rejected: bool = False) -> bool:
     """Remove probe-derived state that cannot be tied to its selected program."""
-    if _same_program_path(checkpoint.get('observedProgramPath'), requested):
+    if not rejected and not observed and checkpoint.get('probeIdentityVersion') == 2 and _same_program_path(checkpoint.get('observedProgramPath'), requested):
         return False
+    legacy = not rejected and not observed and _same_program_path(checkpoint.get('observedProgramPath'), requested)
+    # Preserve evidence for inspection, never its applicability. Old request-
+    # label receipts can describe another binary even when their path matches.
+    archive = {key: value for key, value in checkpoint.items() if key != 'probeEvidenceHistory'}
+    if archive:
+        checkpoint.setdefault('probeEvidenceHistory', []).append(archive)
+    if legacy:
+        checkpoint.setdefault('legacyProbeEvidence', archive)
+        checkpoint['probeObservationStale'] = True
     for key in (
+        'probeIdentityVersion', 'programName', 'executableMD5', 'executableSHA256',
         'analysisConfirmed', 'analysisCheckedAt', 'needsAnalysis', 'executablePath',
         'architecture', 'ghidraVersion', 'workSize', 'protection',
         'externalSourceAvailable', 'programFingerprint', 'arch', 'toolchain',
         'targetImage', 'bsimComplete', 'bsimUrl', 'bsimReceipt', 'bsimFingerprint',
         'knowledgeComplete', 'knowledgeCursor', 'knowledgeFingerprint',
         'knowledgeAvailable', 'workflow', 'factsComplete', 'factsPath',
-        'binaryId', 'slug', 'repoPath', 'recoveryFamily',
+        'binaryId', 'slug', 'repoPath', 'recoveryFamily', 'factsReused',
     ):
         checkpoint.pop(key, None)
+    if legacy:
+        checkpoint['analysisConfirmed'] = False
+        checkpoint.pop('observedProgramPath', None)
+        return True
     checkpoint['probeMismatch'] = {
         'requestedProgramPath': requested,
         'observedProgramPath': observed or str(checkpoint.get('observedProgramPath') or ''),
@@ -101,17 +121,47 @@ def _discard_unverified_probe(checkpoint: dict[str, Any], requested: str, observ
 
 def _accept_probe(checkpoint: dict[str, Any], requested: str, payload: dict[str, Any]) -> bool:
     observed = str(payload.get('programPath') or '')
-    if not _same_program_path(requested, observed):
-        _discard_unverified_probe(checkpoint, requested, observed)
+    if payload.get('identityVersion') != 2 or not _same_program_path(requested, observed) or observed.strip('/') == 'Untitled':
+        _discard_unverified_probe(checkpoint, requested, observed, rejected=True)
+        checkpoint['probeMismatch']['payload'] = dict(payload)
         return False
+    previous_fingerprint = checkpoint.get('programFingerprint')
+    if previous_fingerprint and previous_fingerprint != payload.get('executableMD5'):
+        # A stable project path can be rebound to different bytes. Retain the
+        # old evidence, but do not carry its downstream acceptance forward.
+        _discard_unverified_probe(checkpoint, requested, observed, rejected=True)
     checkpoint.update(
-        observedProgramPath=observed,
+        observedProgramPath=observed, probeIdentityVersion=2,
+        programFingerprint=payload.get('executableMD5') or '',
+        **{key: payload.get(key) for key in ('programName', 'executableMD5', 'executableSHA256')},
         executablePath=payload.get('executablePath'), analysisCheckedAt=time.time(),
         needsAnalysis=payload.get('needsAnalysis'),
         **{key: payload.get(key) for key in ('architecture', 'ghidraVersion', 'workSize')},
     )
     checkpoint.pop('probeMismatch', None)
+    checkpoint.pop('probeObservationStale', None)
     return True
+
+
+
+def _inventory_identity_matches(checkpoint: dict[str, Any], existing: Any) -> bool:
+    """Reuse stored facts only with matching observed executable digests."""
+    if len(existing) < 9:
+        return False
+    pairs = ((checkpoint.get('executableSHA256'), existing[8], 64),
+             (checkpoint.get('executableMD5'), existing[7], 32))
+    matched = False
+    for observed, stored, length in pairs:
+        observed = str(observed or '').strip().lower()
+        stored = str(stored or '').strip().lower()
+        if not observed or not stored:
+            continue
+        if (len(observed) != length or len(stored) != length
+                or any(char not in '0123456789abcdef' for char in observed + stored)
+                or observed != stored):
+            return False
+        matched = True
+    return matched
 
 
 def _matching_concurrency() -> int:
@@ -318,6 +368,7 @@ def _public_run(row: dict[str, Any], *, detailed: bool = True, live_jobs: list[A
         'queuePosition', 'budgetSeconds', 'budgetOrigin', 'deadline', 'error',
         'jobId', 'admissionPending', 'executionLocator',
         'executionProgramPaths', 'stages', 'retryDecisions', 'objectiveBudget',
+        'capabilityEvents', 'capabilityContinuation',
     }
     result = {key: row[key] for key in fields if key in row}
     if isinstance(result.get('objectiveBudget'), dict):
@@ -326,6 +377,9 @@ def _public_run(row: dict[str, Any], *, detailed: bool = True, live_jobs: list[A
                                                 'allocationRevision', 'priorUsageUnknown', 'accountingScope'}}
     if 'providerBudget' in row:
         result['providerBudget'] = mcp_budget.public(row)
+    result['blockedRequirements'] = [dict(checkpoint['blockedRequirement'])
+        for checkpoint in (row.get('checkpoints') or {}).values()
+        if isinstance(checkpoint, dict) and checkpoint.get('blockedRequirement')]
     result['stages'] = []
     for stage in row.get('stages') or []:
         if not isinstance(stage, dict):
@@ -526,6 +580,70 @@ def _collect_inventory_admissions() -> None:
         submit({'locator': request['locator']}, resume=True, _admit=True)
 
 
+def publish_capability(envelope: dict[str, Any]) -> dict[str, Any]:
+    """Controller publication of separately signed, retained qualification evidence.
+
+    Call through the existing authorized controller/catalog execution boundary.
+    Producer/reviewer signatures are made outside this server with existing keys;
+    neither this method nor the envelope may enroll a key or grant a role.
+    """
+    key = capability_continuation.publish(_directory(), envelope)
+    with _LOCK:
+        _start_admission_worker()
+    return {'eventId': key, 'status': 'accepted-for-reconciliation'}
+
+
+def _collect_capability_admissions() -> None:
+    # Events are immutable and retained. Replaying the full relevant set closes
+    # subscription/crash windows; a row's durable event map is its wait cursor.
+    for path in sorted((_directory() / 'capabilities').glob('*.json')):
+        try:
+            envelope = capability_continuation.read_event(_directory(), path.stem)
+            claim = envelope['claim']
+            run_id = claim.get('preparationId', '')
+            if not isinstance(run_id, str) or len(run_id) != 32 or any(c not in '0123456789abcdef' for c in run_id):
+                continue
+            row = _read(run_id)
+            event = row.get('capabilityEvents', {}).get(path.stem)
+            if run_id in _ACTIVE or (event and (event.get('state') != 'admission-retry'
+                    or event.get('attempts', 0) >= 3 or event.get('retryAfter', 0) > time.time())):
+                continue
+            # submit acquires the existing cross-process lease before checking
+            # trust, ownership, controls and applying this event to the receipt.
+            submit({**{key: row.get(key, '') for key in ('locator', 'program', 'slug')},
+                    '_capabilityEvent': path.stem}, resume=True, _admit=True)
+        except (OSError, ValueError, KeyError, TypeError):
+            # Invalid/unrelated event files cannot prevent other ready work.
+            continue
+
+
+def _apply_capability_event(row: dict, key: str) -> bool:
+    try:
+        envelope = capability_continuation.read_event(_directory(), key)
+        claim = capability_continuation.verify(envelope)
+        program = claim['program']
+        capability_continuation.check_wait(row, program, claim)
+        refusal = capability_continuation.admission_refusal(
+            row, _read_control(row['id']), owner_busy=(
+                row['id'] in _ACTIVE or row.get('status') in {'queued', 'running'} and _owner_alive(row)))
+        if refusal:
+            raise ValueError(refusal)
+        checkpoint = row['checkpoints'][program]
+        checkpoint['capabilityWake'] = key
+        checkpoint['blockedRequirement'].update(state='eligible', eventId=key,
+            acceptedRevision=claim['revision'], nextAction='resume_existing_preparation', reason='Accepted capability change passed current admission checks.')
+        row.setdefault('capabilityEvents', {})[key] = {'state': 'admission-intent', 'program': program,
+            'revision': claim['revision'], 'at': time.time()}
+        row['capabilityContinuation'] = {'eventId': key, 'state': 'eligible', 'reason': 'Durable capability admission intent recorded.'}
+        return True
+    except (OSError, ValueError, KeyError, TypeError) as exc:
+        result = {'eventId': key, 'state': 'refused', 'reason': str(exc), 'nextAction': 'await_changed_prerequisite'}
+        if row.get('capabilityContinuation') != result:
+            row['capabilityContinuation'] = result
+            _write(row)
+        return False
+
+
 def _start_admission_worker() -> None:
     global _ADMISSION_THREAD
     if _ADMISSION_THREAD is None or not _ADMISSION_THREAD.is_alive():
@@ -575,6 +693,7 @@ def _drain_admissions() -> None:
                     _write(row)
                     _WAITING.discard(row['id'])
             try:
+                _collect_capability_admissions()
                 _collect_inventory_admissions()
             except (OSError, ValueError):
                 # A temporarily inaccessible project remains durably requested.
@@ -962,6 +1081,16 @@ def _submit(context: dict[str, Any], *, resume: bool = False, _admit: bool = Fal
             live_legacy = _merge_legacy_contexts(previous, locator, run_id)
             if live_legacy:
                 return live_legacy
+        capability_event = context.get('_capabilityEvent')
+        if capability_event:
+            event = previous.get('capabilityEvents', {}).get(capability_event)
+            if event and (event.get('state') != 'admission-retry' or event.get('attempts', 0) >= 3
+                          or event.get('retryAfter', 0) > time.time()):
+                return previous
+            attempts = (event or {}).get('attempts', 0)
+            if not _apply_capability_event(previous, capability_event):
+                return previous
+            previous['capabilityEvents'][capability_event]['attempts'] = attempts
         row = {'id': run_id, 'locator': locator, 'program': program, 'slug': slug,
                'status': 'queued', 'scope': 'project' if locator and not program else 'binary', 'ownerPid': os.getpid(), 'ownerStart': _process_start(os.getpid()), 'ownerHost': socket.gethostname(),
                'createdAt': previous.get('createdAt', time.time()),
@@ -973,6 +1102,8 @@ def _submit(context: dict[str, Any], *, resume: bool = False, _admit: bool = Fal
                'budgetOrigin': previous.get('budgetOrigin', 'default'),
                'actions': previous.get('actions', {}), 'jobTimingContexts': previous.get('jobTimingContexts', {}),
                'retryDecisions': previous.get('retryDecisions', {}),
+               'capabilityEvents': previous.get('capabilityEvents', {}),
+               'capabilityContinuation': previous.get('capabilityContinuation', {}),
                'events': previous.get('events', []), 'programs': [], 'checkpoints': previous.get('checkpoints', {}),
                'stages': _merge_stages(previous)}
         if 'objectiveBudget' in previous:
@@ -1003,8 +1134,62 @@ def _submit(context: dict[str, Any], *, resume: bool = False, _admit: bool = Fal
         except Exception as exc:
             _ACTIVE.discard(run_id)
             row.update(status='blocked', error=str(exc))
+            if capability_event:
+                event = row['capabilityEvents'][capability_event]
+                attempts = event.get('attempts', 0) + 1
+                known = isinstance(exc, jobs.JobNotDispatchedError)
+                event.update(state='admission-retry' if known and attempts < 3 else 'admission-unresolved',
+                             attempts=attempts, retryAfter=time.time() + min(300, 30 * 2 ** attempts),
+                             reason=str(exc), knownNotDispatched=known)
+                row['capabilityContinuation'] = {'eventId': capability_event, 'state': event['state'],
+                    'reason': str(exc), 'nextAction': 'retry_admission' if event['state'] == 'admission-retry' else 'reconcile_admission'}
         _write(row)
         return row
+
+
+def _protection_blocks_analysis(observation: dict) -> bool:
+    # Unpacking does not establish the derived program's Ghidra identity.
+    return observation.get('handling') in {'blocked', 'unpacked'}
+
+
+def _refresh_protection_capability(row: dict, program: str, checkpoint: dict) -> None:
+    key = checkpoint['capabilityWake']
+    event = row.get('capabilityEvents', {}).get(key, {})
+    try:
+        if event.get('state') != 'admission-intent':
+            raise ValueError('Capability handler attempt already spent or outcome unknown')
+        claim = capability_continuation.verify(capability_continuation.read_event(_directory(), key))
+        capability_continuation.check_wait(row, program, claim)
+        refusal = capability_continuation.admission_refusal(row, _read_control(row['id']), owner_busy=False)
+        if refusal:
+            raise ValueError(refusal)
+        decision = admission_budget.reserve(row, 'capability-' + key, key, claim['capability'])
+        if decision['nextAction'] != 'dispatch':
+            raise ValueError(decision['reason'])
+        event.update(state='handler-intent', startedAt=time.time())
+        _write(row)
+        from .protection import prepare_protected_binary
+        observed = prepare_protected_binary(checkpoint['executablePath'], live_root() or _directory(), capability_revision=claim['revision'], expected_source_sha256=claim['inputSha256'])
+        checkpoint.setdefault('protectionHistory', []).append(checkpoint['protection'])
+        checkpoint['protection'] = observed
+        checkpoint.pop('capabilityWake', None)
+        event.update(state='executed', finishedAt=time.time())
+        if observed.get('handling') == 'blocked':
+            checkpoint['blockedRequirement'] = capability_continuation.blocked_requirement(row, program, observed)
+        else:
+            # An unpacked file is not the analyzed program currently bound to
+            # this checkpoint. Preserve old evidence, but prohibit its use for
+            # the derived image until an explicit binding is qualified.
+            checkpoint['blockedRequirement'] = {
+                'capability': 'derived-image-binding', 'state': 'waiting',
+                'analysisPath': observed.get('analysisPath'), 'derivedSha256': observed.get('derivedSha256'),
+                'reason': 'The derived image requires its own verified Ghidra program binding.',
+                'nextAction': 'bind_verified_derived_image'}
+        _write(row)
+    except (OSError, ValueError, KeyError, TypeError) as exc:
+        checkpoint.setdefault('blockedRequirement', {}).update(state='refused', reason=str(exc), nextAction='reconcile_capability_attempt')
+        event['reason'] = str(exc)
+        _write(row)
 
 
 def execute(params: dict[str, Any], cancel: threading.Event) -> tuple[int, str]:
@@ -1429,7 +1614,7 @@ def execute(params: dict[str, Any], cancel: threading.Event) -> tuple[int, str]:
             probe_ok = (
                 shared_probe.get('ok')
                 and isinstance(payload, dict)
-                and _same_program_path(payload.get('programPath'), shared_program)
+                and _accept_probe({}, shared_program, payload)
             )
             row['sharedSessionProbe'] = {
                 'locator': shared_locator, 'program': shared_program, 'at': time.time(),
@@ -1475,8 +1660,12 @@ def execute(params: dict[str, Any], cancel: threading.Event) -> tuple[int, str]:
                 # image receipt remain in the checkpoint; only an unknown or
                 # changed executable needs another read-only probe.
                 recorded_protection = checkpoint.get('protection')
+                if checkpoint.get('capabilityWake'):
+                    _refresh_protection_capability(row, program, checkpoint)
+                    recorded_protection = checkpoint.get('protection')
                 if isinstance(recorded_protection, dict) and checkpoint.get('executablePath'):
-                    if recorded_protection.get('handling') == 'blocked':
+                    if _protection_blocks_analysis(recorded_protection):
+                        checkpoint.setdefault('blockedRequirement', capability_continuation.blocked_requirement(row, program, recorded_protection))
                         protection_blocked.add(program)
                     prepared += 1
                     update('protection', 'running', f'Reusing recorded protection inspection for {program}.', completed=prepared, total=len(programs))
@@ -1533,6 +1722,7 @@ def execute(params: dict[str, Any], cancel: threading.Event) -> tuple[int, str]:
                 derived = prepare_protected_binary(source, live_root() or _directory())
                 checkpoint['protection'] = derived
                 if derived.get('handling') == 'blocked':
+                    checkpoint['blockedRequirement'] = capability_continuation.blocked_requirement(row, program, derived)
                     protection_blocked.add(program)
                     reason = derived.get('reason') or derived.get('blocker') or 'protection-unavailable'
                     update('protection', 'blocked', f'{program}: {reason}')
@@ -1605,7 +1795,7 @@ def execute(params: dict[str, Any], cancel: threading.Event) -> tuple[int, str]:
         # resumed: doing so can duplicate expensive work and falsely make the
         # facts stage look empty while the corpus already contains functions.
         inventory_rows, inventory_error = query_db(
-            'SELECT b.id,b.slug,b.repo_path,b.func_count,b.recovery_family,p.locator,p.program FROM binary b '
+            'SELECT b.id,b.slug,b.repo_path,b.func_count,b.recovery_family,p.locator,p.program,b.md5,b.content_sha256 FROM binary b '
             'LEFT JOIN program_binding p ON p.source_path=b.repo_path '
             'WHERE EXISTS (SELECT 1 FROM func WHERE func.binary_id=b.id)'
         )
@@ -1630,7 +1820,21 @@ def execute(params: dict[str, Any], cancel: threading.Event) -> tuple[int, str]:
             binding_key = (locator.replace('\\', '/').rstrip('/'), program.replace('\\', '/').lstrip('/'))
             canonical_source = str((Path(locator).expanduser() / program.lstrip('/')).resolve(strict=False))
             existing = inventory_by_binding.get(binding_key) or inventory_by_source.get(canonical_source)
+            if existing and not _inventory_identity_matches(checkpoint, existing):
+                checkpoint['unverifiedInventory'] = {
+                    'binaryId': existing[0], 'slug': existing[1], 'repoPath': existing[2],
+                    'storedMD5': existing[7], 'storedSHA256': existing[8],
+                    'observedMD5': checkpoint.get('executableMD5'),
+                    'observedSHA256': checkpoint.get('executableSHA256'),
+                    'reason': 'Stored inventory identity is missing or disagrees with the observed program.',
+                }
+                checkpoint.pop('factsComplete', None)
+                checkpoint.pop('factsReused', None)
+                protection_blocked.add(program)
+                update('facts', 'blocked', f'{program}: existing inventory requires matching executable hashes; retained without reuse or replacement.')
+                continue
             if existing:
+                checkpoint.pop('unverifiedInventory', None)
                 checkpoint.update(
                     factsComplete=True, binaryId=existing[0], slug=existing[1],
                     repoPath=existing[2], workSize=existing[3], factsReused=True,
@@ -1677,16 +1881,18 @@ def execute(params: dict[str, Any], cancel: threading.Event) -> tuple[int, str]:
         # older gate considered only facts written during this particular
         # coordinator invocation, so a restart hid valid corpus evidence and
         # incorrectly reported that there was nothing to cross-match.
-        existing_by_source = {str(item[2] or ''): item for item in records}
         prepared_ids = {
             checkpoint.get('binaryId')
             for program, checkpoint in row['checkpoints'].items()
-            if program in programs and checkpoint.get('analysisConfirmed') and checkpoint.get('factsComplete')
+            if program in programs and program not in protection_blocked
+            and not checkpoint.get('unverifiedInventory')
+            and checkpoint.get('analysisConfirmed') and checkpoint.get('factsComplete')
         }
         prepared_sources = {
             program for program, checkpoint in row['checkpoints'].items()
-            if program in programs and checkpoint.get('analysisConfirmed')
-            and (checkpoint.get('factsComplete') or program in existing_by_source)
+            if program in programs and program not in protection_blocked
+            and not checkpoint.get('unverifiedInventory')
+            and checkpoint.get('analysisConfirmed') and checkpoint.get('factsComplete')
         }
         candidates = [
             item for item in records
@@ -1816,7 +2022,18 @@ def execute(params: dict[str, Any], cancel: threading.Event) -> tuple[int, str]:
             if src != dst:
                 key = (src, dst)
                 unique_pairs.setdefault(key, (src, dst, note))
-        pairs = list(unique_pairs.values())
+        rejected_sources = set()
+        for program, checkpoint in row['checkpoints'].items():
+            if program in protection_blocked or checkpoint.get('unverifiedInventory'):
+                rejected_sources.add(program)
+                rejected_sources.add(str((Path(locator).expanduser() / program.lstrip('/')).resolve(strict=False)))
+                rejected_sources.add(str((checkpoint.get('unverifiedInventory') or {}).get('repoPath') or ''))
+        pairs = []
+        for src, dst, note in unique_pairs.values():
+            if src in rejected_sources or dst in rejected_sources:
+                excluded_pairs.append({'source': src, 'target': dst, 'reason': 'Program identity was not verified for this preparation.'})
+            else:
+                pairs.append((src, dst, note))
         row['comparisonTargets'] = [{'source': src, 'target': dst, 'reason': note} for src, dst, note in pairs]
         row['comparisonTargetsFrozenAt'] = time.time()
         def input_progress(completed: int, total: int, source: str = '', functions_read: int = 0) -> None:
@@ -2164,7 +2381,7 @@ def _decode_job_output(text: str) -> Any:
             if isinstance(result, dict):
                 executed = envelope.get('executedProgram')
                 if isinstance(executed, dict) and executed.get('path'):
-                    result['programPath'] = str(executed['path'])
+                    result['invocationProgramPath'] = str(executed['path'])
                 # Do not discard ownership warnings carried by an outer tool
                 # envelope when its nested scientific payload is decoded.
                 if envelope.get('ownershipResolved') is False or envelope.get('ownershipUnresolved'):

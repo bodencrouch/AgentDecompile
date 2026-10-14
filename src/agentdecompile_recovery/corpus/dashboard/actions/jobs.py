@@ -498,6 +498,10 @@ def _ownership_note(value: Any) -> str:
     return ('\n{"ownershipResolved":false,"ownershipUnresolved":true}\n' if unresolved else '')
 
 
+class JobNotDispatchedError(RuntimeError):
+    """Admission failed before a worker thread could be launched."""
+
+
 class JobStore:
     """One serving workbench owner; resource maps are not a multi-server lease.
 
@@ -1023,8 +1027,21 @@ class JobStore:
             self._jobs[job.id] = job
             self._order.append(job.id)
             self._cancels[job.id] = cancel
-            self._persist_locked(job, force=True)
-            self._trim_locked()
+            try:
+                self._persist_locked(job, force=True)
+                self._trim_locked()
+            except Exception as exc:
+                # No execution thread exists yet. Retain any disk receipt as
+                # terminal where possible; never classify a thread-start error
+                # as known-not-dispatched.
+                job.status = "failed"
+                job.error = str(exc)
+                job.finished_at = time.time()
+                try:
+                    self._persist_locked(job, force=True)
+                except Exception:
+                    pass
+                raise JobNotDispatchedError(str(exc)) from exc
         threading.Thread(target=self._watch_cancel, args=(job.id, cancel), daemon=True).start()
         thread = threading.Thread(
             target=self._run,
@@ -1122,7 +1139,7 @@ class JobStore:
                     self._persist_locked(job, force=True)
                     return
                 job = self._jobs[job_id]
-                coordinator = job.action_id in {"workbench.prepare", "workbench.workflow-control", "workbench.activity-snapshot", "workbench.resource-reconciliation-report", "workbench.resource-reconcile"}
+                coordinator = job.action_id in {"workbench.publish-capability", "workbench.prepare", "workbench.workflow-control", "workbench.activity-snapshot", "workbench.resource-reconciliation-report", "workbench.resource-reconcile"}
                 # Coordinators do not consume a worker slot below, so requiring a
                 # free one here only starved them: with MAX_CONCURRENT real jobs
                 # running, a Pause (workbench.workflow-control) could never reach
@@ -1202,6 +1219,9 @@ class JobStore:
             elif action is not None and action.backend == "merge-evidence":
                 from agentdecompile_recovery.corpus.dashboard.workflow import merge_evidence
                 code, log = 0, json.dumps(merge_evidence(str(job.params["db"]), str(job.params["run"])))
+            elif action is not None and action.backend == "capability-publication":
+                from agentdecompile_recovery.corpus.dashboard.preparation import publish_capability
+                code, log = 0, json.dumps(publish_capability(job.params["envelope"]))
             elif action is not None and action.backend == "workflow-control":
                 from agentdecompile_recovery.corpus.dashboard.preparation import control
                 code, log = 0, json.dumps(control(dict(job.params)))

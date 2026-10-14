@@ -34,16 +34,16 @@ def _normalizer_script() -> Path | None:
     return None
 
 
-def inspect_protection(path: str | Path) -> dict[str, Any]:
+def inspect_protection(path: str | Path, *, capability_revision: str = "") -> dict[str, Any]:
     try:
         stat = Path(path).stat()
-        return dict(_inspect_cached(str(path), stat.st_size, stat.st_mtime_ns))
+        return dict(_inspect_cached(str(path), stat.st_size, stat.st_mtime_ns, capability_revision))
     except OSError as exc:
         return {'status': 'unknown', 'encryption': 'unknown', 'drm': 'unknown', 'reason': str(exc), 'sourcePath': str(path)}
 
 
 @lru_cache(maxsize=512)
-def _inspect_cached(path: str, size: int, mtime_ns: int) -> dict[str, Any]:
+def _inspect_cached(path: str, size: int, mtime_ns: int, capability_revision: str = "") -> dict[str, Any]:
     result: dict[str, Any] = {'status': 'unknown', 'encryption': 'unknown', 'drm': 'unknown', 'evidence': [], 'sourcePath': str(path)}
     source = Path(path)
     try:
@@ -92,16 +92,18 @@ def _inspect_cached(path: str, size: int, mtime_ns: int) -> dict[str, Any]:
     return result
 
 
-def prepare_protected_binary(path: str | Path, output_root: str | Path) -> dict[str, Any]:
+def prepare_protected_binary(path: str | Path, output_root: str | Path, *, capability_revision: str = "", expected_source_sha256: str = "") -> dict[str, Any]:
     """Unpack supported formats on a copy. Never execute the target binary."""
     source = Path(path)
-    result = inspect_protection(source)
+    result = inspect_protection(source, capability_revision=capability_revision)
     result['analysisPath'] = str(source)
     if result['status'] != 'detected':
         return result
     with source.open('rb') as stream:
         digest = hashlib.file_digest(stream, 'sha256').hexdigest()
     result['sourceSha256'] = digest
+    if expected_source_sha256 and digest != expected_source_sha256:
+        raise ValueError('Input changed after capability acceptance')
     root = Path(output_root) / 'protection' / digest
     root.mkdir(parents=True, exist_ok=True)
     # Isolated attempts never accept stale output left by an earlier failed tool.
@@ -112,8 +114,12 @@ def prepare_protected_binary(path: str | Path, output_root: str | Path) -> dict[
         if hashlib.file_digest(stream, 'sha256').hexdigest() != digest:
             raise ValueError('Binary changed while preparing its analysis copy; retry import.')
     protector = (result.get('detection') or {}).get('protector')
+    manifest = capability_manifest(str(protector))
+    result['capabilityRevision'] = manifest['revision']
     derived = None
     try:
+        if capability_revision and (protector != 'UPX' or manifest['revision'] != capability_revision or not manifest['available']):
+            raise ValueError('Capability artifacts changed before execution')
         if protector == 'SteamStub':
             from agentdecompile_recovery.tools import resolve_steamless_cli, run_steamless
             cli = resolve_steamless_cli(Path(__file__).resolve().parents[4])
@@ -125,7 +131,7 @@ def prepare_protected_binary(path: str | Path, output_root: str | Path) -> dict[
             if proc.returncode == 0:
                 derived = copied.with_name(copied.name + '.unpacked.exe')
         elif protector == 'UPX' and shutil.which('upx'):
-            proc = subprocess.run(['upx', '-d', str(copied)], capture_output=True, text=True, timeout=120)
+            proc = subprocess.run([manifest['artifacts'][-1]['path'], '-d', str(copied)], capture_output=True, text=True, timeout=120)
             result['tool'] = 'upx'
             result['toolOutput'] = ((proc.stdout or '') + (proc.stderr or ''))[-4000:]
             if proc.returncode == 0:
@@ -157,3 +163,26 @@ def prepare_analysis_binary(path: str | Path, output_root: str | Path) -> dict[s
     if container:
         return container
     return prepare_protected_binary(source, output_root)
+
+
+def capability_manifest(protector: str) -> dict[str, Any]:
+    """Observe the first supported wake adapter without executing/installing tools.
+
+    Other protectors remain explicitly unsupported. Availability is an input to
+    acceptance, never acceptance itself.
+    """
+    artifacts = []
+    paths = [Path(__file__).resolve()]
+    detector = _normalizer_script()
+    tool = shutil.which('upx') if protector == 'UPX' else None
+    if detector:
+        paths.append(detector.resolve())
+    if tool:
+        paths.append(Path(tool).resolve())
+    for path in paths:
+        with path.open('rb') as stream:
+            artifacts.append({'path': str(path), 'sha256': hashlib.file_digest(stream, 'sha256').hexdigest()})
+    basis = {'capability': 'protection:' + protector, 'artifacts': artifacts,
+             'available': bool(protector == 'UPX' and detector and tool)}
+    basis['revision'] = hashlib.sha256(json.dumps(basis, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
+    return basis

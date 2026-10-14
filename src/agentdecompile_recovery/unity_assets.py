@@ -32,6 +32,7 @@ from pathlib import Path
 from typing import Any
 
 EXPORTABLE_TYPES = {"Texture2D", "Sprite", "AudioClip", "TextAsset", "Font"}
+MESH_EXPORT_SCHEMA = "agentdecompile.unity-mesh-derivative-export.v1"
 
 # Companion/metadata files alongside the top-level serialized data files.
 # UnityPy follows references to *.resS/*.resource automatically when loading
@@ -231,3 +232,146 @@ def export_primary_content(install_root: Path, output_dir: Path) -> dict[str, An
         "perFile": per_file,
         "claimBoundary": "textures/sprites/audio/text/fonts only -- no meshes, materials, or scene/prefab structure",
     }
+
+
+def export_mesh_derivatives(
+    install_root: Path,
+    output_dir: Path,
+    *,
+    data_files: list[Path] | None = None,
+    max_object_mib: int = 192,
+    resume: bool = True,
+) -> dict[str, Any]:
+    """Export bounded OBJ derivatives for serialized Mesh objects.
+
+    UnityPy still indexes the serialized-file object table, but Mesh objects are
+    parsed and converted one at a time. Oversized objects are skipped before
+    parsing. Existing outputs are reused only when the matching receipt records
+    a completed object with the same source file ID, path ID and source range.
+    OBJ is intentionally reported as a lossy derivative, not as a Unity asset.
+    """
+
+    import hashlib
+    import json
+    import re
+
+    unitypy = _require_unitypy()
+    install_root = install_root.resolve()
+    output_dir = output_dir.resolve()
+    if max_object_mib < 1:
+        raise ValueError("max_object_mib must be at least 1")
+    data_dir = find_unity_data_dir(install_root) if install_root.is_dir() else None
+    if data_dir is None and data_files is None:
+        return {"schema": MESH_EXPORT_SCHEMA, "status": "error", "reason": "no *_Data directory found under install root"}
+    sources = [Path(path).resolve() for path in data_files] if data_files else discover_data_files(data_dir)  # type: ignore[arg-type]
+    output_dir.mkdir(parents=True, exist_ok=True)
+    receipt_path = output_dir / "mesh-derivative-receipt.json"
+    previous: dict[str, dict[str, Any]] = {}
+    if resume and receipt_path.is_file():
+        try:
+            old = json.loads(receipt_path.read_text(encoding="utf-8"))
+            for entry in old.get("objects", []):
+                if entry.get("status") == "exported" and entry.get("output"):
+                    previous[f"{entry.get('source')}:{entry.get('pathId')}"] = entry
+        except (OSError, ValueError, TypeError):
+            previous = {}
+
+    objects_report: list[dict[str, Any]] = []
+    totals = {"exported": 0, "skipped": 0, "failed": 0, "resumed": 0}
+    source_hashes: dict[Path, str] = {}
+
+    def write_checkpoint(status: str = "running") -> None:
+        checkpoint = {
+            "schema": MESH_EXPORT_SCHEMA,
+            "status": status,
+            "sourceRoot": str(install_root),
+            "outputDir": str(output_dir),
+            "maxObjectMiB": max_object_mib,
+            "totals": totals,
+            "objects": objects_report,
+            "claimBoundary": "lossy OBJ mesh derivatives only; not Unity serialized assets, scene graph, materials, skinning, blend-shape fidelity, or byte-exact source recovery",
+        }
+        temp_path = receipt_path.with_suffix(".json.tmp")
+        temp_path.write_text(json.dumps(checkpoint, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        temp_path.replace(receipt_path)
+
+    for source in sources:
+        if not source.is_file():
+            objects_report.append({"source": str(source), "status": "failed", "error": "source file does not exist"})
+            totals["failed"] += 1
+            continue
+        digest = hashlib.sha256(source.name.encode("utf-8", "surrogateescape")).hexdigest()[:16]
+        env = None
+        try:
+            env = unitypy.load(str(source))
+            mesh_objects = sorted((obj for obj in env.objects if obj.type.name == "Mesh"), key=lambda obj: obj.path_id)
+            for obj in mesh_objects:
+                key = f"{source.name}:{obj.path_id}"
+                previous_entry = previous.get(key)
+                if source not in source_hashes:
+                    hasher = hashlib.sha256()
+                    with source.open("rb") as source_handle:
+                        for chunk in iter(lambda: source_handle.read(1024 * 1024), b""):
+                            hasher.update(chunk)
+                    source_hashes[source] = hasher.hexdigest()
+                common = {
+                    "source": source.name,
+                    "sourceSha256": source_hashes[source],
+                    "pathId": obj.path_id,
+                    "byteStart": obj.byte_start,
+                    "serializedBytes": obj.byte_size,
+                }
+                if (
+                    previous_entry
+                    and previous_entry.get("sourceSha256") == source_hashes[source]
+                    and previous_entry.get("byteStart") == obj.byte_start
+                    and previous_entry.get("serializedBytes") == obj.byte_size
+                ):
+                    output = output_dir / previous_entry["output"]
+                    if output.is_file():
+                        objects_report.append({**common, **previous_entry, "status": "exported", "resumed": True})
+                        totals["exported"] += 1
+                        totals["resumed"] += 1
+                        if len(objects_report) % 25 == 0:
+                            write_checkpoint()
+                        continue
+                if obj.byte_size > max_object_mib * 1024 * 1024:
+                    objects_report.append({**common, "status": "skipped", "reason": "over-per-object-size-limit"})
+                    totals["skipped"] += 1
+                    if len(objects_report) % 25 == 0:
+                        write_checkpoint()
+                    continue
+                mesh = None
+                try:
+                    mesh = obj.parse_as_object()
+                    name = str(mesh.m_Name or f"mesh_{obj.path_id}")
+                    safe_name = re.sub(r"[^A-Za-z0-9._-]+", "_", name).strip("._")[:90] or "unnamed"
+                    filename = f"{digest}_{obj.path_id}_{safe_name}.obj"
+                    content = mesh.export("obj")
+                    if not content:
+                        objects_report.append({**common, "name": name, "status": "skipped", "reason": "empty-or-unsupported-mesh"})
+                        totals["skipped"] += 1
+                    else:
+                        target = output_dir / filename
+                        target.write_text(content, encoding="utf-8")
+                        objects_report.append({**common, "name": name, "status": "exported", "output": filename, "outputBytes": target.stat().st_size})
+                        totals["exported"] += 1
+                except Exception as exc:  # noqa: BLE001 - retain object-level failure evidence
+                    objects_report.append({**common, "status": "failed", "error": f"{type(exc).__name__}: {exc}"})
+                    totals["failed"] += 1
+                finally:
+                    mesh = None
+                    gc.collect()
+                if len(objects_report) % 25 == 0:
+                    write_checkpoint()
+        except Exception as exc:  # noqa: BLE001 - retain file-level failure evidence
+            objects_report.append({"source": source.name, "status": "failed", "error": f"{type(exc).__name__}: {exc}"})
+            totals["failed"] += 1
+        finally:
+            env = None
+            gc.collect()
+
+    status = "complete" if totals["failed"] == 0 and totals["skipped"] == 0 else "partial"
+    write_checkpoint(status)
+    receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+    return receipt

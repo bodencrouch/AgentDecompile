@@ -441,6 +441,16 @@ def build_parser(prog: str | None = None) -> argparse.ArgumentParser:
     unity_export.add_argument("--install-root", type=Path, required=True, help="Unity game install directory (containing a *_Data folder).")
     unity_export.add_argument("--out-dir", type=Path, required=True, help="Output directory for exported assets.")
 
+    unity_mesh_export = sub.add_parser(
+        "unity-export-meshes",
+        help="Export bounded lossy OBJ derivatives for Unity Mesh objects (requires agentdecompile[unity]).",
+    )
+    unity_mesh_export.add_argument("--install-root", type=Path, required=True, help="Unity game install directory (containing a *_Data folder unless --data-file is used).")
+    unity_mesh_export.add_argument("--out-dir", type=Path, required=True, help="Output directory for OBJ derivatives and resumable receipt; keep outside Unity Assets unless manually reviewed.")
+    unity_mesh_export.add_argument("--data-file", type=Path, action="append", help="Limit to a top-level *_Data file (repeatable; filename or full path). Defaults to all data files.")
+    unity_mesh_export.add_argument("--max-object-mib", type=int, default=192, help="Skip an individual serialized Mesh larger than this many MiB before parsing (default: 192).")
+    unity_mesh_export.add_argument("--no-resume", action="store_true", help="Ignore prior successful receipt entries and re-export objects.")
+
     decomp_atlas = sub.add_parser(
         "decomp-atlas",
         help="Local text-overlap retrieval over matched prompts and feature indexes, for advisory prompt context.",
@@ -1134,6 +1144,27 @@ def run_unity_export(args: argparse.Namespace) -> int:
     return 0 if receipt.get("status") == "complete" else 1
 
 
+def run_unity_mesh_export(args: argparse.Namespace) -> int:
+    from .unity_assets import export_mesh_derivatives
+
+    try:
+        receipt = export_mesh_derivatives(
+            install_root=args.install_root,
+            output_dir=args.out_dir,
+            data_files=args.data_file,
+            max_object_mib=args.max_object_mib,
+            resume=not args.no_resume,
+        )
+    except (ImportError, OSError, ValueError) as exc:
+        receipt = {
+            "schema": "agentdecompile.unity-mesh-derivative-export.v1",
+            "status": "error",
+            "reason": str(exc),
+        }
+    print(json.dumps(receipt, indent=2, sort_keys=True))
+    return 0 if receipt.get("status") == "complete" else 1
+
+
 def run_decomp_atlas_command(args: argparse.Namespace) -> int:
     from .decomp_atlas import run_decomp_atlas
 
@@ -1428,6 +1459,8 @@ def main(argv: list[str] | None = None, prog: str | None = None) -> int:
         return run_source_cleanup_package(args)
     if args.command == "unity-export":
         return run_unity_export(args)
+    if args.command == "unity-export-meshes":
+        return run_unity_mesh_export(args)
     if args.command == "decomp-atlas":
         return run_decomp_atlas_command(args)
     if args.command == "index-codebase":

@@ -130,6 +130,17 @@ references. Decompiled C# is behavioral reconstruction, not original source.
 
 ## Known gaps
 
+- `agentdecompile-recover unity-export-meshes --install-root <game>
+  --data-file resources.assets --out-dir <scratch> --max-object-mib 192`
+  exports bounded OBJ derivatives one Mesh at a time when whole-graph
+  AssetRipper import exceeds memory. Its receipt records source file SHA-256,
+  Unity path ID, serialized byte range, output size, and per-object skips or
+  failures; matching successful outputs can be resumed. Oversized Mesh objects
+  are skipped before parsing. OBJ is lossy and does not preserve Unity Mesh
+  serialization, materials, scene references, skinning/blend-shape fidelity,
+  or byte-exact source. Keep output outside `Assets/` unless deliberately
+  reviewed as a separate salvage artifact.
+
 - **IL2CPP is detected and blocked, not supported.** Managed code is compiled to
   native, so no decompilable assembly exists; real support needs
   Cpp2IL/Il2CppDumper.

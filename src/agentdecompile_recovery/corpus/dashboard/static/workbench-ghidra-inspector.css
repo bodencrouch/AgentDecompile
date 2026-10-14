@@ -1,0 +1,45 @@
+.wb-ghidra-inspector { min-width: 0; border: 1px solid var(--border); background: var(--bg-panel); color: var(--fg-max); }
+.wb-ghidra-inspector { container-type: inline-size; }
+.wb-ghidra-inspector > header { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px; padding: 10px 12px; border-bottom: 1px solid var(--border); }
+.wb-ghidra-inspector h3 { margin: 0; font-size: 14px; }
+.wb-ghidra-inspector header code { min-width: 0; overflow-wrap: anywhere; font-size: 11px; color: var(--addr); }
+.wb-gi-body { min-width: 0; padding: 6px 10px; }
+.wb-ghidra-inspector form { display: grid; gap: 6px; }
+.wb-gi-tool-picker { display: grid; grid-template-columns: minmax(100px,1fr) minmax(150px,2fr); gap: 6px; }
+.wb-ghidra-inspector label { display: grid; gap: 4px; margin: 0; min-width: 0; font-size: 11px; color: var(--fg-head); }
+.wb-ghidra-inspector input,.wb-ghidra-inspector select { width: 100%; min-width: 0; min-height: 32px; box-sizing: border-box; background: var(--bg-sunken); color: var(--fg-max); border: 1px solid var(--border); padding: 5px 7px; }
+.wb-gi-fields { display: grid; grid-template-columns: repeat(auto-fit,minmax(125px,1fr)); gap: 6px; }
+.wb-gi-fields:empty { display:none; }
+.wb-gi-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.wb-ghidra-inspector button { min-height: 32px; padding: 5px 9px; background: var(--bg-raised); color: var(--fg-max); border: 1px solid var(--border); cursor: pointer; }
+.wb-ghidra-inspector button:disabled { opacity: .55; cursor: default; }
+.wb-ghidra-inspector button:focus-visible,.wb-ghidra-inspector input:focus-visible,.wb-ghidra-inspector select:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+.wb-ghidra-inspector p { font-size: 11px; line-height: 1.5; overflow-wrap: anywhere; }
+.wb-gi-policy,.wb-gi-empty,.wb-gi-receipt { color: var(--fg-dim); margin: 4px 0; }
+.wb-gi-result { margin-top: 12px; border-top: 1px solid var(--border); }
+.wb-gi-observation dl { display: grid; grid-template-columns: repeat(auto-fit,minmax(155px,1fr)); gap: 6px 14px; margin: 8px 0; }
+.wb-gi-observation dl > div { min-width: 0; }
+.wb-gi-observation dt { color: var(--fg-dim); font-size: 10px; }
+.wb-gi-observation dd { margin: 2px 0 0; font-size: 11px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.wb-gi-observation h4 { font-size: 12px; margin: 12px 0 6px; }
+.wb-gi-observation h4 small { color: var(--fg-dim); font-weight: normal; }
+.wb-gi-table-scroll { overflow: auto; max-height: 26rem; }
+.wb-gi-observation table { width: 100%; border-collapse: collapse; font-size: 11px; }
+.wb-gi-observation th { position: sticky; top: 0; background: var(--bg-raised); text-align: left; }
+.wb-gi-observation td,.wb-gi-observation th { padding: 6px 8px; border-bottom: 1px solid var(--border); vertical-align: top; white-space: pre-wrap; overflow-wrap: anywhere; max-width: 22rem; }
+.wb-gi-layout > div { display: grid; grid-template-columns: 4rem minmax(0,1fr) auto; gap: 8px; padding: 6px 8px; border-bottom: 1px solid var(--border); }
+.wb-gi-layout span { display: grid; gap: 3px; min-width: 0; overflow-wrap: anywhere; }
+.wb-gi-layout code { color: var(--addr); font-size: 11px; }
+.wb-gi-layout small { color: var(--fg-dim); }
+.wb-gi-observation pre { max-height: 22rem; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 11px; }
+@media(max-width:600px) { .wb-ghidra-inspector button,.wb-ghidra-inspector input,.wb-ghidra-inspector select { min-height: 44px; } .wb-gi-layout > div { grid-template-columns: 3rem minmax(0,1fr); } .wb-gi-layout small { grid-column: 2; } }
+@container(max-width:360px) { .wb-gi-tool-picker { grid-template-columns:minmax(0,1fr); } }
+@container(min-width:850px) {
+  .wb-ghidra-inspector form { grid-template-columns: minmax(260px,2fr) minmax(125px,1fr) auto; align-items:start; gap:8px; }
+  .wb-gi-fields { grid-template-columns:repeat(auto-fit,minmax(115px,1fr)); }
+  .wb-gi-actions { padding-top:18px; }
+  .wb-gi-policy { grid-column:1/-1; margin:0; }
+  .wb-ghidra-inspector > header { padding:4px 10px; }
+  .wb-ghidra-inspector > header h3 { font-size:12px; }
+  .wb-gi-empty { grid-column:1/-1; }
+}

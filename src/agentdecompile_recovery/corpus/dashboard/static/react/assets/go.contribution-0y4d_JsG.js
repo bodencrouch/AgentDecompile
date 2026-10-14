@@ -1,0 +1,1 @@
+import{_ as o}from"./index-DsyvI55G.js";import{r}from"./_.contribution-B-Id0OvU.js";import"./monaco-runtime-CpV9lFRB.js";r({id:"go",extensions:[".go"],aliases:["Go"],loader:()=>o(()=>import("./go-acbASCJo.js"),[],import.meta.url)});

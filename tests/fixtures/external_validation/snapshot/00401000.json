@@ -1,9 +1,0 @@
-{
-  "schema_version": 1,
-  "address": "00401000",
-  "name": "canary",
-  "signature": "int canary(int value)",
-  "decompiled": "int canary(int value) { return value * 2 + 1; }",
-  "callers": [],
-  "callees": []
-}

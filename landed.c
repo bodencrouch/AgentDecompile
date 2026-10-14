@@ -1,1 +1,0 @@
-void target_func(void) {}

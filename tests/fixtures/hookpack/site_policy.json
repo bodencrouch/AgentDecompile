@@ -1,8 +1,0 @@
-{
-  "default": {"kind": "detour", "required": false},
-  "sites": {
-    "RunScript": {"kind": "call", "required": true},
-    "SlotTable": {"kind": "field", "required": true, "field": {"offset": 16, "size": 4}},
-    "Ghost": {"kind": "reference"}
-  }
-}

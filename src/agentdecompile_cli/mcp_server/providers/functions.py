@@ -15,7 +15,6 @@ import difflib
 import json
 import logging
 import re
-from functools import cmp_to_key
 
 from typing import TYPE_CHECKING, Any, ClassVar
 
@@ -290,40 +289,38 @@ class FunctionToolProvider(ToolProvider):
                 total += 1
             return scanned
 
-        indexed_functions = self._symbol_query_literal_function_candidates(
-            program, manager, query, all_external_functions
-        )
-        if indexed_functions is not None:
-            # Ghidra's symbol-name iterator performs wildcard matching inside
-            # the JVM. Verify every candidate against the provider's Python
-            # substring semantics before counting or paginating it.
-            scan(indexed_functions)
-        else:
-            # The normal collector materializes every Function proxy before
-            # the search can inspect a single name. Stream the common Ghidra
-            # iterator directly; if it fails or returns an incomplete count,
-            # restart through the compatibility collector and discard partial
-            # pagination state first.
-            expected_internal_count: int | None = None
-            try:
-                function_count = int(manager.getFunctionCount())
-                expected_internal_count = max(0, function_count - len(all_external_functions))
-            except Exception as exc:
-                logger.debug("Unable to verify fast function iterator count; retrying compatibility collector: %s", exc)
+        # Search one authoritative function stream. A wildcard SymbolTable
+        # query scans every defined-memory symbol; when it returns no matches,
+        # a completeness fallback then scans the FunctionManager as well. That
+        # doubles the work on the common no-hit query. FunctionManager yields
+        # only functions, includes names directly, and its expected count lets
+        # us restart through the compatibility collector if the stream is
+        # incomplete or fails.
+        try:
+            function_count = int(manager.getFunctionCount())
+            expected_internal_count = max(0, function_count - len(all_external_functions))
+        except Exception as exc:
+            raise RuntimeError("Function enumeration failed: unable to verify the internal function count") from exc
 
-            try:
-                if expected_internal_count is None:
-                    raise RuntimeError("Function count unavailable for validating the streamed iterator")
-                scanned = scan(manager.getFunctions(True))
-                if scanned != expected_internal_count:
-                    raise RuntimeError(
-                        f"Function iterator returned {scanned} internal functions; expected {expected_internal_count}"
-                    )
-            except Exception as exc:
-                logger.debug("Fast function iterator failed; retrying compatibility collector: %s", exc)
-                selected.clear()
-                total = 0
-                scan(_get_function_list(manager))
+        try:
+            scanned = scan(manager.getFunctions(True))
+            if scanned != expected_internal_count:
+                raise RuntimeError(
+                    f"Function iterator returned {scanned} internal functions; expected {expected_internal_count}"
+                )
+        except Exception as exc:
+            logger.debug("Fast function iterator failed; retrying compatibility collector: %s", exc)
+            selected.clear()
+            total = 0
+            scanned = scan(_get_function_list(manager))
+            if scanned != expected_internal_count:
+                # The compatibility collector can accept a nonempty partial
+                # iterator too. Never turn a known incomplete enumeration into
+                # a successful page or a false zero-match result.
+                raise RuntimeError(
+                    "Function enumeration failed: compatibility collector returned "
+                    f"{scanned} internal functions; expected {expected_internal_count}"
+                ) from exc
         scan(external_functions, external=True)
 
         results = []
@@ -342,111 +339,6 @@ class FunctionToolProvider(ToolProvider):
             })
         response_args = {"query": query}
         return self._create_paginated_response(results, offset, limit, total=total, mode="search", **response_args)
-
-    @staticmethod
-    def _symbol_query_literal_function_candidates(
-        program: Any,
-        manager: Any,
-        query: str,
-        external_functions: list[Any],
-    ) -> list[Any] | None:
-        """Use Ghidra's name-pattern iterator for simple literal substring searches.
-
-        Python's IGNORECASE recognizes four non-ASCII equivalents for ASCII
-        i/s/k; wildcard those positions in Ghidra's case-insensitive pattern,
-        then verify candidates with Python's matcher. Queries that could match
-        generated default-thunk names retain the complete FunctionManager scan.
-        """
-        if not query or not query.isascii() or _REGEX_META.search(query) is not None:
-            return None
-        if any(char in query for char in "_*?:\\"):
-            return None
-        query_lower = query.lower()
-        query_stripped = query_lower.strip()
-        looks_like_address = bool(re.fullmatch(r"(0x)?[0-9a-f]+", query_stripped)) and (
-            query_stripped.startswith("0x")
-            or any(ch.isdigit() for ch in query_stripped)
-            or len(query_stripped) >= 6
-        )
-        if looks_like_address:
-            return None
-        # Ghidra omits default thunks from the name-pattern iterator. These
-        # fragments can occur in generated thunk names; a pure hex query can
-        # match the generated address suffix.
-        if query_lower in "thunk_fun_" or all(char in "0123456789abcdef" for char in query_lower):
-            return None
-        try:
-            query_regex = re.compile(query, re.IGNORECASE)
-
-            def name_matches(name: Any) -> bool:
-                text = str(name)
-                if query_lower in text.lower():
-                    return True
-                # Python's Unicode IGNORECASE includes dotted/dotless i,
-                # long s, and Kelvin sign; Java's case-insensitive pattern
-                # does not. Only these non-ASCII names need the regex check.
-                return not text.isascii() and query_regex.search(text) is not None
-
-            unicode_case_positions = [index for index, char in enumerate(query_lower) if char in "isk"]
-            if len(query_lower) < 4 or len(unicode_case_positions) > 2:
-                return None
-            search_query = list(query_lower)
-            for index in unicode_case_positions:
-                search_query[index] = "?"
-            search_pattern = "".join(search_query)
-
-            symbol_table = program.getSymbolTable()
-            functions_by_address: dict[str, Any] = {}
-            targets_by_address: dict[str, Any] = {}
-
-            def add_target(function: Any) -> None:
-                targets_by_address[str(function.getEntryPoint())] = function
-
-            def add_internal_function(function: Any) -> None:
-                if function is None or function.isExternal() or not name_matches(function.getName()):
-                    return
-                address = str(function.getEntryPoint())
-                functions_by_address[address] = function
-                add_target(function)
-
-            symbols = symbol_table.getSymbolIterator("*" + search_pattern + "*", False)
-            if symbols is None:
-                return None
-            for symbol in iter_items(symbols):
-                if str(symbol.getSymbolType()).strip().casefold() != "function" or symbol.isExternal():
-                    continue
-                function = manager.getFunctionAt(symbol.getAddress())
-                if function is None or function.isExternal():
-                    return None
-                if name_matches(function.getName()):
-                    add_internal_function(function)
-
-            # The external list is absent from the symbol iterator and can
-            # provide targets for default thunk aliases.
-            for function in external_functions:
-                if name_matches(function.getName()):
-                    add_target(function)
-
-            for target in tuple(targets_by_address.values()):
-                if not hasattr(target, "getFunctionThunkAddresses"):
-                    return None
-                for address in iter_items(target.getFunctionThunkAddresses(True)):
-                    thunk = manager.getFunctionAt(address)
-                    if thunk is None or thunk.isExternal():
-                        return None
-                    add_internal_function(thunk)
-
-            def compare_functions(left: Any, right: Any) -> int:
-                return int(left.getEntryPoint().compareTo(right.getEntryPoint()))
-
-            candidates = sorted(functions_by_address.values(), key=cmp_to_key(compare_functions))
-            # An empty iterator cannot prove there are no matches: some Ghidra
-            # versions or program states have returned incomplete symbol
-            # iterators. Let the complete FunctionManager scan resolve no-hits.
-            return candidates or None
-        except Exception as exc:
-            logger.debug("Indexed literal function search unavailable; using full function scan: %s", exc)
-            return None
 
     def _filtered_function_rows(self, args: dict[str, Any], program: Any, *, program_info: ProgramInfo | SimpleNamespace | None, query: str) -> list[dict[str, Any]]:
         pattern = self._get_str(args, "namepattern", "pattern", "filter", "regex")

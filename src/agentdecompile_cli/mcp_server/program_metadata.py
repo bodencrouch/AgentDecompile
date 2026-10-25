@@ -240,6 +240,17 @@ def collect_program_summary(program_info: ProgramInfo) -> dict[str, Any]:
 def _analysis_complete_for_info(program_info: Any) -> bool | None:
     if program_info is None:
         return None
+    # Lightweight activation initializes the session flag to False even for
+    # saved, analyzed programs. Prefer the same read-only observation used by
+    # analyze-program instead of presenting that default as a fresh fact.
+    try:
+        from agentdecompile_cli.mcp_utils.program_analysis import observed_analysis_complete
+
+        complete = observed_analysis_complete(getattr(program_info, "program", None))
+        if complete is not None:
+            return complete
+    except ImportError:
+        pass
     if hasattr(program_info, "analysis_complete"):
         try:
             return bool(program_info.analysis_complete)

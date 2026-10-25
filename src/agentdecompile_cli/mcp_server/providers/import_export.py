@@ -2280,19 +2280,27 @@ class ImportExportToolProvider(ToolProvider):
         program: GhidraProgram | None = program_info.program
 
         try:
-            from agentdecompile_cli.mcp_utils.program_analysis import program_needs_analysis
+            from agentdecompile_cli.mcp_utils.program_analysis import observed_analysis_complete
 
-            already_analyzed = not program_needs_analysis(program)
-            if already_analyzed and not force:
+            complete = observed_analysis_complete(program)
+            if complete is not False and not force:
                 return create_success_response(
                     {
                         "action": "analyze",
                         "programName": program.getName() if program is not None else "(none)",
                         "analyzers": analyzers or "all",
                         "success": False,
-                        "alreadyAnalyzed": True,
+                        "alreadyAnalyzed": complete is True,
+                        "analysisComplete": complete,
+                        "analysisTriggered": False,
                         "forceAllowed": True,
-                        "error": "Program has already been analyzed. Re-run only when you have a specific reason; set force=true to override.",
+                        "error": (
+                            "Ghidra reports the program is already analyzed for its configured analysis. "
+                            "No analysis was run. Re-run only for a specific reason; set force=true to override."
+                            if complete is True else
+                            "Ghidra analysis completion could not be determined. No analysis was run; "
+                            "inspect the program state before deliberately overriding with force=true."
+                        ),
                     },
                 )
 

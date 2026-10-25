@@ -36,7 +36,9 @@ import time
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from agentdecompile_cli.startup_progress import report_slow_local_operation, report_slow_pyghidra_startup
+from agentdecompile_cli.startup_progress import (
+    local_tool_phase, report_local_phase, report_slow_local_operation, report_slow_pyghidra_startup,
+)
 
 if TYPE_CHECKING:
     from mcp import types
@@ -183,12 +185,14 @@ class LocalToolBackend:
         # exhausted quota or critically low headroom stops startup before Ghidra stalls.
         from agentdecompile_cli.storage_diagnostics import storage_preflight_warnings
 
-        for warning in storage_preflight_warnings([self._project_path, _java_temp_directory()]):
-            sys.stderr.write(f"[storage-preflight] {warning}\n")
+        with report_local_phase("checking local storage"):
+            for warning in storage_preflight_warnings([self._project_path, _java_temp_directory()]):
+                sys.stderr.write(f"[storage-preflight] {warning}\n")
 
         # --- PyGhidra ---
         try:
-            import pyghidra  # pyright: ignore[reportMissingImports]
+            with report_local_phase("importing PyGhidra"):
+                import pyghidra  # pyright: ignore[reportMissingImports]
         except ImportError as exc:
             raise ImportError(
                 "PyGhidra is not installed.  Install with: pip install 'agentdecompile[local]'\n"
@@ -206,20 +210,20 @@ class LocalToolBackend:
         # Load Python-only transport dependencies before PyGhidra installs its
         # Java import finder; probing every mcp/uvicorn submodule through that
         # finder can otherwise dominate startup after the JVM is running.
-        with report_slow_local_operation("loading Python backend dependencies"):
+        with report_local_phase("loading Python backend dependencies"), report_slow_local_operation("loading Python backend dependencies"):
             importlib.import_module("mcp")
 
         logger.info("local_backend init pyghidra start project_path=%s project_name=%s", self._project_path, self._project_name)
         sys.stderr.write("Initializing PyGhidra (local mode)...\n")
-        with report_slow_pyghidra_startup():
+        with report_local_phase("initializing PyGhidra"), report_slow_pyghidra_startup():
             pyghidra.start(verbose=self._verbose)
         sys.stderr.write("PyGhidra initialized.\n")
 
         # --- Ghidra project ---
-        from agentdecompile_cli.context import PyGhidraContext  # pyright: ignore[reportMissingImports]
+        with report_local_phase("opening the local project context"), report_slow_local_operation("opening the local project context"):
+            from agentdecompile_cli.context import PyGhidraContext  # pyright: ignore[reportMissingImports]
 
-        self._project_path.mkdir(parents=True, exist_ok=True)
-        with report_slow_local_operation("opening the local project context"):
+            self._project_path.mkdir(parents=True, exist_ok=True)
             self._context = PyGhidraContext(
                 project_name=self._project_name,
                 project_path=str(self._project_path),
@@ -244,7 +248,7 @@ class LocalToolBackend:
                 sys.stderr.write(f"Warning: import failed for {binary_path}: {exc}\n")
 
         # --- Tool provider manager ---
-        with report_slow_local_operation("loading and registering local tool providers"):
+        with report_local_phase("loading and registering local tool providers"), report_slow_local_operation("loading and registering local tool providers"):
             from agentdecompile_cli.mcp_server.resource_providers import ResourceProviderManager  # pyright: ignore[reportMissingImports]
             from agentdecompile_cli.mcp_server.tool_providers import ToolProviderManager  # pyright: ignore[reportMissingImports]
 
@@ -329,7 +333,10 @@ class LocalToolBackend:
         # resolve to our fixed "local" session.
         token = CURRENT_MCP_SESSION_ID.set(_LOCAL_SESSION_ID)
         try:
-            result: list[types.TextContent] = await self._tool_manager.call_tool(name, dict(arguments or {}))
+            with report_local_phase("tool dispatch", scope="Local tool"), report_slow_local_operation(
+                "executing local tool", scope="Local tool", phase=local_tool_phase,
+            ):
+                result: list[types.TextContent] = await self._tool_manager.call_tool(name, dict(arguments or {}))
         except Exception as exc:
             logger.warning("local_backend call_tool_exc tool=%s exc=%s", name, exc)
             from agentdecompile_cli.storage_diagnostics import storage_failure_message

@@ -218,10 +218,16 @@ class FunctionToolProvider(ToolProvider):
             "mode", "programpath", "query", "searchstring", "offset", "startindex",
             "limit", "maxresults", "maxcount", "max", "includeexternals", "externals", "verbose",
             "responseformat",
+            "untagged", "hastags",
         }
+        # The CLI includes both tag flags even when they are false. Only active
+        # tag filters need metadata; their default values must not force a full
+        # collection of signatures, comments, parameters and call counts.
         return (
             all(str(key).lower() in allowed for key in args)
             and not self._get_bool(args, "verbose", default=False)
+            and not self._get_bool(args, "untagged", default=False)
+            and not self._get_bool(args, "hastags", default=False)
         )
 
     def _fast_search_existing_functions(

@@ -1,0 +1,32 @@
+{
+  "skill_name": "agentdecompile-entrypoint",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "set me up to start reversing with AgentDecompile",
+      "expected_output": "Agent reads entrypoint/AGENT_BOOTSTRAP.md, proposes setup_agent.py as a dry run against the existing 8080 endpoint, runs doctor.py read-only and reports reachable tiers.",
+      "assertions": [
+        "No server is started, restarted or moved to another port",
+        "Configuration is shown as a diff before any --apply",
+        "AGENTS.md and STRATEGY.md are named as the authority"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "what should we be exporting and when is recovery done",
+      "expected_output": "Agent describes the per-binary source bundle, hookpack, WASM and Lua exports with their separate validations and states the fresh whole-image compile plus objdiff zero-difference receipt as the finish line that is not yet implemented end-to-end.",
+      "assertions": [
+        "An assembly floor is not counted as recovered source",
+        "A source bundle is not called a verified whole-image build"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "decompile FUN_401000",
+      "expected_output": "Agent routes to tiered-re-analysis and source-recovery, not this skill.",
+      "assertions": [
+        "agentdecompile-entrypoint is not the primary skill used"
+      ]
+    }
+  ]
+}

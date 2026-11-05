@@ -28,6 +28,7 @@ __all__ = [
     "blocking_ensure_analyzed",
     "mark_program_analysis_complete",
     "program_needs_analysis",
+    "observed_analysis_complete",
     "wait_for_program_analysis_idle",
     "wait_for_program_analysis_ready",
 ]
@@ -238,20 +239,27 @@ def program_needs_analysis(
     # bypass the gate; ordinary read-only imports retain normal analysis routing.
     if _recorded_shared_snapshot_ready(program, program_info):
         return False
+    return observed_analysis_complete(program) is not True
+
+
+def observed_analysis_complete(program: GhidraProgram) -> bool | None:
+    """Read Ghidra readiness without starting analysis or trusting session defaults.
+
+    None means the program exposes no usable analysis observation.  This is
+    distinct from a conservative gate decision that analysis should run.
+    """
+    if program is None or not _program_supports_analysis_observation(program):
+        return None
     pending = _ghidra_utilities_pending(program)
-    # ``getAnalysisState().isDone()`` can remain false after a completed
-    # headless save, particularly for imported Mach-O and PE programs.  The
-    # persisted Ghidra analyzed flag is the durable observation in that case;
-    # treating the transient state as stronger makes a completed run roll its
-    # own transaction back and prevents the corpus coordinator from advancing.
+    # The persisted flag outranks transient getAnalysisState after headless saves,
+    # just as it does for the analysis gate. It describes configured Ghidra
+    # analysis readiness, not exhaustive recovery or every possible analyzer.
     if pending is False:
-        return False
-    state_done = _analysis_state_done(program)
-    if state_done is False:
         return True
-    if state_done is True:
-        return False
-    return True if pending is None else pending
+    state_done = _analysis_state_done(program)
+    if state_done is not None:
+        return state_done
+    return None if pending is None else not pending
 
 
 def _program_analysis_still_running(program: GhidraProgram) -> bool:

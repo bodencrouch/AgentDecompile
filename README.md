@@ -25,7 +25,7 @@ flowchart TD
 2. **Recover rebuildable C** — The reconstruct pipeline only promotes functions that compile and pass objdiff with zero differences. Everything else stays in advisory folders with honest labels.
 3. **Run your way** — Stdio for desktop MCP clients, HTTP at `/mcp` for scripts and remote use, optional browser UI when you start the server locally.
 
-A finished dashboard job is not a match. Verified C requires compile plus objdiff 0; terminal recovery additionally requires a fresh whole-image byte-identical rebuild, with C+assembly-floor and max-C variants separately measured.
+Verified C requires compile plus objdiff 0; terminal recovery additionally requires a fresh whole-image byte-identical rebuild, with C+assembly-floor and max-C variants separately measured.
 
 Source lives at [github.com/bodencrouch/AgentDecompile](https://github.com/bodencrouch/AgentDecompile). The published container image is still `docker.io/bolabaden/agentdecompile-mcp`. The Pages site is [bodecloud.github.io/AgentDecompile](https://bodecloud.github.io/AgentDecompile/).
 
@@ -100,7 +100,7 @@ docker run --rm -i \
   -t stdio
 ```
 
-.NET/IL decompilation needs [ilspycmd](https://github.com/icsharpcode/ILSpy) separately (`dotnet tool install -g ilspycmd`). It is not a pip extra.
+.NET/IL decompilation needs [ilspycmd](https://github.com/icsharpcode/ILSpy) separately (`dotnet tool install -g ilspycmd`).
 
 ## First-run environment
 
@@ -116,7 +116,7 @@ The full env-var and HTTP-header catalog lives in [USAGE.md](USAGE.md).
 
 ## Corpus recovery
 
-For more than one build, use the corpus actions advertised on 8080. Register each binary. Mark the STABS/DWARF build as `--donor`. Recover a function once on the easy build, then propagate. Do not re-analyze a Ghidra program that already has analysis. A green dashboard label is not proof.
+For more than one build, use the corpus actions advertised on 8080. Register each binary. Mark the STABS/DWARF build as `--donor`. Recover a function once on the easy build, then propagate.
 
 Implementation CLI reference (current recovery uses the 8080 catalog):
 
@@ -128,7 +128,7 @@ uv run agentdecompile-corpus run --corpus target/corpus.json \
   --snapshot-dir target/extracts --work-dir target/corpus-run --stop-after compile
 ```
 
-`--stop-after compile` stops after donor C compiles. It is not a byte match. The workbench is `/dashboard` on the same HTTP server as `/mcp` (default 8080).
+`--stop-after compile` stops after donor C compiles (not necessarily a binary match to the original executable). The workbench is `/dashboard` on the same HTTP server as `/mcp` (default 8080).
 
 The [interface guide](src/agentdecompile_recovery/corpus/dashboard/frontend/README.md) distinguishes the static workbench source from the React frontend and its packaged routes. Use the current 8080 serving mode; source or asset presence does not prove a completed migration.
 

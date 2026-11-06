@@ -68,9 +68,8 @@ jobs:
       id: headless_test
       run: |
         echo "::group::Running headless integration tests"
-        # Exclude e2e/slow live-server suites (Docker, long MCP subprocess runs).
         # Unit coverage runs in test-unit.yml; full LFG stack is manual/post-merge.
-        uv run pytest tests/ -m "not e2e" -v --timeout=180 --tb=short --junitxml=test-results.xml
+        uv run pytest tests/ -m "integration and not e2e" -v --timeout=180 --tb=short --junitxml=test-results.xml
         echo "::endgroup::"
       timeout-minutes: 30
       env:

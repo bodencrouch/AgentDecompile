@@ -1,13 +1,13 @@
 """agentdecompile_grid.log — the append-only, hash-chained, signed record layer.
 
 Importing this package registers every adapter it declares in the ``core`` registries
-(``LOG_STORES``: local, s3, http; ``HEAD_STORES``: local, s3, http; ``SIGNERS``: null, hmac,
-ed25519).  Registration is of *classes* and never needs an optional dependency; a declared
+(``LOG_STORES``: local, s3, http; ``HEAD_STORES``: local, s3, http; ``SIGNERS``: ed25519 (default),
+null, hmac, hash-token, hsm, ssh-agent; ``KEY_SOURCES``; ``RECORD_FILTERS``).  Registration is of *classes* and never needs an optional dependency; a declared
 adapter raises ``NotConfigured`` naming its requirement when constructed.
 
 Public API other slices rely on (see README.md for the rules):
   LocalFileLog(root) / LocalFileHeads(root)         working log + CAS head store
-  NullSigner() / HMACSigner(secret) / Ed25519Signer  signers; Keyring; verify_record / authorize_record(record, keyring)
+  NullSigner() / HMACSigner(secret) / Ed25519Signer  signers; Keyring; verify_record(record, keyring)
   Appender(log, heads, signer) / Outbox(appender)    seal + append with backoff and rotation;
                                                      Appender.write_batch is the node outbox's RecordWriter
   Draft(type, body) / seal / verify_chain            records
@@ -23,7 +23,7 @@ from collections.abc import Mapping
 
 from agentdecompile_grid.core import HEAD_STORES, LOG_STORES, SIGNERS, HeadStore, LogStore, Signer
 
-from . import backoff, compaction, frontier, heads, http, intents, local, outbox, records, s3, signing
+from . import backoff, compaction, frontier, heads, http, intents, keys, local, outbox, records, s3, signing
 from .backoff import BackoffPolicy, BackoffStep, PartitionRotation, full_jitter
 from .compaction import (
     CheckpointSummary,
@@ -104,7 +104,7 @@ CONFIG_FIELDS: dict[str, Any] = {
     "heads": {"adapter": "local", "root": "<store root>", "fsync": True,
               "s3": S3ConditionalHeads.config_schema(), "http": HttpHeads.config_schema()},
     "signing": {"adapter": "null", "label": "", "key_dir": "<keys dir>", "secret_env": "ADGRID_HMAC_SECRET", "secret_file": ""},
-    "keyring": {"allow_null": False, "key_dir": "<trusted public keys dir>", "trust_local_nodes": False},
+    "keyring": {"allow_null": True, "key_dir": "<public keys dir>"},
     "frontier": FrontierPolicy.config_schema()["properties"],
     "outbox": OutboxPolicy.config_schema()["properties"],
     "backoff": BackoffPolicy.config_schema()["properties"],

@@ -5,7 +5,9 @@ Kinds are classes (or instances) meeting ``core.TaskKind``: class attributes ``n
 this module adds:
 
 * ``register_kind`` — validates the shape (name pattern, positive version, a ``BudgetClass``,
-  string capabilities, callable ``run``/``verify``) and records where the kind came from.
+  string capabilities, callable ``run``/``verify``, a ``basis_fields`` tuple drawn from
+  ``core.BASIS_FIELDS``) and records where the kind came from.  A kind without ``basis_fields`` is
+  refused by name: its task ids could not say which basis fields they depend on (U158).
 * ``discover_entry_points`` — loads the ``agentdecompile_grid.task_kinds`` entry-point group
   (``tasks.entry_point_group``).  An entry point may resolve to a kind, a list of kinds, or a
   zero-argument callable returning either.  Failures are collected per entry point in the
@@ -18,6 +20,11 @@ this module adds:
   (never the text).  The producer key is stamped on the result here because ``TaskKind.run``
   does not receive it.
 * ``describe_kinds`` — the dict the CLI prints (``adgrid tasks kinds``).
+* ``projection_table`` — ``{kind: basis_fields}`` for ``describe`` plus the kinds that declare none.
+* ``check_projection`` — the shape check ``execute``/``stamp`` and the publish/verify/consume paths
+  share (``core.check_basis_projection``): a spec whose projection keys are not the kind's
+  ``basis_fields`` is refused by name; ``core.task_kind`` registers raw (a lane module must stay
+  importable), so the refusal lands at use, not at import.
 
 Acceptance tests (named here, landed in the verification phase):
 
@@ -38,8 +45,8 @@ from dataclasses import dataclass, field
 from typing import Any, Iterable, Mapping
 
 from ..core import (
-    TASK_KINDS, BudgetClass, Deadline as DeadlineError, GridError, ObjectStore, Refused, ResultStatus, TaskKind, TaskResult,
-    TaskSpec,
+    BASIS_FIELDS, TASK_KINDS, BudgetClass, Deadline as DeadlineError, GridError, ObjectStore, Refused, ResultStatus, TaskKind,
+    TaskResult, TaskSpec, basis_field_known, check_basis_projection, kind_basis_fields,
 )
 from .spec import KIND_NAME_RE, SpecError, validate_spec
 
@@ -75,12 +82,55 @@ def validate_kind(kind: Any) -> Any:
     for method in ("run", "verify"):
         if not callable(getattr(kind, method, None)):
             raise KindError(f"task kind {name}: missing callable {method}(spec, objects, scratch)")
+    validate_basis_fields(kind)
     for extra in getattr(kind, "allowed_budgets", ()) or ():
         try:
             BudgetClass(extra)
         except ValueError:
             raise KindError(f"task kind {name}: allowed_budgets entry {extra!r} is not a BudgetClass") from None
     return kind
+
+
+def validate_basis_fields(kind: Any) -> tuple[str, ...]:
+    """``basis_fields`` must be a tuple/list of ``core.BASIS_FIELDS`` paths (``()`` = content-only);
+    refused by name when absent, a bare string, or naming a path outside the vocabulary."""
+    name = getattr(kind, "name", getattr(kind, "__name__", type(kind).__name__))
+    try:
+        fields = kind_basis_fields(kind)
+    except Refused as exc:
+        raise KindError(f"task kind {name}: 'basis_fields' must be a tuple of core.BASIS_FIELDS paths (() = content-only); {exc.reason}") from None
+    declared = getattr(kind, "basis_fields")
+    if not isinstance(declared, (tuple, list)):
+        raise KindError(f"task kind {name}: 'basis_fields' must be a tuple, got {type(declared).__name__}")
+    unknown = [p for p in fields if not basis_field_known(p)]
+    if unknown:
+        raise KindError(f"task kind {name}: basis_fields {unknown} are not in core.BASIS_FIELDS {list(BASIS_FIELDS)}")
+    if len(set(fields)) != len(fields):
+        raise KindError(f"task kind {name}: basis_fields repeats a path: {list(fields)}")
+    return fields
+
+
+def check_projection(kind: Any, spec: TaskSpec) -> None:
+    """``core.check_basis_projection`` for a registered kind name or class (Refused by name)."""
+    if isinstance(kind, str):
+        kind = kind_class(kind)
+    check_basis_projection(kind, spec)
+
+
+def projection_table(*, include_undeclared: bool = True) -> dict[str, Any]:
+    """``{kind: [basis_fields...]}`` for ``describe``; kinds registered raw without ``basis_fields``
+    are listed under ``undeclared`` (they are refused at publish/execute/verify, not hidden)."""
+    table: dict[str, list[str]] = {}
+    undeclared: list[str] = []
+    for name in kind_names():
+        try:
+            table[name] = list(kind_basis_fields(kind_class(name)))
+        except Refused:
+            undeclared.append(name)
+    out: dict[str, Any] = {"kinds": table}
+    if include_undeclared:
+        out["undeclared"] = undeclared
+    return out
 
 
 def register_kind(kind: Any, *, replace: bool = False, source: str = "explicit") -> Any:
@@ -195,8 +245,15 @@ def reset_discovery() -> None:
 
 
 # --------------------------------------------------------------------------- execution
-def stamp(result: TaskResult, *, producer_key: str, basis_hash: str | None = None) -> TaskResult:
-    """Fill the producer key (and basis when the kind left it empty) on a result a kind returned."""
+def stamp(result: TaskResult, *, producer_key: str, basis_hash: str | None = None, spec: TaskSpec | None = None,
+          kind: Any = None) -> TaskResult:
+    """Fill the producer key (and basis when the kind left it empty) on a result a kind returned.
+    With ``spec`` and ``kind`` given the projection shape is checked first (Refused by name) and the
+    result's ``basis_hash`` must be the spec's: a result stamped under another basis is refused."""
+    if spec is not None and kind is not None:
+        check_projection(kind, spec)
+    if spec is not None and result.basis_hash and result.basis_hash != spec.basis_hash:
+        raise Refused(f"basis-mismatch:{result.basis_hash[:12]}!={spec.basis_hash[:12]}")
     changes: dict[str, Any] = {"producer_key": producer_key}
     if basis_hash and not result.basis_hash:
         changes["basis_hash"] = basis_hash
@@ -208,10 +265,11 @@ def execute(kind: TaskKind | str, spec: TaskSpec, objects: ObjectStore, scratch:
     """Run ``kind`` on ``spec`` and always return a ``TaskResult`` (never raise for task-level failures)."""
     if isinstance(kind, str):
         kind = get_kind(kind, config=config)
-    if validate:
-        validate_spec(spec, kind=kind, config=config)
     started = time.perf_counter()
     try:
+        check_projection(kind, spec)                     # publish/verify/consume share this; here it is a REFUSED result by name
+        if validate:
+            validate_spec(spec, kind=kind, config=config)
         result = kind.run(spec, objects, scratch)
     except Refused as exc:
         result = TaskResult(task_id=spec.task_id, status=ResultStatus.REFUSED, outputs={}, producer_key="",
@@ -231,7 +289,7 @@ def execute(kind: TaskKind | str, spec: TaskSpec, objects: ObjectStore, scratch:
                             metrics={"traceback_sha256": hashlib.sha256(tb).hexdigest(), "traceback_bytes": len(tb)})
     if result.task_id != spec.task_id:
         raise KindError(f"task kind {kind.name} returned a result for {result.task_id}, expected {spec.task_id}")
-    return stamp(result, producer_key=producer_key, basis_hash=spec.basis_hash)
+    return stamp(result, producer_key=producer_key, basis_hash=spec.basis_hash, spec=spec)
 
 
 # --------------------------------------------------------------------------- describe
@@ -247,6 +305,7 @@ def describe_kind(name: str, *, config: Any = None) -> dict[str, Any]:
         "params_schema": getattr(kind, "params_schema", {}),
         "inputs": list(getattr(kind, "input_names", ()) or ()), "outputs": list(getattr(kind, "output_names", ()) or ()),
         "verify_method": getattr(kind, "verify_method", ""),
+        "basis_fields": list(getattr(kind, "basis_fields", ()) or ()) if getattr(kind, "basis_fields", None) is not None else None,
     }
     if config is not None:
         info["deadline_s"] = config.deadline_s(budget, kind.name)
@@ -258,7 +317,8 @@ def describe_kinds(config: Any = None, *, discover: bool | None = None) -> dict[
     do_discover = discover if discover is not None else (config.tasks.auto_discover if config is not None else True)
     report = ensure_discovered(config) if do_discover else None
     return {"kinds": {name: describe_kind(name, config=config) for name in kind_names()},
-            "discovery": report.to_dict() if report else {"group": "", "loaded": [], "skipped": [], "failed": {}}}
+            "discovery": report.to_dict() if report else {"group": "", "loaded": [], "skipped": [], "failed": {}},
+            "projections": projection_table()}
 
 
 def kinds_for_capabilities(capabilities: Iterable[str], *, config: Any = None) -> list[str]:
@@ -279,7 +339,8 @@ def kinds_for_capabilities(capabilities: Iterable[str], *, config: Any = None) -
 
 __all__ = [
     "DEFAULT_ENTRY_POINT_GROUP", "KindError", "DiscoveryReport",
-    "validate_kind", "register_kind", "unregister_kind", "kind_class", "get_kind", "kind_names", "kind_source",
+    "validate_kind", "validate_basis_fields", "check_projection", "projection_table", "register_kind", "unregister_kind",
+    "kind_class", "get_kind", "kind_names", "kind_source",
     "discover_entry_points", "ensure_discovered", "reset_discovery",
     "stamp", "execute", "describe_kind", "describe_kinds", "kinds_for_capabilities",
 ]

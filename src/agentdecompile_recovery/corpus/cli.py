@@ -428,9 +428,41 @@ def build_parser(prog: str | None = None) -> argparse.ArgumentParser:
     logical_build.identity_scope = "database"
     logical_build.add_argument("--db", type=Path, required=True)
 
+    attest = sub.add_parser(
+        "attest",
+        help="Run the keyed verbs against a private copy of a store and write one receipt per verb",
+        description=(
+            "Copy the store, run each selected verb on the copy under its own deadline, "
+            "write sorted receipts with hashed build names, and compare with the previous run. "
+            "Exit 0 when nothing changed, 3 when a receipt changed, 4 when a verb hung, failed or refused."
+        ),
+    )
+    attest.long_running = True
+    attest.add_argument("--db", type=Path, required=True, help="Store to attest. It is copied, never opened for writing.")
+    attest.add_argument("--receipts", type=Path, required=True, help="Receipts directory outside the repo. One subdirectory per run.")
+    attest.add_argument("--workdir", type=Path, default=None, help="Where the copy and verb outputs live. Default: a temp dir, removed afterwards.")
+    attest.add_argument("--verbs", default=None, help="Comma-separated catalogue verbs to run, in catalogue order.")
+    attest.add_argument("--profile", default=None, help="Named verb set: full, keyed-only, admission, smoke. Default: full.")
+    attest.add_argument("--fresh-per-verb", action="store_true", help="Copy the store again before every verb.")
+    attest.add_argument("--allow-refusals", action="store_true", help="Count a verb refusal as a change (exit 3) instead of a failure (exit 4).")
+    attest.add_argument("--deadline-s", type=float, default=None, help="Overall deadline. Default: the verb deadlines plus 60 seconds.")
+    attest.add_argument("--verb-deadline", action="append", metavar="NAME=SECS", help="Override one verb's deadline. Repeatable.")
+    attest.add_argument("--snapshot", choices=("backup", "reflink"), default="backup", help="How the copy is made. Default: backup.")
+    attest.add_argument("--pythonpath", default=None, help="Extra PYTHONPATH entry for the verb processes.")
+
     pkg = sub.add_parser("package", help="Copy a workspace tree to an output directory")
     pkg.add_argument("--workspace", type=Path, required=True)
     pkg.add_argument("--out", type=Path, required=True)
+
+    data_packs = sub.add_parser(
+        "data-packs",
+        help="List the L3 data packs under the declared root and their content hashes",
+    )
+    data_packs.add_argument(
+        "--root", type=Path, default=None,
+        help="Pack root directory. Default: AGENT_DECOMPILE_DATA_PACKS_ROOT or the config directory's data_packs.json.",
+    )
+    data_packs.add_argument("--json", action="store_true", help="Print the report as JSON.")
 
     cal = sub.add_parser("calibrate", help="Sweep score/margin from an evaluation JSON list")
     cal.add_argument("--from-json", type=Path, required=True)
@@ -1028,6 +1060,118 @@ def main(argv: list[str] | None = None, prog: str | None = None) -> int:
             return 2
         print(json.dumps(result, sort_keys=True))
         return 0
+    if args.cmd == "verify-determinism":
+        from .determinism_basis import verify_export
+        from .export_hookpack import export_hookpack
+
+        result = _run_keyed_verb(lambda: verify_export(args.db, export_hookpack))
+        if result is REFUSED:
+            return 2
+        print(json.dumps(result))
+        return 0 if result["identical"] else 1
+    if args.cmd == "rebaseline":
+        from .determinism_basis import BasisError
+        from .logical import ContentHashError
+        from .rebaseline import rebaseline as run_rebaseline
+        from .store import connect
+
+        def run_it():
+            try:
+                return run_rebaseline(
+                    connect(args.db),
+                    receipts_dir=args.receipts,
+                    reason=args.reason,
+                    export_out=args.export_out,
+                    prior_pack=args.prior_pack,
+                    dry_run=args.dry_run,
+                    deadline_s=args.deadline_s,
+                )
+            except (BasisError, ContentHashError):
+                raise
+            except ValueError as exc:
+                raise SystemExit(f"error: {exc}") from exc
+
+        # Refusals (basis, content hash, lock) are exit 2 with one named
+        # line and nothing written. A deadline is exit 4: the re-stamp is
+        # one transaction, so it either landed whole or not at all; the
+        # summary says which. An export that refused after the re-stamp
+        # landed keeps exit 0: the supersession stands, and the refusal is
+        # recorded under run.export and named once on stderr.
+        result = _run_keyed_verb(run_it)
+        if result is REFUSED:
+            return 2
+        print(json.dumps(result, sort_keys=True, indent=2))
+        if result["status"] == "deadline":
+            return 4
+        export = (result.get("run") or {}).get("export") or {}
+        if export.get("status") == "refused":
+            print(f"error: export refused after re-stamp: {export.get('error')}", file=sys.stderr)
+        return 0
+    if args.cmd == "backfill":
+        from .backfill import run as run_backfill
+        from .logical import ContentHashError
+        from .store import connect
+
+        def run_it():
+            try:
+                return run_backfill(connect(args.db), args.passes, receipts_dir=args.receipts, resume=args.resume)
+            except ContentHashError:
+                raise
+            except ValueError as exc:
+                raise SystemExit(f"error: {exc}") from exc
+
+        result = _run_keyed_verb(run_it)
+        if result is REFUSED:
+            return 2
+        print(json.dumps(result, sort_keys=True))
+        return 0
+    if args.cmd == "admit":
+        import os
+
+        from .admission import AdmissionError, PlaceholderHandling, admit as run_admit
+        from .raw_images import RawImageError
+        from .store import connect
+
+        work_dir = args.work_dir
+        if work_dir is None:
+            env_work = os.environ.get("AGENT_DECOMPILE_CORPUS_WORK_DIR", "").strip()
+            work_dir = Path(env_work) if env_work else None
+        if work_dir is None:
+            # Without a work directory raw images would land under the
+            # current directory, which no later verb would find.
+            print("error: work_dir: pass --work-dir or set AGENT_DECOMPILE_CORPUS_WORK_DIR", file=sys.stderr)
+            return 2
+        # Every other verb finds raw images through this variable; keep the
+        # two in step for the rest of this process.
+        os.environ.setdefault("AGENT_DECOMPILE_CORPUS_WORK_DIR", str(work_dir))
+        order = tuple(n.strip() for n in args.resolvers.split(",") if n.strip()) if args.resolvers else None
+
+        def run_admit_it():
+            return run_admit(
+                connect(args.db),
+                receipts_dir=args.receipts,
+                work_dir=work_dir,
+                resolver_order=order,
+                placeholders=PlaceholderHandling(args.placeholders),
+                dry_run=args.dry_run,
+                resume=args.resume,
+                row_deadline_s=args.row_deadline_s,
+                deadline_s=args.deadline_s,
+            )
+
+        # Refusals are exit 2 with one named line: a held lock (through
+        # _run_keyed_verb), an unknown resolver, a store without the
+        # admission columns. 0: every analyzed build is admitted or a
+        # duplicate. 3: some stay unresolved or contested. 4: deadline.
+        try:
+            summary = _run_keyed_verb(run_admit_it)
+        except (RawImageError, AdmissionError) as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 2
+        if summary is REFUSED:
+            return 2
+        print(json.dumps(summary, sort_keys=True))
+        return int(summary["exit_code"])
     if args.cmd == "match-pair":
         from .propagate import run_pair
         from .store import connect
@@ -1049,10 +1193,39 @@ def main(argv: list[str] | None = None, prog: str | None = None) -> int:
             return 2
         print(json.dumps(result))
         return 0
+    if args.cmd == "attest":
+        from .attest import AttestRefused, run_cli
+
+        # The attestation's own refusals (a side file as --db, an unknown verb
+        # or profile, the store inside the receipts tree) are exit 2 with one
+        # named line. Every verb outcome, a hang included, is a receipt, and
+        # the exit code is the index's.
+        try:
+            return run_cli(args)
+        except AttestRefused as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 2
     if args.cmd == "package":
         from .package_project import package_project
 
         print(json.dumps(package_project(args.workspace, args.out)))
+        return 0
+    if args.cmd == "data-packs":
+        from .data_packs import PackError, describe, format_describe
+        from .determinism_basis import BasisError
+
+        # A malformed pack, a duplicate class pair or a declared root that is
+        # not a directory is a named refusal: one line, exit 2. No root at all
+        # is not a refusal; the report says no_root and exits 0.
+        try:
+            report = describe(args.root)
+        except (PackError, BasisError) as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 2
+        if args.json:
+            print(json.dumps(report, sort_keys=True, indent=2))
+        else:
+            print(format_describe(report))
         return 0
     if args.cmd == "calibrate":
         from .calibrate import calibrate_evaluations
@@ -1424,4 +1597,8 @@ def main(argv: list[str] | None = None, prog: str | None = None) -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    from .ghidra_env import exit_after_jvm
+
+    _rc = main()
+    exit_after_jvm(_rc)
+    sys.exit(_rc)

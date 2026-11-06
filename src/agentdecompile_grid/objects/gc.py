@@ -6,7 +6,9 @@ Mark, then sweep in policy order:
    pointers: a pointer holding a bare ref pins that object; a pointer holding a grid document
    (``refs`` / ``outputs`` / ``ref`` keys, see ``base.refs_in_document``) pins what it names; at
    walk depth 2 the referents themselves are read as grid documents (a result record's
-   ``outputs`` are pinned by the pointer to the record).  ``InFlightPins`` yields the refs
+   ``outputs`` are pinned by the pointer to the record).  ``ResultIndexPins`` reads
+   ``results/<task_id>.index`` for task ids taken from the log — the root for a store that cannot
+   enumerate names (the worker outbox writes that index on the live path).  ``InFlightPins`` yields the refs
    workers registered through ``PinRegistry.pin``.  Nothing else is content-sniffed, so the
    pinned set is a deterministic function of the pointers and pin files.
 2. **Sweep.**  Unpinned objects older than ``grace_s`` are evicted in the order the
@@ -141,6 +143,52 @@ class NamedPointerPins:
         yield from sorted(seen)
 
 
+class ResultIndexPins:
+    """``results/<task_id>.index`` documents for the given task ids (from the log, never by
+    enumeration): the GC root for stores that cannot list named pointers (U126).  Each index pins
+    the result records it names; at depth 2 their ``outputs`` are pinned too."""
+
+    name = "result-index"
+
+    def __init__(self, store: ObjectStore, task_ids: Iterable[str], *, depth: int = 2, max_scan_bytes: int = 1_048_576) -> None:
+        self.store = store
+        self.task_ids = tuple(sorted(set(str(t) for t in task_ids)))
+        self.depth = depth
+        self.max_scan_bytes = max_scan_bytes
+
+    def iter_pinned_refs(self) -> Iterator[ObjectRef]:
+        from ..tasks.results import result_index_name, verification_index_name
+
+        if self.depth <= 0:
+            return
+        seen: set[ObjectRef] = set()
+        frontier: list[ObjectRef] = []
+        for task_id in self.task_ids:
+            for name in (result_index_name(task_id), verification_index_name(task_id)):
+                data = self.store.get_named(name)
+                if data is None:
+                    continue
+                for ref in refs_in_document(data, max_bytes=self.max_scan_bytes):
+                    if ref not in seen:
+                        seen.add(ref)
+                        frontier.append(ref)
+        level = 1
+        while frontier and level < self.depth:
+            next_frontier: list[ObjectRef] = []
+            for ref in frontier:
+                try:
+                    data = self.store.get(ref)
+                except (ObjectMissing, KeyError, OSError):
+                    continue
+                for child in refs_in_document(data, max_bytes=self.max_scan_bytes):
+                    if child not in seen:
+                        seen.add(child)
+                        next_frontier.append(child)
+            frontier = next_frontier
+            level += 1
+        yield from sorted(seen)
+
+
 class InFlightPins:
     """Refs registered through the store's ``PinRegistry`` (tasks currently running)."""
 
@@ -182,15 +230,19 @@ class CompositePins:
         yield from sorted(seen)
 
 
-for _src in (NamedPointerPins, InFlightPins, StaticPins, CompositePins):
+for _src in (NamedPointerPins, ResultIndexPins, InFlightPins, StaticPins, CompositePins):
     PIN_SOURCES.register(_src.name, _src)
 
 
-def default_pin_sources(store: ObjectStore, *, depth: int = 2, max_scan_bytes: int = 1_048_576) -> list[PinSource]:
-    """Named-pointer referents plus in-flight pins, for stores that support each."""
+def default_pin_sources(store: ObjectStore, *, depth: int = 2, max_scan_bytes: int = 1_048_576, task_ids: Iterable[str] = ()) -> list[PinSource]:
+    """Named-pointer referents plus in-flight pins, for stores that support each; ``task_ids`` (from
+    the log) add the ``results/<task_id>.index`` roots for a store that cannot enumerate names."""
     sources: list[PinSource] = []
     if can_list_named(store):
         sources.append(NamedPointerPins(store, depth=depth, max_scan_bytes=max_scan_bytes))
+    task_ids = tuple(task_ids)
+    if task_ids:
+        sources.append(ResultIndexPins(store, task_ids, depth=depth, max_scan_bytes=max_scan_bytes))
     if isinstance(store, PinRegistry):
         sources.append(InFlightPins(store))
     return sources
@@ -297,6 +349,6 @@ def describe_policies() -> dict[str, Any]:
 
 __all__ = [
     "GC_POLICIES", "PIN_SOURCES", "EvictionPolicy", "LRUPolicy", "FIFOPolicy", "LargestFirstPolicy", "eviction_policy",
-    "PinSource", "NamedPointerPins", "InFlightPins", "StaticPins", "CompositePins", "default_pin_sources",
+    "PinSource", "NamedPointerPins", "ResultIndexPins", "InFlightPins", "StaticPins", "CompositePins", "default_pin_sources",
     "GcReport", "collect", "describe_policies",
 ]

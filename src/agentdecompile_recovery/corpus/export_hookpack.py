@@ -266,6 +266,11 @@ def export_hookpack(con, out: Path, *, site_policy=None, adapter_map=None) -> di
     # That is the same collision the loader rejects, so reject it here too.
     check_adapter_key_collisions(adapter_keys_by_site, where="hook pack")
 
+    # A base-key fallback can hand one adapter key to several suffixed sites.
+    # That is the same collision the loader rejects, so reject it here too.
+    check_adapter_key_collisions(adapter_keys_by_site, where="hook pack")
+
+    excluded = excluded_builds(con)
     pack = {
         "format": FORMAT,
         "basis": declared_basis,

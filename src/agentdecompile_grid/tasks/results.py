@@ -199,6 +199,18 @@ def proposal_count(store: ObjectStore, task_id: str) -> int:
     return len(result_refs(store, task_id))
 
 
+def merge_result_index(store: ObjectStore, task_id: str, producer_key: str, ref: ObjectRef | str) -> dict[str, ObjectRef]:
+    """The live-path index write (U126): fold one known ``(producer_key, ref)`` into
+    ``results/<task_id>.index`` — from the per-producer pointers when the store enumerates, else
+    from the existing index document — so a store that cannot enumerate names still has a GC root
+    (``objects.gc.ResultIndexPins``).  Never raises ``NotConfigured``: it needs no enumeration."""
+    task_id = _task_id(task_id)
+    producers = result_refs(store, task_id)          # pointers when enumerable, else the index document
+    producers[key_segment(producer_key)] = validate_ref(str(ref))
+    store.put_named(result_index_name(task_id), _index_doc(task_id, producers, "results"))
+    return producers
+
+
 def rebuild_result_index(store: ObjectStore, task_id: str) -> dict[str, ObjectRef]:
     if not _can_enumerate(store):
         raise NotConfigured(f"{type(store).__name__} cannot enumerate named pointers; use LocalDirStore or a LayeredStore with a local layer")
@@ -338,7 +350,7 @@ __all__ = [
     "key_segment", "result_name", "result_index_name", "verification_name", "verification_index_name",
     "result_to_record", "result_from_record", "verification_to_record", "verification_from_record",
     "write_result", "read_result", "results_for", "result_refs", "result_ref_for", "proposal_count",
-    "rebuild_result_index", "delete_result",
+    "merge_result_index", "rebuild_result_index", "delete_result",
     "write_verification", "read_verification", "verification_refs", "verifications_for", "verified_result_ref",
     "is_done", "iter_task_ids", "describe_task",
 ]

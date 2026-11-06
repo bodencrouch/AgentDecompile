@@ -130,8 +130,11 @@ async def test_call_scoped_program_survives_two_program_interleaving(
     a_waiting = asyncio.Event()
     release_a = asyncio.Event()
 
-    async def gate_wait(_func, _program, info, **_kwargs):
-        if info is info_a:
+    async def gate_wait(_func):
+        # The gate is now passed as a closure to asyncio.to_thread. Its first
+        # invocation belongs to A; pause that dispatch while B completes.
+        if not a_waiting.is_set():
+
             a_waiting.set()
             await release_a.wait()
 
@@ -159,7 +162,12 @@ async def test_call_scoped_program_survives_two_program_interleaving(
                 {"programPath": "/repo/a.exe", "responseFormat": "json"},
             )
         )
-        await a_waiting.wait()
+        try:
+            await asyncio.wait_for(a_waiting.wait(), timeout=5)
+        except asyncio.TimeoutError:
+            if call_a.done():
+                await call_a
+            raise
         result_b = await gate_manager.call_tool(
             "list-functions",
             {"programPath": "/repo/b.exe", "responseFormat": "json"},

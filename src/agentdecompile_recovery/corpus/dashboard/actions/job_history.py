@@ -104,7 +104,8 @@ def records() -> dict[str, dict]:
         paths = [p for folder in ('preparations', 'workbench-batches', 'workbench-jobs') for p in (root / folder).glob('*.json') if not p.is_symlink()]
         for path in paths:
             try:
-                stat = path.stat(); signature = (stat.st_mtime_ns, stat.st_size)
+                stat = path.stat()
+                signature = (stat.st_mtime_ns, stat.st_size)
                 cached = _CACHE.get(str(path))
                 if cached is None or cached[0] != signature:
                     data = json.loads(path.read_text(encoding='utf-8'))

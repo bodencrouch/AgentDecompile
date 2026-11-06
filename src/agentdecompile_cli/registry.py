@@ -297,15 +297,17 @@ def _params(*names: str) -> list[str]:
 # Order is fixed (a tuple, never a set) so the winner cannot depend on
 # PYTHONHASHSEED.
 #
-# Rationale, grounded in `grep -oE '_get_str\(args, "mode"[^)]*\)'` across
-# mcp_server/providers/*.py (26 call sites, one per provider handler that
-# reads the selector argument):
-#   - "mode"      appears in all 26 chains, always first -- it is the literal
+# Rationale, grounded in `grep -rhoE '_get_str\(args, "mode"[^)]*\)'` across
+# mcp_server/providers/*.py (25 call sites, one per provider handler that
+# reads the selector argument; counted 2026-09-27):
+#   - "mode"      appears in all 25 chains, always first -- it is the literal
 #                 wire key every provider reads before any fallback.
-#   - "action"    appears in 9 of the 26 chains (bookmarks, structures,
-#                 symbols, comments, datatypes, enums, functions, getfunction,
-#                 callgraph, project), always second.
-#   - "operation" appears in the same 9 chains, always third (functions.py's
+#   - "action"    appears in 11 of the 25 chains across 10 files (bookmarks,
+#                 structures, symbols, comments, datatypes, enums, functions,
+#                 getfunction, callgraph, project x2), always second. Two more
+#                 `_require_str(args, "mode", "action", "operation", ...)`
+#                 chains (getfunction, project) follow the same order.
+#   - "operation" appears in the same 11 chains, always third (functions.py's
 #                 chain is the one exception in shape -- `mode, view, action,
 #                 operation` -- but "view" is not one of this tool's generic
 #                 aliases, so it does not change this table).
@@ -408,7 +410,7 @@ _TOOL_PARAMS_STR: dict[str, list[str]] = {
         "maxFiles",
         "maxDepth",
     ),
-    Tool.DECOMPILE_FUNCTION.value: _params("functionIdentifier", "includeCallees", "includeCallers", "includeComments", "includeDisassembly", "includeIncomingReferences", "includeReferenceContext", "limit", "offset", "programPath", "signatureOnly", "timeout"),
+    Tool.DECOMPILE_FUNCTION.value: _params("functionIdentifier", "includeCallees", "includeCallers", "includeComments", "includeDisassembly", "includeIncomingReferences", "includeReferenceContext", "limit", "maxFunctionAddresses", "offset", "programPath", "signatureOnly", "timeout"),
     Tool.DELETE_PROJECT_BINARY.value: _params("programPath", "confirm"),
     Tool.GET_FUNCTION.value: _params(
         "programPath",
@@ -478,6 +480,7 @@ _TOOL_PARAMS_STR: dict[str, list[str]] = {
         "enumName",
         "categoryPath",
         "description",
+        "size",
         "memberName",
         "newMemberName",
         "memberValue",
@@ -1082,7 +1085,58 @@ def _extract_tools_list_sync_data() -> tuple[dict[str, list[str]], dict[str, dic
             for alias in re.findall(r"`([^`]+)`", synonyms_match.group(1)):
                 tool_aliases_by_norm[normalize_identifier(alias)] = canonical_tool
 
+    _drop_cross_param_synonyms(param_aliases_by_tool, params_by_tool)
     return params_by_tool, param_aliases_by_tool, tool_aliases_by_norm
+
+
+# Synonyms that name another documented parameter of the same tool on purpose.
+# Tool -> synonym -> the one parameter it may feed (all normalized).
+_CROSS_PARAM_SYNONYMS_ALLOWED: dict[str, dict[str, str]] = {
+    # The get-call-graph(programPath, functionAddress, depth) overload; the provider reads maxDepth.
+    "getcallgraph": {"depth": "maxdepth"},
+    # Documented as "Alias for query/startIndex/maxCount".
+    "listfunctions": {"searchstring": "query", "startindex": "offset", "maxcount": "limit"},
+    "getreferences": {"startindex": "offset"},
+}
+
+
+def _drop_cross_param_synonyms(
+    param_aliases_by_tool: dict[str, dict[str, set[str]]],
+    params_by_tool: dict[str, list[str]],
+) -> None:
+    """Ignore a TOOLS_LIST synonym that is another parameter of the same tool.
+
+    A synonym line that lists the tool's other parameter names (an overload
+    signature pasted in by mistake) would copy an unrelated value into that
+    parameter whenever it is unset: ``maxEntries=5`` also capped ``maxResults``.
+    The same slip can list one synonym under two parameters, which copies one
+    value into both (``inspect-memory view=bytes`` also set ``limit``); such a
+    synonym is dropped whole, since the doc does not say which edge is right.
+    Runs after every section is parsed, so forwarded sections count too.
+    Logs and drops the edge rather than raising, so a doc slip cannot break import.
+    """
+    canonical_by_tool: dict[str, set[str]] = {}
+    for tool, params in params_by_tool.items():
+        canonical_by_tool.setdefault(normalize_identifier(tool), set()).update(normalize_identifier(p) for p in params)
+    for tool_norm, alias_map in param_aliases_by_tool.items():
+        canonical = canonical_by_tool.get(tool_norm, set())
+        allowed = _CROSS_PARAM_SYNONYMS_ALLOWED.get(tool_norm, {})
+        for alias, targets in alias_map.items():
+            if alias not in canonical:
+                continue
+            for target in sorted(targets - {alias}):
+                if allowed.get(alias) == target:
+                    continue
+                logger.warning("TOOLS_LIST.md: %s lists parameter %s as a synonym of %s; ignoring it", tool_norm, alias, target)
+                targets.discard(target)
+        for alias, targets in list(alias_map.items()):
+            if len(targets - {alias}) <= 1:
+                continue
+            if allowed.get(alias) in targets:
+                alias_map[alias] = {allowed[alias]}
+                continue
+            logger.warning("TOOLS_LIST.md: %s lists synonym %s under %s; ignoring it", tool_norm, alias, ", ".join(sorted(targets)))
+            del alias_map[alias]
 
 
 def _merge_tools_list_params(base: dict[str, list[str]], extra: dict[str, list[str]]) -> dict[str, list[str]]:
@@ -1183,6 +1237,135 @@ def _add_builtin_param_aliases() -> None:
 
 
 _add_builtin_param_aliases()
+
+
+# Key that selects how a tool result is rendered (markdown or json). No tool
+# reads it: ToolProviderManager does, and advertises it on every tool schema.
+RESPONSE_FORMAT_PARAM = "responseFormat"
+RESPONSE_FORMAT_VALUES: frozenset[str] = frozenset({"markdown", "json"})
+
+
+# Explicit fallback for tools whose own overloaded param collides with the
+# rendering-choice meaning of "format" (get-data view style). Protection
+# must also work when TOOLS_LIST.md is absent: TOOL_PARAM_ALIASES normally
+# loads its synonyms at import, but may then contain only built-in aliases.
+_FORMAT_OWNING_TOOLS_FALLBACK: frozenset[Tool] = frozenset(
+    {
+        Tool.GET_DATA,
+    },
+)
+
+
+def tool_owns_format_param(tool_name: str) -> bool:
+    """True when ``format`` is one of the tool's own arguments.
+
+    That holds when the tool declares ``format`` (export, export-context,
+    gen-callgraph, manage-files), when TOOL_PARAM_ALIASES maps ``format`` onto
+    another of its params, or when the tool is in the explicit
+    ``_FORMAT_OWNING_TOOLS_FALLBACK`` set (get-data). For those
+    tools ``format`` must never be read or written as a rendering choice.
+    """
+    logger.debug("diag.enter %s", "registry.py:tool_owns_format_param")
+    tool = Tool.from_string(tool_name)
+    if tool in _FORMAT_OWNING_TOOLS_FALLBACK:
+        return True
+    tool_norm = normalize_identifier(tool.value if tool is not None else tool_name)
+    if "format" in TOOL_PARAM_ALIASES.get(tool_norm, {}):
+        return True
+    if tool is None:
+        return False
+    return any(normalize_identifier(param) == "format" for param in TOOL_PARAMS.get(tool, []))
+
+# Keys that choose what a tool does (mode/action/...). A caller that sends any of
+# them has already picked a behaviour.
+SELECTOR_PARAM_ALIASES: frozenset[str] = frozenset(
+    {
+        "action",
+        "actiontype",
+        "command",
+        "intent",
+        "method",
+        "mode",
+        "op",
+        "operation",
+        "task",
+        "type",
+        "verb",
+    },
+)
+
+# Overload aliases that forward to a multi-mode tool and imply its selector.
+# Key: normalized alias tool name -> arguments to add when the caller chose none.
+# Every value is a key of the owning provider's dispatch table.
+TOOL_ALIAS_IMPLIED_ARGUMENTS: dict[str, dict[str, str]] = {
+    normalize_identifier(alias): implied
+    for alias, implied in {
+        # analyze-data-flow reads direction before mode.
+        "find-variable-accesses": {"direction": "variable_accesses"},
+        "trace-data-flow-backward": {"direction": "backward"},
+        "trace-data-flow-forward": {"direction": "forward"},
+        "analyze-vtable": {"mode": "analyze"},
+        "find-vtable-callers": {"mode": "callers"},
+        "find-vtables-containing-function": {"mode": "containing"},
+        "find-common-callers": {"mode": "common_callers"},
+        "get-call-tree": {"mode": "tree"},
+        "get-callers-decompiled": {"mode": "callers_decomp"},
+        "disassemble_function": {"view": "disassemble"},
+        "get_xrefs_to": {"mode": "to"},
+        "get_xrefs_from": {"mode": "from"},
+        "find-import-references": {"mode": "import"},
+        "get-referencers-decompiled": {"mode": "referencers_decomp"},
+        "resolve-thunk": {"mode": "thunk"},
+        "get-memory-blocks": {"mode": "blocks"},
+        "read-memory": {"mode": "read"},
+        "list_segments": {"mode": "segments"},
+        "list_data_items": {"mode": "data_items"},
+        "get-function-count": {"mode": "count"},
+        "get-functions-by-similarity": {"mode": "similarity"},
+        "get-undefined-function-candidates": {"mode": "undefined"},
+        "find-constant-uses": {"mode": "specific"},
+        "find-constants-in-range": {"mode": "range"},
+        "list-common-constants": {"mode": "common"},
+    }.items()
+}
+
+
+def apply_alias_implied_arguments(tool_name: str, arguments: dict[str, Any]) -> dict[str, Any]:
+    """Return *arguments* plus the selector an overload alias implies.
+
+    ``get-function-count`` forwards to list-functions and means ``mode=count``.
+    Nothing is added when the caller already chose: the implied key itself, any
+    selector key, or a TOOLS_LIST synonym of the implied key with a value.
+    ``format`` never counts as a mode selector: it may select a tool-specific
+    representation or a legacy rendering format. Rendering uses responseFormat.
+    """
+    # Legacy searches retain their domain when forwarded to search-everything.
+    # A match mode (regex/fuzzy) is independent of the domain selector.
+    search_scope = {
+        "searchsymbols": "symbols",
+        "searchstrings": "strings",
+        "searchconstants": "constants",
+        "searchcode": "decompilation",
+    }.get(normalize_identifier(tool_name))
+    if search_scope is not None:
+        scope_keys = {"scopes", "scope", "domains", "sources", "types"}
+        if not any(normalize_identifier(key) in scope_keys and value for key, value in arguments.items()):
+            arguments = {**arguments, "scopes": [search_scope]}
+    implied = TOOL_ALIAS_IMPLIED_ARGUMENTS.get(normalize_identifier(tool_name))
+    if not implied:
+        return dict(arguments)
+    canonical = resolve_tool_name(tool_name) or tool_name
+    synonyms = TOOL_PARAM_ALIASES.get(normalize_identifier(canonical), {})
+    chosen_keys = set(SELECTOR_PARAM_ALIASES)
+    for key in implied:
+        chosen_keys.add(key)
+        chosen_keys.update(alias for alias, targets in synonyms.items() if key in targets)
+    chosen_keys.discard("format")
+    for key, value in arguments.items():
+        if normalize_identifier(key) in chosen_keys and value is not None and str(value).strip():
+            return dict(arguments)
+    return {**arguments, **implied}
+
 
 # Default advertised surface (MCP + CLI) is blacklist-driven.
 # All tools remain accepted via normalize/resolve/dispatch regardless of advertisement.
@@ -1953,6 +2136,7 @@ class ToolRegistry:
                 augmented_arguments,
                 param,
                 normalized_arguments=normalized_arguments,
+                declared_params=expected_params,
                 declared_for_tool=declared_for_tool,
             )
             if value is not None:
@@ -2248,6 +2432,7 @@ class ToolRegistry:
         arguments: dict[str, Any],
         param_name: str,
         normalized_arguments: dict[str, Any] | None = None,
+        declared_params: list[str] | None = None,
         declared_for_tool: frozenset[str] = frozenset(),
     ) -> Any:
         """Extract an argument value using fuzzy matching for parameter names.
@@ -2280,8 +2465,14 @@ class ToolRegistry:
 
         # Try variations of the parameter name
         variations: tuple[str, ...] = self._generate_param_variations(param_name)
+        # A semantic alias that is itself a declared parameter of this tool
+        # belongs to that parameter (manage-files `path` is a filesystem path,
+        # import-binary `path` is the source file), never to programPath.
+        declared: set[str] = {normalize_identifier(p) for p in (declared_params or ()) if p != param_name}
 
         for variation in variations:
+            if variation != param_name and normalize_identifier(variation) in declared:
+                continue
             if variation in arguments:
                 return arguments[variation]
 

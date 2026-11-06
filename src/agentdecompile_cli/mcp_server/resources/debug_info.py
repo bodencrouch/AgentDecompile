@@ -228,7 +228,7 @@ class DebugInfoResource(ResourceProvider):
         start_epoch = time.time()
         attempted_at = self._iso_from_epoch(start_epoch)
         payload = dict(arguments or {})
-        payload.setdefault("format", "json")
+        payload.setdefault("responseFormat", "json")
         sanitized_payload = self._sanitize_sensitive(payload)
         logger.info("DebugInfoResource: calling %s with args=%s", tool_name, sanitized_payload)
         try:

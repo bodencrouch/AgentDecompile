@@ -100,7 +100,7 @@ docker run --rm -i \
   -t stdio
 ```
 
-.NET/IL decompilation needs [ilspycmd](https://github.com/icsharpcode/ILSpy) separately (`dotnet tool install -g ilspycmd`). It is not a pip extra.
+.NET/IL decompilation needs [ilspycmd](https://github.com/icsharpcode/ILSpy) separately (`dotnet tool install -g ilspycmd`); it is not a pip extra.
 
 ## First-run environment
 
@@ -108,7 +108,7 @@ docker run --rm -i \
 |----------|---------|
 | `GHIDRA_INSTALL_DIR` | Local Ghidra install (source checkouts) |
 | `AGENT_DECOMPILE_MCP_SERVER_URL` | CLI connect URL, usually `http://127.0.0.1:8080/mcp` |
-| `AGENT_DECOMPILE_GHIDRA_SERVER_HOST` / `_PORT` / `_USERNAME` / `_PASSWORD` | Ghidra Server (shared repos) only — not MCP HTTP auth |
+| `AGENT_DECOMPILE_GHIDRA_SERVER_HOST` / `_PORT` / `_USERNAME` / `_PASSWORD` | Ghidra Server (shared repos). With `AGENT_DECOMPILE_AUTH_ENABLED` on, `_USERNAME` / `_PASSWORD` are also the MCP HTTP auth pair |
 
 HTTP examples in this README bind `127.0.0.1`. Do not set `AGENT_DECOMPILE_HOST=0.0.0.0` without `AGENT_DECOMPILE_AUTH_ENABLED` and a firewall. See [docs/MCP_CONFIGURATION_SECURITY.md](docs/MCP_CONFIGURATION_SECURITY.md).
 
@@ -116,7 +116,7 @@ The full env-var and HTTP-header catalog lives in [USAGE.md](USAGE.md).
 
 ## Corpus recovery
 
-For more than one build, use the corpus actions advertised on 8080. Register each binary. Mark the STABS/DWARF build as `--donor`. Recover a function once on the easy build, then propagate. Do not re-analyze a Ghidra program that already has analysis. A green dashboard label is not proof.
+For more than one build, use the corpus actions advertised on 8080. Register each binary. Mark the STABS/DWARF build as `--donor`. Recover a function once on the easy build, then propagate. Do not re-analyze a Ghidra program that already has analysis; a green dashboard label is not proof.
 
 Implementation CLI reference (current recovery uses the 8080 catalog):
 
@@ -128,7 +128,7 @@ uv run agentdecompile-corpus run --corpus target/corpus.json \
   --snapshot-dir target/extracts --work-dir target/corpus-run --stop-after compile
 ```
 
-`--stop-after compile` stops after donor C compiles. It is not a byte match. The workbench is `/dashboard` on the same HTTP server as `/mcp` (default 8080).
+`--stop-after compile` stops after donor C compiles (not necessarily a binary match to the original executable). The workbench is `/dashboard` on the same HTTP server as `/mcp` (default 8080).
 
 The [interface guide](src/agentdecompile_recovery/corpus/dashboard/frontend/README.md) distinguishes the static workbench source from the React frontend and its packaged routes. Use the current 8080 serving mode; source or asset presence does not prove a completed migration.
 

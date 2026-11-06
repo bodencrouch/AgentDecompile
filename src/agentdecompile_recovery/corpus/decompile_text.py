@@ -44,3 +44,39 @@ def pending_addrs(store_con, ctext_con, repo_path: str, binary_id: int, *, min_i
     ]
     done = {r[0] for r in ctext_con.execute("SELECT addr FROM ctext WHERE repo_path=?", (repo_path,))}
     return [addr for addr in want if addr not in done]
+
+
+def done_addrs(ctext_con, repo_path: str, *, include_failed: bool = True) -> set[int]:
+    """Addresses already stored for ``repo_path``; ``include_failed=False`` counts only ``ok=1`` rows."""
+    sql = "SELECT addr FROM ctext WHERE repo_path=?" if include_failed else "SELECT addr FROM ctext WHERE repo_path=? AND ok=1"
+    return {int(r[0]) for r in ctext_con.execute(sql, (repo_path,))}
+
+
+def pending_from(want, done) -> list[int]:
+    """Order-preserving ``want`` minus ``done`` (the never-decompile-twice rule, without a store)."""
+    done_set = {int(a) for a in done}
+    seen: set[int] = set()
+    out: list[int] = []
+    for addr in want:
+        a = int(addr)
+        if a in done_set or a in seen:
+            continue
+        seen.add(a)
+        out.append(a)
+    return out
+
+
+def persist_batch_results(con, repo_path: str, results) -> int:
+    """Store ``BatchResult``-shaped objects (``addr``, ``status``, ``signature``, ``c_text``, ``error``) in one transaction."""
+    rows = []
+    for result in results:
+        ok = result.status == "ok"
+        rows.append((repo_path, int(result.addr), int(ok), result.signature if ok else None, result.c_text if ok else (result.error or result.status)))
+    if rows:
+        con.executemany(
+            """INSERT OR REPLACE INTO ctext(repo_path, addr, ok, signature, code)
+               VALUES (?,?,?,?,?)""",
+            rows,
+        )
+        con.commit()
+    return len(rows)

@@ -23,8 +23,9 @@
 - S3/HTTP adapters (declared) order by the head CAS: records are written by digest, the CAS makes them canonical, the seq index is written after. `rebuild_heads` recomputes heads by chain scan.
 - Retries: full-jitter backoff (100 ms base, 5 s cap, seeded, 128 attempts then `AppendGaveUp` by name; `max_attempts: null` opts into forever); the outbox rotates to another partition after 8 consecutive conflicts (`HotHead`).
 
-## Frontier rules — `derive(log, objects, now, *, proposal_cap, kinds, partitions, checkpoints, policy)`
-- Pure (no clock reads); every list sorted by `(kind, task_id)`; identical on two nodes given the same records, objects and `now`.
+## Frontier rules — `derive(log, objects, now, *, proposal_cap, kinds, partitions, checkpoints, policy, keyring)`
+- Pure (no clock reads); every list sorted by `(kind, task_id)`; identical on two nodes given the same records, objects, `now` and keyring.
+- Every record passes `signing.authorize_record(record, keyring)` before it is folded: its signer is in the keyring, the signature verifies, and a TASK or CHECKPOINT is signed by an operator key. A refused record is not folded, the fold still moves past it, and `untrusted` names it as `(partition, seq, reason)`. No keyring means an empty one: everything is refused.
 - `done` = has VERIFIED; `poisoned` = has POISON and no VERIFIED.
 - `awaiting_verification` = ≥ 1 `ok` proposal whose object exists and is neither verified nor refuted; dangling refs never count.
 - `ready` = published, not done/poisoned, fewer than `proposal_cap` pending proposals, not deterministically refused, no live INTENT at `now`, inputs present.
@@ -44,4 +45,4 @@
 U122 (a)–(e), U123, records-validators, records-identity, records-schema, local-atomic-batch, local-torn-tail, local-prune, heads-cas, heads-fork, backoff-deterministic, backoff-rotation, outbox-rotation, outbox-batch, outbox-seeded, frontier-cap, frontier-order, frontier-intent, intents-fence, intents-renew, intents-drop, intents-body, compaction-idempotent, compaction-tail-chains, compaction-prune-guard, signing-roundtrip, signing-null-policy, signing-hmac-labels, signing-ed25519-declared, s3-declared, http-declared.
 
 ## GridConfig fields read here (`CONFIG_FIELDS`)
-`log.{adapter,root,torn_tail,fsync,verify,s3.*,http.*}`, `heads.{adapter,root,fsync,s3.*,http.*}`, `signing.{adapter,label,key_dir,secret_env,secret_file}`, `keyring.{allow_null,key_dir}`, `frontier.{proposal_cap,offer_while_pending,reoffer_refused,require_inputs,require_result_object}`, `outbox.{max_batch,flush_interval_s}`, `backoff.{base_s,cap_s,multiplier,rotate_after,max_attempts,jitter}`, `intents.ttl_s`, `partitions.prefix_width.{default,<lane>}`, `compaction.{max_lag_records,retention.policy,retention.keep_checkpoints}`.
+`log.{adapter,root,torn_tail,fsync,verify,s3.*,http.*}`, `heads.{adapter,root,fsync,s3.*,http.*}`, `signing.{adapter,label,key_dir,secret_env,secret_file}`, `keyring.{allow_null,key_dir,trust_local_nodes}`, `frontier.{proposal_cap,offer_while_pending,reoffer_refused,require_inputs,require_result_object}`, `outbox.{max_batch,flush_interval_s}`, `backoff.{base_s,cap_s,multiplier,rotate_after,max_attempts,jitter}`, `intents.ttl_s`, `partitions.prefix_width.{default,<lane>}`, `compaction.{max_lag_records,retention.policy,retention.keep_checkpoints}`.

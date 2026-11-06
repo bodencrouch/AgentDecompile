@@ -152,7 +152,11 @@ class AddressUtil:
         addr_try: GhidraAddress | None = None
         if input_str.lower().startswith("0x"):
             addr_try = AddressUtil.parse_address(program, input_str)
-        elif _looks_like_unprefixed_hex_literal(input_str):
+        elif _looks_like_unprefixed_hex_literal(input_str) and not input_str[0].isalpha():
+            # A token that starts with a letter ("add", "dead", "face") is also a
+            # valid symbol name; look it up as a symbol first. The final
+            # parse_address fallback below still treats it as hex if no symbol
+            # matches.
             addr_try = AddressUtil.parse_address(program, input_str)
         elif input_str and input_str.isascii() and (
             input_str.isdigit() or (input_str.startswith("-") and input_str[1:].isdigit())

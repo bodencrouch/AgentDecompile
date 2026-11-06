@@ -140,6 +140,7 @@ class EnumToolProvider(ToolProvider):
                             "description": "Category folder where the enum is stored.",
                         },
                         "description": {"type": "string", "description": "Optional enum description."},
+                        "size": {"type": "integer", "enum": [1, 2, 4, 8], "default": 4, "description": "Enum size in bytes for create."},
                         "memberName": {"type": "string", "description": "Enum member name (COBRA_CASE)."},
                         "newMemberName": {"type": "string", "description": "Renamed member name for edit_member."},
                         "memberValue": {"type": "integer", "description": "Integer value for an enum member."},
@@ -251,6 +252,9 @@ class EnumToolProvider(ToolProvider):
         name = self._require_str(args, "name", "enumname", name="name")
         cat_path = self._get_str(args, "categorypath", "category", default="/")
         description = self._get_str(args, "description", "comment", default="")
+        size_arg = self._get_int(args, "size", "length", default=None)
+        if size_arg is not None and size_arg not in (1, 2, 4, 8):
+            raise ValueError(f"size must be 1, 2, 4 or 8 bytes, got {size_arg}")
         members = parse_enum_member_specs(
             self._get_list(args, "members"),
             single_name=None,
@@ -294,11 +298,20 @@ class EnumToolProvider(ToolProvider):
 
         force_apply = bool(args.get(FORCE_APPLY_CONFLICT_ID_KEY))
         existing = self._find_enum(dtm, name, program_info=program_info) if force_apply else None
+        # No explicit size: preserve the replaced enum's width instead of silently
+        # narrowing/widening it to the 4-byte fallback.
+        if size_arg is not None:
+            size = size_arg
+        elif existing is not None:
+            size = existing.getLength()
+        else:
+            size = 4
 
         def _create_enum() -> None:
             if existing is not None:
                 dtm.remove(existing, None)
-            enum_dt = EnumDataType(CategoryPath(cat_path), name, dtm)
+            # EnumDataType has no (CategoryPath, String, DataTypeManager) constructor; the byte size is required.
+            enum_dt = EnumDataType(CategoryPath(cat_path), name, size, dtm)
             if description:
                 enum_dt.setDescription(description)
             for member_name, member_value in members:

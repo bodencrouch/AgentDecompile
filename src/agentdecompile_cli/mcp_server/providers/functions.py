@@ -11,6 +11,7 @@
 
 from __future__ import annotations
 
+import difflib
 import json
 import logging
 import re
@@ -33,13 +34,35 @@ if TYPE_CHECKING:
 
 from mcp import types
 
-from agentdecompile_cli.mcp_server.providers._collectors import collect_functions, make_task_monitor
+from agentdecompile_cli.mcp_server.constants import (
+    DEFAULT_TIMEOUT_SECONDS,
+    MAX_CONFIGURED_TIMEOUT_SECONDS,
+)
+from agentdecompile_cli.mcp_server.providers._collectors import (
+    _get_external_function_list,
+    _get_function_list,
+    collect_functions,
+    iter_items,
+    make_task_monitor,
+)
 from agentdecompile_cli.mcp_server.tool_providers import (
     ToolProvider,
     create_success_response,
+    n,
 )
 
 logger = logging.getLogger(__name__)
+
+_LIST_MODES = frozenset({"all", "search", "similarity", "count", "byidentifiers", "undefined"})
+_LIST_ROW_KEYS = ("name", "address", "size", "isExternal", "isThunk", "parameterCount", "signature", "callingConvention")
+_VERBOSE_ROW_KEYS = ("parameters", "returnType", "hasVarArgs", "tags", "comments", "callerCount", "calleeCount")
+# Ghidra's auto-generated function names (SourceType.DEFAULT): FUN_00401000, thunk_FUN_00401000.
+_DEFAULT_FUNCTION_NAME = re.compile(r"^(?:thunk_)?FUN_[0-9A-Fa-f]+$")
+_REGEX_META = re.compile(r"[.\\^$*+?{}\[\]|()]")
+
+
+def _strip_hex_prefix(text: str) -> str:
+    return text[2:] if text.startswith("0x") else text
 
 
 class FunctionToolProvider(ToolProvider):
@@ -53,7 +76,7 @@ class FunctionToolProvider(ToolProvider):
         return [
             types.Tool(
                 name="list-functions",
-                description="List functions in the current program with optional filtering and pagination.",
+                description="List existing functions and undefined candidates without starting auto-analysis. Results may be incomplete before analyze-program runs; zero matches do not prove absence.",
                 inputSchema={
                     "type": "object",
                     "properties": {
@@ -98,7 +121,14 @@ class FunctionToolProvider(ToolProvider):
                             "enum": ["info", "decompile", "disassemble", "calls", "all"],
                             "description": "Which function view to return.",
                         },
-                        "timeout": {"type": "integer", "default": 60, "description": "Decompiler timeout in seconds."},
+                        "timeout": {
+                            "type": "integer",
+                            "default": DEFAULT_TIMEOUT_SECONDS,
+                            "description": (
+                                f"Decompiler timeout in seconds; default {DEFAULT_TIMEOUT_SECONDS}. The default is "
+                                f"configurable with AGENTDECOMPILE_DECOMPILE_TIMEOUT_SECONDS (1-{MAX_CONFIGURED_TIMEOUT_SECONDS})."
+                            ),
+                        },
                         "offset": {"type": "integer", "default": 0, "description": "Pagination offset for batch results."},
                         "limit": {"type": "integer", "default": 100, "description": "Maximum results to return."},
                     },
@@ -108,44 +138,232 @@ class FunctionToolProvider(ToolProvider):
         ]
 
     async def _handle_list(self, args: dict[str, Any], *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
+        response = await self._list_existing_functions(args, program_info=program_info)
+        payload = self._response_to_payload(response)
+        payload.update(
+            inventoryScope="existing-listing",
+            analysisTriggered=False,
+            note="This request reads the existing listing without running analysis. Function discovery may be incomplete; zero matches do not prove absence. Run analyze-program explicitly when discovery is required.",
+        )
+        return create_success_response(payload)
+    async def _list_existing_functions(self, args: dict[str, Any], *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
+    async def _list_existing_functions(self, args: dict[str, Any], *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
         """List functions in the current program, with optional filtering and pagination.
 
-        Iterates through all functions in the active program, optionally filtering by regex
-        name pattern and including/excluding external functions. Results are paginated for
-        efficient handling of large binaries.
+        Modes (``mode``, default ``all``):
+            all            every function passing the filters below
+            search         ``all`` narrowed by ``query``/``searchString`` (required)
+            similarity     every filtered function ranked by name similarity to the query
+            count          the number of functions ``all`` would list under the same filters
+            by_identifiers the functions named by ``identifiers`` (names or addresses)
+            undefined      call targets that have no function defined yet
 
-        **Performance Note**: Uses two-pass approach for efficiency:
-            1. Single iteration to collect matching functions (O(n))
-            2. Slice matching list for pagination (O(1) offset lookup)
-        This avoids offset tracking during iteration and simplifies logic.
-
-        Parameters
-        ----------
-        namepattern/pattern/filter/regex : str, optional
-            Regex pattern to match function names (case-insensitive)
-        includeexternals : bool, default=True
-            Include external/imported functions
-        offset/startindex : int, default=0
-            Pagination offset
-        limit/maxresults : int, default=100
-            Maximum results to return
-
-        Returns:
-        -------
-        Paginated response with functions, count, total, hasMore
+        Filters: ``query``/``searchString`` (case-insensitive substring, or a regex that
+        matches), ``namePattern`` (regex), ``includeExternals`` (default true),
+        ``filterDefaultNames`` (hide FUN_xxxx names, default false), ``filterByTag``,
+        ``hasTags``, ``untagged``, ``minReferenceCount``, plus the signature, size,
+        address-range and calling-convention filters. ``verbose`` adds parameters,
+        return type, tags, comments and call counts to each row.
         """
         logger.debug("diag.enter %s", "mcp_server/providers/functions.py:FunctionToolProvider._handle_list")
         self._require_program(program_info=program_info)
-        pattern = self._get_str(args, "namepattern", "pattern", "filter", "regex")
-        include_ext = self._get_bool(args, "includeexternals", "externals", default=True)
-        offset, max_results = self._get_pagination_params(args, default_limit=100)
+        mode = n(self._get_str(args, "mode", default="all")) or "all"
+        if mode in {"list", "list_functions", "listfunctions"}:
+            mode = "all"
+        if mode not in _LIST_MODES:
+            raise ValueError(f"Unsupported list-functions mode: {self._get_str(args, 'mode')!r}. Use one of: all, search, similarity, count, by_identifiers, undefined.")
 
         program = program_info.program
         if program is None or not hasattr(program, "getFunctionManager"):
             raise ValueError("No program loaded")
 
-        # Compile regex once; None if no pattern.
+        offset, max_results = self._get_pagination_params(args, default_limit=100)
+        if mode == "undefined":
+            return self._list_undefined_candidates(args, program, offset, max_results)
+
+        query = self._get_str(args, "query", "searchstring").strip()
+        if mode in {"search", "similarity"} and not query:
+            raise ValueError(f"list-functions mode={mode} requires query (or searchString)")
+
+        if mode == "search" and offset >= 0 and max_results >= 0 and self._can_use_fast_function_search(args):
+            return self._fast_search_existing_functions(args, program, query, offset, max_results)
+
+        rows = self._filtered_function_rows(args, program, program_info=program_info, query=query if mode != "similarity" else "")
+
+        if mode == "byidentifiers":
+            identifiers = [str(v).strip() for v in (self._get_list(args, "identifiers", "functions") or []) if str(v).strip()]
+            if not identifiers:
+                raise ValueError("list-functions mode=by_identifiers requires identifiers")
+            rows, not_found = self._rows_for_identifiers(identifiers, rows, program, program_info=program_info)
+            paginated, _ = self._paginate_results(rows, offset, max_results)
+            return self._create_paginated_response(paginated, offset, max_results, total=len(rows), mode="by_identifiers", notFound=not_found)
+
+        if mode == "count":
+            return create_success_response({"mode": "count", "count": len(rows), "total": len(rows), "results": []})
+
+        if mode == "similarity":
+            needle = query.lower()
+            for row in rows:
+                name = str(row.get("name", "")).lower()
+                row["similarityScore"] = 1.0 if needle in name else round(difflib.SequenceMatcher(None, needle, name).ratio(), 4)
+            rows.sort(key=lambda row: row["similarityScore"], reverse=True)
+
+        paginated, _ = self._paginate_results(rows, offset, max_results)
+        extra: dict[str, Any] = {"query": query} if query else {}
+        return self._create_paginated_response(paginated, offset, max_results, total=len(rows), mode="list" if mode == "all" else mode, **extra)
+
+    def _can_use_fast_function_search(self, args: dict[str, Any]) -> bool:
+        """Use the lightweight search path only when no metadata-dependent filter is requested."""
+        allowed = {
+            "mode", "programpath", "query", "searchstring", "offset", "startindex",
+            "limit", "maxresults", "maxcount", "max", "includeexternals", "externals", "verbose",
+            "responseformat",
+            "untagged", "hastags",
+        }
+        # The CLI includes both tag flags even when they are false. Only active
+        # tag filters need metadata; their default values must not force a full
+        # collection of signatures, comments, parameters and call counts.
+        return (
+            all(str(key).lower() in allowed for key in args)
+            and not self._get_bool(args, "verbose", default=False)
+            and not self._get_bool(args, "untagged", default=False)
+            and not self._get_bool(args, "hastags", default=False)
+        )
+
+    def _fast_search_existing_functions(
+        self,
+        args: dict[str, Any],
+        program: Any,
+        query: str,
+        offset: int,
+        limit: int,
+    ) -> list[types.TextContent]:
+        """Search names/addresses first; build expensive Ghidra metadata only for this page.
+
+        The normal collector reads signatures, parameter types, comments, tags, body sizes,
+        and call counts for every function. A plain text search needs only names and entry
+        addresses until matches are paginated, which matters for binaries with hundreds of
+        thousands of functions.
+        """
+        include_externals = self._get_bool(args, "includeexternals", "externals", default=True)
+        manager = program.getFunctionManager()
+        all_external_functions = _get_external_function_list(manager)
+        external_functions = all_external_functions if include_externals else []
+
+        needle = query.lower()
+        query_stripped = needle.strip()
+        looks_like_address = bool(re.fullmatch(r"(0x)?[0-9a-f]+", query_stripped)) and (
+            query_stripped.startswith("0x") or any(ch.isdigit() for ch in query_stripped) or len(query_stripped) >= 6
+        )
+        query_addr = _strip_hex_prefix(query_stripped) if looks_like_address else ""
+        try:
+            query_regex = re.compile(query, re.IGNORECASE)
+        except re.error:
+            query_regex = None
+        literal_ascii_query = query.isascii() and _REGEX_META.search(query) is None
+        total = 0
+        selected: list[Any] = []
+
+        def scan(funcs: Any, *, external: bool = False) -> int:
+            nonlocal total
+            scanned = 0
+            for func in funcs:
+                scanned += 1
+                name = str(func.getName())
+                name_matched = needle in name.lower()
+                if not name_matched and query_regex is not None and not (literal_ascii_query and name.isascii()):
+                    name_matched = query_regex.search(name) is not None
+                address = None
+                if query_addr and not name_matched:
+                    address = str(func.getEntryPoint())
+                    matched = query_addr in _strip_hex_prefix(address.lower())
+                else:
+                    matched = name_matched
+                if not matched:
+                    continue
+                if external:
+                    address = str(func.getEntryPoint())
+                    # The legacy search de-duplicates external functions only
+                    # against internal functions; duplicate external rows remain
+                    # visible. Query the manager for this candidate instead of
+                    # materializing every internal entry point up front.
+                    existing = manager.getFunctionAt(func.getEntryPoint())
+                    if existing is not None and not existing.isExternal() and str(existing.getEntryPoint()) == address:
+                        continue
+                if total >= offset and len(selected) < limit:
+                    selected.append(func)
+                total += 1
+            return scanned
+
+        # Search one authoritative function stream. A wildcard SymbolTable
+        # query scans every defined-memory symbol; when it returns no matches,
+        # a completeness fallback then scans the FunctionManager as well. That
+        # doubles the work on the common no-hit query. FunctionManager yields
+        # only functions, includes names directly, and its expected count lets
+        # us restart through the compatibility collector if the stream is
+        # incomplete or fails.
+        try:
+            function_count = int(manager.getFunctionCount())
+            expected_internal_count = max(0, function_count - len(all_external_functions))
+        except Exception as exc:
+            raise RuntimeError("Function enumeration failed: unable to verify the internal function count") from exc
+
+        try:
+            scanned = scan(manager.getFunctions(True))
+            if scanned != expected_internal_count:
+                raise RuntimeError(
+                    f"Function iterator returned {scanned} internal functions; expected {expected_internal_count}"
+                )
+        except Exception as exc:
+            logger.debug("Fast function iterator failed; retrying compatibility collector: %s", exc)
+            selected.clear()
+            total = 0
+            scanned = scan(_get_function_list(manager))
+            if scanned != expected_internal_count:
+                # The compatibility collector can accept a nonempty partial
+                # iterator too. Never turn a known incomplete enumeration into
+                # a successful page or a false zero-match result.
+                raise RuntimeError(
+                    "Function enumeration failed: compatibility collector returned "
+                    f"{scanned} internal functions; expected {expected_internal_count}"
+                ) from exc
+        scan(external_functions, external=True)
+
+        results = []
+        for func in selected:
+            body = func.getBody()
+            results.append({
+                "name": str(func.getName()),
+                "address": str(func.getEntryPoint()),
+                "size": int(body.getNumAddresses()) if body else 0,
+                "isExternal": bool(func.isExternal()),
+                "isThunk": bool(func.isThunk()),
+                "parameterCount": int(func.getParameterCount()),
+                "signature": str(func.getSignature()),
+                "callingConvention": str(func.getCallingConventionName() or ""),
+                "isInline": bool(func.isInline()),
+            })
+        response_args = {"query": query}
+        return self._create_paginated_response(results, offset, limit, total=total, mode="search", **response_args)
+
+    def _filtered_function_rows(self, args: dict[str, Any], program: Any, *, program_info: ProgramInfo | SimpleNamespace | None, query: str) -> list[dict[str, Any]]:
+        pattern = self._get_str(args, "namepattern", "pattern", "filter", "regex")
+        include_ext = self._get_bool(args, "includeexternals", "externals", default=True)
         pat = re.compile(pattern, re.IGNORECASE) if pattern else None
+
+        query_lower = query.lower()
+        # An address query matches like the workbench search: case-insensitive
+        # substring, with a leading 0x ignored on both sides (Ghidra prints 00401000).
+        # Only a query that looks like an address does, so "add" or "face" stay name searches.
+        query_stripped = query_lower.strip()
+        looks_like_address = bool(re.fullmatch(r"(0x)?[0-9a-f]+", query_stripped)) and (
+            query_stripped.startswith("0x") or any(ch.isdigit() for ch in query_stripped) or len(query_stripped) >= 6
+        )
+        query_addr = _strip_hex_prefix(query_stripped) if looks_like_address else ""
+        try:
+            query_regex = re.compile(query, re.IGNORECASE) if query else None
+        except re.error:
+            query_regex = None
 
         convention = self._get_str(args, "callingconvention")
         signature = self._get_str(args, "signaturepattern")
@@ -161,7 +379,36 @@ class FunctionToolProvider(ToolProvider):
         if lower is not None and upper is not None and lower.compareTo(upper) > 0:
             raise ValueError("addressMin cannot exceed addressMax")
 
+        filter_default_names = self._get_bool(args, "filterdefaultnames", default=False)
+        tag_filter = self._get_str(args, "filterbytag", "tag").strip().lower()
+        has_tags = self._get_bool(args, "hastags", default=False)
+        untagged = self._get_bool(args, "untagged", default=False)
+        min_refs = self._get_int(args, "minreferencecount", default=0) or 0
+        verbose = self._get_bool(args, "verbose", default=False)
+        ref_mgr = program.getReferenceManager() if min_refs > 0 else None
+
+        def query_matches(row, name):
+            if query_lower in name.lower() or (query_regex and query_regex.search(name)):
+                return True
+            return bool(query_addr) and query_addr in _strip_hex_prefix(str(row.get("address", "")).lower())
+
         def matches(row):
+            name = str(row.get("name", ""))
+            if not include_ext and row.get("isExternal"):
+                return False
+            if pat and not pat.search(name):
+                return False
+            if query and not query_matches(row, name):
+                return False
+            if filter_default_names and _DEFAULT_FUNCTION_NAME.match(name):
+                return False
+            tags = [str(t).lower() for t in row.get("tags", [])]
+            if tag_filter and tag_filter not in tags:
+                return False
+            if has_tags and not tags:
+                return False
+            if untagged and tags:
+                return False
             if convention and row.get("callingConvention") != convention:
                 return False
             if "inline" in args and row.get("isInline", False) != self._get_bool(args, "inline"):
@@ -178,27 +425,79 @@ class FunctionToolProvider(ToolProvider):
                 address = program.getAddressFactory().getAddress(row["address"])
                 if address is None or lower is not None and address.compareTo(lower) < 0 or upper is not None and address.compareTo(upper) > 0:
                     return False
+            if ref_mgr is not None:
+                address = program.getAddressFactory().getAddress(row["address"])
+                if address is None or int(ref_mgr.getReferenceCountTo(address)) < min_refs:
+                    return False
             return True
 
-        all_functions = collect_functions(program)
-        all_matching = [
-            {
-                "name": row["name"],
-                "address": row["address"],
-                "size": row["size"],
-                "isExternal": row["isExternal"],
-                "isThunk": row["isThunk"],
-                "parameterCount": row["parameterCount"],
-                "signature": row["signature"],
-                "callingConvention": row["callingConvention"],
-                "isInline": row.get("isInline", False),
-            }
-            for row in all_functions
-            if matches(row) and (include_ext or not row.get("isExternal")) and (not pat or pat.search(str(row.get("name", ""))))
-        ]
+        out: list[dict[str, Any]] = []
+        for row in collect_functions(program, include_externals=include_ext):
+            if not matches(row):
+                continue
+            item = {key: row.get(key) for key in _LIST_ROW_KEYS}
+            item["isInline"] = row.get("isInline", False)
+            if verbose:
+                item.update({key: row.get(key) for key in _VERBOSE_ROW_KEYS if key in row})
+            out.append(item)
+        return out
 
-        paginated, has_more = self._paginate_results(all_matching, offset, max_results)
-        return self._create_paginated_response(paginated, offset, max_results, total=len(all_matching), mode="list")
+    def _rows_for_identifiers(self, identifiers: list[str], rows: list[dict[str, Any]], program: Any, *, program_info: ProgramInfo | SimpleNamespace | None) -> tuple[list[dict[str, Any]], list[str]]:
+        def addr_key(value: str) -> str:
+            return value.strip().lower().removeprefix("0x").lstrip("0")
+
+        by_name = {str(row["name"]): row for row in rows}
+        by_addr = {addr_key(str(row["address"])): row for row in rows}
+        found: list[dict[str, Any]] = []
+        not_found: list[str] = []
+        seen: set[str] = set()
+        for ident in identifiers:
+            row = by_name.get(ident) or by_addr.get(addr_key(ident))
+            if row is None:
+                func = self._resolve_function(ident, program=program, program_info=program_info)
+                if func is not None:
+                    row = by_addr.get(addr_key(str(func.getEntryPoint())))
+            if row is None:
+                not_found.append(ident)
+                continue
+            if row["address"] not in seen:
+                seen.add(row["address"])
+                found.append(row)
+        return found, not_found
+
+    def _list_undefined_candidates(self, args: dict[str, Any], program: Any, offset: int, max_results: int) -> list[types.TextContent]:
+        """Call targets without a defined function, most-referenced first."""
+        min_refs = max(1, self._get_int(args, "minreferencecount", default=1) or 1)
+        fm = program.getFunctionManager()
+        ref_mgr = program.getReferenceManager()
+        memory = program.getMemory()
+        callers: dict[str, list[str]] = {}
+        addresses: dict[str, Any] = {}
+        for ref in iter_items(ref_mgr.getReferenceIterator(program.getMinAddress())):
+            ref_type = ref.getReferenceType()
+            if not ref_type.isCall():
+                continue
+            target = ref.getToAddress()
+            if not target.isMemoryAddress() or fm.getFunctionAt(target) is not None:
+                continue
+            block = memory.getBlock(target)
+            if block is None or not block.isExecute():
+                continue
+            key = str(target)
+            addresses[key] = target
+            callers.setdefault(key, []).append(str(ref.getFromAddress()))
+        candidates = []
+        for key, sources in callers.items():
+            if len(sources) < min_refs:
+                continue
+            containing = []
+            for source in sources[:5]:
+                func = fm.getFunctionContaining(program.getAddressFactory().getAddress(source))
+                containing.append({"fromAddress": source, "function": func.getName() if func else None})
+            candidates.append({"address": key, "referenceCount": len(sources), "referencedFrom": containing})
+        candidates.sort(key=lambda row: (-row["referenceCount"], row["address"]))
+        paginated, _ = self._paginate_results(candidates, offset, max_results)
+        return self._create_paginated_response(paginated, offset, max_results, total=len(candidates), mode="undefined", minReferenceCount=min_refs)
 
     @staticmethod
     def _response_to_payload(response: list[types.TextContent]) -> dict[str, Any]:
@@ -239,7 +538,7 @@ class FunctionToolProvider(ToolProvider):
         if view.lower() == "all":
             view = ""
         max_results: int = self._get_int(args, "limit", "maxresults", default=100)
-        timeout: int = self._get_int(args, "timeout", "decompiletimeout", default=60)
+        timeout: int = self._get_int(args, "timeout", "decompiletimeout", default=DEFAULT_TIMEOUT_SECONDS)
 
         program = program_info.program
         if program is None or not hasattr(program, "getFunctionManager"):
@@ -247,7 +546,9 @@ class FunctionToolProvider(ToolProvider):
 
         # If no function specified, list all
         if not func_ids:
-            return await self._handle_list(args, program_info=program_info)
+            # get-functions' mode is a view (info/decompile/...), not a list-functions mode.
+            list_args = {key: value for key, value in args.items() if key not in {"mode", "view", "action", "operation"}}
+            return await self._handle_list(list_args, program_info=program_info)
 
         # Single function path (existing behavior)
         if len(func_ids) == 1:
@@ -486,7 +787,7 @@ class FunctionToolProvider(ToolProvider):
                         "address": str(instr.getAddress()),
                         "mnemonic": instr.getMnemonicString(),
                         "operands": str(instr),
-                        "bytes": " ".join(f"{b:02x}" for b in instr.getBytes()),
+                        "bytes": " ".join(f"{b & 0xFF:02x}" for b in instr.getBytes()),
                     },
                 )
         result: dict[str, Any] = {

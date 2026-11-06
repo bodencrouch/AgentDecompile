@@ -27,6 +27,7 @@ class _GateProbeProvider(ToolProvider):
     """Minimal provider for list-functions, list-project-files, and open."""
 
     HANDLERS = {
+        "getfunction": "_handle_probe",
         "listfunctions": "_handle_probe",
         "listprojectfiles": "_handle_list_project_files",
         "checkoutprogram": "_handle_checkout_program",
@@ -36,6 +37,11 @@ class _GateProbeProvider(ToolProvider):
 
     def list_tools(self) -> list[types.Tool]:
         return [
+            types.Tool(
+                name="get-function",
+                description="probe",
+                inputSchema={"type": "object", "properties": {}, "required": []},
+            ),
             types.Tool(
                 name="list-functions",
                 description="probe",
@@ -130,8 +136,10 @@ async def test_call_scoped_program_survives_two_program_interleaving(
     a_waiting = asyncio.Event()
     release_a = asyncio.Event()
 
-    async def gate_wait(_func, _program, info, **_kwargs):
-        if info is info_a:
+    async def gate_wait(_func):
+        # The gate is now passed as a closure to asyncio.to_thread. Its first
+        # invocation belongs to A; pause that dispatch while B completes.
+        if not a_waiting.is_set():
             a_waiting.set()
             await release_a.wait()
 
@@ -155,13 +163,18 @@ async def test_call_scoped_program_survives_two_program_interleaving(
     ):
         call_a = asyncio.create_task(
             gate_manager.call_tool(
-                "list-functions",
+                "get-function",
                 {"programPath": "/repo/a.exe", "responseFormat": "json"},
             )
         )
-        await a_waiting.wait()
+        try:
+            await asyncio.wait_for(a_waiting.wait(), timeout=5)
+        except asyncio.TimeoutError:
+            if call_a.done():
+                await call_a
+            raise
         result_b = await gate_manager.call_tool(
-            "list-functions",
+            "get-function",
             {"programPath": "/repo/b.exe", "responseFormat": "json"},
         )
         release_a.set()
@@ -283,10 +296,10 @@ async def test_analysis_gate_invoked_for_non_exempt_tool(
             to_thread_mock,
         ),
     ):
-        await gate_manager.call_tool("list-functions", {"programPath": "/repo/other.exe"})
+        await gate_manager.call_tool("get-function", {"programPath": "/repo/other.exe"})
 
     assert to_thread_mock.await_count == 1
-    assert to_thread_mock.await_args.args[0].__name__ == "wait_for_program_analysis_ready"
+    assert to_thread_mock.await_args.args[0].__name__ == "_run_analysis_gate"
 
 
 @pytest.mark.unit
@@ -357,7 +370,7 @@ async def test_analysis_gate_skipped_for_autoprereq_invocation(
         ),
     ):
         await gate_manager.call_tool(
-            "list-functions",
+            "get-function",
             {"programPath": "/repo/other.exe", "__auto_prereq_invocation": True},
         )
 
@@ -389,7 +402,7 @@ async def test_analysis_incomplete_returns_structured_error(
         ),
     ):
         result = await gate_manager.call_tool(
-            "list-functions",
+            "get-function",
             {"programPath": "/repo/other.exe", "responseFormat": "json"},
         )
 
@@ -426,7 +439,7 @@ async def test_analysis_timeout_returns_structured_error(
         ),
     ):
         result = await gate_manager.call_tool(
-            "list-functions",
+            "get-function",
             {"programPath": "/repo/other.exe", "responseFormat": "json"},
         )
 

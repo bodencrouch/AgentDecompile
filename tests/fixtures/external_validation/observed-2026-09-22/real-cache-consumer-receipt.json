@@ -1,0 +1,61 @@
+{
+  "scope": "real existing cache export and real provider consumption; binary provenance unverified",
+  "knowledge_db": "/home/brunner56/agentdecompile-nvme/agentdecompile_projects/db/ghidra_knowledge.sqlite",
+  "program": "JadeEmpire.exe",
+  "address": "00401000",
+  "tool_revision": "d12cea338c61898b06a86fe8adb25275fa9d5615",
+  "tool_version": "0.4.0",
+  "cwd": "/tmp/agentdecompile-reagent-real-cache-20260922",
+  "argv": [
+    "/tmp/agentdecompile-external-canaries-20260922/bin/re-agent",
+    "--config",
+    "re-agent.yaml",
+    "plan",
+    "--address",
+    "0x401000",
+    "--max-depth",
+    "0",
+    "--max-functions",
+    "1",
+    "--output",
+    "plan-report.json"
+  ],
+  "exit_code": 0,
+  "materialized_rows_sha256": "61926523cad2284fdda002516f764ca36677f21e81fc79c83b92c7acee2f97bc",
+  "checks": {
+    "exact_cached_source_consumed": true,
+    "one_selected_function": true,
+    "identity_gap_retained": true,
+    "missing_callees_retained": true,
+    "no_fabricated_cfg": true
+  },
+  "gap_count": 9,
+  "binary_binding": {
+    "reason": "Cache rows and program labels alone do not corroborate original binary identity",
+    "state": "unverified"
+  },
+  "source_characters": 228,
+  "assembly_lines": 14,
+  "artifacts": {
+    "snapshot/manifest.json": {
+      "path": "/tmp/agentdecompile-reagent-real-cache-20260922/snapshot/manifest.json",
+      "sha256": "4d6ba01a3e9fe46de54f16eae8fce3760908f1c260fdd32b5f2b9c5cdff2ea6c"
+    },
+    "snapshot/00401000.json": {
+      "path": "/tmp/agentdecompile-reagent-real-cache-20260922/snapshot/00401000.json",
+      "sha256": "48139d733ded706e68f4d94c9577a62c41e9f664d74c498e577e064862fc828b"
+    },
+    "plan-report.json": {
+      "path": "/tmp/agentdecompile-reagent-real-cache-20260922/plan-report.json",
+      "sha256": "d5195e1c68368a29e266a8e7955559c00bfe65b6f43e8f036343dad94f2b8eef"
+    },
+    "plan.stdout": {
+      "path": "/tmp/agentdecompile-reagent-real-cache-20260922/plan.stdout",
+      "sha256": "e5b6cd7f36e698120b5a57666c6aefc43248c9b30afff2ded21fbdcf963ad29a"
+    },
+    "plan.stderr": {
+      "path": "/tmp/agentdecompile-reagent-real-cache-20260922/plan.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  }
+}

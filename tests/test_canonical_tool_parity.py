@@ -660,7 +660,7 @@ async def test_execute_script_ignores_gpr_path_argument_for_program_resolution()
     assert '"result": "sample_target_b.exe"' in result[0].text
 
 
-def test_render_execute_script_includes_executed_program() -> None:
+def test_render_execute_script_labels_program_as_context() -> None:
     rendered: str = _render_execute_script(
         {
             "success": True,
@@ -672,8 +672,9 @@ def test_render_execute_script_includes_executed_program() -> None:
         }
     )
 
-    assert "**Executed Program:** `sample_target_b.exe`" in rendered
-    assert "**Program Path:** `/prog/sample_target_b.exe`" in rendered
+    assert "**Context Program:** `sample_target_b.exe`" in rendered
+    assert "Executed Program" not in rendered
+    assert "**Context Program Path:** `/prog/sample_target_b.exe`" in rendered
 
 
 @pytest.mark.asyncio

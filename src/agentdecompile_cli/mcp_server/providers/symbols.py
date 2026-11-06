@@ -423,6 +423,9 @@ class SymbolToolProvider(ToolProvider):
             except Exception:
                 logger.debug("search-symbols GhidraTools path failed; using symbol table scan", exc_info=True)
 
+        # Search the symbol table directly. The wrapper eagerly materializes and
+        # hashes every dynamic symbol, then counts references for every match.
+        # Neither operation is needed for this paginated name search.
         # Direct API: iterate all symbols (includes labels) with substring match
         assert program_info is not None  # for type checker
         program: GhidraProgram = program_info.program
@@ -435,9 +438,9 @@ class SymbolToolProvider(ToolProvider):
             # Ghidra's getSymbolIterator(String, caseSensitive) matches the query with wildcard rules where '_'
             # is often a single-character wildcard; LFG / agent queries like sh_<runId>_ then return the wrong
             # set or nothing while substring search over the full table would find user labels.
-            if "_" not in query:
+            if not any(char in query for char in "_*?\\:"):
                 try:
-                    sym_it = st.getSymbolIterator(query, False)
+                    sym_it = st.getSymbolIterator("*" + query + "*", False)
                 except Exception:
                     sym_it = None
                     logger.debug("search-symbols getSymbolIterator(query) failed", exc_info=True)
@@ -467,7 +470,9 @@ class SymbolToolProvider(ToolProvider):
                         mode="search",
                     )
 
-        all_symbols = collect_symbols(program)
+        all_symbols = collect_symbols(
+            program, name_filter=(lambda name: qnorm in name.lower()) if qnorm else None,
+        )
 
         # Queries containing '_': merge collect_symbols matches with getDefinedSymbols (USER labels).
         # Bulk getAllSymbols scans can omit user labels on some shared-server checkouts while
@@ -708,8 +713,9 @@ class SymbolToolProvider(ToolProvider):
         ghidra_tools = ghidra_tools_for_program(program_info)
         self._require_program(program_info=program_info)
         offset, max_results = self._get_pagination_params(args)
+        library_filter = self._get_str(args, "libraryfilter", "library").strip().lower()
 
-        if ghidra_tools:
+        if ghidra_tools and not library_filter:
             try:
                 imports = ghidra_tools.list_imports()
                 paginated, has_more = self._paginate_results(imports, offset, max_results)
@@ -720,6 +726,9 @@ class SymbolToolProvider(ToolProvider):
         assert program_info is not None  # for type checker
         program: GhidraProgram = program_info.program
         imports = collect_imports(program)
+        if library_filter:
+            # agentdecompile-cli `symbols imports --library-filter` sent this and it was ignored.
+            imports = [row for row in imports if library_filter in str(row.get("library") or row.get("namespace") or "").lower()]
         paginated, has_more = self._paginate_results(imports, offset, max_results)
         return self._create_paginated_response(paginated, offset, max_results, total=len(imports), mode="imports")
 

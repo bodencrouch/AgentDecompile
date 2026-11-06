@@ -134,9 +134,127 @@ def run_check_extraction_command(args: argparse.Namespace) -> int:
     return 0 if report.is_complete else 1
 
 
-def build_parser() -> argparse.ArgumentParser:
+def default_batch_threads() -> int:
+    import os
+
+    return max(1, min(os.cpu_count() or 1, 8))
+
+
+def render_batch_markdown(summary: dict) -> str:
+    """Markdown table for a decompile-batch run (plain rows, no prose)."""
+    rows = [
+        ("repo_path", summary.get("repo_path")),
+        ("want", summary.get("want")),
+        ("already stored", summary.get("already_done")),
+        ("pending", summary.get("pending")),
+        ("attempted", summary.get("attempted")),
+        ("completed", summary.get("completed")),
+        ("timed out", summary.get("timed_out")),
+        ("errored", summary.get("errored")),
+        ("cancelled", summary.get("cancelled")),
+        ("threads", summary.get("threads")),
+        ("timeout_s", summary.get("timeout_s")),
+        ("wall_s", f"{summary.get('wall_s', 0.0):.2f}"),
+        ("fn_per_s", f"{summary.get('fn_per_s', 0.0):.2f}"),
+        ("stale", summary.get("stale")),
+        ("options_sha256", summary.get("options_sha256")),
+        ("persisted", summary.get("persisted")),
+        ("pending after", summary.get("pending_after")),
+    ]
+    lines = ["| field | value |", "|---|---|"]
+    lines.extend(f"| {k} | {v} |" for k, v in rows)
+    return "\n".join(lines) + "\n"
+
+
+def run_decompile_batch_command(args: argparse.Namespace) -> int:
+    """Open the program read-only, decompile pending addresses with the private parallel pool, persist to ctext."""
+    from agentdecompile_recovery.corpus.decompile_text import connect_ctext, done_addrs, pending_addrs, pending_from, persist_batch_results
+
+    if args.binary is None and not (args.project_location and args.project_name and args.program_name):
+        print("error: --binary or (--project-location, --project-name, --program) is required", file=sys.stderr)
+        return 2
+    binary = args.binary.resolve() if args.binary is not None else None
+    project_location = args.project_location or (args.ctext_db.resolve().parent / "pyghidra-project")
+    project_name = args.project_name or (binary.name if binary is not None else "corpus")
+    repo_path = args.repo_path or (str(binary) if binary is not None else f"{project_name}/{args.program_name}")
+    threads = max(1, int(args.threads))
+
+    import pyghidra
+    from pyghidra.launcher import HeadlessPyGhidraLauncher
+
+    if not pyghidra.started():
+        launcher = HeadlessPyGhidraLauncher(verbose=False)
+        launcher.add_vmargs(f"-Xmx{args.jvm_xmx}", f"-Dcpu.core.limit={threads}")
+        launcher.start()
+
+    from agentdecompile_cli.mcp_utils.parallel_decompile import batch_candidates, decompile_functions_iter, function_addr
+
+    ctext_con = connect_ctext(args.ctext_db)
+    project_location.mkdir(parents=True, exist_ok=True)
+    summary: dict = {"repo_path": repo_path, "threads": threads, "timeout_s": int(args.timeout_s)}
+    with pyghidra.open_program(
+        binary,
+        project_location=project_location,
+        project_name=project_name,
+        analyze=bool(args.analyze),
+        program_name=args.program_name,
+    ) as flat_api:
+        program = flat_api.getCurrentProgram()
+        candidates = batch_candidates(program)
+        by_addr = {function_addr(f): f for f in candidates}
+        if args.db is not None and args.binary_id is not None:
+            from agentdecompile_recovery.corpus.store import connect as store_connect
+
+            want = [a for a in pending_addrs(store_connect(args.db), ctext_con, repo_path, args.binary_id, min_instr=args.min_instr) if a in by_addr]
+            want_total = len(want)
+        else:
+            want = list(by_addr)
+            want_total = len(want)
+        done = done_addrs(ctext_con, repo_path, include_failed=not args.retry_failed)
+        pending = pending_from(want, done)
+        if args.limit is not None:
+            pending = pending[: max(0, int(args.limit))]
+        summary.update({"want": want_total, "already_done": len([a for a in want if a in done]), "pending": len(pending)})
+        persisted = 0
+        batch = None
+        gen = decompile_functions_iter(program, [by_addr[a] for a in pending], threads=threads, timeout_s=int(args.timeout_s))
+        try:
+            pending_results = []
+            while True:
+                try:
+                    result = next(gen)
+                except StopIteration as stop:
+                    batch = stop.value
+                    break
+                pending_results.append(result)
+                if len(pending_results) >= 64:
+                    persisted += persist_batch_results(ctext_con, repo_path, pending_results)
+                    pending_results = []
+            persisted += persist_batch_results(ctext_con, repo_path, pending_results)
+        finally:
+            gen.close()
+        summary["persisted"] = persisted
+        if batch is not None:
+            summary.update(batch.to_dict())
+            summary["fn_per_s"] = (batch.completed / batch.wall_s) if batch.wall_s > 0 else 0.0
+        summary["pending_after"] = len(pending_from(want, done_addrs(ctext_con, repo_path, include_failed=not args.retry_failed)))
+    ctext_con.close()
+    if args.json_out is not None:
+        args.json_out.parent.mkdir(parents=True, exist_ok=True)
+        args.json_out.write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    print(render_batch_markdown(summary))
+    if summary.get("stale"):
+        print("warning: program modification number changed during the batch (stale)", file=sys.stderr)
+        return 1
+    return 0
+
+
+DEFAULT_PROG = "agentdecompile-corpus"
+
+
+def build_parser(prog: str | None = None) -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="agentdecompile-corpus",
+        prog=prog or DEFAULT_PROG,
         description=(
             "Corpus-wide semantic decompilation. First priority is linking one "
             "STABS/DWARF donor project to a complete executable. Adding a binary "
@@ -638,6 +756,27 @@ def build_parser() -> argparse.ArgumentParser:
     orch.add_argument("--poll", type=float, default=20.0)
     orch.add_argument("--log-dir", default="/tmp")
 
+    dbatch = sub.add_parser(
+        "decompile-batch",
+        help="Decompile pending functions in parallel into the ctext sqlite (never decompiles an address twice)",
+    )
+    dbatch.add_argument("--binary", type=Path, help="Binary to import (omit to open an existing program from the project)")
+    dbatch.add_argument("--project-location", type=Path, help="Ghidra project directory (default: <ctext-db dir>/pyghidra-project)")
+    dbatch.add_argument("--project-name", help="Ghidra project name (default: derived from the binary name)")
+    dbatch.add_argument("--program", dest="program_name", help="Program name inside the project when --binary is omitted")
+    dbatch.add_argument("--ctext-db", type=Path, required=True, help="ctext sqlite (schema from decompile_text.connect_ctext; rows via INSERT OR REPLACE like persist_text)")
+    dbatch.add_argument("--repo-path", help="ctext key (default: resolved binary path, or <project>/<program>)")
+    dbatch.add_argument("--threads", type=int, default=default_batch_threads(), help="Private decompiler pool size (default: min(cpu, 8))")
+    dbatch.add_argument("--timeout-s", type=int, default=60, help="Per-function decompile timeout in seconds")
+    dbatch.add_argument("--limit", type=int, help="Decompile at most this many pending functions")
+    dbatch.add_argument("--db", type=Path, help="Identity store; with --binary-id the want-list comes from its func table")
+    dbatch.add_argument("--binary-id", type=int, help="binary.id in --db")
+    dbatch.add_argument("--min-instr", type=int, default=1, help="Store want-list filter (n_instr >= N)")
+    dbatch.add_argument("--retry-failed", action="store_true", help="Treat ok=0 rows as pending again")
+    dbatch.add_argument("--no-analyze", dest="analyze", action="store_false", help="Do not run auto-analysis on import")
+    dbatch.add_argument("--jvm-xmx", default="2g", help="JVM max heap passed as -Xmx (default 2g)")
+    dbatch.add_argument("--json", dest="json_out", type=Path, help="Also write the summary as JSON to this path")
+
     from . import kx_cli
 
     kx_cli.register(sub)
@@ -647,8 +786,8 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def main(argv: list[str] | None = None) -> int:
-    parser = build_parser()
+def main(argv: list[str] | None = None, prog: str | None = None) -> int:
+    parser = build_parser(prog)
     args = parser.parse_args(argv)
     if args.cmd == "init":
         save_corpus(args.out, new_corpus(args.corpus_id))
@@ -791,7 +930,20 @@ def main(argv: list[str] | None = None) -> int:
         from .evaluate import evaluate
         from .store import connect
 
-        print(json.dumps(evaluate(connect(args.db), args.src, args.dst, mode=args.mode), indent=2))
+        con = connect(args.db)
+        try:
+            result = evaluate(con, args.src, args.dst, mode=args.mode)
+        except KeyError:
+            missing = [
+                path
+                for path in (args.src, args.dst)
+                if con.execute("SELECT 1 FROM binary WHERE repo_path=?", (path,)).fetchone() is None
+            ]
+            if not missing:
+                raise
+            print(f"error: not in database: {', '.join(missing)}", file=sys.stderr)
+            return 2
+        print(json.dumps(result, indent=2))
         return 0
     if args.cmd == "export-siblings":
         from .sibling_conflicts import export_sibling_conflicts
@@ -1102,6 +1254,8 @@ def main(argv: list[str] | None = None) -> int:
         if args.byteexact_receipt:
             argv += ["--byteexact-receipt", str(args.byteexact_receipt)]
         return cross_main(argv)
+    if args.cmd == "decompile-batch":
+        return run_decompile_batch_command(args)
     if args.cmd == "verify-byteexact":
         from .verify_recovered_byteexact import main as vbx_main
         argv = ["--verified-dir", str(args.verified_dir), "--raw", str(args.raw),
@@ -1195,15 +1349,21 @@ def main(argv: list[str] | None = None) -> int:
         argv=["--verified-dir",str(args.verified_dir),"--raw",str(args.raw),
               "--receipts",str(args.receipts),"--max-diff",str(args.max_diff),
               "--limit",str(args.limit),"--workers",str(args.workers)]
-        if args.compiler: argv+=["--compiler",str(args.compiler)]
+        if args.compiler:
+            argv+=["--compiler",str(args.compiler)]
         else:
             from .ghidra_bulk import _find_compiler
             argv+=["--compiler",str(_find_compiler(args.raw.parent,args.db) if args.db else _find_compiler(args.raw.parent))]
-        if args.db: argv+=["--db",str(args.db)]
-        if args.binary_id is not None: argv+=["--binary-id",str(args.binary_id)]
-        if args.bin_dir: argv+=["--bin-dir",str(args.bin_dir)]
-        if args.model: argv+=["--model",str(args.model)]
-        if args.state: argv+=["--state",str(args.state)]
+        if args.db:
+            argv+=["--db",str(args.db)]
+        if args.binary_id is not None:
+            argv+=["--binary-id",str(args.binary_id)]
+        if args.bin_dir:
+            argv+=["--bin-dir",str(args.bin_dir)]
+        if args.model:
+            argv+=["--model",str(args.model)]
+        if args.state:
+            argv+=["--state",str(args.state)]
         return cnm_main(argv)
     if args.cmd == "unpack":
         from .unpack import main as unpack_main

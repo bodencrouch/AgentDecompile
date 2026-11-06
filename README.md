@@ -1,74 +1,162 @@
-# AgentDecompile - Your AI Companion for Ghidra
+# AgentDecompile
 
-> AI-powered code analysis and reverse engineering, directly inside Ghidra.
+**Connect AI to Ghidra**
 
-**AgentDecompile** bridges the gap between Ghidra and modern Artificial Intelligence. It allows you to chat with your binaries, automating the tedious parts of reverse engineering so you can focus on the logic that matters.
+Run an MCP server that talks to your Ghidra project. List functions, decompile code, rename symbols, and recover source you can rebuild.
 
-Built on the open standard [Model Context Protocol (MCP)](https://modelcontextprotocol.io), AgentDecompile turns Ghidra into an intelligent agent that can read, understand, and explain code for you.
+AgentDecompile exposes live Ghidra state through the open [Model Context Protocol (MCP)](https://modelcontextprotocol.io), so agents work from functions, references, memory, and decompilation instead of guessing from filenames.
 
-## Why AgentDecompile?
+[Quick start](#installation) · [Usage guide](USAGE.md) · [Tool list](TOOLS_LIST.md) · [Docs site](https://bodecloud.github.io/AgentDecompile/) · [Doc index](docs/INDEX.md)
 
-Reverse engineering is hard. There are thousands of functions, cryptic variable names, and complex logic flows. AgentDecompile helps you make sense of it all by letting you ask plain English questions about your target code.
+```mermaid
+flowchart TD
+  A[MCP client] --> B[mcp-agentdecompile or agentdecompile-mcp]
+  A --> C[agentdecompile-server streamable-http]
+  B --> D[AgentDecompile runtime]
+  C --> D
+  D --> E[PyGhidra and Ghidra projects]
+  D --> F[75 canonical tools, 71 advertised, 4 GUI-only]
+  D --> G[Corpus pipeline]
+```
 
-- **Ask Questions**: "Where is the main loop?", "Find all encryption functions", "What does this variable do?"
-- **Automate Analysis**: Let the AI rename variables, comment functions, and map out code structures for you.
-- **Smart Context**: Unlike generic chat bots, AgentDecompile actually sees your code. It reads the decompiled output, checks cross-references, and understands the program structure just like a human analyst would.
+## What it does
 
-It's designed to be your pair programmer for assembly and decompiled code.
+1. **Analyze with agents** — MCP tools read live Ghidra state (functions, xrefs, memory, decompilation) instead of guessing from file names.
+2. **Recover rebuildable C** — The reconstruct pipeline only promotes functions that compile and pass objdiff with zero differences. Everything else stays in advisory folders with honest labels.
+3. **Run your way** — Stdio for desktop MCP clients, HTTP at `/mcp` for scripts and remote use, optional browser UI when you start the server locally.
 
-## What Can It Do?
+Verified C requires compile plus objdiff 0; terminal recovery additionally requires a fresh whole-image byte-identical rebuild, with C+assembly-floor and max-C variants separately measured.
 
-You can ask AgentDecompile to perform complex tasks:
-
-- **"Analyze this entire binary and summarize what it does."**
-- **"Find where the user password is checked."**
-- **"Rename all these variables to something meaningful."**
-- **"Draw a diagram of this class structure."**
-- **"Write a Python script to solve this CTF challenge."**
-
-It works by giving the AI specific "tools" to interact with Ghidra—reading memory, listing functions, checking references—so it gets real, ground-truth data from your project.
+Source lives at [github.com/bodencrouch/AgentDecompile](https://github.com/bodencrouch/AgentDecompile). The published container image is still `docker.io/bolabaden/agentdecompile-mcp`. The Pages site is [bodecloud.github.io/AgentDecompile](https://bodecloud.github.io/AgentDecompile/).
 
 ## Installation
 
-> **Note**: AgentDecompile requires Ghidra 12.0 or higher.
+Pick one start path. Use **stdio** if your editor or Claude Desktop will spawn the server. Use **HTTP** if you want a URL you can point the CLI or another client at. Use **Docker** if you want Ghidra and the server in one image.
 
-### Option 1: Release Installation (Recommended)
-1. Download the latest release from the [Releases page](../../releases).
-2. Open Ghidra.
-3. Go to **File > Install Extensions**.
-4. Click the **+** (Plus) sign and select the downloaded zip file.
-5. Restart Ghidra.
+### 1. Stdio (desktop MCP clients)
 
-### Option 2: Build from Source
-If you want the absolute latest features:
-`ash
+```bash
+uv run mcp-agentdecompile
+# or, without a local checkout:
+uvx --from git+https://github.com/bodencrouch/AgentDecompile mcp-agentdecompile
+```
+
+Success: the MCP client stays connected and can call `tools/list`.
+
+### 2. HTTP / uvx
+
+```bash
+uv run agentdecompile-server -t streamable-http
+# or:
+uvx --from git+https://github.com/bodencrouch/AgentDecompile agentdecompile-server -t streamable-http
+```
+
+The MCP endpoint is `http://127.0.0.1:8080/mcp`. `/` and `/api` are metadata only. `/api/mcp` is not supported.
+
+```bash
+uv run agentdecompile-cli --server-url http://127.0.0.1:8080/mcp tool --list-tools
+```
+
+**Current recovery operations:** reuse the existing listener on 8080. Inspect
+`GET /api/v1/actions` and submit work through the advertised catalog.
+Do not start a second server, Vite on 5174, a watcher or an alternate port.
+[AGENTS.md](AGENTS.md) owns process/mission rules. Startup commands above are
+installation reference, not instructions to replace an active owner.
+
+For a browser IDE, set `VITE_AGENTDECOMPILE_WEB_IDE_URL` while building or
+running Vite and expose the same origin to the dashboard process as either
+`AGENTDECOMPILE_WEB_IDE_URL` or `VITE_AGENTDECOMPILE_WEB_IDE_URL`. Embedding
+also requires `VITE_AGENTDECOMPILE_WEB_IDE_EMBED=1` and a browser IDE whose
+frame policy permits this dashboard origin; otherwise the workbench keeps the
+external browser-IDE link as the honest fallback.
+
+Success: the CLI prints the advertised tool list.
+
+From source:
+
+```bash
+git clone https://github.com/bodencrouch/AgentDecompile.git
+cd AgentDecompile
+uv sync
 export GHIDRA_INSTALL_DIR=/path/to/ghidra
-gradle install
-`
+```
 
-### Enabling the Extension
-Once installed, you need to turn it on:
-1. Open a binary in the **Code Browser**.
-2. Go to **File > Configure**.
-3. Click the **plug icon** (Configure All Plugins) in the top right.
-4. Find **AgentDecompile** or **AgentDecompile Plugin** in the list and check the box.
-5. Click **OK**.
+### 3. Docker
 
-## Usage
+```bash
+docker run --rm \
+  --add-host host.docker.internal:host-gateway \
+  -p 8080:8080 \
+  docker.io/bolabaden/agentdecompile-mcp:latest
+```
 
-AgentDecompile works as an MCP server. This means you connect an AI client (like Claude Desktop, or an IDE extension) to it.
+Then point a client at `http://127.0.0.1:8080/mcp`. For a client that spawns stdio:
 
-1. **Start Ghidra** and open your project.
-2. The AgentDecompile server starts automatically in the background.
-3. Configure your MCP client to connect to http://localhost:8080/mcp/message.
+```bash
+docker run --rm -i \
+  --add-host host.docker.internal:host-gateway \
+  --entrypoint /ghidra/venv/bin/agentdecompile-server \
+  docker.io/bolabaden/agentdecompile-mcp:latest \
+  -t stdio
+```
 
-See the [Usage Guide](docs/USAGE.md) for detailed connection instructions.
+.NET/IL decompilation needs [ilspycmd](https://github.com/icsharpcode/ILSpy) separately (`dotnet tool install -g ilspycmd`).
+
+## First-run environment
+
+| Variable | Purpose |
+|----------|---------|
+| `GHIDRA_INSTALL_DIR` | Local Ghidra install (source checkouts) |
+| `AGENT_DECOMPILE_MCP_SERVER_URL` | CLI connect URL, usually `http://127.0.0.1:8080/mcp` |
+| `AGENT_DECOMPILE_GHIDRA_SERVER_HOST` / `_PORT` / `_USERNAME` / `_PASSWORD` | Ghidra Server (shared repos). With `AGENT_DECOMPILE_AUTH_ENABLED` on, `_USERNAME` / `_PASSWORD` are also the MCP HTTP auth pair |
+
+HTTP examples in this README bind `127.0.0.1`. Do not set `AGENT_DECOMPILE_HOST=0.0.0.0` without `AGENT_DECOMPILE_AUTH_ENABLED` and a firewall. See [docs/MCP_CONFIGURATION_SECURITY.md](docs/MCP_CONFIGURATION_SECURITY.md).
+
+The full env-var and HTTP-header catalog lives in [USAGE.md](USAGE.md).
+
+## Corpus recovery
+
+For more than one build, use the corpus actions advertised on 8080. Register each binary. Mark the STABS/DWARF build as `--donor`. Recover a function once on the easy build, then propagate.
+
+Implementation CLI reference (current recovery uses the 8080 catalog):
+
+```bash
+uv run agentdecompile-corpus init --id my-corpus --out target/corpus.json
+uv run agentdecompile-corpus add-binary --corpus target/corpus.json \
+  --id debug-build --path /path/to/debug-binary --debug stabs --donor
+uv run agentdecompile-corpus run --corpus target/corpus.json \
+  --snapshot-dir target/extracts --work-dir target/corpus-run --stop-after compile
+```
+
+`--stop-after compile` stops after donor C compiles (not necessarily a binary match to the original executable). The workbench is `/dashboard` on the same HTTP server as `/mcp` (default 8080).
+
+The [interface guide](src/agentdecompile_recovery/corpus/dashboard/frontend/README.md) distinguishes the static workbench source from the React frontend and its packaged routes. Use the current 8080 serving mode; source or asset presence does not prove a completed migration.
+
+Cross-build identity is a `logical_id`, not a virtual address. After the store has bindings, inspect `corpus.export-hookpack` in the live catalog. Its implementation CLI equivalent is:
+
+```bash
+uv run agentdecompile-corpus export-hookpack --db target/corpus.sqlite --out target/hookpack.json
+```
+
+KotorPhasor already loads v1 packs, but exported names/build profiles and ABI adapters still require alignment. Resolution, installation, calls and observed behavior have separate gates. [Runtime reuse](docs/RUNTIME_REUSE.md) is useful before whole-image recovery and does not count original-code execution as recovered source.
+
+Contract: [docs/CORPUS_PIPELINE.md](docs/CORPUS_PIPELINE.md). Bet: [STRATEGY.md](STRATEGY.md). Single-binary reconstruct (not the default): [docs/CRITICAL_PATH.md](docs/CRITICAL_PATH.md).
+
+## Next
+
+- Day-to-day CLI, sessions, Web UI, and failures: [USAGE.md](USAGE.md)
+- Tool parameters: [TOOLS_LIST.md](TOOLS_LIST.md)
+- Windows / Podman: [docs/Podman-Windows-Complete-Setup-Guide.md](docs/Podman-Windows-Complete-Setup-Guide.md)
+- Security reports: [SECURITY.md](SECURITY.md)
+- Vocabulary: [CONCEPTS.md](CONCEPTS.md)
+- Full map: [docs/INDEX.md](docs/INDEX.md)
+
+CLI command recipes belong in USAGE. This file only changes when install or start-path text changes.
 
 ## License
 
-This project is licensed under the **Business Source License 1.1**. See [LICENSE](LICENSE) for details.
-Free for personal, educational, and internal business use. 
+GNU Affero General Public License v3.0. See [LICENSE](LICENSE).
 
 ## Contributing
 
-We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for how to get involved.
+See [CONTRIBUTING.md](CONTRIBUTING.md).

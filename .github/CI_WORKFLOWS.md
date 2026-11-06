@@ -1,271 +1,195 @@
 # GitHub Actions CI Workflows
 
-This document describes the CI/CD workflows for the AgentDecompile project.
+This document summarizes the GitHub Actions workflows that currently ship with AgentDecompile.
 
-## Workflows Overview
-
-### 1. `test-ghidra.yml` - Main Extension Tests
-
-**Triggers**: Push/PR to main or develop branches
-
-**What it does**:
-- Tests AgentDecompile as a Ghidra extension (GUI mode)
-- Runs unit tests and integration tests
-- Tests on multiple Ghidra versions (12.0, latest)
-- Includes lint checks and CodeQL security analysis
-
-**Jobs**:
-- `test` - Runs gradle unit and integration tests
-- `lint` - Code compilation checks
-- `codeql` - Security vulnerability scanning
-
-**Duration**: ~10-15 minutes per matrix job
-
-### 2. `test-headless.yml` - Headless Mode Tests
-
-**Triggers**:
-- Push/PR to main or develop (when headless files change)
-- Manual workflow dispatch
-
-**What it does**:
-- Tests AgentDecompile in headless Ghidra mode via pyghidra
-- Runs Python-based headless server tests
-- Tests on multiple OS (Ubuntu, macOS, Windows)
-- Tests on multiple Ghidra versions (12.0, latest)
-- Tests on multiple Python versions (3.9, 3.11, 3.12)
-
-**Jobs**:
-- `test-headless` - Unix/Mac matrix testing
-- `test-headless-windows` - Windows-specific testing
-- `test-summary` - Aggregates results
-
-**Duration**: ~5-8 minutes per matrix job
-
-**Test Coverage**:
-1. Quick smoke test (start/stop/verify)
-2. Custom port configuration
-3. Configuration file loading
-4. Cross-platform compatibility
-
-### 3. `publish-ghidra.yml` - Release Publishing
-
-**Triggers**: Manual or release tags
-
-**What it does**:
-- Builds and publishes release artifacts
-- Creates GitHub releases
-- Uploads extension zip files
-
-**Duration**: ~5 minutes
-
-### 4. `claude.yml` - Claude Code Integration
-
-**Triggers**: Varies (project-specific)
-
-**What it does**:
-- Claude Code specific automation
-- May include code review, documentation, etc.
-
-## Test Matrix Strategy
-
-### Main Extension Tests (`test-ghidra.yml`)
-
-```
-Matrix:
-  OS: ubuntu-latest
-  Ghidra: [12.0, latest]
-
-Total: 2 jobs
+```mermaid
+flowchart TD
+    A[Push PR Tag or Manual Dispatch] --> B[test-ghidra.yml]
+    A --> C[test-headless.yml]
+    A --> D[publish-ghidra.yml]
+    A --> E[publish-pypi.yml]
+    A --> F[docker-push.yml]
+    A --> G[claude.yml]
+    H[Schedule or Manual Dispatch] --> I[lfg-nightly.yml]
+    B --> J[PyGhidra import smoke on Ghidra matrix]
+    C --> K[Install PyGhidra run pytest]
+    I --> L[Full /lfg stack LFG_RUN=1]
+    D --> M[Sign and publish Ghidra release zips]
+    E --> N[Build and publish Python packages]
+    F --> O[Build and publish container images]
+    G --> P[Run Claude Code automation]
 ```
 
-### Headless Mode Tests (`test-headless.yml`)
+## Workflow Inventory
 
+### `test-ghidra.yml`
+
+- Purpose: smoke-test PyGhidra and `agentdecompile_cli` imports against downloaded Ghidra (no Java extension build).
+- Triggers: push and pull request activity targeting `master`, `main`, or `develop`.
+- Matrix: `ubuntu-latest` x Ghidra `12.0` and `latest`.
+- Runtime: Java 21, Xvfb, `uv`, PyGhidra from `$GHIDRA_INSTALL_DIR/Ghidra/Features/PyGhidra/pypkg`.
+
+This workflow does not run the full pytest suite.
+
+### `test-headless.yml`
+
+- Purpose: exercise the Python and PyGhidra test stack in CI.
+- Triggers: push and pull request activity targeting `master`, `main`, or `develop`, plus manual `workflow_dispatch`.
+- Matrix: `ubuntu-latest` and `macos-latest` x Ghidra `12.0` and `latest`.
+- Runtime: Java 21, Python 3.12, `uv`, downloaded Ghidra installation, PyGhidra from bundled pypkg.
+- Test command: `uv run pytest tests/ -m "not e2e" -v --timeout=180 --tb=short --junitxml=test-results.xml`.
+
+The workflow installs PyGhidra from the downloaded Ghidra tree and runs the non-e2e pytest suite (unit, provider, and CLI tests). Live-server e2e modules (`test_e2e_*`, `test_get_function_live_decompilation`) are excluded; they require long-running subprocess MCP servers and are not suitable for the default matrix. Unit-only coverage also runs in `test-unit.yml`. Full canonical `/lfg` validation runs in `lfg-nightly.yml` (weekly + manual dispatch).
+
+### `lfg-nightly.yml`
+
+- Purpose: run the full canonical `/lfg` stack via `tests/test_lfg_e2e.py -m lfg` with self-managed Ghidra Server and MCP on Linux CI.
+- Triggers: weekly schedule (Sunday 06:00 UTC) and manual `workflow_dispatch` (optional Ghidra version input).
+- Runtime: Java 21, Python 3.12, `uv`, Ghidra 12.0 (default), PyGhidra from bundled pypkg.
+- Environment: `LFG_RUN=1`, `LFG_MANAGE_GHIDRA_SERVER=1`; Ghidra server proxy env vars cleared for local stack.
+- Test command: `uv run pytest tests/test_lfg_e2e.py -m lfg -v --timeout=900`.
+- Artifacts: uploads `.lfg_run/` logs on completion (7-day retention).
+- Not on PR path — too slow for default CI; see `tests/README.md` for local opt-in.
+
+### `publish-ghidra.yml`
+
+- Purpose: build, sign, and attach Ghidra distribution archives to GitHub releases.
+- Triggers: release publication and manual `workflow_dispatch`.
+- Runtime: Java 21 with Gradle-based extension packaging.
+- Output: signed Ghidra extension zip artifacts uploaded to the corresponding release.
+
+### `publish-pypi.yml`
+
+- Purpose: build Python distributions and publish them to TestPyPI or PyPI.
+- Triggers: manual `workflow_dispatch` and release or tag driven publishing.
+- Runtime: Python 3.12 with build and publishing tooling.
+- Output: source distribution and wheel, published package artifacts, and release-attached signatures for tag builds.
+
+### `docker-push.yml`
+
+- Purpose: build and publish the container images maintained by this repository.
+- Triggers: tag-driven release flow and manual dispatch.
+- Output: multi-image Docker builds covering the AIO, MCP-only, Ghidra, and Ghidra BSIM server variants.
+- Platforms: workflow is set up for multi-architecture publishing, including `amd64` and `arm64` image variants where configured.
+
+### `claude.yml`
+
+- Purpose: run repository automation driven by Claude Code on supported GitHub events.
+- Triggers: issue comments, pull request reviews, and related events that include `@claude`.
+
+## Matrix Strategy
+
+### Extension Build Matrix
+
+```text
+OS:      ubuntu-latest
+Ghidra:  12.0, latest
+Jobs:    2
 ```
-Unix/Mac Matrix:
-  OS: [ubuntu-latest, macos-latest]
-  Ghidra: [12.0, latest]
-  Python: [3.9, 3.11, 3.12]
-  Excludes: (12.0 + older Python versions)
 
-  Total: 8 jobs (2 OS × 2 Ghidra × 2 Python combinations)
+### Headless Test Matrix
 
-Windows:
-  OS: windows-latest
-  Ghidra: latest
-  Python: 3.12
-
-  Total: 1 job
-
-Grand Total: 9 jobs
+```text
+OS:      ubuntu-latest, macos-latest
+Ghidra:  12.0, latest
+Jobs:    4
 ```
 
-## Workflow Optimization
+Both test workflows disable fail-fast so the full matrix completes even when one configuration fails early.
 
-### Path Filtering
+## Local Reproduction
 
-The headless workflow only runs when relevant files change:
-- `src/main/java/agentdecompile/headless/**`
-- `src/main/java/agentdecompile/plugin/config/**`
-- `scripts/**`
-- `config/**`
-- Configuration files
+Use the commands below when you want to approximate the CI steps locally.
 
-This reduces unnecessary CI runs when unrelated files change.
+### Reproduce the extension build
 
-### Matrix Exclusions
-
-The headless workflow excludes some combinations to reduce CI time:
-- Only tests older Python versions (3.9, 3.11) on latest Ghidra
-- Tests Python 3.12 on all Ghidra versions
-- Balances coverage vs. execution time
-
-### Fail-Fast: Disabled
-
-Both test workflows use `fail-fast: false` to ensure all matrix jobs complete even if some fail. This provides complete test coverage visibility.
-
-## Running Workflows
-
-### Automatic Triggers
-
-Both workflows automatically run on:
-- Push to `main` or `develop` branches
-- Pull requests to `main` or `develop` branches
-
-### Manual Triggers
-
-The headless workflow can be manually triggered:
-
-1. Go to Actions tab in GitHub
-2. Select "Test Headless Mode 🤖"
-3. Click "Run workflow"
-4. Select branch
-5. Click "Run workflow"
-
-This is useful for:
-- Testing on feature branches
-- Debugging CI issues
-- Validating fixes
-
-## Debugging Failed Tests
-
-### View Test Results
-
-1. Click on failed workflow run
-2. Click on failed job
-3. Expand failing step to see logs
-
-### Download Artifacts
-
-Failed runs upload artifacts:
-- Test results (XML/HTML)
-- Log files
-- Configuration files
-
-Download via workflow run page → Artifacts section
-
-### Common Issues
-
-**Issue: PyGhidra import fails**
+```bash
+gradle clean buildExtension
 ```
-ImportError: No module named 'pyghidra'
+
+### Reproduce the headless test flow
+
+```bash
+export GHIDRA_INSTALL_DIR=/path/to/ghidra
+uv sync
+uv pip install "$GHIDRA_INSTALL_DIR/Ghidra/Features/PyGhidra/pypkg"
+uv run pytest tests/ -v --timeout=120 --tb=short
 ```
-**Solution**: Check pip install step completed successfully
 
-**Issue: Ghidra not found**
-```
-GHIDRA_INSTALL_DIR not set
-```
-**Solution**: Check setup-ghidra action completed successfully
+If you want to mirror `test-headless.yml` more closely, also build the extension and install the generated zip into the local Ghidra `Extensions` directory before running the tests.
 
-**Issue: Timeout**
-```
-Error: The operation was canceled.
-```
-**Solution**: Increase timeout or check for hanging processes
+## Practical Notes
 
-**Issue: Port already in use**
-```
-BindException: Address already in use
-```
-**Solution**: Tests should use different ports or proper cleanup
-
-## Performance Benchmarks
-
-### Expected Durations
-
-| Workflow | Jobs | Avg Time/Job | Total Time (parallel) |
-|----------|------|--------------|----------------------|
-| test-ghidra.yml | 2 + lint + codeql | 12 min | ~15 min |
-| test-headless.yml | 9 | 6 min | ~8 min |
-| publish-ghidra.yml | 1 | 5 min | ~5 min |
-
-### Parallelization
-
-Both test workflows run matrix jobs in parallel, significantly reducing total CI time compared to sequential execution.
-
-## CI/CD Best Practices
+- CI still validates both sides of the project: Gradle-built Ghidra artifacts and the Python MCP runtime.
+- User-facing documentation focuses on the Python and MCP entry points, but the repository still ships and tests the packaged Ghidra extension in CI.
+- `AGENTS.md` remains the best place for contributor-facing lint, test, and build commands.
 
 ### For Contributors
 
-1. **Run tests locally first** when possible
-   ```bash
-   # Main tests
-   gradle test
-   gradle integrationTest
+1. **Run tests locally before pushing**
 
-   # Headless tests
-   python scripts/test_headless_quick.py
+  For extension build validation:
+   ```bash
+   gradle buildExtension
    ```
 
-2. **Use draft PRs** for work in progress to avoid unnecessary CI runs
+   For Python/Headless:
+   ```bash
+   uv sync
+   uv run pytest tests/ -v
+   ```
 
-3. **Path filtering** means not all changes trigger all workflows
+2. **Use draft PRs for work-in-progress** to avoid unnecessary CI runs
 
-4. **Check CI status** before requesting review
+3. **Check CI status before requesting review**
+
+4. **Add tests for new features** - both unit tests (matched to test type) and integration tests
 
 ### For Maintainers
 
-1. **Review test results** before merging PRs
+1. **Review all CI results** before merging PRs
 
-2. **Monitor CI performance** and adjust matrix if needed
+2. **Monitor workflow performance** and matrix configuration
 
-3. **Update workflows** when:
+3. **Update workflows when**:
    - New Ghidra version released
-   - Python version EOL
+   - New Python version support needed
    - Dependencies updated
+   - Build/test infrastructure changes
 
-4. **Keep documentation updated** when changing workflows
+4. **Keep this documentation updated** when changing workflows
 
 ## Troubleshooting CI
 
 ### Workflow doesn't trigger
 
 **Check**:
-- Branch name matches trigger pattern
-- File paths match path filter
-- Workflow file is valid YAML
+- Branch name matches trigger pattern (main, develop)
+- File changes match any path filters
+- Workflow file syntax is valid YAML
 
 ### Tests pass locally but fail in CI
 
 **Common causes**:
-- Environment differences (OS, versions)
-- Missing dependencies in CI
+- Environment differences (OS, versions, paths)
+- Missing dependencies in CI workflow
 - Timeout too short
-- Race conditions
+- Race conditions in parallel tests
 
-**Debug**:
-1. Check workflow environment matches local
-2. Add debug logging to tests
-3. Increase timeouts
-4. Use workflow dispatch to test manually
+**Debug steps**:
+1. Compare workflow environment with local setup
+2. Check Ghidra/Java/Python versions match
+3. Add logging/debugging to test code
+4. Increase timeout values if needed
+5. Use GitHub workflow dispatch to test specific branches
 
-### Long CI times
+### Very long CI times
 
-**Optimization options**:
-1. Reduce matrix size
-2. Add path filters
-3. Use caching for dependencies
-4. Increase parallelization
+**Optimization**:
+1. Reduce matrix size if not needed
+2. Use caching for gradle/pip dependencies
+3. Combine related steps
+4. Profile slow tests and optimize
 
 ## Monitoring
 
@@ -273,45 +197,17 @@ Both test workflows run matrix jobs in parallel, significantly reducing total CI
 
 Add to README:
 ```markdown
-![Test Headless Mode](https://github.com/your-org/agentdecompile/actions/workflows/test-headless.yml/badge.svg)
+![Test Ghidra Extension](https://github.com/bolabaden/agentdecompile/actions/workflows/test-ghidra.yml/badge.svg)
+![Test Headless Mode](https://github.com/bolabaden/agentdecompile/actions/workflows/test-headless.yml/badge.svg)
 ```
 
-### Notifications
+### GitHub Notifications
 
 GitHub sends notifications on:
 - Workflow failures (to committer)
-- Status changes (if watching repo)
+- Status changes (if repo is watched)
 
-Configure in GitHub settings → Notifications
-
-## Future Enhancements
-
-Potential workflow improvements:
-
-1. **Performance Tests**
-   - Benchmark startup times
-   - Memory usage profiling
-   - API response times
-
-2. **E2E Tests**
-   - Full MCP client integration
-   - Real binary analysis
-   - Multi-tool workflows
-
-3. **Docker Tests**
-   - Build Docker image
-   - Test container deployment
-   - Docker Compose orchestration
-
-4. **Coverage Reports**
-   - JaCoCo for Java
-   - Coverage.py for Python
-   - Combined coverage metrics
-
-5. **Automated Releases**
-   - Version bumping
-   - Changelog generation
-   - Asset uploads
+Configure in GitHub → Settings → Notifications
 
 ## References
 
@@ -319,3 +215,4 @@ Potential workflow improvements:
 - [setup-ghidra Action](https://github.com/antoniovazquezblanco/setup-ghidra)
 - [Gradle Actions](https://github.com/gradle/actions)
 - [PyGhidra Documentation](https://github.com/dod-cyber-crime-center/pyghidra)
+- [uv Package Manager](https://docs.astral.sh/uv/)

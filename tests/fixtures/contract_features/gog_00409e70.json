@@ -1,0 +1,74 @@
+{
+ "build": "gog",
+ "va": 4234864,
+ "cacheName": "vectorZero",
+ "cacheSize": 13,
+ "source": {
+  "evidence": "/home/brunner56/agentdecompile-deliverables/2026-09-27-tie-triage/evidence.json",
+  "evidenceSha256": "8972699e1caa2213e2ce60c870b8acf683e19e31254ee6b517efb0622b73ca30",
+  "jsonPath": "bodies['gog:0x409e70'].independentDecode",
+  "handRowsPath": "handRows['gog:0x409e70']"
+ },
+ "image": {
+  "imageSha256": "9c10e0450a6eeca417e036e3cde7474fed1f0a92aab018446d156944dea91435",
+  "va": 4234864,
+  "fileOffset": 40560
+ },
+ "spanSha256": "1e09d34a9de7a48bd061703ef73f341df8596595468b282c5f19c36b6bf0b98d",
+ "capstoneBanner": "capstone 5.0.7",
+ "instructions": [
+  {
+   "va": 4234864,
+   "hex": "8bc1",
+   "text": "mov eax, ecx"
+  },
+  {
+   "va": 4234866,
+   "hex": "33c9",
+   "text": "xor ecx, ecx"
+  },
+  {
+   "va": 4234868,
+   "hex": "8908",
+   "text": "mov dword ptr [eax], ecx"
+  },
+  {
+   "va": 4234870,
+   "hex": "894804",
+   "text": "mov dword ptr [eax + 4], ecx"
+  },
+  {
+   "va": 4234873,
+   "hex": "894808",
+   "text": "mov dword ptr [eax + 8], ecx"
+  },
+  {
+   "va": 4234876,
+   "hex": "c3",
+   "text": "ret"
+  }
+ ],
+ "handRows": [
+  {
+   "va": 4234864,
+   "hex": "8bc1",
+   "meaning": "EAX = receiver (returned)",
+   "cachedText": "MOV EAX,ECX",
+   "imageVerified": true
+  },
+  {
+   "va": 4234868,
+   "hex": "8908",
+   "meaning": "store rcv+0",
+   "cachedText": "MOV dword ptr [EAX],ECX",
+   "imageVerified": true
+  },
+  {
+   "va": 4234876,
+   "hex": "c3",
+   "meaning": "ret",
+   "cachedText": "RET",
+   "imageVerified": true
+  }
+ ]
+}

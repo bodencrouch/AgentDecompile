@@ -85,9 +85,7 @@ def test_best_signature_follows_content_hash_not_rowid(tmp_path: Path) -> None:
     by_hash = _store_hash_reversed(tmp_path / "hash.sqlite", FUNCS)
     logical.build(by_id)
     logical.build(by_hash)
-    def sig(con):
-        return con.execute("SELECT best_signature FROM logical_function WHERE canon_key='Widget::run'").fetchone()[0]
-
+    sig = lambda con: con.execute("SELECT best_signature FROM logical_function WHERE canon_key='Widget::run'").fetchone()[0]
     assert sig(by_id) == "void Widget::run(int)"   # build 1 (alpha) has the low hash
     assert sig(by_hash) == "void Widget::run(long)"  # build 2 (beta) has the low hash
 

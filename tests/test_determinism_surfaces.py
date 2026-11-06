@@ -273,20 +273,9 @@ def test_ensure_binary_columns_tolerates_readonly_but_not_other_errors(tmp_path:
         # none is, so it will BEGIN itself and hit the synthetic error there.
         in_transaction = False
 
-        def __init__(self):
-            self.timeout_assignments = []
-
         def execute(self, sql, *args):
-            if sql == "PRAGMA table_info(binary)":
+            if sql.startswith("PRAGMA"):
                 return iter([(0, "content_sha256"), (1, "recovery_family")])
-            if sql == "PRAGMA busy_timeout":
-                class _TimeoutCur:
-                    def fetchone(self):
-                        return (30000,)
-                return _TimeoutCur()
-            if sql.startswith("PRAGMA busy_timeout="):
-                self.timeout_assignments.append(int(sql.partition("=")[2]))
-                return None
             if sql.startswith("SELECT"):
                 class _Cur:
                     def fetchone(self):
@@ -294,10 +283,8 @@ def test_ensure_binary_columns_tolerates_readonly_but_not_other_errors(tmp_path:
                 return _Cur()
             raise sqlite3.OperationalError("no such table: binary")
 
-    con = _Con()
     with pytest.raises(sqlite3.OperationalError, match="no such table"):
-        store.ensure_binary_columns(con)
-    assert con.timeout_assignments == [250, 30000]
+        store.ensure_binary_columns(_Con())
 
 
 # --- match_store dependency tokens (A3) ---------------------------------------

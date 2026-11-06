@@ -7,9 +7,8 @@ adapter raises ``NotConfigured`` naming its requirement when constructed.
 
 Public API other slices rely on (see README.md for the rules):
   LocalFileLog(root) / LocalFileHeads(root)         working log + CAS head store
-  NullSigner() / HMACSigner(secret) / Ed25519Signer  signers; Keyring; verify_record / authorize_record(record, keyring)
-  Appender(log, heads, signer) / Outbox(appender)    seal + append with backoff and rotation;
-                                                     Appender.write_batch is the node outbox's RecordWriter
+  NullSigner() / HMACSigner(secret) / Ed25519Signer  signers; Keyring; verify_record(record, keyring)
+  Appender(log, heads, signer) / Outbox(appender)    seal + append with backoff and rotation
   Draft(type, body) / seal / verify_chain            records
   derive(log, objects, now, *, proposal_cap, kinds)  the frontier, pure
   issue_intent / renew_intent / drop_intent          advisory leases with a fence
@@ -44,7 +43,7 @@ from .heads import HttpHeads, LocalFileHeads, S3ConditionalHeads, publish_head, 
 from .http import HttpLog
 from .intents import IntentFenced, IntentNotHeld, Lease, drop_intent, issue_intent, renew_intent
 from .local import ChainConflict, LocalFileLog, LogCorrupt, PruneRefused
-from .outbox import AppendGaveUp, Appender, HotHead, Outbox, OutboxPolicy, draft_for
+from .outbox import AppendGaveUp, Appender, HotHead, Outbox, OutboxPolicy
 from .records import (
     BadSignature,
     ChainBroken,
@@ -104,7 +103,7 @@ CONFIG_FIELDS: dict[str, Any] = {
     "heads": {"adapter": "local", "root": "<store root>", "fsync": True,
               "s3": S3ConditionalHeads.config_schema(), "http": HttpHeads.config_schema()},
     "signing": {"adapter": "null", "label": "", "key_dir": "<keys dir>", "secret_env": "ADGRID_HMAC_SECRET", "secret_file": ""},
-    "keyring": {"allow_null": False, "key_dir": "<trusted public keys dir>", "trust_local_nodes": False},
+    "keyring": {"allow_null": True, "key_dir": "<public keys dir>"},
     "frontier": FrontierPolicy.config_schema()["properties"],
     "outbox": OutboxPolicy.config_schema()["properties"],
     "backoff": BackoffPolicy.config_schema()["properties"],
@@ -122,7 +121,7 @@ __all__ = [
     "Keyring", "Lease", "LocalFileHeads", "LocalFileLog", "LogCorrupt", "NullSigner", "Outbox", "OutboxPolicy",
     "PartitionRotation", "PartitionState", "PrefixPruned", "PruneRefused", "RETENTION_POLICIES", "RecordError", "RetentionPolicy",
     "S3ConditionalHeads", "S3ObjectLog", "SchemaMismatch", "TaskState", "UnknownSigner", "backoff", "build_record",
-    "classify", "compact", "compaction", "derive", "derive_from_latest", "describe_adapters", "draft_for", "drop_intent", "fold",
+    "classify", "compact", "compaction", "derive", "derive_from_latest", "describe_adapters", "drop_intent", "fold",
     "frontier", "full_jitter", "heads", "heads_from_config", "http", "intents", "issue_intent", "latest_checkpoint",
     "local", "log_from_config", "outbox", "prune", "publish_head", "read_from_checkpoint", "rebuild_heads", "records",
     "register_adapters", "renew_intent", "s3", "seal", "signer_from_config", "signing", "states_of", "sub_partition",

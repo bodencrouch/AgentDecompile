@@ -33,7 +33,7 @@ An explicit statement on an artifact or tool response that limits what may be as
 An optional operator path that inventorizes, synthesizes candidates, and proves functions with compile+objdiff. Useful when chosen; not the charter of the substrate.
 
 ### Corpus pipeline
-The named stages preserve prerequisites while identity/calibration refine each other and parity runs continuously. Reconstruct and validate linkable regions early; compile C/C++ candidates, distribute only to compatible recipients, and verify each recipient independently. Terminal recovery still needs a fresh whole-image rebuild, contribution evidence and comparison. Never repeat valid unchanged work; invalidate only affected dependencies. [STRATEGY](STRATEGY.md) owns the contract.
+The main multi-binary recovery path: extract facts → bind `logical_id` → global calibration → scaffolding (assembly floor) → readable C (`ghidra-bulk`) → propagation (`cross-place`) → targeted AI on leftovers → parity (objdiff) → fresh whole-image rebuild and identity. Source is copied only after compile. Machine-code wrappers are not source. Never decompile the same logical function twice. Skip a step when its receipt or Ghidra analysis already exists.
 
 ### logical_id
 Conceptual entity identity, separate from an implementation variant (behavior/build-specific implementation) and physical instance (standalone, inline, thunk, split or folded occurrence). The same logical ID does not make source interchangeable. One address can represent several logical entities.

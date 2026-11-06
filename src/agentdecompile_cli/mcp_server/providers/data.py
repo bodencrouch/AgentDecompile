@@ -157,25 +157,19 @@ class DataToolProvider(ToolProvider):
         if not args.get(FORCE_APPLY_CONFLICT_ID_KEY):
             from agentdecompile_cli.mcp_utils.datatype_util import format_conflict_lines, overlapping_data_conflicts
 
-            # clearCodeUnits below clears every code unit overlapping [addr, addr+len-1]; ask before losing defined data anywhere in it.
-            conflicts = overlapping_data_conflicts(listing, addr, dt)
-            if conflicts:
-                from agentdecompile_cli.mcp_server.conflict_store import store as conflict_store_store
-                from agentdecompile_cli.mcp_server.session_context import get_current_mcp_session_id
-
-                conflict_id = str(uuid.uuid4())
-                conflict_summary = f"Apply data type would overwrite existing data at address:\n\n```diff\n{format_conflict_lines(conflicts)}\n+ {dt_name}\n```"
-                next_step = f'To apply this change, call `resolve-modification-conflict` with `conflictId` = "{conflict_id}" and `resolution` = "overwrite". To discard, use `resolution` = "skip".'
-                program_path = args.get(n("programPath")) or getattr(program_info, "path", None) or getattr(program_info, "file_path", None)
-                conflict_store_store(
-                    get_current_mcp_session_id(),
-                    conflict_id,
-                    tool=Tool.APPLY_DATA_TYPE.value,
-                    arguments=dict(args),
-                    program_path=str(program_path) if program_path else None,
-                    summary=conflict_summary,
-                )
-                return create_conflict_response(conflict_id, Tool.APPLY_DATA_TYPE.value, conflict_summary, next_step)
+                    conflict_id = str(uuid.uuid4())
+                    conflict_summary = f"Apply data type would overwrite existing data at address:\n\n```diff\n- {existing_type}\n+ {dt_name}\n```"
+                    next_step = f'To apply this change, call `resolve-modification-conflict` with `conflictId` = "{conflict_id}" and `resolution` = "overwrite". To discard, use `resolution` = "skip".'
+                    program_path = args.get(n("programPath")) or getattr(program_info, "path", None) or getattr(program_info, "file_path", None)
+                    conflict_store_store(
+                        get_current_mcp_session_id(),
+                        conflict_id,
+                        tool=Tool.APPLY_DATA_TYPE.value,
+                        arguments=dict(args),
+                        program_path=str(program_path) if program_path else None,
+                        summary=conflict_summary,
+                    )
+                    return create_conflict_response(conflict_id, Tool.APPLY_DATA_TYPE.value, conflict_summary, next_step)
 
         def _apply_data_type() -> None:
             listing.clearCodeUnits(addr, addr.add(dt.getLength() - 1), False)

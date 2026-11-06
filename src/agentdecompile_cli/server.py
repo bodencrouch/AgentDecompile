@@ -1049,70 +1049,24 @@ def build_proxy_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.set_defaults(require_auth=None)
-    # The proxy does not copy these into the environment, so an env value wins
-    # over the flag here (resolve_auth_config reads env first).
-    parser.add_argument(
-        "--ghidra-server-host",
-        type=str,
-        default=None,
-        help="Auth only: Ghidra Server host the credentials belong to. AGENT_DECOMPILE_GHIDRA_SERVER_HOST wins over this flag; the AGENTDECOMPILE_* aliases are not read. Default: unset.",
-    )
-    parser.add_argument(
-        "--ghidra-server-port",
-        type=int,
-        default=None,
-        help="Auth only: Ghidra Server port. AGENT_DECOMPILE_GHIDRA_SERVER_PORT (or AGENT_DECOMPILE_SERVER_PORT) wins over this flag; the AGENTDECOMPILE_* aliases are not read. Default: unset (MCP HTTP auth then uses 13100).",
-    )
-    parser.add_argument(
-        "--ghidra-server-username",
-        type=str,
-        default=None,
-        help="Auth only: MCP HTTP auth username. AGENT_DECOMPILE_GHIDRA_SERVER_USERNAME wins over this flag; the AGENTDECOMPILE_* aliases are not read. Default: unset.",
-    )
-    parser.add_argument(
-        "--ghidra-server-password",
-        type=str,
-        default=None,
-        help="Auth only: MCP HTTP auth password. AGENT_DECOMPILE_GHIDRA_SERVER_PASSWORD wins over this flag; the AGENTDECOMPILE_* aliases are not read. Default: unset.",
-    )
-    parser.add_argument(
-        "--ghidra-server-repository",
-        type=str,
-        default=None,
-        help="Auth only: repository recorded for authenticated requests. AGENT_DECOMPILE_GHIDRA_SERVER_REPOSITORY wins over this flag. Default: unset.",
-    )
+    parser.add_argument("--ghidra-server-host", type=str, default=None, help="Auth: Ghidra server host")
+    parser.add_argument("--ghidra-server-port", type=int, default=None, help="Auth: Ghidra server port")
+    parser.add_argument("--ghidra-server-username", type=str, default=None, help="Auth: Ghidra server username")
+    parser.add_argument("--ghidra-server-password", type=str, default=None, help="Auth: Ghidra server password")
+    parser.add_argument("--ghidra-server-repository", type=str, default=None, help="Auth: Ghidra server repository")
     parser.add_argument(
         "--enable-exchange",
         dest="enable_exchange",
         action="store_true",
-        help="EXPERIMENTAL: serve the donated-compute work exchange (HTTP transports only). Default: AGENT_DECOMPILE_EXCHANGE_ENABLED, else off.",
+        default=None,
+        help="EXPERIMENTAL: serve the donated-compute work exchange on this proxy. Env: AGENT_DECOMPILE_EXCHANGE_ENABLED",
     )
     parser.add_argument(
         "--no-enable-exchange",
         dest="enable_exchange",
         action="store_false",
-        help="Turn the work exchange off even when AGENT_DECOMPILE_EXCHANGE_ENABLED is set. Default: AGENT_DECOMPILE_EXCHANGE_ENABLED, else off.",
+        help="Disable the experimental work exchange even when AGENT_DECOMPILE_EXCHANGE_ENABLED is set",
     )
-    parser.set_defaults(enable_exchange=None)
-    return parser
-
-
-def proxy_main() -> None:
-    """Entry point for agentdecompile-proxy: forward MCP to a remote backend (no local PyGhidra).
-
-    Use this command when you want to expose a remote AgentDecompile MCP server over stdio
-    or HTTP without running a local Ghidra instance. Backend URL is required via
-    --backend-url, --mcp-server-url, or env AGENT_DECOMPILE_BACKEND_URL,
-    AGENT_DECOMPILE_MCP_SERVER_URL, AGENT_DECOMPILE_SERVER_URL, AGENTDECOMPILE_BACKEND_URL,
-    AGENTDECOMPILE_MCP_SERVER_URL or AGENTDECOMPILE_SERVER_URL (first set wins).
-
-    Auth credentials come from the canonical AGENT_DECOMPILE_GHIDRA_SERVER_* or
-    AGENT_DECOMPILE_SERVER_* variables only. Unlike agentdecompile-server, the proxy
-    does not normalize the compact AGENTDECOMPILE_* aliases: that rewrites os.environ,
-    which would also change what the stdio bridge's shared-server auto-open reads.
-    """
-    logger.debug("diag.enter %s", "server.py:proxy_main")
-    parser = build_proxy_parser()
     args = parser.parse_args()
 
     backend_url = _resolve_proxy_backend_url(

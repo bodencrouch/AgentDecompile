@@ -64,15 +64,10 @@ from agentdecompile_cli.mcp_utils.program_analysis import (
 )
 from agentdecompile_cli.registry import (  # pyright: ignore[reportMissingImports]
     ADVERTISED_TOOL_PARAMS,
-    RESPONSE_FORMAT_PARAM,
-    RESPONSE_FORMAT_VALUES,
-    SELECTOR_PARAM_ALIASES as _SELECTOR_PARAM_ALIASES,
-    MODE_PARAM_PRECEDENCE,
     TOOL_ALIASES,
     TOOL_PARAM_ALIASES,
     Tool,
     _auto_checkin_enabled,
-    apply_alias_implied_arguments,
     get_advertised_tools_for_list,
     get_effective_max_analysis_tier,
     get_tool_analysis_tier,
@@ -436,25 +431,6 @@ def _infer_param_schema(param_name: str) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 # Response helpers (canonical location)
 # ---------------------------------------------------------------------------
-
-
-def _function_search_contract_error(norm_tool_name: str, args: dict[str, Any], payload: Any) -> str | None:
-    """Reject successful providers that silently ignore a function search request."""
-    if norm_tool_name != "listfunctions" or str(args.get("mode", "")).strip().lower() != "search":
-        return None
-    if isinstance(payload, dict) and (payload.get("success") is False or payload.get("error")):
-        return None
-    query = next((str(args[key]).strip() for key in ("query", "searchstring") if args.get(key) is not None and str(args[key]).strip()), "")
-    if not query:
-        # Missing selectors remain the provider's validation responsibility.
-        return None
-    if isinstance(payload, dict) and str(payload.get("mode", "")).strip().lower() == "search" and payload.get("query") == query:
-        return None
-    return (
-        "The list-functions provider did not confirm the requested search mode and query. "
-        "Its result may be an unfiltered inventory and has been rejected. "
-        "Update or reconcile the backend's FunctionToolProvider search implementation, then retry this command."
-    )
 
 
 def create_success_response(
@@ -1022,6 +998,8 @@ class ToolProvider:
                     if norm_args.get(target) is None:
                         norm_args[target] = value
 
+        # Freeze the resolved target before a handler can yield or open another program.
+        response_program_info = effective_program_info if norm_args.get("programpath") else None
         try:
             handler_params = inspect.signature(handler).parameters
             accepts_program_info = "program_info" in handler_params or any(
@@ -2407,10 +2385,9 @@ class ToolProviderManager:
             return activated
 
         if project_provider is not None:
-            activated = await self._bootstrap_shared_session_from_env(session_id, requested_program_key)
+            await self._bootstrap_shared_session_from_env(session_id, requested_program_key)
             requested_program_key = SESSION_CONTEXTS.canonicalize_program_path(session_id, requested_program_key)
-            if activated is None:
-                activated = SESSION_CONTEXTS.get_program_info(session_id, requested_program_key)
+            activated = SESSION_CONTEXTS.get_program_info(session_id, requested_program_key)
             if activated is not None:
                 logger.info(
                     "activate_requested_program route=bootstrap session_id=%s program_tail=%s",

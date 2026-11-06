@@ -298,14 +298,6 @@ class EnumToolProvider(ToolProvider):
 
         force_apply = bool(args.get(FORCE_APPLY_CONFLICT_ID_KEY))
         existing = self._find_enum(dtm, name, program_info=program_info) if force_apply else None
-        # No explicit size: preserve the replaced enum's width instead of silently
-        # narrowing/widening it to the 4-byte fallback.
-        if size_arg is not None:
-            size = size_arg
-        elif existing is not None:
-            size = existing.getLength()
-        else:
-            size = 4
 
         def _create_enum() -> None:
             if existing is not None:

@@ -42,23 +42,8 @@ from pathlib import Path
 #: corpus_manifest_hash) emitted before 3b basis hardening.
 BASIS_VERSION = 2
 
-#: Names the cascade revision, the tie-break key it orders by, and the key
-#: its persisted dependency tokens carry. The ``dep:`` component records the
-#: dependency-token key: ``match.evidence`` tokens are
-#: ``<content_sha256[:16]>:<addr>``, a hash prefix and never a rowid
-#: (``match_store.dependency_token``, A3). Moving this value moves every
-#: stamped store's ``basis_hash`` and makes :func:`basis` refuse with
-#: "re-baseline" until ``corpus rebaseline`` records the supersession.
-ALGORITHM_VERSION = "phase0.3+key:content_sha256+dep:content_sha256_16"
-
-#: Every value ``ALGORITHM_VERSION`` held before the current one, oldest
-#: first. A supersession names the old value from here after the constant
-#: has moved on; ``rebaseline.LedgerResolver`` rebuilds the old package
-#: basis by substituting each entry and matching the stored hash.
-ALGORITHM_VERSION_HISTORY: tuple[str, ...] = (
-    "phase0.1",
-    "phase0.2+key:content_sha256",
-)
+#: Names the cascade revision and the tie-break key it orders by.
+ALGORITHM_VERSION = "phase0.2+key:content_sha256"
 
 #: Present but "none" until U4 lands a masking rule set.
 MASKING_RULE_VERSION = "none"
@@ -219,9 +204,17 @@ def corpus_manifest_hash(con) -> str:
     content_sha256 is the identity; md5 stands in when it is missing; the slug
     is the last resort so an image with no recorded hash still counts.
     Blank strings are treated as missing.
+
+    Scope (A4): once ``corpus admit`` has run, only admitted rows are in the
+    manifest -- placeholders, duplicates, contested and unresolved rows are
+    outside the key by design. Before admission (pre-migration store, or
+    migrated but never admitted) every row counts, as before.
     """
+    from .admission import admitted_predicate
+
     rows = con.execute(
         "SELECT COALESCE(NULLIF(TRIM(content_sha256), ''), NULLIF(TRIM(md5), ''), slug) FROM binary"
+        " WHERE 1=1" + admitted_predicate(con, "binary")
     ).fetchall()
     manifest = sorted(str(r[0]) for r in rows)
     return hashlib.sha256("\n".join(manifest).encode("utf-8")).hexdigest()
@@ -239,11 +232,27 @@ def _fmt_groups(groups: dict) -> str:
 
 
 def _identity_rows(con) -> list[dict]:
+    """Analyzer-identity columns of the rows the basis covers, by slug.
+
+    Scope (A4): admitted rows only once ``corpus admit`` has run; every row
+    before that. Placeholders are outside the basis by design. When
+    admission has run and no row is admitted the basis cannot be declared,
+    and that is said in the refusal rather than reported as an empty store.
+    """
+    from .admission import admission_scope, admitted_predicate
+
     cur = con.execute(
-        "SELECT slug, analyzer_version, processor_spec_hash, basis_hash FROM binary ORDER BY slug"
+        "SELECT slug, analyzer_version, processor_spec_hash, basis_hash FROM binary"
+        " WHERE 1=1" + admitted_predicate(con, "binary") + " ORDER BY slug"
     )
     names = [d[0] for d in cur.description]
-    return [dict(zip(names, r)) for r in cur.fetchall()]
+    rows = [dict(zip(names, r)) for r in cur.fetchall()]
+    if not rows and admission_scope(con) == "admitted":
+        raise BasisError(
+            "basis: no admitted builds (corpus admit ran and every analyzed row is unresolved, "
+            "duplicate or contested); resolve the raw images and re-run corpus admit"
+        )
+    return rows
 
 
 def basis(con) -> dict:
@@ -353,53 +362,3 @@ def verify_export(db: Path, export) -> dict:
         return {"identical": True, "diff": ""}
     path = first_diff_path(json.loads(outs[0]), json.loads(outs[1]))
     return {"identical": False, "diff": path or "$ (serialization only)"}
-
-
-# --- re-baseline helpers (U25) ----------------------------------------------
-# Appended for ``corpus rebaseline``. Nothing here calls :func:`basis`: that
-# function refuses on the drift a re-baseline exists to repair.
-
-
-def basis_hash_of(package_basis_obj: dict) -> str:
-    """``sha256`` of a package-basis object under the serialization
-    :func:`basis_hash_for` uses, so ``basis_hash_of(package_basis(v)) ==
-    basis_hash_for(v)`` and a stored ``new_package_basis_json`` re-hashes to
-    its row's ``new_basis_hash``."""
-    payload = json.dumps(package_basis_obj, sort_keys=True, separators=(",", ":"))
-    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
-
-
-def package_basis_with_algorithm(analyzer_version: str | None, algorithm_version: str) -> dict:
-    """The current package basis with ``algorithm_version`` substituted.
-
-    Used to reconstruct the basis a stale hash was computed under: when only
-    ``ALGORITHM_VERSION`` moved, one entry of :data:`ALGORITHM_VERSION_HISTORY`
-    substituted here hashes to the stored value. Raises :class:`BasisError`
-    like :func:`package_basis` when a field is absent.
-    """
-    obj = package_basis(analyzer_version)
-    obj["algorithm_version"] = str(algorithm_version)
-    return obj
-
-
-def algorithm_versions() -> tuple[str, ...]:
-    """Every ``ALGORITHM_VERSION`` value in order, the current one last."""
-    return ALGORITHM_VERSION_HISTORY + (ALGORITHM_VERSION,)
-
-
-def stored_basis_rows(con) -> list[dict]:
-    """Raw per-row basis identity, in the store's canonical row order.
-
-    Reads ``slug``, ``content_sha256``, ``analyzer_version``, ``basis_hash``
-    and ``basis_source`` from every ``binary`` row, ordered by
-    ``content_sha256``, then ``repo_path``, then ``slug`` (never rowid).
-    Unlike :func:`basis` this never refuses: a re-baseline must see the
-    drifted rows to repair them. Callers name a row by its
-    ``content_sha256`` or by ``sha256(slug)``, never by the slug.
-    """
-    cur = con.execute(
-        "SELECT slug, content_sha256, analyzer_version, basis_hash, basis_source FROM binary"
-        " ORDER BY content_sha256, repo_path, slug"
-    )
-    names = [d[0] for d in cur.description]
-    return [dict(zip(names, r)) for r in cur.fetchall()]

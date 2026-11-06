@@ -116,7 +116,7 @@ async def test_function_listing_uses_target_program(monkeypatch):
     target = SimpleNamespace(program=SimpleNamespace(getFunctionManager=lambda: None))
     seen = []
 
-    def collect(program, **_kwargs):
+    def collect(program):
         seen.append(program)
         return [{"name": "program-A", "address": "1000", "size": 4, "isExternal": False,
                  "isThunk": False, "parameterCount": 0, "signature": "void programA()", "callingConvention": "cdecl"}]

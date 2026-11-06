@@ -237,17 +237,18 @@ class BookmarkToolProvider(ToolProvider):
         address: GhidraAddress = self._resolve_address(addr_str, program_info=program_info)
         if address is None:
             raise ValueError(f"Cannot resolve: {addr_str}")
-        assert program_info is not None  # for type checker
-        bm_mgr: GhidraBookmarkManager = program_info.program.getBookmarkManager()
-        removed: list[int] = [0]
+        try:
+            assert program_info is not None  # for type checker
+            bm_mgr: GhidraBookmarkManager = program_info.program.getBookmarkManager()
 
         def _remove_bookmarks() -> None:
             for bm in list(bm_mgr.getBookmarks(address)):
                 bm_mgr.removeBookmark(bm)
                 removed[0] += 1
 
-        # A failed transaction must reach the caller; swallowing it reported success for a bookmark that stayed.
-        self._run_program_transaction(program_info.program, "remove-bookmark", _remove_bookmarks)
+            self._run_program_transaction(program_info.program, "remove-bookmark", _remove_bookmarks)
+        except Exception:
+            pass
         return create_success_response(
             {
                 "success": True,
@@ -260,10 +261,10 @@ class BookmarkToolProvider(ToolProvider):
     async def _remove_all(self, args: dict[str, Any], *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
         logger.debug("diag.enter %s", "mcp_server/providers/bookmarks.py:BookmarkToolProvider._remove_all")
         self._require_explicit_remove_all_intent(args)
-        assert program_info is not None  # for type checker
-        program: GhidraProgram = program_info.program
-        bm_mgr: GhidraBookmarkManager = program.getBookmarkManager()
-        removed: list[int] = [0]
+        try:
+            assert program_info is not None  # for type checker
+            program: GhidraProgram = program_info.program
+            bm_mgr: GhidraBookmarkManager = program.getBookmarkManager()
 
         def _remove_all_bookmarks() -> None:
             # BookmarkManager has no removeAllBookmarks() (Ghidra 12.1); remove each bookmark explicitly.

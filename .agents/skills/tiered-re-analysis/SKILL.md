@@ -19,12 +19,6 @@ for matcher order and acceptance. Use existing 8080 catalog actions for recovery
 | 2 | Read-only queries against existing analyzed Ghidra state |
 | 3 | Missing deep analysis or authorized mutations after ownership checks |
 
-At Tier 1, native snapshot replay can support JVM-free option sweeps and
-engine-regression checks, alongside batch `ghidrecomp` and BSim. Use it only
-for exported savefile snapshots whose manifest engine matches the native SDK.
-It cannot replace import, analysis, or the first Ghidra/Java decompile needed
-to produce the snapshot.
-
 Choose the cheapest sufficient evidence. First resolve program bindings and
 stored analysis; an empty view or a false session flag alone does not justify
 reanalysis. Reuse valid receipts, retain conflicts, and serialize shared writers.

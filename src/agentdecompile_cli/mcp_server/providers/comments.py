@@ -295,10 +295,9 @@ class CommentToolProvider(ToolProvider):
             from agentdecompile_cli.mcp_utils.decompiler_util import get_decompiled_function_from_results
 
             decomp = DecompInterface()
-            try:
-                decomp.openProgram(program)
-                fm = self._get_function_manager(program, program_info=program_info)
-                from ghidra.util.task import ConsoleTaskMonitor  # pyright: ignore[reportMissingModuleSource]
+            decomp.openProgram(program)
+            fm = self._get_function_manager(program, program_info=program_info)
+            from ghidra.util.task import ConsoleTaskMonitor  # pyright: ignore[reportMissingModuleSource]
 
                 monitor = ConsoleTaskMonitor()
                 for func in fm.getFunctions(True):

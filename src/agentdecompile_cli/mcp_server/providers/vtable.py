@@ -98,7 +98,7 @@ class VtableToolProvider(ToolProvider):
             listing=self._get_listing(program_info.program, program_info=program_info),
             memory=self._get_memory(program_info.program, program_info=program_info),
             fm=self._get_function_manager(program_info.program, program_info=program_info),
-            addr_str=addr_str,
+            addr_str=self._get_address_or_symbol(args),
             max_entries=self._get_int(args, "maxentries", default=DEFAULT_MAX_ENTRIES),
             offset=self._get_pagination_params(args, default_limit=DEFAULT_PAGE_LIMIT)[0],
             max_results=self._get_pagination_params(args, default_limit=DEFAULT_PAGE_LIMIT)[1],

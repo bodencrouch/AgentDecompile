@@ -87,13 +87,6 @@ class CallGraphToolProvider(ToolProvider):
             ),
         ]
 
-    async def _handle_gen(self, args: dict[str, Any], *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
-        """gen-callgraph draws a graph; without a mode, _handle would infer callers/callees from direction and drop displayType."""
-        logger.debug("diag.enter %s", "mcp_server/providers/callgraph.py:CallGraphToolProvider._handle_gen")
-        if not self._get_str(args, "mode", "action", "operation"):
-            args = {**args, "mode": "graph"}
-        return await self._handle(args, program_info=program_info)
-
     async def _handle(self, args: dict[str, Any], *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
         logger.debug("diag.enter %s", "mcp_server/providers/callgraph.py:CallGraphToolProvider._handle")
         self._require_program(program_info=program_info)
@@ -268,32 +261,15 @@ class CallGraphToolProvider(ToolProvider):
 
         mode = self._get_str(args, "mode", default="callers")
         mode_n = n(mode)
-        # common_callers: callers shared by func and every other listed function.
-        # agentdecompile-cli sends the others as functionAddresses ("a,b" or a list).
-        others = self._other_functions(args, second)
-        if mode_n in ("commoncallers", "common_callers") and others:
-            common = caller_info
-            resolved: list[str] = []
-            for other in others:
-                other_func = self._resolve_function(other, program=program, program_info=program_info)
-                if other_func is None:
-                    raise ValueError(f"Function not found: {other}")
-                if str(other_func.getEntryPoint()) == str(target_func.getEntryPoint()):
-                    continue
-                resolved.append(other)
-                other_callers = {str(c.getEntryPoint()) for c in other_func.getCallingFunctions(make_task_monitor())}
-                common = [c for c in common if c["address"] in other_callers]
-            extra: dict[str, Any] = {"secondFunction": resolved[0]} if len(resolved) == 1 else {}
-            return create_success_response({"function": func, **extra, "functions": [func, *resolved], "mode": mode, "commonCallers": common, "count": len(common)})
+        # common_callers: intersect callers of func with callers of second function
+        if mode_n in ("commoncallers", "common_callers") and second:
+            second_func = self._resolve_function(second, program=program, program_info=program_info)
+            if second_func:
+                second_callers = {c.getName() for c in second_func.getCallingFunctions(make_task_monitor())}
+                common = [c for c in caller_info if c["name"] in second_callers]
+                return create_success_response({"function": func, "secondFunction": second, "mode": mode, "commonCallers": common, "count": len(common)})
 
         return create_success_response({"function": func, "mode": mode, "callers": caller_info, "count": len(caller_info)})
-
-    def _other_functions(self, args: dict[str, Any], second: str | None) -> list[str]:
-        items = self._get_list(args, "functionaddresses", "functions") or []
-        values: list[str] = [str(item).strip() for item in items if str(item).strip()]
-        if second and second not in values:
-            values.append(second)
-        return values
 
     async def _handle_callees(self, args: dict[str, Any], program: GhidraProgram, target_func: GhidraFunction, func: str, second: str | None, max_nodes: int, *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
         logger.debug("diag.enter %s", "mcp_server/providers/callgraph.py:CallGraphToolProvider._handle_callees")

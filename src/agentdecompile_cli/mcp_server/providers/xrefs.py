@@ -453,7 +453,6 @@ class CrossReferencesToolProvider(ToolProvider):
         logger.debug("diag.enter %s", "mcp_server/providers/xrefs.py:CrossReferencesToolProvider._handle_import")
         refs = []
         st = self._get_symbol_table(program, program_info=program_info)
-        library = self._get_str(args, "libraryname", "library").strip().lower()
         for sym in st.getExternalSymbols():
             if library and library != str(sym.getParentNamespace().getName()).lower():
                 continue

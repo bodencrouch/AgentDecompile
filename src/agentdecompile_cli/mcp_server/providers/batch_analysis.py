@@ -432,6 +432,8 @@ class BatchAnalysisToolProvider(ToolProvider):
     async def _handle_bsim_createdatabase(self, args: dict[str, Any]) -> list[types.TextContent]:
         from agentdecompile_recovery.corpus import bsim_ops as bo
 
+        url = self._get_str(args, "bsimUrl") or ""
+        datadir = self._get_str(args, "datadir")
         name = self._get_str(args, "name") or "bsim"
         url = bo.resolve_bsim_url(
             bsim_url=self._get_str(args, "bsimUrl") or "",

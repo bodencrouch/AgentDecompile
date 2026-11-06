@@ -25,7 +25,7 @@ flowchart TD
 2. **Recover rebuildable C** — The reconstruct pipeline only promotes functions that compile and pass objdiff with zero differences. Everything else stays in advisory folders with honest labels.
 3. **Run your way** — Stdio for desktop MCP clients, HTTP at `/mcp` for scripts and remote use, optional browser UI when you start the server locally.
 
-Verified C requires compile plus objdiff 0; terminal recovery additionally requires a fresh whole-image byte-identical rebuild, with C+assembly-floor and max-C variants separately measured.
+A finished dashboard job is not a match. Verified C requires compile plus objdiff 0; terminal recovery additionally requires a fresh whole-image byte-identical rebuild, with C+assembly-floor and max-C variants separately measured.
 
 Source lives at [github.com/bodencrouch/AgentDecompile](https://github.com/bodencrouch/AgentDecompile). The published container image is still `docker.io/bolabaden/agentdecompile-mcp`. The Pages site is [bodecloud.github.io/AgentDecompile](https://bodecloud.github.io/AgentDecompile/).
 
@@ -116,7 +116,7 @@ The full env-var and HTTP-header catalog lives in [USAGE.md](USAGE.md).
 
 ## Corpus recovery
 
-For more than one build, use the corpus actions advertised on 8080. Register each binary. Mark the STABS/DWARF build as `--donor`. Recover a function once on the easy build, then propagate.
+For more than one build, use the corpus actions advertised on 8080. Register each binary. Mark the STABS/DWARF build as `--donor`. Recover a function once on the easy build, then propagate. Do not re-analyze a Ghidra program that already has analysis. A green dashboard label is not proof.
 
 Implementation CLI reference (current recovery uses the 8080 catalog):
 

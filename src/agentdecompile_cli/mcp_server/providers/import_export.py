@@ -1413,54 +1413,6 @@ class ImportExportToolProvider(ToolProvider):
         by_key[key] = {"name": program_name, "path": key, "type": "Program"}
         SESSION_CONTEXTS.set_project_binaries(session_id, list(by_key.values()))
 
-    def _program_info_for_shared_import_result(
-        self,
-        result: dict[str, Any],
-        shared_identity: tuple[str, int, str] | None,
-    ) -> SimpleNamespace | None:
-        """Bind a versioned/shared _handle_shared_import success to the program it just created.
-
-        Mirrors the later non-versioned import loop's `program_info = _pi` reassignment, which
-        rebinds the response to the last-imported program instead of whatever program_info the
-        manager dispatched with. Without this, a successful
-        enableVersionControl=True import would call create_success_response with the manager's
-        original (often None) program_info, and the restored call-scoped injection contract
-        (tool_providers.py ToolProvider.call_tool) would then attach no projectContext at all.
-
-        Shared/versioned imports never have a local GhidraProject-backed DomainFile object to
-        hand to attach_project_context_to_payload — the PyGhidra branch releases its program
-        handle before returning, and the analyzeHeadless fallback runs import in a separate JVM
-        subprocess. So this builds the minimal duck-typed object collect_target_project_context
-        (program_metadata.py) needs: a `.domain_file` with getPathname/getSharedProjectURL/
-        getProjectLocator, using the repository identity captured by _handle_shared_import for
-        this operation. The resulting projectContext takes the shared-mode shape (mode,
-        serverHost, serverPort, repository, programUrl) — it does not set `projectPath`, which
-        collect_target_project_context only sets for the local-gpr branch.
-        """
-        if not result.get("success"):
-            return None
-        imported = result.get("importedPrograms") or []
-        if not imported:
-            return None
-        # Last entry wins, matching the default path's loop-reassignment behavior.
-        last = imported[-1] or {}
-        program_name = str(last.get("programName") or "").strip()
-        if not program_name:
-            return None
-        if shared_identity is None:
-            return None
-        server_host, server_port, repository_name = shared_identity
-        if not server_host or not repository_name:
-            return None
-        program_path = f"/{program_name}"
-        shared_url = f"ghidra://{server_host}:{server_port}/{repository_name}/{program_name}"
-        domain_file = SimpleNamespace(
-            getPathname=lambda: program_path,
-            getSharedProjectURL=lambda _ref=None, _url=shared_url: _url,
-            getProjectLocator=lambda: None,
-        )
-        return SimpleNamespace(domain_file=domain_file, name=program_name)
-
     async def _handle_import(self, args: dict[str, Any], *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
         logger.debug("diag.enter %s", "mcp_server/providers/import_export.py:ImportExportToolProvider._handle_import")
         file_path: str = self._get_str(args, "path", "filepath", "file", "binarypath", "binary", default="")
@@ -1509,13 +1461,9 @@ class ImportExportToolProvider(ToolProvider):
             original_source = source
             source = Path(protection['analysisPath'])
             result = await _native_call(self._handle_shared_import, source, recursive, analyze_after_import, program_file_name=repo_program_name or original_source.name, program_info=program_info)
-            shared_identity = result.pop("_sharedImportIdentity", None)
             result['protection'] = protection
             result['originalSourcePath'] = str(original_source)
-            return create_success_response(
-                result,
-                program_info=self._program_info_for_shared_import_result(result, shared_identity) or program_info,
-            )
+            return create_success_response(result, program_info=program_info)
 
         if enable_version_control:
             # Shared folder imports must not bypass the per-image protection gate.
@@ -1533,7 +1481,13 @@ class ImportExportToolProvider(ToolProvider):
             )
             shared_result.pop("_sharedImportIdentity", None)
             return create_success_response(
-                shared_result,
+                self._handle_shared_import(
+                    source,
+                    recursive,
+                    analyze_after_import,
+                    program_file_name=repo_program_name,
+                    program_info=program_info,
+                ),
                 program_info=program_info,
             )
 
@@ -1684,8 +1638,6 @@ class ImportExportToolProvider(ToolProvider):
                                 program.name = name
                         except Exception:
                             pass
-                        # Saved into the file metadata by saveAs / the save below.
-                        await _native_call(record_source_sha256, program, source_digest)
                         needs_save_as = protection.get("handling") != "container-extract"
                         if not needs_save_as:
                             def _domain_file_missing() -> bool:
@@ -1712,7 +1664,6 @@ class ImportExportToolProvider(ToolProvider):
                         "analysisPath": str(analysis_item),
                         "reused": bool(reused),
                         "sha256": digest,
-                        "sourceSha256": source_digest,
                         "protection": protection,
                         "programName": final_name,
                         "programPath": path_in_project,
@@ -2331,9 +2282,10 @@ class ImportExportToolProvider(ToolProvider):
             # program. Drain any open transaction first, same as the version-control
             # save/checkin paths already do.
             await _native_call(self._end_all_open_transactions_on_program, program)
-            # ``FlatProgramAPI.analyzeAll`` opens no transaction of its own;
-            # ``program_analysis._run_auto_analysis`` owns it (see the comment
-            # there).  Do not add a second one around this call.
+            # ``FlatProgramAPI.analyzeAll`` owns Ghidra's analysis transaction.
+            # Wrapping it in another transaction makes the analyzed flag
+            # invisible to ``blocking_ensure_analyzed`` until after this method
+            # returns; the ensuing timeout rolls the outer transaction back.
             analysis_result = await _native_call(_run_auto_analysis)
             project = getattr(self._manager, "ghidra_project", None) if self._manager else None
             if project is not None:
@@ -2345,7 +2297,6 @@ class ImportExportToolProvider(ToolProvider):
                     "programName": program.getName() if program is not None else "(none)",
                     "analyzers": analyzers or "all",
                     "deferredAnalyzers": (analysis_result or {}).get("deferredAnalyzers", []),
-                    "analysisScope": (analysis_result or {}).get("analysisScope", "all"),
                     "force": force,
                     "success": True,
                 },
@@ -5650,7 +5601,6 @@ class ImportExportToolProvider(ToolProvider):
             )
 
     async def _handle_list_processors(self, args: dict[str, Any], *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
-        """List non-deprecated Ghidra languages from the language service, filtered case-insensitively."""
         logger.debug("diag.enter %s", "mcp_server/providers/import_export.py:ImportExportToolProvider._handle_list_processors")
         filter_str = self._get_str(args, "filter", "query", "search")
         needle = filter_str.strip().lower()

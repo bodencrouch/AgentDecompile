@@ -56,7 +56,7 @@ from typing import Any, Callable, Mapping, Sequence
 from .. import __version__
 from ..core import AlreadyOwned, Frontier, GridError, LogStore, NodeIdentity, NotConfigured, ObjectStore, Registry, Transport
 from .canaries import CanaryReport, run_canaries
-from .identity import ROLE_MAY_VERIFY, Invite, NodeKey, NodeKeyStore, NodeSigner, bind_identity, parse_invite_url, verify_invite
+from .identity import ROLE_MAY_VERIFY, Invite, NodeKey, NodeKeyStore, NodeSigner, bind_identity, parse_invite_url
 from .loop import FLEET_BUDGETS_ALLOWED, IdlePolicy, StepEvent, StepMachine, Upstream, WorkLoop, WorkerConfig
 from .outbox import Outbox
 from .sandbox import SubprocessSandbox
@@ -476,7 +476,7 @@ class LocalAgent:
                     return event
             if self.state == "leaving":
                 self._finish_leave_if_done()
-            return StepEvent("idle", {"reason": "loops-idle"}, next_due_s=min((loop.next_due(self.clock()) for loop in (self.verifier_loop, self.work_loop) if loop is not None), default=0.25))
+            return StepEvent("idle", {"reason": "loops-idle"}, next_due_s=min((l.next_due(self.clock()) for l in (self.verifier_loop, self.work_loop) if l is not None), default=0.25))
 
     def _guarded_tick(self) -> StepEvent:
         """A step that raises is a fault, counted and named in health; after ``max_consecutive_faults``
@@ -595,15 +595,15 @@ class LocalAgent:
             return {**self.status(), "rejoined": True}
 
     def _finish_leave_if_done(self) -> None:
-        loops = [loop for loop in (self.work_loop, self.verifier_loop) if loop is not None]
-        busy = any(loop.slots for loop in loops)
-        pending = any(loop.outbox.depth() for loop in loops)
+        loops = [l for l in (self.work_loop, self.verifier_loop) if l is not None]
+        busy = any(l.slots for l in loops)
+        pending = any(l.outbox.depth() for l in loops)
         expired = self._leave_started is not None and self.clock() - self._leave_started >= self.leave_deadline_s
         if pending and not expired:
             for loop in loops:
                 if loop.outbox.depth():
                     loop.outbox.flush(loop.objects, loop.upstream.objects, loop.upstream.writer, deadline_s=min(5.0, self.leave_deadline_s), key_id=loop.identity.key_id, limiter=loop.limiter)
-            pending = any(loop.outbox.depth() for loop in loops)
+            pending = any(l.outbox.depth() for l in loops)
         if (not busy and not pending) or expired:
             self.close()
 
@@ -637,7 +637,6 @@ class JoinPlan:
     clock: Callable[[], float]
     wall: Callable[[], float]
     rng: random.Random
-    keyring: Any
     store_locator: Mapping[str, Any] = field(default_factory=dict)
     local_objects: ObjectStore | None = None
     lineage_lookup: Callable[[str], Sequence[str] | None] | None = None     # key id -> attested lineage; the fabric's enrolment records (cross-slice)
@@ -657,48 +656,11 @@ class LeaveResult:
     status: Mapping[str, Any]
 
 
-def record_writer(log: LogStore, heads: Any, signer: NodeSigner, *, clock: Callable[[], float] = time.monotonic, rng: random.Random | None = None,
-                  backoff: Any = None, fallback: bool = False) -> Any:
-    """The one chain writer a node flushes through: ``log.outbox.Appender`` (validate, chain, sign,
-    append, publish the head).  ``fallback=True`` selects ``transport.local.ChainAppender`` (CAS
-    first, no body validation) for a process that must not use the log package's appender."""
-    if fallback:
-        from ..transport.local import ChainAppender
-
-        return ChainAppender(log, heads, signer, clock=clock, rng=rng)
-    from ..log.outbox import Appender
-
-    seed = (rng or random.Random()).randrange(1 << 30)
-    return Appender(log, heads, signer, seed=seed, **({"backoff": backoff} if backoff is not None else {}))
-
-
-def open_node_identity(state_dir: str | os.PathLike[str], *, role: str, objects: ObjectStore, scratch: str | os.PathLike[str] | None = None,
-                       claimed: Sequence[str] = (), key_algorithm: str = "ed25519", now: float | None = None, canaries: Mapping[str, Any] | None = None,
-                       canary_only: Sequence[str] | None = None, reprove: bool = False) -> tuple[NodeKey, NodeIdentity, CanaryReport | None]:
-    """A node's key and identity without a join: the identity ``join`` saved under ``state_dir`` when
-    there is one, else a *self-rooted* identity (empty lineage: this key is its own root, which is
-    what a laptop grid of one has) whose capabilities are what the canaries prove plus ``claimed``.
-    Two self-rooted keys have disjoint lineage sets and are therefore independent verifiers of each
-    other's proposals (design §2.5) — the honest statement for one host with two keys."""
-    now = time.time() if now is None else now
-    keystore = NodeKeyStore(state_dir)
-    key = keystore.load_or_create(algorithm=key_algorithm, now=now)
-    saved = keystore.load_identity()
-    if saved is not None and not reprove and saved[0].key_id == key.key_id:
-        return key, saved[0], None
-    scratch_dir = Path(scratch) if scratch is not None else Path(state_dir) / "canaries"
-    report = run_canaries(objects, str(scratch_dir), canaries=canaries, only=canary_only)
-    identity = NodeIdentity(key_id=key.key_id, capabilities=tuple(sorted(set(report.proven) | set(claimed))), invite_lineage=(), role=role)
-    if key.expired(now):
-        key = keystore.renew(key, now=now, canaries_passed=True)
-    keystore.save_identity(identity, {"self_rooted": True, "bound_at": now, "key_expires_at": key.expires_at, "canaries": report.to_record(), "claimed": list(claimed)})
-    return key, identity, report
-
-
 def build_loops(plan: JoinPlan) -> tuple[StepMachine | None, StepMachine | None]:
     """Default wiring: local objects (the transport's when local, a local cache otherwise),
-    ``log.outbox.Appender`` as the record writer (``record_writer``), one outbox, one subprocess
-    sandbox, and the verifier when the role may verify."""
+    ``ChainAppender`` as the record writer, one outbox, one subprocess sandbox, and the verifier
+    when the role may verify."""
+    from ..transport.local import ChainAppender
     from ..verify.loop import VerifierConfig, VerifierLoop
     from ..verify.policy import PenaltyLedger, RevocationList
     from .records import LogTaskIndex
@@ -709,7 +671,7 @@ def build_loops(plan: JoinPlan) -> tuple[StepMachine | None, StepMachine | None]
     heads = transport.heads()
     local_objects = plan.local_objects or objects
     signer = NodeSigner(plan.key)
-    upstream = Upstream(objects, record_writer(log, heads, signer, clock=plan.clock, rng=plan.rng))
+    upstream = Upstream(objects, ChainAppender(log, heads, signer, clock=plan.clock, rng=plan.rng))
     outbox = Outbox(plan.state_dir / "outbox", clock=plan.clock, rng=plan.rng)
     sandbox = SubprocessSandbox(plan.state_dir / "work", clock=plan.clock)
     locator = dict(plan.store_locator) or (dict(transport.locator()) if hasattr(transport, "locator") else {})
@@ -721,14 +683,13 @@ def build_loops(plan: JoinPlan) -> tuple[StepMachine | None, StepMachine | None]
         return plan.derive(log, objects, plan.wall())
 
     work = WorkLoop(identity=plan.identity, sandbox=sandbox, outbox=outbox, objects=local_objects, upstream=upstream, frontier=frontier, store_locator=locator,
-                    config=plan.config, log=log, idle_policy=plan.idle_policy, clock=plan.clock, wall=plan.wall, rng=plan.rng,
-                    lineage_lookup=plan.lineage_lookup, keyring=plan.keyring)
+                    config=plan.config, log=log, idle_policy=plan.idle_policy, clock=plan.clock, wall=plan.wall, rng=plan.rng, lineage_lookup=plan.lineage_lookup)
     verifier: StepMachine | None = None
     if plan.run_verifier and plan.identity.role in ROLE_MAY_VERIFY:
         vconfig = plan.verifier_config or VerifierConfig(worker=WorkerConfig(cores=1, lanes=plan.config.lanes, deadlines_s=plan.config.deadlines_s, import_modules=plan.config.import_modules, budgets_allowed=plan.config.budgets_allowed))
-        verifier = VerifierLoop(identity=plan.identity, task_lookup=LogTaskIndex(log, keyring=plan.keyring), log=log, config=vconfig, penalties=PenaltyLedger.load(objects), revocations=RevocationList.load(objects),
+        verifier = VerifierLoop(identity=plan.identity, task_lookup=LogTaskIndex(log), log=log, config=vconfig, penalties=PenaltyLedger.load(objects), revocations=RevocationList.load(objects),
                                 sandbox=sandbox, outbox=outbox, objects=local_objects, upstream=upstream, frontier=frontier, store_locator=locator, clock=plan.clock, wall=plan.wall, rng=plan.rng,
-                                lineage_lookup=plan.lineage_lookup, keyring=plan.keyring)
+                                lineage_lookup=plan.lineage_lookup)
     return work, verifier
 
 
@@ -738,7 +699,7 @@ def join(invite_url: str | None = None, *, state_dir: str | os.PathLike[str], en
          canary_only: Sequence[str] | None = None, env: Mapping[str, str] | None = None, probe_deadline_s: float = DEFAULT_PROBE_DEADLINE_S, rejoin_on_attach: bool = False,
          clock: Callable[[], float] = time.monotonic, wall: Callable[[], float] = time.time, rng: random.Random | None = None,
          build: Callable[[JoinPlan], tuple[StepMachine | None, StepMachine | None]] = build_loops, local_objects: ObjectStore | None = None,
-         lineage_lookup: Callable[[str], Sequence[str] | None] | None = None, keyring: Any = None) -> JoinResult:
+         lineage_lookup: Callable[[str], Sequence[str] | None] | None = None) -> JoinResult:
     """Attach-first join.  Returns ``attached`` (status of the running agent) or ``bootstrapped``
     (a bound, running ``LocalAgent`` the caller drives with ``run()``/``start()``)."""
     env = os.environ if env is None else env
@@ -747,11 +708,6 @@ def join(invite_url: str | None = None, *, state_dir: str | os.PathLike[str], en
     if not invite_url:
         raise GridError("no invite: pass the invite url or set ADGRID_INVITE (never put it in argv on shared hosts)")
     invite = parse_invite_url(invite_url, now=wall())
-    if keyring is None:
-        from ..log.signing import Keyring as SigningKeyring
-
-        keyring = SigningKeyring()
-    verify_invite(invite, keyring)
     endpoint = endpoint or Endpoint.default(env)
     endpoint.validate()
     state_path = Path(state_dir)
@@ -799,6 +755,9 @@ def join(invite_url: str | None = None, *, state_dir: str | os.PathLike[str], en
     try:
         keystore = NodeKeyStore(state_path)
         key = keystore.load_or_create(algorithm=key_algorithm, now=now)
+        signer = NodeSigner(key)
+        if invite.issuer_algorithm and invite.issuer_public:
+            invite = parse_invite_url(invite_url, now=now, verifier=signer)
         provisional = NodeIdentity(key.key_id, (), invite.joiner_lineage, invite.role)
         worker_config = config or WorkerConfig(cores=cores or max(1, (os.cpu_count() or 2) // 2), lanes=tuple(lanes), budgets_allowed=FLEET_BUDGETS_ALLOWED if invite.role in ROLE_MAY_VERIFY else WorkerConfig.budgets_allowed)
         agent = LocalAgent(endpoint, identity=provisional, clock=clock, wall=wall, lanes=lanes, cores=worker_config.cores, idle_only=idle_only)
@@ -823,23 +782,13 @@ def join(invite_url: str | None = None, *, state_dir: str | os.PathLike[str], en
         agent.rejoin_hook = reprove
         plan = JoinPlan(invite=invite, endpoint=endpoint, state_dir=state_path, transport=transport, derive=derive, lanes=tuple(lanes), cores=worker_config.cores, idle_only=idle_only,
                         idle_policy=policy, config=worker_config, verifier_config=verifier_config, key=key, identity=identity, canary_report=report,
-                        run_verifier=(invite.role in ROLE_MAY_VERIFY) if run_verifier is None else run_verifier, clock=clock, wall=wall, rng=rng,
-                        keyring=keyring, local_objects=local_objects, lineage_lookup=lineage_lookup)
+                        run_verifier=(invite.role in ROLE_MAY_VERIFY) if run_verifier is None else run_verifier, clock=clock, wall=wall, rng=rng, local_objects=local_objects, lineage_lookup=lineage_lookup)
         work, verifier = build(plan)
         agent.attach_loops(work, verifier, canary_report=report)
     except BaseException:
         agent.close()
         raise
     return JoinResult("bootstrapped", agent.status(), agent=agent, plan=plan)
-
-
-def status(endpoint: Endpoint | None = None, *, deadline_s: float = DEFAULT_PROBE_DEADLINE_S, env: Mapping[str, str] | None = None) -> dict[str, Any]:
-    """The running agent's status, or the probe result when none answers (never an exception for absence)."""
-    endpoint = endpoint or Endpoint.default(env)
-    probed = probe(endpoint, deadline_s=deadline_s)
-    if probed.state not in ("alive", "faulted"):
-        return {"mode": "no-agent", "endpoint": str(endpoint), "probe": probed.state, "error": probed.error}
-    return {"mode": "agent", **AgentClient(endpoint, timeout_s=max(deadline_s, 5.0)).status()}
 
 
 def leave(endpoint: Endpoint | None = None, *, reason: str = "leave", deadline_s: float = 5.0, env: Mapping[str, str] | None = None) -> LeaveResult:
@@ -853,5 +802,5 @@ def leave(endpoint: Endpoint | None = None, *, reason: str = "leave", deadline_s
 __all__ = [
     "AgentClient", "AgentUnreachable", "AttachRefused", "BatteryPolicy", "DEFAULT_LEAVE_DEADLINE_S", "DEFAULT_PROBE_DEADLINE_S", "Endpoint", "FileLock", "HTTP_PREFIX", "IDLE_POLICIES",
     "JoinPlan", "JoinResult", "LeaveResult", "LoadAveragePolicy", "LocalAgent", "ProbeResult", "SUN_PATH_LIMIT", "UserActivityPolicy", "build_loops", "idle_policy_for",
-    "join", "leave", "open_node_identity", "probe", "record_writer", "status",
+    "join", "leave", "probe",
 ]

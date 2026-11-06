@@ -42,15 +42,14 @@ from __future__ import annotations
 import json
 import secrets
 from dataclasses import dataclass, field, replace
-from typing import Any, Callable, Mapping, Sequence
+from typing import Any, Callable, Mapping
 
 from ..core import TASK_KINDS, VERIFIERS, Frontier, LogStore, NodeIdentity, RecordType, Refused, TaskSpec, VerificationOutcome, canonical_json
 from ..worker.identity import ROLE_MAY_VERIFY
 from ..worker.loop import Candidate, Slot, StepEvent, StepMachine, WorkerConfig
 from ..worker.outbox import PendingRecord
-from ..worker.records import Proposal, read_results, read_verdicts, task_result_from_record, verification_body, verification_from_record
+from ..worker.records import Proposal, read_results, task_result_from_record, verification_body, verification_from_record
 from ..worker.sandbox import DEFAULT_LIMITS, JobOutcome, SandboxJob, deadline_for
-from ..tasks.results import verification_name, verification_to_record
 from .policy import DEFAULT_INDEPENDENCE_POLICY, PenaltyLedger, RevocationList, check_independence
 
 DEFAULT_PROPOSAL_CAP = 4              # design §2.6 / Q8
@@ -66,18 +65,6 @@ class VerifierConfig:
     default_method: str = ""                                            # "" = kind.verify(); else a VERIFIERS name for kinds without one
     worker: WorkerConfig = field(default_factory=lambda: WorkerConfig(cores=1))
     max_tasks_per_pull: int = 256
-
-    @classmethod
-    def from_grid_config(cls, cfg: Any, *, lanes: Sequence[str] | None = None, import_modules: Sequence[str] = (),
-                         admitted_bases: Sequence[str] | None = None) -> "VerifierConfig":
-        """``verifier.*`` plus the worker knobs the step machine shares (``WorkerConfig.from_grid_config``, one core)."""
-        v = cfg.verifier
-        return cls(
-            proposal_cap=int(v.proposal_cap), independence_policy=str(cfg.worker.independence_policy),
-            methods_by_kind=dict(v.methods_by_kind), default_method=str(v.default_method),
-            worker=WorkerConfig.from_grid_config(cfg, lanes=lanes, import_modules=import_modules, cores=1, admitted_bases=admitted_bases),
-            max_tasks_per_pull=int(v.max_tasks_per_pull),
-        )
 
 
 class VerifierLoop(StepMachine):
@@ -105,17 +92,12 @@ class VerifierLoop(StepMachine):
         def partition_view(partition: str) -> tuple[dict[str, list[Proposal]], dict[str, set[str]]]:
             if partition not in partition_cache:            # one pass over the partition per pull, however many tasks await
                 by_task: dict[str, list[Proposal]] = {}
-                for proposal in read_results(
-                    self.log, partition, trust_unsigned=self.config.trust_unsigned_records,
-                    lineage_lookup=self.lineage_lookup, keyring=self.keyring,
-                ):
+                for proposal in read_results(self.log, partition, trust_unsigned=self.config.trust_unsigned_records, lineage_lookup=self.lineage_lookup):
                     by_task.setdefault(proposal.task_id, []).append(proposal)
                 decided_by_task: dict[str, set[str]] = {}
-                for body in read_verdicts(
-                    self.log, partition, task_id=None, keyring=self.keyring,
-                    trust_unsigned=self.config.trust_unsigned_records,
-                ):
-                    decided_by_task.setdefault(str(body.get("task_id")), set()).add(str(body.get("result_ref")))
+                for rec in self.log.read(partition, 0):
+                    if rec.type in (RecordType.VERIFIED, RecordType.REFUTED):
+                        decided_by_task.setdefault(str(rec.body.get("task_id")), set()).add(str(rec.body.get("result_ref")))
                 partition_cache[partition] = (by_task, decided_by_task)
             return partition_cache[partition]
 
@@ -237,13 +219,7 @@ class VerifierLoop(StepMachine):
             evidence_ref = self.objects.put(canonical_json(dict(verification.evidence)))
             objects.append(evidence_ref)
         body = verification_body(verification, proposal.producer_key, self.identity, nonce=slot.intent_nonce, evidence_ref=evidence_ref)
-        # the verdict is also an object with a named pointer (tasks.results.verification_name), so
-        # "done" stays an existence check on the object store (design 1.1) and publish's cache-hit
-        # branch (tasks.results.is_done) sees it; the log record stays the authority for the frontier
-        verdict_ref = self.objects.put(canonical_json(verification_to_record(verification)))
-        objects.append(verdict_ref)
-        self.outbox.enqueue(objects=objects, named=[(verification_name(spec.task_id, self.identity.key_id), str(verdict_ref))],
-                            record=PendingRecord(spec.partition_key, record_type, body, spec.basis_hash))
+        self.outbox.enqueue(objects=objects, record=PendingRecord(spec.partition_key, record_type, body, spec.basis_hash))
         self._verdicts_local.add((spec.task_id, str(proposal.result_ref)))
         if record_type == RecordType.REFUTED:
             self.penalties.penalize(proposal.producer_key, reason=f"refuted:{spec.kind}:{method}", now=self.wall())

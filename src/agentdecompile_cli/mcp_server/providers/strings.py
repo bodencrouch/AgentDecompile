@@ -185,18 +185,11 @@ class StringToolProvider(ToolProvider):
         mode_norm: str = mode.strip().lower()
         case_sensitive = self._get_bool(args, "casesensitive", "cases", default=False)
 
-        # The code index (GhidraTools.search_code) has no regex or case-sensitive
-        # matching, so those requests go straight to the decompiling fallback.
-        if ghidra_tools is not None and mode_norm != "regex" and not case_sensitive:
+        if ghidra_tools is not None:
             try:
                 from agentdecompile_cli.models import SearchMode
 
                 search_mode = SearchMode.LITERAL if mode_norm == "literal" else SearchMode.SEMANTIC
-                threshold_raw = self._get_str(args, "similaritythreshold", "simthreshold", "threshold", default="")
-                try:
-                    similarity_threshold = float(threshold_raw) if threshold_raw != "" else 0.0
-                except ValueError:
-                    similarity_threshold = 0.0
                 results = ghidra_tools.search_code(
                     query=query,
                     limit=limit,
@@ -213,47 +206,8 @@ class StringToolProvider(ToolProvider):
                 logger.warning("search-code semantic/literal backend unavailable, using fallback search: %s", e)
 
         assert program_info is not None, "Program info is required for search-code"
-        return create_success_response(self._search_code_fallback(args, query, mode, offset, limit, program_info=program_info))
-
-    def _search_code_fallback(
-        self,
-        args: dict[str, Any],
-        query: str,
-        mode: str,
-        offset: int,
-        limit: int,
-        *,
-        program_info: ProgramInfo | SimpleNamespace,
-    ) -> dict[str, Any]:
-        """Search function names and decompiled C when the code index is unavailable.
-
-        Scans at most ``_SEARCH_CODE_MAX_FUNCTIONS`` functions (lifted by
-        overrideMaxFunctionsLimit) with a per-function decompile timeout, the
-        same lease pattern search-everything uses for its decompilation scope.
-        """
-        logger.debug("diag.enter %s", "mcp_server/providers/strings.py:StringToolProvider._search_code_fallback")
         program = program_info.program
         fm = self._get_function_manager(program, program_info=program_info)
-        case_sensitive = self._get_bool(args, "casesensitive", "cases", default=False)
-        include_full_code = self._get_bool(args, "includefullcode", "fullcode", default=False)
-        preview_length = self._get_int(args, "previewlength", "previewlen", "snippetlength", default=200) or 200
-        no_limit = self._get_bool(args, "overridemaxfunctionslimit", "nolimit", default=False)
-        max_functions = None if no_limit else _SEARCH_CODE_MAX_FUNCTIONS
-        mode_norm = mode.strip().lower()
-        flags = 0 if case_sensitive else re.IGNORECASE
-        if mode_norm == "regex":
-            try:
-                pattern = re.compile(query, flags)
-            except re.error as exc:
-                raise ValueError(f"Invalid regex for search-code: {exc}") from exc
-        else:
-            pattern = re.compile(re.escape(query), flags)
-
-        def _snippet(text: str, m: re.Match[str]) -> str:
-            half = max(preview_length // 2, 20)
-            start = max(m.start() - half, 0)
-            end = min(m.end() + half, len(text))
-            return ("..." if start else "") + text[start:end] + ("..." if end < len(text) else "")
 
         matches: list[dict[str, Any]] = []
         skipped = 0
@@ -330,33 +284,10 @@ class StringToolProvider(ToolProvider):
         else:
             _scan(None)
 
-        payload: dict[str, Any] = {
-            "query": query,
-            "searchMode": "regex-fallback" if mode_norm == "regex" else "literal-fallback",
-            "caseSensitive": case_sensitive,
-            "returnedCount": len(matches),
-            "offset": offset,
-            "limit": limit,
-            "scannedFunctions": scanned,
-            "maxFunctions": max_functions,
-            "scanCapped": scan_capped,
-            "decompileFailures": decompile_failures,
-            "results": matches,
-        }
-        if decompile_unavailable is not None:
-            payload["note"] = f"Decompiler unavailable; matched function names only ({decompile_unavailable})."
-        elif scan_capped:
-            payload["note"] = f"Stopped after {scanned} functions; pass overrideMaxFunctionsLimit=true to scan all."
-        return payload
-
     async def _handle(self, args: dict[str, Any], *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
         logger.debug("diag.enter %s", "mcp_server/providers/strings.py:StringToolProvider._handle")
         self._require_program(program_info=program_info)
-        # search-strings reaches here as manage-strings with no mode; a search text
-        # without a mode means search, not "list everything".
-        mode = self._get_str(args, "mode", default="")
-        if not mode:
-            mode = "search" if self._get_str(args, "pattern", "query", "search", "text", "regex", "searchstring", "filter") else "list"
+        mode = self._get_str(args, "mode", default="list")
         if n(mode) in _STRING_MUTATING_MODES:
             return await self._dispatch_handler(
                 args,
@@ -420,15 +351,8 @@ class StringToolProvider(ToolProvider):
 
         return strings
 
-    def _attach_references_to_string_results(
-        self,
-        strings: list[dict[str, Any]],
-        ref_limit: int = 25,
-        *,
-        include_referencing_functions: bool = False,
-        program_info: ProgramInfo | SimpleNamespace | None,
-    ) -> None:
-        """Collect references and optional function names in one bounded pass."""
+    def _attach_references_to_string_results(self, strings: list[dict[str, Any]], ref_limit: int = 25, *, program_info: ProgramInfo | SimpleNamespace | None) -> None:
+        """Attach referencesTo (get-references style) to each string result."""
         logger.debug("diag.enter %s", "mcp_server/providers/strings.py:StringToolProvider._attach_references_to_string_results")
         if not strings or not program_info:
             return
@@ -497,8 +421,7 @@ class StringToolProvider(ToolProvider):
         *, program_info: ProgramInfo | SimpleNamespace | None,
     ) -> list[types.TextContent]:
         logger.debug("diag.enter %s", "mcp_server/providers/strings.py:StringToolProvider._handle_list")
-        # A pattern given with mode=list narrows the listing (case-insensitive substring).
-        return self._filter_strings(strings, "list", pattern, min_len, max_results, offset, include_refs, program_info=program_info)
+        return self._filter_strings(strings, "list", "", min_len, max_results, offset, include_refs, program_info=program_info)
 
     async def _handle_regex(
         self,
@@ -611,7 +534,7 @@ class StringToolProvider(ToolProvider):
                     strings = [s for s in strings if pat.search(s.get("value", ""))]
                     total = len(strings)
                     strings, has_more = self._paginate_results(strings, offset, max_results)
-                    self._attach_references_to_string_results(strings, include_referencing_functions=include_refs, program_info=program_info)
+                    self._attach_references_to_string_results(strings, program_info=program_info)
                     return self._create_paginated_response(strings, offset, max_results, total=total, mode=mode, query=pattern)
                 except re.error:
                     pass
@@ -632,7 +555,7 @@ class StringToolProvider(ToolProvider):
             total = len(scored)
             strings = [s for _, s in scored]
             strings, has_more = self._paginate_results(strings, offset, max_results)
-            self._attach_references_to_string_results(strings, include_referencing_functions=include_refs, program_info=program_info)
+            self._attach_references_to_string_results(strings, program_info=program_info)
             return self._create_paginated_response(strings, offset, max_results, total=total, mode=mode, query=pattern)
 
         if mode_n == "regex" and pattern:
@@ -650,7 +573,30 @@ class StringToolProvider(ToolProvider):
 
         strings, has_more = self._paginate_results(strings, offset, max_results)
 
-        self._attach_references_to_string_results(strings, include_referencing_functions=include_refs, program_info=program_info)
+        if include_refs and program_info:
+            try:
+                program: Any = program_info.program
+                ref_mgr: Any = program.getReferenceManager()
+                fm = self._get_function_manager(program, program_info=program_info)
+                for s in strings:
+                    try:
+                        addr: Any = self._resolve_address(s["address"], program=program, program_info=program_info)
+                        funcs = set()
+                        ref_count = 0
+                        for ref in ref_mgr.getReferencesTo(addr):
+                            if ref_count >= 20:
+                                break
+                            ref_count += 1
+                            f = fm.getFunctionContaining(ref.getFromAddress())
+                            if f:
+                                funcs.add(f.getName())
+                        s["referencingFunctions"] = sorted(funcs)
+                    except Exception:
+                        pass
+            except Exception:
+                pass
+
+        self._attach_references_to_string_results(strings, program_info=program_info)
         extra: dict[str, Any] = {}
         if pattern:
             extra["query"] = pattern

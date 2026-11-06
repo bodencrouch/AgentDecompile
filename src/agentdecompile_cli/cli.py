@@ -2802,12 +2802,6 @@ class ForgivingCliGroup(click.Group):
         if unique_matches:
             return next(iter(unique_matches.values()))
 
-        # Common shorthand retains the canonical command options and behavior.
-        if normalized_name == normalize_identifier("decompile"):
-            shorthand = super().get_command(ctx, "decompile-function")
-            if shorthand is not None:
-                return shorthand
-
         canonical_name = tool_registry.resolve_tool_name(cmd_name)
         if canonical_name is None:
             return None
@@ -3828,8 +3822,7 @@ def list_functions_grp() -> None:
 @click.option("--offset", type=int)
 @click.option(
     "--filter-default-names/--no-filter-default-names",
-    default=None,
-    help="Hide auto-generated FUN_ names (default: shown)",
+    default=True,
 )
 @click.option("--filter-by-tag")
 @click.option("--untagged", is_flag=True)
@@ -3885,7 +3878,7 @@ _derive_convenience_commands(
     list_functions_run,
     "mode",
     omitted_options=frozenset(
-        {"search_string", "start_index"},
+        {"search_string", "min_reference_count", "identifiers", "start_index", "filter_by_tag", "untagged", "has_tags"},
     ),
 )
 
@@ -4413,13 +4406,7 @@ def datatypes_grp() -> None:
 
 @datatypes_grp.command("run", help="Run manage-data-types with --action")
 @click.option("-b", "--binary", "program_path")
-@click.option(
-    "--action",
-    type=click.Choice(["archives", "list", "by_string", "apply"]),
-    # Backend default: action="list" (mcp_server/providers/datatypes.py:103).
-    default=None,
-    help="Omit to use the server default.",
-)
+@click.option("--action", type=click.Choice(["archives", "list", "by_string", "apply"]), required=True)
 @click.option("--archive-name")
 @click.option("--category-path", default="/")
 @click.option("--include-subcategories", is_flag=True)
@@ -4607,13 +4594,7 @@ def comments_grp() -> None:
 
 @comments_grp.command("run", help="Run manage-comments with --action")
 @click.option("-b", "--binary", "program_path")
-@click.option(
-    "--action",
-    type=click.Choice(["set", "get", "remove", "search", "search_decomp"]),
-    # Backend default: action="get" (mcp_server/providers/comments.py:127).
-    default=None,
-    help="Omit to use the server default.",
-)
+@click.option("--action", type=click.Choice(["set", "get", "remove", "search", "search_decomp"]), required=True)
 @click.option("--address-or-symbol")
 @click.option("--function")
 @click.option("--line-number", type=int)
@@ -4707,13 +4688,7 @@ def bookmarks_grp() -> None:
 
 @bookmarks_grp.command("run", help="Run manage-bookmarks with --action")
 @click.option("-b", "--binary", "program_path")
-@click.option(
-    "--action",
-    type=click.Choice(["set", "get", "search", "remove", "removeAll", "categories"]),
-    # Backend default: action="list" (mcp_server/providers/bookmarks.py:86-89).
-    default=None,
-    help="Omit to use the server default.",
-)
+@click.option("--action", type=click.Choice(["set", "get", "search", "remove", "removeAll", "categories"]), required=True)
 @click.option("--address-or-symbol")
 @click.option("--type", "type_", type=click.Choice(["Note", "Warning", "TODO", "Bug", "Analysis"]))
 @click.option("--category")
@@ -4823,20 +4798,10 @@ def callgraph_grp() -> None:
 
 @callgraph_grp.command("run", help="Run get-call-graph")
 @click.option("-b", "--binary", "program_path")
-@click.option(
-    "--function",
-    "function_identifier",
-    # No function -> _handle_overview (mcp_server/providers/callgraph.py:97-98).
-    default=None,
-    help="Function identifier. Omit for a whole-program overview.",
-)
+@click.option("--function", "function_identifier", required=True)
 @click.option("--mode", type=click.Choice(["graph", "tree", "callers", "callees", "callers_decomp", "common_callers"]), default="graph")
 @click.option("--depth", type=int)
-@click.option(
-    "--direction",
-    type=click.Choice(["calling", "called", "callers", "callees"]),
-    help="graph/tree only. calling (or callers) = who calls this function; called (or callees) = what it calls. Default: calling",
-)
+@click.option("--direction", type=click.Choice(["callers", "callees"]))
 @click.option("--max-depth", type=int)
 @click.option("--start-index", type=int)
 @click.option("--max-callers", type=int)
@@ -4884,15 +4849,6 @@ _derive_convenience_commands(
     callgraph_run,
     "mode",
     omitted_options=frozenset({"direction", "start_index", "include_call_context", "function_addresses"}),
-    omitted_choices=frozenset({"graph", "tree"}),
-)
-# graph and tree draw one direction, so they keep --direction.
-_derive_convenience_commands(
-    callgraph_grp,
-    callgraph_run,
-    "mode",
-    omitted_options=frozenset({"start_index", "include_call_context", "function_addresses"}),
-    omitted_choices=frozenset({"callers", "callees", "callers_decomp", "common_callers"}),
 )
 
 
@@ -4968,13 +4924,7 @@ def vtables_grp() -> None:
 
 @vtables_grp.command("run", help="Run analyze-vtables")
 @click.option("-b", "--binary", "program_path")
-@click.option(
-    "--mode",
-    type=click.Choice(["analyze", "callers", "containing"]),
-    # Backend default: mode="analyze" (mcp_server/providers/vtable.py:80).
-    default=None,
-    help="Omit to use the server default.",
-)
+@click.option("--mode", type=click.Choice(["analyze", "callers", "containing"]), required=True)
 @click.option("--vtable-address")
 @click.option("--function-address")
 @click.option("--max-entries", type=int)
@@ -5970,16 +5920,42 @@ def _run_embedded_cli(
     prog: str | None = None,
 ) -> None:
     forwarded = list(args) or ["--help"]
-    kwargs: dict[str, str] = {}
-    if prog is not None:
-        try:
-            accepts_prog = "prog" in inspect.signature(entrypoint).parameters
-        except (TypeError, ValueError):
-            accepts_prog = False
-        if accepts_prog:
-            kwargs["prog"] = prog
-    with _scoped_shared_server_env(click.get_current_context()):
-        raise SystemExit(int(entrypoint(forwarded, **kwargs) or 0))
+    raise SystemExit(int(entrypoint(forwarded) or 0))
+
+
+@main.command(
+    "recover",
+    context_settings={"ignore_unknown_options": True, "allow_extra_args": True, "token_normalize_func": _identity_cli_token},
+    add_help_option=False,
+    help="Run the integrated staged recovery CLI. Pass subcommand args directly, for example `agentdecompile-cli recover inspect <path>`.",
+)
+@click.argument("args", nargs=-1, type=click.UNPROCESSED)
+def recover_passthrough_cmd(args: tuple[str, ...]) -> None:
+    from agentdecompile_recovery.cli import main as recovery_main
+
+    _run_embedded_cli(recovery_main, args)
+
+
+@main.command(
+    "reconstruct",
+    context_settings={"ignore_unknown_options": True, "allow_extra_args": True, "token_normalize_func": _identity_cli_token},
+    add_help_option=False,
+    help="Run the integrated reconstruction front door. Pass arguments directly, for example `agentdecompile-cli reconstruct <binary>` or `agentdecompile-cli reconstruct self-check`.",
+)
+@click.argument("args", nargs=-1, type=click.UNPROCESSED)
+def reconstruct_passthrough_cmd(args: tuple[str, ...]) -> None:
+    from agentdecompile_recovery.frontdoor import main as reconstruct_main
+
+    _run_embedded_cli(reconstruct_main, args)
+
+
+# ---------------------------------------------------------------------------
+# Entry (click group is invoked directly)
+# ---------------------------------------------------------------------------
+
+if __name__ == "__main__":
+    _ensure_dynamic_commands_registered()
+    main()
 
 
 # Register dynamic commands for normal CLI invocation paths as well

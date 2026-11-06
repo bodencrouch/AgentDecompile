@@ -12,7 +12,7 @@ The **main multi-binary recovery path** is the corpus pipeline
 ([CORPUS_PIPELINE.md](CORPUS_PIPELINE.md)): extract → identify →
 calibrate-global → assembly-floor → recover-source → apply-cross-build →
 leftover-recover → verify → fresh whole-image identity (terminal goal, not a claimed checkpoint verb). CLI: `agentdecompile-corpus` (also
-`agentdecompile-cli corpus`). `--stop-after compile` still means
+`agentdecompile-reconstruct corpus`). `--stop-after compile` still means
 stop after donor C compiles (`recover-source`). Open an already-analyzed
 Ghidra project and reuse that analysis. Do not re-run `analyze-program`
 unless the program has none.

@@ -2919,19 +2919,48 @@ class ProjectToolProvider(ToolProvider):
         operation = self._manage_files_operation(args, {n(key) for key in dispatch})
         return await self._dispatch_handler(args, operation, dispatch, program_info=program_info)
 
-    def _manage_files_operation(self, args: dict[str, Any], known: set[str]) -> str:
-        """Pick the manage-files operation from ``operation``/``action``/``mode``.
-
-        agentdecompile-cli sends ``operation`` for the operation and ``mode`` for the
-        shared-sync direction (pull/push/bidirectional). Reading ``mode`` first made
-        ``--operation sync-shared --mode pull`` dispatch "pull". The first value that
-        names a known operation wins; ``_resolve_shared_sync_mode`` still reads ``mode``
-        as the direction.
-        """
-        values = [value for value in (self._get_str(args, key) for key in ("operation", "action", "mode")) if value]
-        if not values:
-            raise ValueError("Required parameter missing or empty: `mode`")
-        return next((value for value in values if n(value) in known), values[0])
+        return await self._dispatch_handler(
+            args,
+            operation,
+            {
+                "open": "_handle_open",
+                "changeprocessor": "_handle_change_processor",
+                "import": "_handle_import",
+                "export": "_handle_export",
+                "downloadshared": "_handle_sync_shared",
+                "downloadsharedproject": "_handle_sync_shared",
+                "downloadsharedrepository": "_handle_sync_shared",
+                "pullshared": "_handle_sync_shared",
+                "pullsharedproject": "_handle_sync_shared",
+                "pullsharedrepository": "_handle_sync_shared",
+                "importtoshared": "_handle_sync_shared",
+                "pushshared": "_handle_sync_shared",
+                "pushsharedproject": "_handle_sync_shared",
+                "pushsharedrepository": "_handle_sync_shared",
+                "uploadshared": "_handle_sync_shared",
+                "uploadsharedrepository": "_handle_sync_shared",
+                "mirrorshared": "_handle_sync_shared",
+                "syncshared": "_handle_sync_shared",
+                "syncsharedproject": "_handle_sync_shared",
+                "syncsharedrepository": "_handle_sync_shared",
+                "syncwithshared": "_handle_sync_shared",
+                "checkout": "_handle_checkout",
+                "uncheckout": "_handle_uncheckout",
+                "unhijack": "_handle_unhijack",
+                "list": "_handle_list_files",
+                "mkdir": "_handle_filesystem_operation_blocked",
+                "touch": "_handle_filesystem_operation_blocked",
+                "info": "_handle_filesystem_operation_blocked",
+                "read": "_handle_filesystem_operation_blocked",
+                "write": "_handle_filesystem_operation_blocked",
+                "append": "_handle_filesystem_operation_blocked",
+                "copy": "_handle_filesystem_operation_blocked",
+                "rename": "_handle_rename",
+                "delete": "_handle_delete",
+                "move": "_handle_move",
+            },
+            program_info=program_info,
+        )
 
     async def _handle_filesystem_operation_blocked(self, args: dict[str, Any], *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
         logger.debug("diag.enter %s", "mcp_server/providers/project.py:ProjectToolProvider._handle_filesystem_operation_blocked")
@@ -4127,12 +4156,6 @@ class ProjectToolProvider(ToolProvider):
         from agentdecompile_cli.launcher import ProgramInfo
         from agentdecompile_cli.mcp_utils.decompiler_util import open_decompiler_for_program
 
-        from agentdecompile_cli.mcp_utils.program_analysis import clear_analysis_failure
-
-        # Only explicit open paths (open / open .gpr) reach here: a (re)open retries
-        # analysis instead of inheriting an earlier failure for this path.
-        clear_analysis_failure(program, program_path)
-
         decompiler = open_decompiler_for_program(program)
 
         session_id: str = get_current_mcp_session_id()
@@ -4169,130 +4192,6 @@ class ProjectToolProvider(ToolProvider):
             from agentdecompile_cli.mcp_utils.program_analysis import program_needs_analysis
             program_info.ghidra_analysis_complete = not program_needs_analysis(program)
         return program_info
-
-    @staticmethod
-    def _persist_imported_program(
-        ghidra_project: GhidraProject | None,
-        project_handle: Any,
-        program: GhidraProgram,
-    ) -> None:
-        """Give a freshly imported program a real DomainFile in the project root.
-
-        No-op when the program already lives in a writable project (e.g. a loader
-        that saved it itself).  An existing file of the same name is never
-        overwritten; the new program gets the first free ``name.N``.
-        """
-        try:
-            df = program.getDomainFile()
-            if df is not None and bool(df.isInWritableProject()):
-                return
-        except Exception:
-            logger.debug("import_persist domain_file_probe_failed", exc_info=True)
-
-        root_folder = ProjectToolProvider._project_root_folder(ghidra_project, project_handle)
-        base_name: str = str(program.getName())
-        name: str = base_name
-        suffix = 1
-        while root_folder.getFile(name) is not None:
-            name = f"{base_name}.{suffix}"
-            suffix += 1
-
-        if ghidra_project is not None and hasattr(ghidra_project, "saveAs"):
-            # saveAs ends and restarts GhidraProject's batch transaction around
-            # DomainFolder.createFile (GhidraProject.java saveAs).
-            try:
-                ProjectToolProvider._rename_program(program, name)
-                ghidra_project.saveAs(program, "/", name, False)
-            except Exception:
-                # The import is abandoned (InvalidNameException, DuplicateFileException,
-                # IOException...).  saveAs's finally re-registered a batch transaction;
-                # GhidraProject.close(program) ends it and releases the program, so the
-                # unsaved import does not stay open for the life of the process.
-                ProjectToolProvider._close_abandoned_import(ghidra_project, program)
-                raise
-        else:
-            from ghidra.util.task import TaskMonitor as GhidraTaskMonitor  # pyright: ignore[reportMissingModuleSource]
-
-            ProjectToolProvider._rename_program(program, name)
-            root_folder.createFile(name, program, GhidraTaskMonitor.DUMMY)
-        logger.info("import_persist saved_as=/%s", name)
-
-    @staticmethod
-    def _project_root_folder(ghidra_project: GhidraProject | None, project_handle: Any) -> Any:
-        if ghidra_project is not None and hasattr(ghidra_project, "getRootFolder"):
-            return ghidra_project.getRootFolder()
-        return project_handle.getProjectData().getRootFolder()
-
-    @staticmethod
-    def _rename_program(program: GhidraProgram, name: str) -> None:
-        """Make programName match the file name saveAs will create (``name.N``).
-
-        DomainFolder.createFile does not rename the object.  ProgramDB.setName writes
-        program data, so it runs in its own transaction, ended before saveAs.
-        """
-        if str(program.getName()) == name:
-            return
-        tx_id = program.startTransaction("AgentDecompile import rename")
-        try:
-            program.setName(name)
-        finally:
-            program.endTransaction(tx_id, True)
-
-    def _open_reused_import(
-        self,
-        ghidra_project: GhidraProject | None,
-        domain_file: GhidraDomainFile,
-        session_id: str,
-    ) -> GhidraProgram | None:
-        """Open the project file an import resolved to by SHA256.
-
-        Reuses this session's open instance when there is one: DomainFile.getDomainObject
-        hands back the same object (GhidraFileData.getDomainObject), and
-        GhidraProject.openProgram would start a second "Batch Processing" transaction
-        and overwrite the first one's id in openPrograms, leaving it open.
-        """
-        target = str(domain_file.getPathname())
-        for info in list(SESSION_CONTEXTS.get_or_create(session_id).open_programs.values()):
-            candidate = getattr(info, "program", None)
-            if candidate is None:
-                continue
-            try:
-                df = candidate.getDomainFile()
-                if df is not None and str(df.getPathname()) == target and not candidate.isClosed():
-                    return candidate
-            except Exception:
-                continue
-        if ghidra_project is not None:
-            return self._ghidra_project_open_program_compat(ghidra_project, domain_file)
-        return self._open_program_from_domain_file(domain_file)
-
-    @staticmethod
-    def _close_abandoned_import(ghidra_project: GhidraProject, program: GhidraProgram) -> None:
-        try:
-            ghidra_project.close(program)
-        except Exception as close_exc:
-            logger.warning(
-                "import_persist close_after_failed_save_failed exc_type=%s exc=%s",
-                type(close_exc).__name__,
-                close_exc,
-            )
-
-    @staticmethod
-    def _save_imported_program(ghidra_project: GhidraProject | None, program: GhidraProgram) -> None:
-        """Require a durable save before reporting an import as successful."""
-        try:
-            df = program.getDomainFile()
-            if df is None or not bool(df.isInWritableProject()):
-                raise RuntimeError("Imported program has no writable project DomainFile; import is not durable")
-            if ghidra_project is not None and hasattr(ghidra_project, "save"):
-                ghidra_project.save(program)
-            else:
-                from ghidra.util.task import TaskMonitor as GhidraTaskMonitor  # pyright: ignore[reportMissingModuleSource]
-
-                program.save("AgentDecompile import", GhidraTaskMonitor.DUMMY)
-        except Exception as exc:
-            logger.warning("import_persist post_analysis_save_failed exc_type=%s exc=%s", type(exc).__name__, exc)
-            raise RuntimeError(f"Imported program could not be saved durably: {exc}") from exc
 
     def _blocking_ensure_program_analyzed(
         self,

@@ -641,7 +641,7 @@ def run_recover(args: argparse.Namespace) -> int:
         try:
             resolve_existing_project_source(project, project_program)
         except (OSError, ValueError) as exc:
-            print(f"{getattr(args, '_prog', DEFAULT_PROG)}: --project error: {exc}", file=sys.stderr)
+            print(f"agentdecompile-recovery: --project error: {exc}", file=sys.stderr)
             return 2
     work_dir = args.work_dir or default_work_dir(args.input)
     config = RecoveryConfig(
@@ -698,7 +698,6 @@ def run_recover(args: argparse.Namespace) -> int:
         skip_enrichment=bool(getattr(args, "skip_enrichment", False)),
         project=project,
         project_program=project_program,
-        display_prog=getattr(args, "_prog", None) or DEFAULT_PROG,
         **unity_config_kwargs(args),
     )
     return RecoveryRunner(config).run()

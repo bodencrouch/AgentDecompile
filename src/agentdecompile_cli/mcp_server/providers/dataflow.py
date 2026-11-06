@@ -27,10 +27,7 @@ if TYPE_CHECKING:
 
 from mcp import types
 
-from agentdecompile_cli.mcp_server.providers._collectors import (
-    DataFlowVariableNotFoundError,
-    collect_function_data_flow,
-)
+from agentdecompile_cli.mcp_server.providers._collectors import collect_function_data_flow
 from agentdecompile_cli.mcp_server.tool_providers import (
     ToolProvider,
     create_success_response,
@@ -192,22 +189,9 @@ class DataFlowToolProvider(ToolProvider):
 
     async def _handle_variable_accesses(self, args: dict[str, Any], program: GhidraProgram, addr: GhidraAddress, func: GhidraFunction, max_ops: int, max_depth: int, timeout_s: int, *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
         logger.debug("diag.enter %s", "mcp_server/providers/dataflow.py:DataFlowToolProvider._handle_variable_accesses")
-        variable_name = self._get_str(args, "variablename", "variablen", "variable")
-        return await self._analyze_data_flow("variable_accesses", program, addr, func, max_ops, max_depth, timeout_s, program_info=program_info, variable_name=variable_name or None)
+        return await self._analyze_data_flow("variable_accesses", program, addr, func, max_ops, max_depth, timeout_s, program_info=program_info)
 
-    async def _analyze_data_flow(
-        self,
-        direction: str,
-        program: GhidraProgram,
-        addr: GhidraAddress,
-        func: GhidraFunction,
-        max_ops: int,
-        max_depth: int,
-        timeout_s: int,
-        *,
-        program_info: ProgramInfo | SimpleNamespace | None,
-        variable_name: str | None = None,
-    ) -> list[types.TextContent]:
+    async def _analyze_data_flow(self, direction: str, program: GhidraProgram, addr: GhidraAddress, func: GhidraFunction, max_ops: int, max_depth: int, timeout_s: int, *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
         logger.debug("diag.enter %s", "mcp_server/providers/dataflow.py:DataFlowToolProvider._analyze_data_flow")
         try:
             payload = collect_function_data_flow(
@@ -219,7 +203,6 @@ class DataFlowToolProvider(ToolProvider):
                 max_depth=max_depth,
                 timeout_s=timeout_s,
                 session_decompiler=getattr(program_info, "decompiler", None) if program_info is not None else None,
-                variable_name=variable_name,
             )
             return create_success_response(payload)
         except DataFlowVariableNotFoundError:

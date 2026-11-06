@@ -138,16 +138,6 @@ class FunctionToolProvider(ToolProvider):
         ]
 
     async def _handle_list(self, args: dict[str, Any], *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
-        response = await self._list_existing_functions(args, program_info=program_info)
-        payload = self._response_to_payload(response)
-        payload.update(
-            inventoryScope="existing-listing",
-            analysisTriggered=False,
-            note="This request reads the existing listing without running analysis. Function discovery may be incomplete; zero matches do not prove absence. Run analyze-program explicitly when discovery is required.",
-        )
-        return create_success_response(payload)
-
-    async def _list_existing_functions(self, args: dict[str, Any], *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
         """List functions in the current program, with optional filtering and pagination.
 
         Modes (``mode``, default ``all``):
@@ -167,11 +157,9 @@ class FunctionToolProvider(ToolProvider):
         """
         logger.debug("diag.enter %s", "mcp_server/providers/functions.py:FunctionToolProvider._handle_list")
         self._require_program(program_info=program_info)
-        mode = n(self._get_str(args, "mode", default="all")) or "all"
-        if mode in {"list", "list_functions", "listfunctions"}:
-            mode = "all"
-        if mode not in _LIST_MODES:
-            raise ValueError(f"Unsupported list-functions mode: {self._get_str(args, 'mode')!r}. Use one of: all, search, similarity, count, by_identifiers, undefined.")
+        pattern = self._get_str(args, "namepattern", "pattern", "filter", "regex")
+        include_ext = self._get_bool(args, "includeexternals", "externals", default=True)
+        offset, max_results = self._get_pagination_params(args, default_limit=100)
 
         program = program_info.program
         if program is None or not hasattr(program, "getFunctionManager"):
@@ -546,9 +534,7 @@ class FunctionToolProvider(ToolProvider):
 
         # If no function specified, list all
         if not func_ids:
-            # get-functions' mode is a view (info/decompile/...), not a list-functions mode.
-            list_args = {key: value for key, value in args.items() if key not in {"mode", "view", "action", "operation"}}
-            return await self._handle_list(list_args, program_info=program_info)
+            return await self._handle_list(args, program_info=program_info)
 
         # Single function path (existing behavior)
         if len(func_ids) == 1:

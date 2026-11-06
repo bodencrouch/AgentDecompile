@@ -8,11 +8,9 @@ Two records describe a store's schema state:
   read-only watchers can open the store at once.
 * ``schema_migration`` -- the ledger. One row per applied migration with the
   version, the name, when it was applied, and a hash of the determinism
-  basis at that moment. ``applied_at`` and ``basis_supersession.recorded_at``
-  are the only clock-derived values in the store; nothing else may derive
-  from them. ``basis_hash`` is NULL when the basis cannot be computed; a
-  re-baseline (``corpus rebaseline``) records its supersession in
-  ``basis_supersession`` rather than rewriting this ledger.
+  basis at that moment. ``applied_at`` is the only clock-derived value in the
+  store; nothing else may derive from it. ``basis_hash`` is a hook for a
+  later re-baseline step and is NULL when the basis cannot be computed.
 
 Rules every migration follows:
 
@@ -122,51 +120,51 @@ def _analyzer_identity(con: sqlite3.Connection) -> None:
             con.execute(f"ALTER TABLE binary ADD COLUMN {col} {decl}")
 
 
-SUPERSESSION_TABLE = "basis_supersession"
-#: One row per re-baseline: the old and new package basis (hash, algorithm
-#: version and object), what drove it, how many rows it re-stamped and the
-#: sha256 of the receipt file. ``old_package_basis_json`` is NULL when the
-#: old object could not be reconstructed. ``UNIQUE(old, new)`` makes a
-#: replayed supersession a constraint error, never a second row.
-SUPERSESSION_SQL = f"""CREATE TABLE IF NOT EXISTS {SUPERSESSION_TABLE} (
-    id                     INTEGER PRIMARY KEY,
-    old_basis_hash         TEXT NOT NULL,
-    new_basis_hash         TEXT NOT NULL,
-    old_algorithm_version  TEXT NOT NULL,
-    new_algorithm_version  TEXT NOT NULL,
-    old_package_basis_json TEXT,
-    new_package_basis_json TEXT NOT NULL,
-    analyzer_version       TEXT NOT NULL,
-    reason                 TEXT,
-    binaries_restamped     INTEGER NOT NULL,
-    receipt_sha256         TEXT NOT NULL,
-    recorded_at            TEXT NOT NULL,
-    UNIQUE(old_basis_hash, new_basis_hash)
-)"""
-SUPERSESSION_INDEX_SQL = (
-    f"CREATE INDEX IF NOT EXISTS ix_{SUPERSESSION_TABLE}_new ON {SUPERSESSION_TABLE}(new_basis_hash)"
+#: Columns migration 3 adds to ``binary`` (register A4, ``corpus admit``).
+#: ``admission_status`` is NULL until the admit verb has seen the row; its
+#: values are ``admitted``, ``placeholder``, ``duplicate``, ``contested`` and
+#: ``unresolved``. ``duplicate_of`` names the keeper (its content hash, or
+#: ``slug:<sha256(slug)[:12]>`` when it has none). ``admission_receipt`` is
+#: the sha256 of the row's receipt file. ``admission_handling`` records how
+#: a placeholder was treated (``quarantine`` or ``exclude``): the hook pack
+#: lists excluded placeholders under ``excluded_builds`` and stays silent
+#: about quarantined ones, and the store is the only channel that reaches
+#: the exporter.
+ADMISSION_COLUMNS: tuple[tuple[str, str], ...] = (
+    ("admission_status", "TEXT"),
+    ("duplicate_of", "TEXT"),
+    ("admission_receipt", "TEXT"),
+    ("admission_handling", "TEXT"),
 )
 
+#: The admitted-rows view. Placeholders, duplicates, contested and
+#: unresolved rows are outside every key, basis, manifest and pack by design
+#: (A4); readers that must survive later column adds filter ``binary``
+#: directly with the same predicate.
+ADMITTED_VIEW = "admitted_binary"
 
-def _basis_supersession(con: sqlite3.Connection) -> None:
-    """Version 3: the ``basis_supersession`` ledger for ``corpus rebaseline``.
 
-    A package-constant change moves every stamped row's ``basis_hash`` and
-    makes the basis refuse. The re-baseline verb records the old and the new
-    basis here and re-stamps the rows in the same transaction, so a store
-    never silently mixes bases. ``recorded_at`` is ISO-8601 UTC, taken from
-    ``SOURCE_DATE_EPOCH`` when set. The index on ``new_basis_hash`` serves
-    the lookup a later supersession makes to name its old basis. Creates
-    nothing else and touches no row.
+def _admission(con: sqlite3.Connection) -> None:
+    """Version 3: admission columns on ``binary`` and the ``admitted_binary`` view.
+
+    Additive only; every existing row keeps ``admission_status`` NULL, which
+    every scoped reader treats as "admission has not run" and falls back to
+    the unscoped legacy behaviour until the first ``corpus admit``.
     """
-    con.execute(SUPERSESSION_SQL)
-    con.execute(SUPERSESSION_INDEX_SQL)
+    cols = {row[1] for row in con.execute("PRAGMA table_info(binary)")}
+    for col, decl in ADMISSION_COLUMNS:
+        if col not in cols:
+            con.execute(f"ALTER TABLE binary ADD COLUMN {col} {decl}")
+    con.execute(
+        f"CREATE VIEW IF NOT EXISTS {ADMITTED_VIEW} AS "
+        "SELECT * FROM binary WHERE admission_status = 'admitted'"
+    )
 
 
 MIGRATIONS: list[Migration] = [
     Migration(1, "baseline", _baseline),
     Migration(2, "analyzer_identity", _analyzer_identity),
-    Migration(3, "basis_supersession", _basis_supersession),
+    Migration(3, "admission", _admission),
 ]
 
 SCHEMA_VERSION = MIGRATIONS[-1].version

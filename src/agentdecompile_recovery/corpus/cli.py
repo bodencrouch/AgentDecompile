@@ -382,30 +382,6 @@ def build_parser(prog: str | None = None) -> argparse.ArgumentParser:
     )
     verify_det.add_argument("--db", type=Path, required=True)
 
-    rebaseline = sub.add_parser(
-        "rebaseline",
-        help="Record a package-basis change as a supersession and re-stamp every binary row",
-    )
-    rebaseline.add_argument("--db", type=Path, required=True)
-    rebaseline.add_argument(
-        "--receipts", type=Path, required=True,
-        help="Receipts directory. The receipt lands under rebaseline/ inside it.",
-    )
-    rebaseline.add_argument("--reason", default=None, help="Why the basis changed. Stored with the supersession.")
-    rebaseline.add_argument(
-        "--export-out", type=Path, default=None,
-        help="Write a hook pack under the new basis into this directory.",
-    )
-    rebaseline.add_argument(
-        "--prior-pack", type=Path, default=None,
-        help="Diff the new pack against this pack. The prior pack is not changed.",
-    )
-    rebaseline.add_argument("--dry-run", action="store_true", help="Show the supersession. Write nothing.")
-    rebaseline.add_argument(
-        "--deadline-s", type=float, default=None,
-        help="Stop between phases after this many seconds. Exit 4.",
-    )
-
     backfill = sub.add_parser(
         "backfill",
         help="Re-derive binary columns from raw images; one receipt per (pass, binary) makes it resumable",
@@ -414,6 +390,40 @@ def build_parser(prog: str | None = None) -> argparse.ArgumentParser:
     backfill.add_argument("--pass", dest="passes", action="append", required=True, metavar="NAME")
     backfill.add_argument("--receipts", type=Path, required=True)
     backfill.add_argument("--no-resume", dest="resume", action="store_false")
+
+    admit = sub.add_parser(
+        "admit",
+        help="Admit analyzed builds to the content-hash key. Placeholders are quarantined. Duplicates are merged.",
+    )
+    admit.add_argument("--db", type=Path, required=True, help="The corpus store.")
+    admit.add_argument("--receipts", type=Path, required=True, help="Directory for one receipt per build.")
+    admit.add_argument(
+        "--work-dir",
+        type=Path,
+        default=None,
+        help="Corpus work directory. Raw images land under extract/raw. Defaults to AGENT_DECOMPILE_CORPUS_WORK_DIR.",
+    )
+    admit.add_argument(
+        "--resolvers",
+        default=None,
+        metavar="A,B,C",
+        help="Raw image resolvers to try, in order. Defaults to the built-in order.",
+    )
+    admit.add_argument(
+        "--placeholders",
+        choices=["quarantine", "exclude", "drop"],
+        default="quarantine",
+        help="What to do with rows that have no analysis. Drop deletes them.",
+    )
+    admit.add_argument("--dry-run", action="store_true", help="Compute the summary. Write nothing.")
+    admit.add_argument("--no-resume", dest="resume", action="store_false", help="Ignore existing receipts.")
+    admit.add_argument("--row-deadline-s", type=float, default=120.0, help="Seconds allowed per build.")
+    admit.add_argument(
+        "--deadline-s",
+        type=float,
+        default=None,
+        help="Seconds allowed for the whole run. Defaults to AGENT_DECOMPILE_ADMIT_DEADLINE_S or 1800.",
+    )
 
     match_pair = sub.add_parser("match-pair", help="Run the store matcher on one directed pair")
     match_pair.identity_scope = "pair"
@@ -756,27 +766,6 @@ def build_parser(prog: str | None = None) -> argparse.ArgumentParser:
     orch.add_argument("--poll", type=float, default=20.0)
     orch.add_argument("--log-dir", default="/tmp")
 
-    dbatch = sub.add_parser(
-        "decompile-batch",
-        help="Decompile pending functions in parallel into the ctext sqlite (never decompiles an address twice)",
-    )
-    dbatch.add_argument("--binary", type=Path, help="Binary to import (omit to open an existing program from the project)")
-    dbatch.add_argument("--project-location", type=Path, help="Ghidra project directory (default: <ctext-db dir>/pyghidra-project)")
-    dbatch.add_argument("--project-name", help="Ghidra project name (default: derived from the binary name)")
-    dbatch.add_argument("--program", dest="program_name", help="Program name inside the project when --binary is omitted")
-    dbatch.add_argument("--ctext-db", type=Path, required=True, help="ctext sqlite (schema from decompile_text.connect_ctext; rows via INSERT OR REPLACE like persist_text)")
-    dbatch.add_argument("--repo-path", help="ctext key (default: resolved binary path, or <project>/<program>)")
-    dbatch.add_argument("--threads", type=int, default=default_batch_threads(), help="Private decompiler pool size (default: min(cpu, 8))")
-    dbatch.add_argument("--timeout-s", type=int, default=60, help="Per-function decompile timeout in seconds")
-    dbatch.add_argument("--limit", type=int, help="Decompile at most this many pending functions")
-    dbatch.add_argument("--db", type=Path, help="Identity store; with --binary-id the want-list comes from its func table")
-    dbatch.add_argument("--binary-id", type=int, help="binary.id in --db")
-    dbatch.add_argument("--min-instr", type=int, default=1, help="Store want-list filter (n_instr >= N)")
-    dbatch.add_argument("--retry-failed", action="store_true", help="Treat ok=0 rows as pending again")
-    dbatch.add_argument("--no-analyze", dest="analyze", action="store_false", help="Do not run auto-analysis on import")
-    dbatch.add_argument("--jvm-xmx", default="2g", help="JVM max heap passed as -Xmx (default 2g)")
-    dbatch.add_argument("--json", dest="json_out", type=Path, help="Also write the summary as JSON to this path")
-
     from . import kx_cli
 
     kx_cli.register(sub)
@@ -972,44 +961,6 @@ def main(argv: list[str] | None = None, prog: str | None = None) -> int:
             return 2
         print(json.dumps(result))
         return 0 if result["identical"] else 1
-    if args.cmd == "rebaseline":
-        from .determinism_basis import BasisError
-        from .logical import ContentHashError
-        from .rebaseline import rebaseline as run_rebaseline
-        from .store import connect
-
-        def run_it():
-            try:
-                return run_rebaseline(
-                    connect(args.db),
-                    receipts_dir=args.receipts,
-                    reason=args.reason,
-                    export_out=args.export_out,
-                    prior_pack=args.prior_pack,
-                    dry_run=args.dry_run,
-                    deadline_s=args.deadline_s,
-                )
-            except (BasisError, ContentHashError):
-                raise
-            except ValueError as exc:
-                raise SystemExit(f"error: {exc}") from exc
-
-        # Refusals (basis, content hash, lock) are exit 2 with one named
-        # line and nothing written. A deadline is exit 4: the re-stamp is
-        # one transaction, so it either landed whole or not at all; the
-        # summary says which. An export that refused after the re-stamp
-        # landed keeps exit 0: the supersession stands, and the refusal is
-        # recorded under run.export and named once on stderr.
-        result = _run_keyed_verb(run_it)
-        if result is REFUSED:
-            return 2
-        print(json.dumps(result, sort_keys=True, indent=2))
-        if result["status"] == "deadline":
-            return 4
-        export = (result.get("run") or {}).get("export") or {}
-        if export.get("status") == "refused":
-            print(f"error: export refused after re-stamp: {export.get('error')}", file=sys.stderr)
-        return 0
     if args.cmd == "backfill":
         from .backfill import run as run_backfill
         from .logical import ContentHashError
@@ -1028,6 +979,53 @@ def main(argv: list[str] | None = None, prog: str | None = None) -> int:
             return 2
         print(json.dumps(result, sort_keys=True))
         return 0
+    if args.cmd == "admit":
+        import os
+
+        from .admission import AdmissionError, PlaceholderHandling, admit as run_admit
+        from .raw_images import RawImageError
+        from .store import connect
+
+        work_dir = args.work_dir
+        if work_dir is None:
+            env_work = os.environ.get("AGENT_DECOMPILE_CORPUS_WORK_DIR", "").strip()
+            work_dir = Path(env_work) if env_work else None
+        if work_dir is None:
+            # Without a work directory raw images would land under the
+            # current directory, which no later verb would find.
+            print("error: work_dir: pass --work-dir or set AGENT_DECOMPILE_CORPUS_WORK_DIR", file=sys.stderr)
+            return 2
+        # Every other verb finds raw images through this variable; keep the
+        # two in step for the rest of this process.
+        os.environ.setdefault("AGENT_DECOMPILE_CORPUS_WORK_DIR", str(work_dir))
+        order = tuple(n.strip() for n in args.resolvers.split(",") if n.strip()) if args.resolvers else None
+
+        def run_admit_it():
+            return run_admit(
+                connect(args.db),
+                receipts_dir=args.receipts,
+                work_dir=work_dir,
+                resolver_order=order,
+                placeholders=PlaceholderHandling(args.placeholders),
+                dry_run=args.dry_run,
+                resume=args.resume,
+                row_deadline_s=args.row_deadline_s,
+                deadline_s=args.deadline_s,
+            )
+
+        # Refusals are exit 2 with one named line: a held lock (through
+        # _run_keyed_verb), an unknown resolver, a store without the
+        # admission columns. 0: every analyzed build is admitted or a
+        # duplicate. 3: some stay unresolved or contested. 4: deadline.
+        try:
+            summary = _run_keyed_verb(run_admit_it)
+        except (RawImageError, AdmissionError) as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 2
+        if summary is REFUSED:
+            return 2
+        print(json.dumps(summary, sort_keys=True))
+        return int(summary["exit_code"])
     if args.cmd == "match-pair":
         from .propagate import run_pair
         from .store import connect
@@ -1254,8 +1252,6 @@ def main(argv: list[str] | None = None, prog: str | None = None) -> int:
         if args.byteexact_receipt:
             argv += ["--byteexact-receipt", str(args.byteexact_receipt)]
         return cross_main(argv)
-    if args.cmd == "decompile-batch":
-        return run_decompile_batch_command(args)
     if args.cmd == "verify-byteexact":
         from .verify_recovered_byteexact import main as vbx_main
         argv = ["--verified-dir", str(args.verified_dir), "--raw", str(args.raw),
@@ -1349,21 +1345,15 @@ def main(argv: list[str] | None = None, prog: str | None = None) -> int:
         argv=["--verified-dir",str(args.verified_dir),"--raw",str(args.raw),
               "--receipts",str(args.receipts),"--max-diff",str(args.max_diff),
               "--limit",str(args.limit),"--workers",str(args.workers)]
-        if args.compiler:
-            argv+=["--compiler",str(args.compiler)]
+        if args.compiler: argv+=["--compiler",str(args.compiler)]
         else:
             from .ghidra_bulk import _find_compiler
             argv+=["--compiler",str(_find_compiler(args.raw.parent,args.db) if args.db else _find_compiler(args.raw.parent))]
-        if args.db:
-            argv+=["--db",str(args.db)]
-        if args.binary_id is not None:
-            argv+=["--binary-id",str(args.binary_id)]
-        if args.bin_dir:
-            argv+=["--bin-dir",str(args.bin_dir)]
-        if args.model:
-            argv+=["--model",str(args.model)]
-        if args.state:
-            argv+=["--state",str(args.state)]
+        if args.db: argv+=["--db",str(args.db)]
+        if args.binary_id is not None: argv+=["--binary-id",str(args.binary_id)]
+        if args.bin_dir: argv+=["--bin-dir",str(args.bin_dir)]
+        if args.model: argv+=["--model",str(args.model)]
+        if args.state: argv+=["--state",str(args.state)]
         return cnm_main(argv)
     if args.cmd == "unpack":
         from .unpack import main as unpack_main

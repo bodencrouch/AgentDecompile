@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import hashlib
 import os
 import pathlib
 import re
@@ -16,7 +17,8 @@ import subprocess
 import tempfile
 from collections import Counter
 
-from .seed_validation import destination_bytes, select_object_symbol
+from .coverage_evidence import bind_source
+from .seed_validation import target_observation, select_object_symbol
 from .source_claims import is_real_c
 
 ADDRESS_IN_FILENAME = re.compile(r"_([0-9a-fA-F]{8})\.c$")
@@ -46,15 +48,16 @@ def compile_current_source(
     mapper_for,
     coff_functions,
 ) -> dict:
-    text = source.read_text(errors="replace")
+    source_bytes = source.read_bytes()
+    text = source_bytes.decode("utf-8")
     address_match = ADDRESS_IN_FILENAME.search(source.name)
     size_match = SIZE_IN_HEADER.search(text)
-    result = {
+    result = bind_source({
         "source_path": str(source),
         "program": source.parent.name,
         "function": source.stem,
         "real_c": is_real_c(text),
-    }
+    }, source_bytes)
     if not address_match or not size_match:
         return {**result, "status": "parse_failed", "detail": "missing address or size"}
 
@@ -66,10 +69,12 @@ def compile_current_source(
     if defined_name is None:
         return {**result, "status": "parse_failed", "detail": "no address-named function"}
 
-    target = destination_bytes(
+    target, observation = target_observation(
         slug, address, size, cache, raw_dir=raw_dir, mapper_for=mapper_for,
     )
+    result.update(observation)
     result["original_bytes"] = target.hex()
+    result["originalBytesSha256"] = hashlib.sha256(target).hexdigest()
     with tempfile.TemporaryDirectory(prefix="ad-legacy-source-") as temp_dir:
         temp = pathlib.Path(temp_dir)
         candidate = temp / "candidate.c"
@@ -88,7 +93,7 @@ def compile_current_source(
         except subprocess.TimeoutExpired:
             return {**result, "status": "timeout"}
         detail = ((run.stdout or "") + (run.stderr or ""))[-1200:]
-        if not obj.is_file():
+        if run.returncode != 0 or not obj.is_file():
             return {**result, "status": "compile_failed", "detail": detail}
         try:
             symbol, compiled = select_object_symbol(
@@ -117,6 +122,11 @@ def coverage_row(result: dict) -> dict:
         "byteExact": True,
         "byteExactVerified": True,
         "originalBytes": result["original_bytes"],
+        "originalBytesSha256": result["originalBytesSha256"],
+        "targetSnapshot": result["targetSnapshot"],
+        "targetRegion": result["targetRegion"],
+        "sourceSha256": result["sourceSha256"],
+        "comparisonScope": result["comparisonScope"],
         "error": "",
         "batch": "legacy-current-source-revalidation",
         "realC": result["real_c"],

@@ -14,6 +14,7 @@ from pathlib import Path
 # canonical DDL lives in ingest_recovered, the only module that writes rows.
 from .ingest_recovered import RECOVERED_FUNCTION_DDL, ensure_recovered_function  # noqa: F401
 from .store import connect
+from .semantic_identity import CLAIM_SCOPE, recorded_export_name
 
 
 def _iso(ts: float) -> str:
@@ -24,7 +25,7 @@ def match_source(logical_id: int | None, evidence: str | None) -> str:
     if (evidence or "").startswith("seed-validation-byte-exact:"):
         return "recorded-seed-evidence"
     if logical_id:
-        return "recorded-source-with-logical-identity"
+        return "recorded-source-with-advisory-logical-correlation"
     return "recorded-source"
 
 
@@ -36,6 +37,11 @@ def build(con) -> dict:
     results = []
     for row in rows:
         real_c = bool(row["real_c"])
+        named = recorded_export_name(dict(row)) is not None
+        identity_note = (f"Recorded ingestion-time {CLAIM_SCOPE}; target was not rechecked by this report."
+                         if named else f"No accepted target export witness: {row['semantic_reason'] or 'historical_unverified'}.")
+        if row["logical_id"] is not None:
+            identity_note += f" Logical function {row['logical_id']} is advisory cross-build correlation."
         note = "Byte comparison was not performed by this report. Stored source classification does not establish byte identity."
         results.append(
             {
@@ -45,7 +51,7 @@ def build(con) -> dict:
                 "real_c": real_c,
                 "compiled": None,
                 "byte_exact": None,
-                "provenance": {"path": row["path"], "address": row["addr"], "evidence": row["evidence"], "logical_id": row["logical_id"], "claim": "stored source classification"},
+                "provenance": {"path": row["path"], "address": row["addr"], "evidence": row["evidence"], "logical_id": row["logical_id"], "logical_id_role": "advisory cross-build correlation", "claim": "stored source classification", "target_sha256": row["target_sha256"], "semantic_status": row["semantic_status"], "semantic_reason": row["semantic_reason"], "semantic_evidence": row["semantic_evidence"]},
                 "totalDurationMs": 0,
                 "matchSource": match_source(row["logical_id"], row["evidence"]),
                 "setupPhase": {
@@ -98,10 +104,10 @@ def build(con) -> dict:
                     "pluginResults": [
                         {
                             "pluginId": "identity",
-                            "pluginName": "Cross-Build Identity",
-                            "status": "success" if row["logical_id"] else "skipped",
+                            "pluginName": "Recorded Target PE Export Identity",
+                            "status": "success" if named else "skipped",
                             "durationMs": 0,
-                            "output": (f"bound to logical function {row['logical_id']}" if row["logical_id"] else "no logical binding recorded; reason not recorded"),
+                            "output": identity_note,
                             "sections": [],
                         }
                     ],

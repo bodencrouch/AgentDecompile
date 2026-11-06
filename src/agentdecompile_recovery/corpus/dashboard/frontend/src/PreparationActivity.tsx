@@ -113,6 +113,18 @@ export function PreparationProgress({ run, selection, notify, error = "", loadin
           </li>;
         })}
       </ol>}
+      {!compact && retryDecisions.length > 0 && <details className="preparation-retry-decisions">
+        <summary>Recorded continuation decisions ({retryDecisions.length})</summary>
+        <p>These decisions belong to their recorded inputs. Changed inputs are evaluated separately; resuming does not reset spent attempts.</p>
+        <ul>{retryDecisions.map(([id, value]) => {
+          const decision = value as Data;
+          return <li key={id}><strong>{String(decision.action || "Operation")}</strong>
+            <p>{String(decision.reason || "Awaiting reconciliation")}</p>
+            <small>{Number(decision.attemptsSpent || 0)} attempts spent · {Number(decision.attemptsRemaining || 0)} remaining</small>
+            {decision.wakeCondition && <p>Continues after: {String(decision.wakeCondition).replace(/_/g, " ")}</p>}
+          </li>;
+        })}</ul>
+      </details>}
       {run.admissionPending&&<p role="status">Waiting for a project worker. Work starts automatically when one becomes available.</p>}
       {run.status==='paused'&&<p>Workflow paused. Accepted native operations may finish before the pause takes effect.</p>}
       {["disconnected","resync","resumable"].includes(String(run.status))&&<p role="status">No new completion is implied while this workflow is recovering. Refreshing this view reconciles the durable record.</p>}

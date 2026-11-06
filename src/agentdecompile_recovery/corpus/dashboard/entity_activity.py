@@ -643,9 +643,10 @@ def _build(con: sqlite3.Connection, locator: str, slug: str, program: str = '') 
                       startedAt=job.get('startedAt') if job_active else None,
                       updatedAt=job.get('finishedAt') or job.get('startedAt') or job.get('createdAt'),
                       queue=_queue(params, job['status']))
-    selected_binary = by_slug.get(slug) if slug and slug in by_slug else None
-    if selected_binary is None and program:
-        selected_binary = next((row for row in binaries if row.get('kind') != 'project' and _program_bound(row, program)), None)
+    # A locator/program alias may name several builds; never choose the first.
+    from .claim_projection import _bound_target
+    selected_targets = [row for row in binaries if _bound_target(row, locator, program, slug) is None]
+    selected_binary = selected_targets[0] if len(selected_targets) == 1 else None
     if selected_binary is not None:
         from .activity_receipts import recorded_receipts
         selected_id = selected_binary.get('libraryId') or f"binary:{selected_binary['id']}"
@@ -670,6 +671,28 @@ def _build(con: sqlite3.Connection, locator: str, slug: str, program: str = '') 
                         aliasSlugs=selected_binary.get('aliasSlugs', [])))
                     function['proofReceipts'].append(reference)
                     add_facet(function, {'kind': 'recorded-proof', 'label': 'Recorded receipt', 'source': reference.get('path') or ''})
+        if selected_entity is not None:
+            from .claim_projection import project_claims
+            from .common import live_db, runtime_work_dir
+            configured_source = os.environ.get('AGENT_DECOMPILE_RECOVERED_DIR')
+            roots = tuple(path for path in (root, runtime_work_dir(),
+                          Path(configured_source) if configured_source else None) if path is not None)
+            projection = project_claims(selected_binary, db=live_db(), locator=locator, program=program,
+                                        slug=slug, source_roots=roots, root=root,
+                                        references=selected_entity.get('proofReceipts') or [])
+            selected_entity['claimProjection'] = projection
+            # Only bounded returned candidates gain a function entity. Absence
+            # outside this projection is not evidence that a function has none.
+            for candidate in projection['candidates']:
+                address = candidate['address']
+                identity = f'function:{selected_id}:{address}'
+                function = entities.setdefault(identity, _entity('function', identity,
+                    locator=locator or selected_binary.get('locator', ''), slug=selected_binary['slug'],
+                    addr=address, name=address, sha256=selected_binary.get('sha256'),
+                    projectBindings=list(selected_binary.get('projectBindings') or []),
+                    aliasSlugs=selected_binary.get('aliasSlugs', [])))
+                function['claimProjection'] = {**projection, 'candidates': [item for item in projection['candidates']
+                                                                        if item['address'] == address]}
     for project in [entity for entity in entities.values() if entity['kind'] == 'project']:
         states: dict[str, int] = {}
         for binary in entities.values():

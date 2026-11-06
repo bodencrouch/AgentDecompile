@@ -107,6 +107,8 @@
       || (prev.slug || "") !== state.selection.slug
       || (prev.program || "") !== state.selection.program) {
       state.revision = 0;
+      state.entities = [];
+      state.connection = "connecting";
       watchActivity();
     }
   }
@@ -340,6 +342,52 @@
     ]);
   }
 
+  function safeClaimHref(value) {
+    if (typeof value !== "string" || !value.startsWith("/dashboard/artifact?")) return null;
+    try {
+      var url = new URL(value, "https://evidence.invalid"), path = url.searchParams.get("p");
+      if (url.pathname !== "/dashboard/artifact" || url.origin !== "https://evidence.invalid" || url.hash ||
+          Array.from(url.searchParams.keys()).some(function (key) { return key !== "p"; }) || url.searchParams.getAll("p").length !== 1 ||
+          !path || path.startsWith("/") || path.includes("\\") || path.includes("\0") || path.split("/").includes("..")) return null;
+      return value;
+    } catch (_error) { return null; }
+  }
+
+  function scopedClaimView(projection, address) {
+    var wrap = node("details", { className: "scoped-claims", "aria-label": "Scoped recovery evidence" }, [node("summary", {}, ["Recovery evidence"])]);
+    wrap.addEventListener("click", function (event) { event.stopPropagation(); });
+    wrap.appendChild(node("p", {}, ["Recorded observations are not current acceptance or a compiler-produced whole image."]));
+    if (state.connection !== "live" && state.connection !== "polling") wrap.appendChild(node("p", { role: "status" }, ["Evidence feed disconnected or connecting; current state unknown."]));
+    if (!projection || projection.schema !== "agentdecompile.activity-claims/v1" || !Array.isArray(projection.candidates)) {
+      wrap.appendChild(node("p", {}, ["No target-bound claim projection received."]));
+      return wrap;
+    }
+    wrap.appendChild(node("p", {}, ["Target SHA-256: " + String(projection.targetSha256 || "unknown")]));
+    if (typeof projection.checkedAt === "number" && Number.isFinite(projection.checkedAt)) wrap.appendChild(node("p", {}, ["Source checks observed at " + new Date(projection.checkedAt * 1000).toLocaleString() + "; target currentness not rechecked."]));
+    if (projection.truncated) wrap.appendChild(node("p", { role: "status" }, ["Candidate list truncated at " + String(projection.limit) + ". A selected function outside this batch may still have evidence."]));
+    if (projection.observationLimited) wrap.appendChild(node("p", { role: "status" }, ["File-read budget reached; some observations or links unavailable."]));
+    var key = function (value) { return String(value || "").toLowerCase().replace(/^0x0*/, "") || "0"; };
+    var rows = projection.candidates.slice(0, 64).filter(function (row) { return row && row.targetSha256 === projection.targetSha256 && (!address || key(row.address) === key(address)); });
+    if (!rows.length) wrap.appendChild(node("p", {}, [projection.state === "unavailable" ? "Projection unavailable: " + String(projection.reason) : projection.truncated ? "No candidate for this address in the bounded batch." : "No recorded candidate for this selection in this snapshot."]));
+    rows.forEach(function (row) {
+      var candidate = row.candidate || {}, item = node("details", {}, [node("summary", {}, [String(candidate.name || "Unnamed candidate") + " · " + String(row.address) + " · source " + String(candidate.source_sha256 || "unbound").slice(0, 12)])]);
+      item.appendChild(node("p", {}, ["Candidate " + String(row.id) + " · database binary " + String(candidate.binary_id)]));
+      item.appendChild(node("p", {}, ["Source digest: " + String(row.sourceState) + " · " + String(row.sourceReason)]));
+      (Array.isArray(row.claims) ? row.claims : []).slice(0, 3).forEach(function (claim) {
+        if (!claim || claim.accepted !== false || !["raw-local", "named-identity", "placed-contribution"].includes(claim.kind) || !["recorded", "unknown", "unavailable", "stale"].includes(claim.state)) return;
+        item.appendChild(node("p", { "data-claim": claim.kind, "data-state": claim.state }, [String(claim.label) + " · " + String(claim.state) + ": " + String(claim.summary) + " Scope: " + String(claim.scope) + " · " + String(claim.reason)]));
+      });
+      (Array.isArray(row.receipts) ? row.receipts : []).slice(0, 4).forEach(function (receipt) {
+        var href = safeClaimHref(receipt && receipt.href);
+        if (!href || receipt.candidateBound !== false) return;
+        item.appendChild(node("p", {}, [node("a", { href: href, target: "_blank", rel: "noreferrer" }, [String(receipt.label)]), " · Target/address reference, not proof for this source candidate. SHA-256 " + String(receipt.id)]));
+      });
+      wrap.appendChild(item);
+    });
+    wrap.appendChild(node("p", {}, ["Placed source contribution unavailable: no trusted serving-process reconstruction observation. Imported JSON cannot establish it."]));
+    return wrap;
+  }
+
   function dimensionBlock(entity, record, fallback) {
     var wrap = node("div", { className: "entity-dimensions" });
     wrap.appendChild(dimensionRow("Evidence", evidenceItems(entity, record || {}), "No evidence recorded"));
@@ -348,6 +396,12 @@
     activity.appendChild(node("span", { className: "entity-dimension-name" }, ["Activity"]));
     activity.appendChild(activityStrip(entity, fallback));
     wrap.appendChild(activity);
+    var projection = entity && entity.claimProjection;
+    if (!projection && record && record.addr) {
+      var selected = state.entities.filter(function (item) { return item.kind === "binary" && item.claimProjection && (item.slug === state.selection.slug || (item.aliasSlugs || []).includes(state.selection.slug)); });
+      if (selected.length === 1) projection = selected[0].claimProjection;
+    }
+    if (projection) wrap.appendChild(scopedClaimView(projection, record && record.addr));
     return wrap;
   }
 
@@ -709,6 +763,26 @@
       rail.appendChild(item);
     });
     body.appendChild(rail);
+    var retryDecisions = Object.keys(run.retryDecisions || {}).map(function (key) {
+      return run.retryDecisions[key];
+    }).filter(function (decision) { return decision && typeof decision === "object" && decision.nextAction !== "dispatch"; }).reverse();
+    if (retryDecisions.length) {
+      var retryList = node("ul", {});
+      retryDecisions.forEach(function (decision) {
+        retryList.appendChild(node("li", {}, [
+          node("strong", {}, [String(decision.action || "Operation")]),
+          node("p", {}, [String(decision.reason || "Awaiting reconciliation")]),
+          node("small", {}, [String(decision.attemptsSpent || 0) + " attempts spent · " + String(decision.attemptsRemaining || 0) + " remaining"]),
+          decision.wakeCondition ? node("p", {}, ["Continues after: " + String(decision.wakeCondition).replace(/_/g, " ")]) : null
+        ]));
+      });
+      body.appendChild(node("details", {}, [
+        node("summary", {}, ["Recorded continuation decisions (" + retryDecisions.length + ")"]),
+        node("p", {}, ["These decisions belong to their recorded inputs. Changed inputs are evaluated separately; resuming does not reset spent attempts."]),
+        retryList
+      ]));
+    }
+
     if (run.admissionPending) {
       body.appendChild(node("p", { className: "workflow-scope" }, ["Waiting for a project worker."]));
     }
@@ -788,7 +862,7 @@
     renderFeed();
   }
 
-  function applySnapshot(data) {
+  function applySnapshot(data, includeActivity) {
     if (!data || data.ok === false) {
       state.libraryError = (data && data.libraryError) || (data && data.error) || "Library unavailable";
       state.libraryLoading = false;
@@ -800,7 +874,7 @@
     state.libraryError = data.libraryError || "";
     state.libraryLoading = false;
     if (Object.prototype.hasOwnProperty.call(data, "run")) state.run = data.run || null;
-    if (data.activity && Array.isArray(data.activity.entities)) {
+    if (includeActivity !== false && data.activity && Array.isArray(data.activity.entities) && Number.isSafeInteger(data.activity.revision) && data.activity.revision >= state.revision) {
       state.entities = data.activity.entities;
       if (Number.isSafeInteger(data.activity.revision)) state.revision = data.activity.revision;
       if (data.activity.ok) {
@@ -813,6 +887,7 @@
   }
 
   function loadSnapshot() {
+    var scope = selectionKey(), generation = activityGeneration;
     var q = new URLSearchParams({
       locator: state.selection.locator || "",
       slug: state.selection.slug || "",
@@ -821,11 +896,13 @@
     return fetch(API.snapshot + "?" + q.toString(), { signal: AbortSignal.timeout(15000) })
       .then(function (res) { return res.json(); })
       .then(function (data) {
-        applySnapshot(data);
+        if (scope !== selectionKey()) return;
+        applySnapshot(data, generation === activityGeneration);
         maybeStartWorkflow();
         renderAll();
       })
       .catch(function (err) {
+        if (scope !== selectionKey()) return;
         state.libraryError = String(err && err.message || err);
         state.libraryLoading = false;
         renderAll();
@@ -833,6 +910,7 @@
   }
 
   function loadFunctions() {
+    var scope = selectionKey();
     if (!state.selection.slug && !state.selection.program) {
       state.functionLoading = false;
       state.rows = [];
@@ -854,6 +932,7 @@
     fetch(API.functions + "?" + q.toString(), { signal: AbortSignal.timeout(state.functionLimit === "all" ? 60000 : 15000) })
       .then(function (res) { return res.json(); })
       .then(function (data) {
+        if (scope !== selectionKey()) return;
         state.rows = data.results || [];
         state.total = data.total || 0;
         state.functionError = data.error || "";
@@ -861,6 +940,7 @@
         renderFunctionTree();
       })
       .catch(function (err) {
+        if (scope !== selectionKey()) return;
         state.functionError = String(err && err.message || err);
         state.functionLoading = false;
         renderFunctionTree();
@@ -974,7 +1054,9 @@
     return query;
   }
 
+  var activityGeneration = 0, activityPoll = null;
   function watchActivity() {
+    var generation = ++activityGeneration;
     if (state.reconnectTimer) {
       clearTimeout(state.reconnectTimer);
       state.reconnectTimer = 0;
@@ -989,16 +1071,20 @@
       var source = new EventSource(API.activityEvents + "?" + query.toString());
       state.source = source;
       source.addEventListener("snapshot", function (ev) {
-        try { acceptActivity(JSON.parse(ev.data), true); } catch (_err) { /* Keep last entities. */ }
+        if (state.source !== source || generation !== activityGeneration) return;
+        try { var data = JSON.parse(ev.data); if (data && data.ok !== false && Array.isArray(data.entities) && Number.isSafeInteger(data.revision)) { generation = ++activityGeneration; acceptActivity(data, true); } } catch (_err) { /* Keep last entities. */ }
       });
       source.addEventListener("activity", function (ev) {
+        if (state.source !== source || generation !== activityGeneration) return;
         try { acceptActivity(JSON.parse(ev.data), false); } catch (_err) { /* Keep last entities. */ }
       });
       source.addEventListener("heartbeat", function () {
+        if (state.source !== source || generation !== activityGeneration) return;
         state.connection = "live";
         renderFeed();
       });
       source.addEventListener("unavailable", function (ev) {
+        if (state.source !== source || generation !== activityGeneration) return;
         state.connection = "polling";
         try {
           var data = JSON.parse(ev.data);
@@ -1008,6 +1094,12 @@
         }
         renderFeed();
         pollActivity();
+      });
+      source.addEventListener("reset", function (ev) {
+        if (state.source !== source || generation !== activityGeneration) return;
+        ++activityGeneration; generation = activityGeneration;
+        state.entities = []; state.revision = 0;
+        try { acceptActivity(JSON.parse(ev.data), true); } catch (_err) { renderTrees(); }
       });
       source.onerror = function () {
         if (state.source !== source) return;
@@ -1027,7 +1119,7 @@
   }
 
   function acceptActivity(data, reset) {
-    if (!data || !Array.isArray(data.entities)) return;
+    if (!data || data.ok === false || !Array.isArray(data.entities) || !Number.isSafeInteger(data.revision)) return;
     if (!reset && Number.isSafeInteger(data.revision) && data.revision < state.revision) return;
     state.entities = data.entities;
     if (Number.isSafeInteger(data.revision)) state.revision = data.revision;
@@ -1038,10 +1130,14 @@
   }
 
   function pollActivity() {
+    var scope = selectionKey(), generation = activityGeneration;
+    if (activityPoll && activityPoll.generation === generation) return;
+    var token = {generation: generation}; activityPoll = token;
     fetch(API.activity + "?" + activityQuery().toString(), { signal: AbortSignal.timeout(8000) })
       .then(function (res) { return res.json(); })
       .then(function (data) {
-        if (data && Array.isArray(data.entities)) {
+        if (scope !== selectionKey() || generation !== activityGeneration) return;
+        if (data && data.ok !== false && Array.isArray(data.entities) && Number.isSafeInteger(data.revision) && data.revision >= 0 && (data.revision >= state.revision || state.connection !== "live")) {
           state.entities = data.entities;
           if (Number.isSafeInteger(data.revision)) state.revision = data.revision;
           if (state.connection !== "live") state.connection = "polling";
@@ -1051,10 +1147,11 @@
         }
       })
       .catch(function (err) {
+        if (scope !== selectionKey() || generation !== activityGeneration) return;
         state.activityError = String(err && err.message || err);
         if (state.connection !== "live") state.connection = "disconnected";
         renderFeed();
-      });
+      }).finally(function () { if (activityPoll === token) activityPoll = null; });
   }
 
   function bindResize() {
@@ -1148,9 +1245,11 @@
       state.selection = readSelection();
       state.rows = [];
       state.revision = 0;
+      state.entities = [];
+      state.connection = "connecting";
+      watchActivity();
       loadSnapshot();
       loadFunctions();
-      watchActivity();
     });
     bindTreeKeys("binary-tree");
     bindTreeKeys("function-tree");
@@ -1198,9 +1297,9 @@
   bindResize();
   writeSelection(state.selection);
   renderAll();
+  watchActivity();
   loadSnapshot();
   loadFunctions();
-  watchActivity();
   setInterval(function () {
     loadSnapshot();
     loadPreparations();

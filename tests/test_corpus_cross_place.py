@@ -12,7 +12,7 @@ pytestmark = pytest.mark.unit
 def test_rewrite_banner_uses_destination_address() -> None:
     src = "/*\n * Foo\n * address: 0x005ea020\n */\nint f(void) { return 1; }\n"
     out = cross_place.rewrite_for_dest(src, "00600000", "k1_mac_swkotor.app", "005ea020")
-    assert "address: 0x00600000" in out
+    assert "recipient-address: 0x00600000" in out
     assert "from 0x005ea020" in out
     assert "int f(void) { return 1; }" in out
 
@@ -28,10 +28,9 @@ def test_place_one_writes_sibling_and_skips_real_c(tmp_path: Path) -> None:
     assert cross_place.place_one(src, 0x005EA020, index, tmp_path) == 0
     assert "already real C" in existing.read_text()
     existing.unlink()
-    assert cross_place.place_one(src, 0x005EA020, index, tmp_path) == 1
-    out = existing.read_text()
-    assert "address: 0x00600000" in out
-    assert "int f(void) { return 1; }" in out
+    # An address-only index is no longer an admission capability.
+    assert cross_place.place_one(src, 0x005EA020, index, tmp_path) == 0
+    assert not existing.exists()
 
 
 def test_should_write_does_not_clobber_real_c(tmp_path: Path) -> None:
@@ -41,7 +40,7 @@ def test_should_write_does_not_clobber_real_c(tmp_path: Path) -> None:
     assert not cross_place.should_write(dest, src_is_asm=False)
     asm = tmp_path / "a.c"
     asm.write_text(asm_seed.asm_banner("a", "1") + asm_seed.emit_naked_asm("a", b"\x90"))
-    assert cross_place.should_write(asm, src_is_asm=False)
+    assert not cross_place.should_write(asm, src_is_asm=False)
     assert not cross_place.should_write(asm, src_is_asm=True)
 
 

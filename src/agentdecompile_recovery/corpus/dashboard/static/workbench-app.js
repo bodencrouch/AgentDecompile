@@ -2169,7 +2169,7 @@
                 onMouseEnter=${function () { setActiveIdx(idx); }}
                 onClick=${function () { onPickJob(job.id); }}>
                 <strong>${job.actionId || job.id}</strong>
-                <span>${job.status}</span>
+                <span>${job.status}${job.resourceDisposition === "quarantined" || job.ownershipUnresolved === true ? " · ownership unresolved" : ""}</span>
               </button>
             </li>`;
           })}</ul>
@@ -2280,7 +2280,7 @@
                 <button type="button" className="wb-job-row" onClick=${function () { onSelectJob(job.id); }}>
                   <code>${job.id}</code>
                   <span>${actionTitle(job.actionId, actions)}</span>
-                  <span className=${"st-" + (job.status || "unknown")}>${job.status}</span>
+                  <span className=${"st-" + (job.status || "unknown")}>${job.status}${job.resourceDisposition === "quarantined" || job.ownershipUnresolved === true ? " · ownership unresolved" : ""}</span>
                 </button>
                 ${live ? html`<button type="button" className="wb-btn danger wb-job-cancel"
                   onClick=${function (ev) { ev.stopPropagation(); onCancel(job.id); }}>Cancel</button>` : null}

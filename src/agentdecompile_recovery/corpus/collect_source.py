@@ -6,9 +6,13 @@ All paths are caller-supplied; there is no product checkout default.
 from __future__ import annotations
 
 import json
+import os
+import uuid
 import re
 from collections import defaultdict
 from pathlib import Path
+
+from .coverage_evidence import source_binding
 
 
 def load_ledgers(coverage_dir: Path) -> tuple[dict[tuple[str, str], dict], dict[tuple[str, str], dict]]:
@@ -28,13 +32,17 @@ def load_ledgers(coverage_dir: Path) -> tuple[dict[tuple[str, str], dict], dict[
                 row = json.loads(line)
             except json.JSONDecodeError:
                 continue
+            if not isinstance(row, dict):
+                continue
             name = row.get("function")
             if not name:
                 continue
             key = (program, name)
             seen[key] = row
-            if row.get("byteExact"):
+            if row.get("byteExact") is True:
                 byte_exact[key] = row
+            else:
+                byte_exact.pop(key, None)
     return byte_exact, seen
 
 
@@ -107,15 +115,45 @@ def collect(
         program = program_for_project(path.parent)
         for name, code, attempts in extract_run_results(path):
             key = (program, name)
-            if key in collected and key in byte_exact:
+            if key in collected and source_binding(
+                byte_exact.get(key) or {}, collected[key][0].encode("utf-8")
+            )["current"]:
                 continue
             collected[key] = (code, attempts, str(path.relative_to(root)))
 
     counts: dict[str, list[int]] = defaultdict(lambda: [0, 0])
+    quarantined: list[dict] = []
     out = Path(out_dir)
+    retained_verified: set[tuple[str, str]] = set()
+    # Output inventory is independent of current run-results. A removed result
+    # must not leave a formerly verified file published after evidence withdrawal.
+    for previous in sorted(out.glob("*/*.c")):
+        if not previous.is_file():
+            continue
+        program, name = previous.parent.name, previous.stem
+        key = (program, name)
+        previous_binding = source_binding(byte_exact.get(key) or {}, previous.read_bytes())
+        if previous_binding["current"]:
+            retained_verified.add(key)
+            continue
+        quarantine = out / program / "unverified"
+        quarantine.mkdir(parents=True, exist_ok=True)
+        while True:
+            stale = quarantine / f"{name}.stale-{uuid.uuid4().hex}.c"
+            try:
+                os.link(previous, stale)
+                break
+            except FileExistsError:
+                continue
+        previous.unlink()
+        quarantined.append({"from": str(previous), "to": str(stale),
+                            "reason": previous_binding["reason"]})
+    written_verified: set[tuple[str, str]] = set()
     for (program, name), (code, attempts, src) in sorted(collected.items()):
         row = byte_exact.get((program, name))
-        verified = row is not None
+        source_bytes = code.encode("utf-8")
+        binding = source_binding(row or {}, source_bytes)
+        verified = binding["current"]
         sub = "" if verified else "unverified"
         dest_dir = out / program / sub
         dest_dir.mkdir(parents=True, exist_ok=True)
@@ -134,11 +172,21 @@ def collect(
         header.append(
             " * VERIFIED BYTE-EXACT: recompiled and compared against the original binary"
             if verified
-            else " * NOT byte-exact-verified: satisfied objdiff only. Treat as unconfirmed."
+            else f" * NOT byte-exact-verified: {binding['reason']}. Treat as a candidate."
         )
         header += [f" * evidence: {src}", " */", ""]
-        (dest_dir / f"{name}.c").write_text("\n".join(header) + code.rstrip() + "\n", encoding="utf-8")
-        counts[program][0 if verified else 1] += 1
+        # The producer binds exact bytes. Adding attribution comments or normalizing
+        # whitespace here would invalidate that binding. Candidate files retain
+        # explanatory headers; verified files retain their producer bytes intact.
+        payload = source_bytes if verified else ("\n".join(header) + code.rstrip() + "\n").encode("utf-8")
+        (dest_dir / f"{name}.c").write_bytes(payload)
+        if verified:
+            written_verified.add((program, name))
+        else:
+            counts[program][1] += 1
+
+    for program, _name in retained_verified | written_verified:
+        counts[program][0] += 1
 
     lines = [f"{'binary':34s} {'byte-exact':>11s} {'unverified':>11s}"]
     tot_v = tot_u = 0
@@ -155,6 +203,10 @@ def collect(
         "index": str(out / "INDEX.txt"),
         "byte_exact": tot_v,
         "unverified": tot_u,
+        "retained_verified": len(retained_verified - written_verified),
+        "written_verified": len(written_verified),
+        "inventory_scope": "byte_exact includes retained current files; unverified counts candidates written this invocation; quarantined listed separately",
         "programs": dict(counts),
+        "quarantined": quarantined,
         "report": report,
     }

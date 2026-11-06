@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
 import { API } from './contracts';
+import type { ClaimProjection } from './ScopedClaims';
 
 export interface EntityActivity {
+  claimProjection?: ClaimProjection;
   id: string;
   kind: 'project' | 'binary' | 'function';
   locator: string;
@@ -44,6 +46,10 @@ export function useEntityActivity(locator: string, slug: string, program = "") {
   }>({ entities: [], revision: 0, connection: 'connecting', error: '' });
 
   useEffect(() => {
+    if (!enabled) {
+      setState({entities: [], revision: 0, connection: 'disconnected', error: ''});
+      return;
+    }
     let disposed = false;
     let eventSource: EventSource | null = null;
     let cursor = 0;

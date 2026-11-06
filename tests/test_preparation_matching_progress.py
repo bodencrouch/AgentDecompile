@@ -32,13 +32,13 @@ def test_matching_inventory_progress_keeps_pair_total() -> None:
     assert '12,000' in progress['_reason_detail']
 
 
-def test_match_pair_failed_prior_is_cleared_for_retry() -> None:
+def test_match_pair_failed_prior_preserves_spent_attempts() -> None:
     prior = {
         'status': 'failed',
         'attempts': 3,
         'result': {'ok': False, 'error': 'ImportError: cannot import name mizuchi_tools_cli'},
     }
-    assert _action_prior_for_retry('corpus.match-pair', prior) == {}
+    assert _action_prior_for_retry('corpus.match-pair', prior) is prior
 
 
 def test_non_match_pair_failed_prior_is_preserved() -> None:

@@ -375,6 +375,57 @@ def build_parser(prog: str | None = None) -> argparse.ArgumentParser:
     )
     hookpack.add_argument("--db", type=Path, required=True)
     hookpack.add_argument("--out", type=Path, required=True)
+    hookpack.add_argument(
+        "--site-policy", type=Path, default=None,
+        help="Optional validated site-kind/field policy for emitted hook sites.",
+    )
+    hookpack.add_argument(
+        "--adapter-map", type=Path, default=None,
+        help="Optional validated mapping from exported site names to runtime adapter roles.",
+    )
+    hookpack.add_argument(
+        "--operation-contract", type=Path, default=None,
+        help="Validated target-bound native operation declarations to include in the hook pack.",
+    )
+
+    verify_det = sub.add_parser(
+        "verify-determinism",
+        help="Export the hook pack from two temp copies of a store and byte-diff the results",
+    )
+    verify_det.add_argument("--db", type=Path, required=True)
+
+    rebaseline = sub.add_parser(
+        "rebaseline",
+        help="Record a package-basis change as a supersession and re-stamp every binary row",
+    )
+    rebaseline.add_argument("--db", type=Path, required=True)
+    rebaseline.add_argument(
+        "--receipts", type=Path, required=True,
+        help="Receipts directory. The receipt lands under rebaseline/ inside it.",
+    )
+    rebaseline.add_argument("--reason", default=None, help="Why the basis changed. Stored with the supersession.")
+    rebaseline.add_argument(
+        "--export-out", type=Path, default=None,
+        help="Write a hook pack under the new basis into this directory.",
+    )
+    rebaseline.add_argument(
+        "--prior-pack", type=Path, default=None,
+        help="Diff the new pack against this pack. The prior pack is not changed.",
+    )
+    rebaseline.add_argument("--dry-run", action="store_true", help="Show the supersession. Write nothing.")
+    rebaseline.add_argument(
+        "--deadline-s", type=float, default=None,
+        help="Stop between phases after this many seconds. Exit 4.",
+    )
+
+    backfill = sub.add_parser(
+        "backfill",
+        help="Re-derive binary columns from raw images; one receipt per (pass, binary) makes it resumable",
+    )
+    backfill.add_argument("--db", type=Path, required=True)
+    backfill.add_argument("--pass", dest="passes", action="append", required=True, metavar="NAME")
+    backfill.add_argument("--receipts", type=Path, required=True)
+    backfill.add_argument("--no-resume", dest="resume", action="store_false")
 
     verify_det = sub.add_parser(
         "verify-determinism",
@@ -575,6 +626,7 @@ def build_parser(prog: str | None = None) -> argparse.ArgumentParser:
     xplace.add_argument("--db", type=Path, required=True)
     xplace.add_argument("--out-dir", type=Path, required=True)
     xplace.add_argument("--repo", required=True)
+    xplace.add_argument("--raw-dir", type=Path, required=True, help="Current original images by binary slug")
     xplace.add_argument("--watch", action="store_true")
     xplace.add_argument("--interval", type=float, default=8.0)
     xplace.add_argument("--no-compile-gate", action="store_true")
@@ -789,6 +841,25 @@ def build_parser(prog: str | None = None) -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None, prog: str | None = None) -> int:
     parser = build_parser(prog)
     args = parser.parse_args(argv)
+    if args.cmd == "export-reagent-snapshot":
+        from .export_reagent_snapshot import export_reagent_snapshot
+        try:
+            result = export_reagent_snapshot(knowledge_db=args.kb, program=args.program,
+                addresses=args.address, output_dir=args.destination, max_functions=args.max_functions)
+        except (ValueError, OSError, sqlite3.Error) as exc:
+            print(json.dumps({"ok": False, "recovery_accepted": False, "error": str(exc)}))
+            return 2
+        print(json.dumps(result, sort_keys=True, allow_nan=False))
+        return 0
+    if args.cmd == "normalize-validation-report":
+        from .external_validation import InvalidReport, read_report
+        try:
+            result = read_report(args.report, args.provider)
+        except (InvalidReport, OSError) as exc:
+            print(json.dumps({"report_state": "invalid_output", "recovery_accepted": False, "error": str(exc)}))
+            return 2
+        print(json.dumps(result, sort_keys=True, allow_nan=False))
+        return 0
     if args.cmd == "init":
         save_corpus(args.out, new_corpus(args.corpus_id))
         print(args.out)
@@ -1245,6 +1316,7 @@ def main(argv: list[str] | None = None, prog: str | None = None) -> int:
             "--db", str(args.db),
             "--out-dir", str(args.out_dir),
             "--repo", args.repo,
+            "--raw-dir", str(args.raw_dir),
         ]
         if args.watch:
             argv.append("--watch")

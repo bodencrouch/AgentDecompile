@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import hashlib
+import math
 import os
 import re
 import queue
@@ -29,7 +31,11 @@ from agentdecompile_recovery.corpus.dashboard.actions.catalog import (
 )
 from agentdecompile_recovery.corpus.dashboard.common import live_db, live_root
 
-from agentdecompile_recovery.corpus.dashboard.mcp_bridge import CONTEXT_LOCK
+from agentdecompile_recovery.corpus.dashboard.mcp_bridge import CONTEXT_LOCK, ownership_metadata
+
+# Audited local SQLite-only action; other providers need their own complete
+# lifecycle proof (a clear Python session cannot prove remote/Wine clearance).
+LOCAL_RECONCILIATION_ACTIONS = frozenset({'corpus.logical-build'})
 
 MAX_JOBS = 50
 MAX_CONCURRENT = 4
@@ -207,7 +213,180 @@ def _last_percent(log: str) -> int | None:
     return None
 
 
+def _read_only_supervisor_status(action_id: str, params: dict) -> bool:
+    return action_id == "corpus.recovery-orchestrator" and type(params.get("status")) is bool and params["status"]
+
+
+# Only audited local, synchronous action implementations belong here. The
+# snapshot CLI's --destination maps to exporter output_dir; it reads SQLite
+# and writes this tree in its own process, without launching provider children.
+_EXTERNAL_ACTION_CONTRACTS = {
+    "corpus.export-reagent-snapshot": (("output", "destination"),),
+    "recover.verify-package": (("output", "out-dir"),),
+    "corpus.cross-place": (("output", "out-dir"),),
+}
+_EXTERNAL_RESOURCE_KINDS = frozenset({"compiler", "wineprefix", "project", "output", "store"})
+
+
+def _paths_overlap(left: str, right: str) -> bool:
+    a, b = Path(left), Path(right)
+    return a == b or a in b.parents or b in a.parents
+
+
+def _external_contract_matches(action_id: str, params: dict, keys: dict, root: Path) -> bool:
+    contract = _EXTERNAL_ACTION_CONTRACTS.get(action_id)
+    if not contract:
+        return False
+    expected = [[kind, _canonical_resource_path(params.get(name), base=root)] for kind, name in contract]
+    if action_id == 'corpus.cross-place':
+        # Shared SQLite reader and refreshable versioned inputs; only the
+        # derived candidate tree is exclusively owned for the watch lifetime.
+        expected = [['output', str(Path(expected[0][1]) / '.cross-place')]] if expected[0][1] else []
+    return all(value for _, value in expected) and keys.get("external") == sorted(expected)
+
+
+def _bound_clearance(row: dict) -> bool:
+    if row.get("actionId") == "recover.verify-package":
+        from agentdecompile_recovery.native_verify_contract import command_matches
+        if not command_matches(row.get("argv"), row.get("params") or {}):
+            return False
+    if row.get("actionId") == "corpus.cross-place":
+        from agentdecompile_recovery.corpus.cross_place import command_matches
+        if not command_matches(row.get("argv"), row.get("params") or {}):
+            return False
+    proof, owner = row.get("clearanceObservation"), row.get("executionOwner")
+    if not isinstance(proof, dict) or not isinstance(owner, dict) or not owner:
+        return False
+    expected = {"jobId": row.get("id"), "attempt": row.get("executionAttempt"),
+                "resourceKeys": row.get("resourceKeys"), "process": owner,
+                "argvDigest": hashlib.sha256(json.dumps(row.get("argv"), separators=(",", ":")).encode()).hexdigest()}
+    return (bool(row.get("executionAttempt")) and all(proof.get(k) == v for k, v in expected.items())
+            and proof.get("source") == "local-executor-session-observer-v1"
+            and proof.get("sessionClearance") == "clear"
+            and type(owner.get("pid")) is int and bool(owner.get("start_ticks")) and bool(owner.get("boot_id")))
+
+
+def _native_no_dispatch_binding(row: dict) -> dict:
+    return {"source": "catalog-native-before-dispatch-v1", "jobId": row.get("id"),
+            "actionId": row.get("actionId"), "attempt": row.get("executionAttempt"),
+            "executionRoot": row.get("executionRoot"), "status": row.get("status"),
+            "argvDigest": hashlib.sha256(json.dumps(row.get("argv"), separators=(",", ":")).encode()).hexdigest(),
+            "paramsDigest": hashlib.sha256(json.dumps(row.get("params"), sort_keys=True, separators=(",", ":")).encode()).hexdigest()}
+
+
+def _native_not_dispatched(row: dict) -> bool:
+    """A durable predispatch phase is distinct from compiler-session clearance."""
+    return (row.get("actionId") in {"recover.verify-package", "corpus.cross-place"}
+            and row.get("status") in {"queued", "cancelling", "failed", "cancelled"}
+            and row.get("resourceDisposition") == "unreserved" and not row.get("resourceKeys")
+            and not row.get("executionOwner") and not row.get("clearanceObservation")
+            and not row.get("startedAt")
+            and bool(row.get("executionAttempt")) and bool(row.get("executionRoot"))
+            and row.get("noDispatchObservation") == _native_no_dispatch_binding(row))
+
+
+def _observe_native_no_dispatch(job: JobRecord) -> None:
+    if job.action_id in {"recover.verify-package", "corpus.cross-place"}:
+        job.no_dispatch_observation = _native_no_dispatch_binding(job.to_dict())
+
+
+def _canonical_resource_path(value: Any, *, base: Path) -> str | None:
+    if not isinstance(value, (str, Path)) or not str(value).strip():
+        return None
+    try:
+        path = Path(value).expanduser()
+        if not path.is_absolute():
+            path = base / path
+        return str(path.resolve(strict=False))
+    except (OSError, RuntimeError, TypeError, ValueError):
+        return None
+
+
+def _external_resource_entries(action: ActionSpec | None, params: dict, *, base: Path | None = None) -> tuple[tuple[str, str], ...]:
+    if action is None:
+        return ()
+    contract = _EXTERNAL_ACTION_CONTRACTS.get(action.id, ())
+    base = base or (live_root() or Path.cwd()).resolve()
+    claims = []
+    for kind, name in contract:
+        value = _canonical_resource_path(params.get(name), base=base)
+        if value is None:
+            raise ValueError(f"{action.id} requires resource parameter {name}")
+        claims.append((kind, value))
+    if action.id == 'corpus.cross-place':
+        claims = [('output', str(Path(claims[0][1]) / '.cross-place'))]
+    return tuple(sorted(claims))
+
+
+def _resource_keys(action: ActionSpec | None, params: dict, *, base: Path | None = None) -> dict:
+    if action is None or _read_only_supervisor_status(action.id, params):
+        return {}
+    keys = {}
+    identity = identity_lock_key(params) or ""
+    if action.identity_scope == "database" and identity:
+        keys["identity"] = identity
+    elif action.identity_scope == "pair" and identity:
+        pair = match_pair_lock_key(params)
+        if pair:
+            keys["pair"] = [identity, pair]
+    if action.ghidra_exclusive or (action.backend == "mcp-cli" and action.mutating):
+        keys["ghidra"] = ghidra_lock_key(params)
+    external = _external_resource_entries(action, params, base=base)
+    if external:
+        keys["external"] = [[kind, value] for kind, value in external]
+    return keys
+
+
+def _ownership_unresolved(log: str) -> bool:
+    if "ownership remains unresolved" in log:
+        return True
+    def unresolved(value: Any, depth: int = 0) -> bool:
+        if depth > 8:
+            return True  # unknown deeply nested adapter envelope cannot clear access
+        if isinstance(value, dict):
+            return (value.get('ownershipResolved') is False or bool(value.get('ownershipUnresolved'))
+                    or any(unresolved(item, depth + 1) for item in value.values()))
+        if isinstance(value, list):
+            return any(unresolved(item, depth + 1) for item in value)
+        if isinstance(value, str) and value.lstrip().startswith(('{', '[')):
+            try:
+                return unresolved(json.loads(value), depth + 1)
+            except ValueError:
+                return False
+        return False
+    # Progress JSON may precede a terminal envelope; inspect every JSON object
+    # rather than letting the first unrelated observation conceal quarantine.
+    decoder = json.JSONDecoder()
+    for match in re.finditer(r'\{', log):
+        try:
+            payload, _ = decoder.raw_decode(log, match.start())
+            if unresolved(payload):
+                return True
+        except ValueError:
+            continue
+    return False
+
+
+def _ownership_note(value: Any) -> str:
+    # Bridge responses repeat the payload under raw.content/text/parsed. Use
+    # provider-depth accounting here; the final log scanner sees the emitted
+    # provider body without those duplicated transport wrappers.
+    serialized = json.dumps(value, default=str)
+    unresolved = ('ownership remains unresolved' in serialized
+                  or (bool(ownership_metadata(value)) if isinstance(value, dict)
+                      else _ownership_unresolved(serialized)))
+    return ('\n{"ownershipResolved":false,"ownershipUnresolved":true}\n' if unresolved else '')
+
+
 class JobStore:
+    """One serving workbench owner; resource maps are not a multi-server lease.
+
+    Durable receipts preserve reservations across sequential owner restart.
+    A receipt-root flock excludes another scoped JobStore on that same root.
+    Different receipt roots sharing an external corpus still need external
+    ownership corroboration; this is not distributed provider fencing.
+    """
+
     def __init__(self) -> None:
         self._lock = threading.Lock()
         self._jobs: dict[str, JobRecord] = {}
@@ -217,7 +396,12 @@ class JobStore:
         self._identity_held: dict[str, str] = {}
         self._pair_held: dict[tuple[str, str], str] = {}
         self._ghidra_held: dict[str, str] = {}
+        self._external_held: dict[tuple[str, str], str] = {}
         self.executor: Executor | None = None
+        self._resource_owner_handle = None
+        self._resource_root_key: str | None = None
+        self._restored_root: str | None = None
+        self._receipt_versions: dict[str, int] = {}
         self._persisted_at: dict[str, float] = {}
         self._persist_pending: dict[str, dict[str, Any]] = {}
         self._persist_lock = threading.Lock()
@@ -301,6 +485,7 @@ class JobStore:
         )
         cancel = threading.Event()
         with self._lock:
+            _observe_native_no_dispatch(job)
             self._jobs[job.id] = job
             self._order.append(job.id)
             self._cancels[job.id] = cancel
@@ -331,8 +516,11 @@ class JobStore:
             event = self._cancels.get(job_id)
             if job is None:
                 return None
+            native_pending = _native_not_dispatched(job.to_dict())
             if job.status in {"queued", "running"}:
                 job.status = "cancelling"
+            if native_pending:
+                _observe_native_no_dispatch(job)
             if event is not None:
                 event.set()
             self._persist_locked(job, force=True)
@@ -350,6 +538,7 @@ class JobStore:
                     job = self._jobs[job_id]
                     job.status = "cancelled"
                     job.finished_at = time.time()
+                    _observe_native_no_dispatch(job)
                     self._persist_locked(job, force=True)
                     return
                 job = self._jobs[job_id]
@@ -384,6 +573,9 @@ class JobStore:
                     holder = self._ghidra_held.get(ghidra_key)
                     if ghidra_key and holder and holder != job_id:
                         can_run = False
+                external_entries = tuple(tuple(claim) for claim in frozen_keys.get("external", []))
+                if can_run and any(owner != job_id and _paths_overlap(entry[1], held[1]) for entry in external_entries for held, owner in self._external_held.items()):
+                    can_run = False
                 if can_run:
                     # Coordinators wait on and schedule child jobs; they do
                     # not themselves consume a worker slot. Counting them
@@ -399,6 +591,13 @@ class JobStore:
                         self._pair_held[pair_entry] = job_id
                     if ghidra_key:
                         self._ghidra_held[ghidra_key] = job_id
+                    for entry in external_entries:
+                        self._external_held[entry] = job_id
+                    job.resource_keys = frozen_keys
+                    job.resource_disposition = "held" if job.resource_keys else "unreserved"
+                    # Persist invalidation synchronously with held intent, before
+                    # any injected or default executor can possibly be invoked.
+                    job.no_dispatch_observation = {}
                     job.status = "running"
                     job.started_at = time.time()
                     try:
@@ -550,6 +749,12 @@ class JobStore:
                         code = code or 1
             with self._lock:
                 job = self._jobs[job_id]
+                # Audited snapshot and exact guarded native-verifier commands
+                # can release after bound session clearance. Other compiler,
+                # Wine and provider profiles remain unqualified.
+                has_external_claims = bool(job.resource_keys.get("external"))
+                job.resource_disposition = ("quarantined" if (has_external_claims and not (self.executor is None and _external_contract_matches(job.action_id, job.params, job.resource_keys, cwd) and _bound_clearance(job.to_dict()))) or _ownership_unresolved(log)
+                                            else "released") if job.resource_keys else "unreserved"
                 job.log = log[-MAX_LOG_BYTES:]
                 job.returncode = code
                 job.finished_at = time.time()
@@ -564,6 +769,8 @@ class JobStore:
             with self._lock:
                 job = self._jobs[job_id]
                 job.error = str(exc)
+                if job.resource_keys:
+                    job.resource_disposition = "quarantined"
                 job.status = "failed"
                 job.finished_at = time.time()
         finally:
@@ -592,7 +799,7 @@ class JobStore:
         while len(self._order) > MAX_JOBS:
             old = self._order.pop(0)
             job = self._jobs.get(old)
-            if job is not None and job.status in {"queued", "running", "cancelling"}:
+            if job is not None and (job.status in {"queued", "running", "cancelling"} or job.resource_disposition in {"held", "quarantined"}):
                 self._order.insert(0, old)
                 break
             self._jobs.pop(old, None)
@@ -613,6 +820,9 @@ def _copy_job(job: JobRecord) -> JobRecord:
         error=job.error,
         log=job.log,
         params=dict(job.params),
+        resource_disposition=job.resource_disposition, resource_keys=dict(job.resource_keys),
+        execution_attempt=job.execution_attempt, execution_root=job.execution_root, execution_owner=dict(job.execution_owner), clearance_observation=dict(job.clearance_observation),
+        no_dispatch_observation=dict(job.no_dispatch_observation),
         history_only=job.history_only, owner_unavailable=job.owner_unavailable,
         history_source=job.history_source, log_state=job.log_state,
         log_reason=job.log_reason, log_truncated=job.log_truncated,
@@ -637,6 +847,9 @@ def _from_history(payload: dict, *, compact: bool = False) -> JobRecord:
                      argv=list(payload.get('argv') or []), status=status, created_at=payload.get('createdAt') or 0,
                      started_at=payload.get('startedAt'), finished_at=payload.get('finishedAt'), returncode=payload.get('returncode'),
                      error=error, log=payload.get('log') or '', params=dict(payload.get('params') or {}),
+                     resource_disposition=('quarantined' if payload.get('resourceDisposition') == 'held' else payload.get('resourceDisposition', 'unreserved')), resource_keys=dict(payload.get('resourceKeys') or {}),
+                     execution_attempt=payload.get('executionAttempt', ''), execution_root=payload.get('executionRoot', ''), execution_owner=dict(payload.get('executionOwner') or {}), clearance_observation=dict(payload.get('clearanceObservation') or {}),
+                     no_dispatch_observation=dict(payload.get('noDispatchObservation') or {}),
                      history_only=True, owner_unavailable=unavailable, history_source=payload.get('historySource') or 'durable-job-receipt',
                      log_state=payload.get('logState') or ('available' if payload.get('log') else 'unavailable'),
                      log_reason=payload.get('logReason') or '', log_truncated=bool(payload.get('logTruncated')),
@@ -671,6 +884,9 @@ def _export_archive_program(output_path: Path, context: dict[str, Any], cancel: 
             "'functionCount': int(currentProgram.getFunctionManager().getFunctionCount()), 'project': str(currentProgram.getDomainFile().getProjectLocator()), 'program': str(currentProgram.getDomainFile().getPathname())})",
             "timeout": 30}, cancel, trusted_preparation_probe=True)
         observed = payload(log)
+        if _ownership_unresolved(log):
+            return {'ok': False, 'ownershipResolved': False, 'ownershipUnresolved': True,
+                    'error': 'Remote inspection ownership remains unresolved', 'observation': observed}
         if code or not observed.get("md5") or str(observed["md5"]).lower() != str(context.get("programFingerprint", "")).lower():
             return {"ok": False, "error": "The selected Ghidra program's fingerprint could not be matched to this binary.", "observation": observed}
         if observed.get("needsAnalysis") is not False:
@@ -682,6 +898,9 @@ def _export_archive_program(output_path: Path, context: dict[str, Any], cancel: 
             cancel,
         )
         data = payload(log)
+    if _ownership_unresolved(log):
+        return {'ok': False, 'ownershipResolved': False, 'ownershipUnresolved': True,
+                'error': 'Remote export ownership remains unresolved', 'data': data, 'observation': observed}
     accepted = code == 0 and data.get("success") is True and output_path.is_file()
     return {"ok": accepted, "tool": "export", "data": data, "observation": observed,
             "error": "" if accepted else data.get("error") or log[-4000:]}
@@ -761,7 +980,7 @@ def _mcp_executor_in_context(
     if locator and action.command not in {"open", "connect-shared-project"}:
         opened = ensure_project(locator)
         if not opened.get("ok"):
-            return 1, "Could not open the selected project without analysis.\n" + str(opened.get("error") or opened.get("text"))
+            return 1, "Could not open the selected project without analysis.\n" + str(opened.get("error") or opened.get("text")) + _ownership_note(opened)
         if cancel.is_set():
             return 1, "[cancelled before action]\n"
     # Opening a project does not make a nested program current in the MCP
@@ -927,9 +1146,17 @@ def _default_executor(
     """Drain output without blocking cancellation when a child is silent."""
     if not argv:
         return 2, "empty command"
+    from agentdecompile_recovery.native_verify_contract import _BOOTSTRAP, clean_environment
+    from agentdecompile_recovery.corpus.cross_place import _BOOTSTRAP as _CROSS_BOOTSTRAP
+    native_guarded = (len(argv) == 7 and argv[1:4] == ["-I", "-S", "-c"]
+                      and argv[4] in {_BOOTSTRAP, _CROSS_BOOTSTRAP})
     proc = subprocess.Popen(argv, cwd=str(cwd), stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT, text=True, bufsize=1, env=isolated_job_env(argv),
+        stderr=subprocess.STDOUT, text=True, bufsize=1, env=clean_environment() if native_guarded else isolated_job_env(argv),
         start_new_session=os.name != "nt")
+    from agentdecompile_recovery.corpus.supervision import process_identity, session_clearance
+    admitted_process = process_identity(proc.pid)
+    if on_started:
+        on_started(admitted_process)
     lines: queue.Queue[str | None] = queue.Queue(maxsize=1000)
     def read() -> None:
         assert proc.stdout is not None

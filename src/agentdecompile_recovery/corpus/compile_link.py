@@ -465,3 +465,13 @@ def link_executable(
             "prove byte-accuracy against a shipped binary."
         ),
     }
+
+
+def compile_source_contribution(**kwargs):
+    """Supported exact-placement observation seam, separate from generic linking.
+
+    This invokes the shared owned native-clang adapter. Generic compiler wrappers,
+    cached objects and successful link results do not become contribution evidence.
+    """
+    from .source_contribution import compile_observation
+    return compile_observation(**kwargs)

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hashlib
+
 import pytest
 
 from agentdecompile_recovery.corpus import asm_seed, ghidra_bulk as gb
@@ -140,9 +142,13 @@ def test_sibling_of_real_c_logical_id_is_skipped(tmp_path) -> None:
         "INSERT INTO identity(logical_id, binary_id, addr, confidence, method) "
         "VALUES (9, 1, 4198400, 1.0, 'name')"
     )
+    source = tmp_path / "C_F.c"
+    content = b"int C_F(void) { return 1; }\n"
+    source.write_bytes(content)
     con.execute(
-        "INSERT INTO recovered_function(program, name, real_c, logical_id, path) "
-        "VALUES ('/a/win.exe', 'C::F', 1, 9, '/tmp/C_F.c')"
+        "INSERT INTO recovered_function(program, name, real_c, logical_id, path, source_sha256) "
+        "VALUES ('/a/win.exe', 'C::F', 1, 9, ?, ?)",
+        (str(source), hashlib.sha256(content).hexdigest()),
     )
     con.commit()
     assert 9 in gb.logical_ids_with_real_c(con)

@@ -11,7 +11,8 @@ group) are imported at start, so every verb sees them.
 
 Verbs::
 
-    adgrid join [<url>] [--with toolchain <hash> | --toolchain-path DIR] [--with analyzer] [--idle-only] [--cores N]
+    adgrid join [<url>] [--with toolchain <hash>] [--toolchain-path DIR [--toolchain-manifest M] [--probe-parallel N]]
+                [--with analyzer] [--idle-only] [--cores N]
                 (no url: $ADGRID_INVITE)
     adgrid leave | status
     adgrid publish <kind> --snapshot PATH|sha256:... [--basis-hash H] [--shard-size N]
@@ -90,6 +91,7 @@ from .core import (
     RecordType,
     Refused,
     TaskSpec,
+    check_basis_projection,
 )
 
 LANES_ENV = "ADGRID_LANES"
@@ -178,17 +180,23 @@ class Grid:
         """The operator signer (``adapters.signer`` / ``signing.*``): ``null`` on a laptop grid."""
         return _import("agentdecompile_grid.log.signing").signer_from_config(self.cfg.signing_locator())
 
-    def keyring(self):
-        """The configured trust root shared by every log reader this process builds."""
-        return _import("agentdecompile_grid.log.signing").Keyring.from_locator(self.cfg.keyring_locator())
-
     def frontier_policy(self):
         return _import("agentdecompile_grid.log.frontier").FrontierPolicy.from_config(self.cfg.to_mapping("frontier"))
+
+    def record_filters(self):
+        """The frontier's filter chain (U126): revoked keys (``policy/revoked``) and the per-key seq-window rate limit (``limits.*``)."""
+        frontier = _import("agentdecompile_grid.log.frontier")
+        keys = _import("agentdecompile_grid.log.keys")
+        return frontier.filters_from_config(self.cfg.to_mapping("limits"), revoked=keys.RevocationList.load(self.objects()))
+
+    def keyring(self):
+        """A ``log.signing.Keyring`` filled from ``keyring.sources`` (local identities, invite objects, key announces)."""
+        return _import("agentdecompile_grid.log.signing").Keyring.from_config(self.cfg.keyring_locator(), log=self.log(), objects=self.objects())
 
     def derive(self, *, partitions: Sequence[str] | None = None, kinds: Sequence[str] | None = None, now: float | None = None):
         frontier = _import("agentdecompile_grid.log.frontier")
         return frontier.derive(self.log(), self.objects(), time.time() if now is None else now, policy=self.frontier_policy(),
-                               partitions=partitions, kinds=kinds, keyring=self.keyring())
+                               partitions=partitions, kinds=kinds, filters=self.record_filters())
 
     def appender(self, signer=None):
         outbox = _import("agentdecompile_grid.log.outbox")
@@ -300,10 +308,20 @@ def _canary_plan(args: argparse.Namespace) -> tuple[dict[str, Any] | None, list[
             lanes.append("analyzer")
         else:
             raise UsageError(f"unknown --with lane {entry[0]!r} (toolchain <hash> | analyzer)")
-    if args.toolchain_path or toolchain_hash:
-        pool["toolchain"] = canaries_mod.ToolchainCanary(toolchain_path=args.toolchain_path, identity_hash=toolchain_hash)
-        if "toolchain" not in only:
-            only.append("toolchain")
+    manifest_source = getattr(args, "toolchain_manifest", None)
+    if args.toolchain_path or toolchain_hash or manifest_source:
+        # The canary proves the tree against its declared manifest (identity = manifest hash), compiles the
+        # probe TU to the pinned masked hash, measures the parallel cap and binds the root for the compile
+        # lane through the hook the loaded lane registered; ``toolchain-slots`` advertises the cap next to it.
+        canary = canaries_mod.ToolchainCanary(
+            toolchain_path=args.toolchain_path, identity_hash=toolchain_hash, manifest_source=manifest_source,
+            probe_parallel=getattr(args, "probe_parallel", None),
+        )
+        pool["toolchain"] = canary
+        pool["toolchain-slots"] = canary.slots_canary()
+        for name in ("toolchain", "toolchain-slots"):
+            if name not in only:
+                only.append(name)
     return pool, only, lanes
 
 
@@ -314,14 +332,12 @@ def cmd_join(args: argparse.Namespace) -> int:
     loop_mod = _import("agentdecompile_grid.worker.loop")
     frontier = _import("agentdecompile_grid.log.frontier")
     policy = grid.frontier_policy()
-    keyring = grid.keyring()
     pool, only, lanes = _canary_plan(args)
     worker_config = loop_mod.WorkerConfig.from_grid_config(grid.cfg, lanes=lanes or None, import_modules=import_modules_for_children(grid.cfg), cores=args.cores)
     result = agent.join(
         args.url or None, state_dir=grid.cfg.node_state_dir(args.node), lanes=lanes, cores=args.cores, idle_only=bool(args.idle_only),
-        transport=grid.transport, derive=lambda log, objects, now: frontier.derive(log, objects, now, policy=policy, keyring=keyring),
+        transport=grid.transport, derive=lambda log, objects, now: frontier.derive(log, objects, now, policy=policy),
         config=worker_config, key_algorithm=grid.cfg.worker.key_algorithm, canaries=pool, canary_only=only,
-        keyring=keyring,
     )
     emit({"mode": result.mode, "lanes_loaded": lanes_loaded, **dict(result.status)}, as_json=args.json)
     if result.mode == "bootstrapped" and result.agent is not None and not args.no_run:
@@ -359,6 +375,8 @@ def publish_specs(specs: Sequence[TaskSpec], *, grid: Grid, admitted: Sequence[s
     for spec in specs:
         if admitted_set and spec.basis_hash not in admitted_set:
             raise Refused(f"basis-not-admitted:{spec.basis_hash[:12]}")
+        if spec.kind in TASK_KINDS:
+            check_basis_projection(TASK_KINDS.get(spec.kind), spec)   # U158: publish refuses a projection mismatch by name
         by_partition.setdefault(spec.partition_key, []).append(spec)
     summary: dict[str, Any] = {"planned": len(specs), "published": 0, "existing": 0, "cached": 0, "partitions": {}}
     objects = grid.objects()
@@ -429,25 +447,27 @@ def _node_loop(grid: Grid, *, kind: str, node: str | None, role: str | None, kin
     role = role or (cfg.verifier.role if verifying else cfg.worker.role)
     state_dir = Path(cfg.node_state_dir(name))
     objects, log, heads = grid.objects(), grid.log(), grid.heads()
-    key, identity, report = agent.open_node_identity(state_dir, role=role, objects=objects, claimed=claimed, key_algorithm=cfg.worker.key_algorithm)
+    key, identity, report = agent.open_node_identity(state_dir, role=role, objects=objects, claimed=claimed, key_algorithm=cfg.worker.key_algorithm,
+                                                     key_lifetime_s=cfg.identity.key_lifetime_s, renew_after_canary=cfg.identity.renew_after_canary)
     signer = identity_mod.NodeSigner(key)
     upstream = loop_mod.Upstream(objects, agent.record_writer(log, heads, signer, backoff=_import("agentdecompile_grid.log.backoff").BackoffPolicy.from_config(cfg.to_mapping("backoff"))))
     outbox = outbox_mod.Outbox(state_dir / "outbox", max_entries=cfg.outbox.max_entries)
+    identity_mod.enqueue_announce(outbox, identity_mod.NodeKeyStore(state_dir), key, identity, partition=cfg.keyring.announce_partition)   # KEY_ANNOUNCE once per key
     sandbox = sandbox_mod.SubprocessSandbox(state_dir / "work")
     policy = grid.frontier_policy()
-    keyring = grid.keyring()
+    filters = grid.record_filters()
     frontier = _import("agentdecompile_grid.log.frontier")
     wanted = list(kinds) or None
     common = dict(identity=identity, sandbox=sandbox, outbox=outbox, objects=objects, upstream=upstream,
-                  frontier=lambda: frontier.derive(log, objects, time.time(), policy=policy, kinds=wanted, keyring=keyring),
-                  store_locator=grid.transport.locator(), log=log, keyring=keyring)
+                  frontier=lambda: frontier.derive(log, objects, time.time(), policy=policy, kinds=wanted, filters=filters),
+                  store_locator=grid.transport.locator(), log=log)
     imports = import_modules_for_children(cfg)
     if verifying:
         verify_loop = _import("agentdecompile_grid.verify.loop")
         policy_mod = _import("agentdecompile_grid.verify.policy")
         records = _import("agentdecompile_grid.worker.records")
         vconfig = verify_loop.VerifierConfig.from_grid_config(cfg, lanes=wanted, import_modules=imports)
-        loop = verify_loop.VerifierLoop(task_lookup=records.LogTaskIndex(log, keyring=keyring), config=vconfig,
+        loop = verify_loop.VerifierLoop(task_lookup=records.LogTaskIndex(log), config=vconfig,
                                         penalties=policy_mod.PenaltyLedger.load(objects), revocations=policy_mod.RevocationList.load(objects), **common)
     else:
         config = loop_mod.WorkerConfig.from_grid_config(cfg, lanes=wanted, import_modules=imports, cores=1)
@@ -507,7 +527,7 @@ def cmd_view(args: argparse.Namespace) -> int:
         applier.apply([], grid.objects())   # declared appliers refuse here by name
         return 0
     report = view_pkg.materialize(grid.root, args.db, partitions=args.partition or None, resume=bool(args.resume),
-                                  objects=grid.objects(), log=grid.log(), keyring=grid.keyring())
+                                  objects=grid.objects(), log=grid.log())
     emit(report, as_json=args.json)
     # a stale partition or a skipped VERIFIED record (contract mismatch with the log slice) is
     # a non-zero exit, never a quietly empty view
@@ -653,6 +673,7 @@ def cmd_describe(args: argparse.Namespace) -> int:
     report: dict[str, Any] = {"version": __version__, "lanes": lanes, "lane_sources": lane_module_names(), "notes": notes}
     for name, registry in registries.items():
         report[name] = {item_name: _describe_item(item) for item_name, item in registry.items()} if args.verbose else registry.names()
+    report["basis_projections"] = _import("agentdecompile_grid.tasks.registry").projection_table()   # U158: {kind: basis_fields}
     if args.verbose:
         try:
             config_mod = _import("agentdecompile_grid.config")
@@ -664,9 +685,9 @@ def cmd_describe(args: argparse.Namespace) -> int:
 
 
 # --------------------------------------------------------------------------- parser
-def build_parser(*, prog: str = "adgrid") -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog=prog, description="agentdecompile grid: content-addressed, log-structured distributed compute")
-    parser.add_argument("--version", action="version", version=f"{parser.prog} {__version__}")
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(prog="adgrid", description="agentdecompile grid: content-addressed, log-structured distributed compute")
+    parser.add_argument("--version", action="version", version=f"adgrid {__version__}")
     parser.add_argument("--root", help=f"grid root directory (default: ${ROOT_ENV} or GridConfig paths.root)")
     parser.add_argument("--json", action="store_true", help="machine-readable output")
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -674,7 +695,9 @@ def build_parser(*, prog: str = "adgrid") -> argparse.ArgumentParser:
     join = sub.add_parser("join", help="attach to (or bootstrap) the local agent and join a grid")
     join.add_argument("url", nargs="?", help=f"invite url (default: ${INVITE_ENV})")
     join.add_argument("--with", dest="with_", nargs="+", action="append", metavar="LANE", help="toolchain <hash> | analyzer")
-    join.add_argument("--toolchain-path", help="a toolchain tree this node already owns (hashed by canary)")
+    join.add_argument("--toolchain-path", help="root of a toolchain tree: an owned install or a fetched toolchain unpacked to a temp root (proved by canary)")
+    join.add_argument("--toolchain-manifest", metavar="M", help="manifest file, a tree holding toolchain-manifest.json, or sha256:<ref> (default: <path>/toolchain-manifest.json)")
+    join.add_argument("--probe-parallel", type=int, metavar="N", help="parallel probe compiles for the concurrency cap (default: cpu count)")
     join.add_argument("--idle-only", action="store_true")
     join.add_argument("--cores", type=int)
     join.add_argument("--node", help="node state directory name under <root>/nodes (default: worker.node_name)")
@@ -750,8 +773,8 @@ def build_parser(*, prog: str = "adgrid") -> argparse.ArgumentParser:
     return parser
 
 
-def main(argv: Sequence[str] | None = None, *, prog: str = "adgrid") -> int:
-    parser = build_parser(prog=prog)
+def main(argv: Sequence[str] | None = None) -> int:
+    parser = build_parser()
     args = parser.parse_args(list(argv) if argv is not None else None)
     try:
         load_builtin_kinds()

@@ -26,6 +26,7 @@ from .hookpack_policy import (
     load_adapter_map,
     load_site_policy,
     lookup_site,
+    resolve_policy_path,
 )
 
 
@@ -122,26 +123,44 @@ def _binary_entry(b: dict, image_for) -> dict:
     return entry
 
 
-def export_hookpack(con, out: Path, *, site_policy=None, adapter_map=None) -> dict:
+def export_hookpack(con, out: Path, *, site_policy=None, adapter_map=None, data_pack=None) -> dict:
     """Write the pack for *con* to *out*.
 
     *site_policy* and *adapter_map* are optional file paths; see
     :mod:`hookpack_policy` for their shapes. With neither given the pack
     carries default site kinds and no adapter keys.
+
+    Scope (A4): once ``corpus admit`` has run, ``binaries`` and every site
+    instance cover admitted builds only -- placeholders are outside the pack
+    by design. ``excluded_builds`` lists what was left out (identity,
+    status, reason; sorted by identity): duplicates, contested and
+    unresolved rows always, placeholders only when admission handled them
+    as ``exclude``. Quarantined placeholders do not change the pack's bytes.
+
+    carries default site kinds and no adapter keys. *data_pack* is a selected
+    :class:`~data_packs.PackManifest` whose ``site_policy`` / ``adapter_map``
+    entries stand in for a path that was not given; explicit paths win, and
+    a pack-supplied file is hashed into ``policy_hashes`` like an explicit one.
     """
+    site_policy = resolve_policy_path(site_policy, data_pack, "site_policy")
+    adapter_map = resolve_policy_path(adapter_map, data_pack, "adapter_map")
     policy = load_site_policy(site_policy)
     amap = load_adapter_map(adapter_map)
     # Basis first: it refuses in about a millisecond, and the site loop
     # below can take minutes on a real store (A5). A store that cannot
     # declare its basis has no pack to build.
     declared_basis = basis(con)
+    from .admission import admitted_predicate, excluded_builds
+
+    scope = admitted_predicate(con, "binary")
     binaries = {
         int(r["id"]): dict(r)
         for r in con.execute(
             "SELECT id, slug, game, platform, format, arch, bits, repo_path, image_base, content_sha256"
-            " FROM binary ORDER BY id"
+            " FROM binary WHERE 1=1" + scope + " ORDER BY id"
         )
     }
+    member_scope = admitted_predicate(con, "b")
     raw_by_bid: dict[int, bytes | None] = {}
 
     def image_for(bid: int) -> bytes | None:
@@ -155,7 +174,16 @@ def export_hookpack(con, out: Path, *, site_policy=None, adapter_map=None) -> di
     # image-derived fallback in _binary_entry.
     from .logical import content_hash_index
 
-    content_hash_index(con, (r[0] for r in con.execute("SELECT DISTINCT binary_id FROM identity")))
+    content_hash_index(
+        con,
+        (
+            r[0]
+            for r in con.execute(
+                "SELECT DISTINCT i.binary_id FROM identity i JOIN binary b ON b.id=i.binary_id WHERE 1=1"
+                + member_scope
+            )
+        ),
+    )
 
     logicals = list(con.execute(
         "SELECT id, best_name, best_signature, canon_class, canon_method, canon_key, n_members"
@@ -176,7 +204,9 @@ def export_hookpack(con, out: Path, *, site_policy=None, adapter_map=None) -> di
                  FROM identity i
                  JOIN binary b ON b.id=i.binary_id
                  LEFT JOIN func f ON f.binary_id=i.binary_id AND f.addr=i.addr
-                WHERE i.logical_id=?
+                WHERE i.logical_id=?"""
+            + member_scope
+            + """
                 ORDER BY b.content_sha256, i.addr""",
             (lid,),
         ))
@@ -266,6 +296,7 @@ def export_hookpack(con, out: Path, *, site_policy=None, adapter_map=None) -> di
     # That is the same collision the loader rejects, so reject it here too.
     check_adapter_key_collisions(adapter_keys_by_site, where="hook pack")
 
+    excluded = excluded_builds(con)
     pack = {
         "format": FORMAT,
         "basis": declared_basis,
@@ -274,6 +305,7 @@ def export_hookpack(con, out: Path, *, site_policy=None, adapter_map=None) -> di
             (_binary_entry(b, lambda bid=bid: image_for(bid)) for bid, b in binaries.items()),
             key=lambda e: e["slug"],
         ),
+        "excluded_builds": excluded,
         "sites": sites,
     }
     if site_policy is not None or adapter_map is not None:
@@ -289,4 +321,4 @@ def export_hookpack(con, out: Path, *, site_policy=None, adapter_map=None) -> di
     out = Path(out)
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(pack, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    return {"wrote": str(out), "sites": len(sites), "binaries": len(binaries)}
+    return {"wrote": str(out), "sites": len(sites), "binaries": len(binaries), "excluded_builds": len(excluded)}

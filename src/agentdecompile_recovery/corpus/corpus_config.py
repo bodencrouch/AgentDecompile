@@ -118,6 +118,26 @@ def load_ghidra_server(config_dir_path: Path | str | None = None) -> dict[str, s
     }
 
 
+def data_packs_root(explicit: Path | str | None = None, config_dir_path: Path | str | None = None) -> Path | None:
+    """Root directory of the L3 data packs, or None when none is declared.
+
+    Order: *explicit*, then ``AGENT_DECOMPILE_DATA_PACKS_ROOT``, then the
+    ``root`` key of ``data_packs.json`` under the config directory. There is
+    no bundled default: with nothing declared the registry reports
+    ``no_root`` and declares zero packs.
+    """
+    if explicit is not None:
+        return Path(explicit)
+    env = os.environ.get("AGENT_DECOMPILE_DATA_PACKS_ROOT", "").strip()
+    if env:
+        return Path(env)
+    root = config_dir(config_dir_path)
+    if root is None:
+        return None
+    value = str(_read_json(root / "data_packs.json").get("root") or "").strip()
+    return Path(value) if value else None
+
+
 def load_maps(config_dir_path: Path | str | None = None) -> dict:
     root = config_dir(config_dir_path)
     if root is None:

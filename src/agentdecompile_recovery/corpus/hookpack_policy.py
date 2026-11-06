@@ -8,6 +8,11 @@ final site key with a fallback to the un-suffixed key.
 
 Everything here is a pure function of the file contents. Lists come out
 sorted and de-duplicated so the pack bytes never depend on file order.
+
+Both files may also come from an L3 data pack (:mod:`data_packs`): the
+``site_policy`` and ``adapter_map`` entries of a selected
+:class:`~data_packs.PackManifest`. An explicit path always wins over the
+pack's entry; a pack without the entry is the same as no path.
 """
 
 from __future__ import annotations
@@ -15,6 +20,10 @@ from __future__ import annotations
 import hashlib
 import json
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:  # no import cycle: data_packs never imports this module
+    from .data_packs import PackManifest
 
 SITE_KINDS = ("call", "detour", "field", "reference")
 DEFAULT_SITE_POLICY = {"kind": "detour", "required": False}
@@ -74,7 +83,16 @@ def file_sha256(path: Path | str | None) -> str | None:
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 
 
-def load_site_policy(path: Path | str | None) -> dict:
+def resolve_policy_path(explicit: Path | str | None, pack: "PackManifest | None", kind: str) -> Path | None:
+    """*explicit* if given, else the pack's *kind* entry, else None."""
+    if explicit is not None:
+        return Path(explicit)
+    if pack is None:
+        return None
+    return pack.entry_path_or_none(kind)
+
+
+def load_site_policy(path: Path | str | None, *, pack: "PackManifest | None" = None) -> dict:
     """Load and validate a site policy file.
 
     Shape::
@@ -84,8 +102,10 @@ def load_site_policy(path: Path | str | None) -> dict:
 
     Returns ``{"default": {kind, required}, "sites": {key: {kind, required[, field]}}}``
     with every site entry fully resolved against the default. No path means the
-    built-in default and no per-site entries.
+    built-in default and no per-site entries. *pack* supplies its
+    ``site_policy`` entry when *path* is None.
     """
+    path = resolve_policy_path(path, pack, "site_policy")
     if path is None:
         return {"default": dict(DEFAULT_SITE_POLICY), "sites": {}}
     data = _read_json_object(Path(path), "site policy")
@@ -123,7 +143,7 @@ def load_site_policy(path: Path | str | None) -> dict:
     return {"default": default, "sites": sites}
 
 
-def load_adapter_map(path: Path | str | None) -> dict:
+def load_adapter_map(path: Path | str | None, *, pack: "PackManifest | None" = None) -> dict:
     """Load and validate an adapter-key map file.
 
     Shape::
@@ -133,7 +153,9 @@ def load_adapter_map(path: Path | str | None) -> dict:
 
     Aliases come back sorted and de-duplicated. Two site keys naming the same
     adapter key is a collision and raises, listing both; nothing is last-wins.
+    *pack* supplies its ``adapter_map`` entry when *path* is None.
     """
+    path = resolve_policy_path(path, pack, "adapter_map")
     if path is None:
         return {"keys": {}, "aliases": {}}
     data = _read_json_object(Path(path), "adapter map")

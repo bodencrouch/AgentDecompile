@@ -44,11 +44,11 @@ import secrets
 from dataclasses import dataclass, field, replace
 from typing import Any, Callable, Mapping, Sequence
 
-from ..core import TASK_KINDS, VERIFIERS, Frontier, LogStore, NodeIdentity, RecordType, Refused, TaskSpec, VerificationOutcome, canonical_json
+from ..core import TASK_KINDS, VERIFIERS, Frontier, GridError, LogStore, NodeIdentity, RecordType, Refused, TaskSpec, VerificationOutcome, canonical_json, check_basis_projection
 from ..worker.identity import ROLE_MAY_VERIFY
 from ..worker.loop import Candidate, Slot, StepEvent, StepMachine, WorkerConfig
 from ..worker.outbox import PendingRecord
-from ..worker.records import Proposal, read_results, read_verdicts, task_result_from_record, verification_body, verification_from_record
+from ..worker.records import Proposal, read_results, task_result_from_record, verification_body, verification_from_record
 from ..worker.sandbox import DEFAULT_LIMITS, JobOutcome, SandboxJob, deadline_for
 from ..tasks.results import verification_name, verification_to_record
 from .policy import DEFAULT_INDEPENDENCE_POLICY, PenaltyLedger, RevocationList, check_independence
@@ -105,17 +105,12 @@ class VerifierLoop(StepMachine):
         def partition_view(partition: str) -> tuple[dict[str, list[Proposal]], dict[str, set[str]]]:
             if partition not in partition_cache:            # one pass over the partition per pull, however many tasks await
                 by_task: dict[str, list[Proposal]] = {}
-                for proposal in read_results(
-                    self.log, partition, trust_unsigned=self.config.trust_unsigned_records,
-                    lineage_lookup=self.lineage_lookup, keyring=self.keyring,
-                ):
+                for proposal in read_results(self.log, partition, trust_unsigned=self.config.trust_unsigned_records, lineage_lookup=self.lineage_lookup):
                     by_task.setdefault(proposal.task_id, []).append(proposal)
                 decided_by_task: dict[str, set[str]] = {}
-                for body in read_verdicts(
-                    self.log, partition, task_id=None, keyring=self.keyring,
-                    trust_unsigned=self.config.trust_unsigned_records,
-                ):
-                    decided_by_task.setdefault(str(body.get("task_id")), set()).add(str(body.get("result_ref")))
+                for rec in self.log.read(partition, 0):
+                    if rec.type in (RecordType.VERIFIED, RecordType.REFUTED):
+                        decided_by_task.setdefault(str(rec.body.get("task_id")), set()).add(str(rec.body.get("result_ref")))
                 partition_cache[partition] = (by_task, decided_by_task)
             return partition_cache[partition]
 
@@ -132,6 +127,11 @@ class VerifierLoop(StepMachine):
                 continue
             if self.config.admitted_bases and spec.basis_hash not in self.config.admitted_bases:
                 self._skip("basis-not-admitted")
+                continue
+            try:
+                check_basis_projection(kinds[spec.kind], spec)          # U158: verify refuses a projection mismatch by name
+            except Refused as exc:
+                self._skip(exc.reason.split(":", 1)[0])
                 continue
             try:
                 deadline = deadline_for(spec, self.config.deadlines_s)
@@ -220,7 +220,7 @@ class VerifierLoop(StepMachine):
             return StepEvent(note, {**detail, "status": outcome.status})
         try:
             verification = verification_from_record(outcome.payload)
-        except (KeyError, ValueError):
+        except (KeyError, ValueError, GridError):
             self._cooloff[key] = now + self.config.cooloff_s
             self._note(spec, "verify-error", {**detail, "error_class": "verification-unparseable"})
             return StepEvent("verify-error", {**detail, "status": "unparseable"})

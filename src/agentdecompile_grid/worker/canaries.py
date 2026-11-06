@@ -36,14 +36,13 @@ from __future__ import annotations
 import hashlib
 import os
 import platform
-import shlex
-import subprocess
 import threading
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Iterable, Mapping
 
-from ..core import CANARIES, GRID_SCHEMA_VERSION, Canary, NodeIdentity, NotConfigured, ObjectRef, ObjectStore, canonical_json, digest
+from ..core import CANARIES, GRID_SCHEMA_VERSION, Canary, NodeIdentity, NotConfigured, ObjectStore, Registry, canonical_json, digest
 
 PYTHON_FIXTURE: Mapping[str, Any] = {
     "schema": GRID_SCHEMA_VERSION,
@@ -92,83 +91,235 @@ class PythonCanary:
                 "fixture": self.fixture, "pin_owner": "agentdecompile_grid.tasks.builtin.CANARY_FIXTURES"}
 
 
-# --------------------------------------------------------------------------- declared: toolchain
+# --------------------------------------------------------------------------- working: toolchain
 class ToolchainCanary:
-    """Compile ``probe_ref`` (a fixed translation unit object) with the toolchain at
-    ``toolchain_path``; ``masker`` strips timestamps/paths from the object; the masked hash must
-    equal ``expected_masked_hash``.  Every join therefore measures cross-host compile determinism
-    for free (design §1.5).  Capability ``toolchain:<identity_hash>``.
+    """Prove ``toolchain:<identity_hash>`` for a tree (U163).
 
-    ``compile_command`` is a template: ``{toolchain} {source} {output}`` are substituted, the
-    command runs in ``scratch`` with the deadline; nothing else is interpolated."""
+    Inputs: a manifest (duck-typed: ``entries``, ``identity_hash``, ``probe`` with ``tu_relpath``
+    and ``expected_masked_hash``) and a root -- an owned install or a fetched toolchain unpacked
+    to a temp root, one code path.  Steps: ``verify_tree(root, manifest)`` -> compile the probe
+    TU with the probe compiler under the deadline -> ``masker.masked_hash(object bytes)`` -> compare
+    to the pin -> bounded parallel trial (``probe_parallel``, default ``os.cpu_count()``) that
+    measures this node's concurrency cap -> ``on_proven(identity_hash)`` binds the root for the
+    compile lane.  Any mismatch is a named failure (``toolchain-canary: masked hash mismatch for
+    <hash[:16]>`` ...) and proves nothing.
+
+    The pieces come from a lane through ``HOOKS`` (a lane registers a hook whose
+    ``configure(root=, manifest_source=, objects=)`` returns ``manifest``, ``root``,
+    ``verify_tree``, ``compiler``, ``masker`` and ``on_proven``) or are passed explicitly; this
+    module names no lane.  The capability stays exactly ``toolchain:<identity_hash>`` (what
+    ``compile-attempt`` requires); the measured cap is advertised *additionally* as
+    ``toolchain:<identity_hash>:slots=<n>`` through ``slots_canary()`` and recorded in evidence.
+    An ``--with toolchain <hash>`` assertion that disagrees with the manifest is refused by name.
+    """
 
     name = "toolchain"
+    HOOKS = Registry("toolchain canary hook")
     CONFIG_SCHEMA: Mapping[str, str] = {
-        "toolchain_path": "directory holding the era-exact toolchain tree (content hash = identity)",
-        "identity_hash": "toolchain_identity_hash (content address of the toolchain tree; grid_lanes/toolchain)",
-        "probe_ref": "ObjectRef of the fixed probe translation unit",
-        "expected_masked_hash": "sha256 hex of the masked probe object under this toolchain",
-        "compile_command": "shell template with {toolchain} {source} {output}",
-        "masker": "callable(bytes) -> bytes stripping non-deterministic fields (verify/masked_coff, U127)",
+        "toolchain_path": "root of the tree: an owned install or a fetched toolchain unpacked to a temp root",
+        "manifest_source": "manifest file path, a tree holding toolchain-manifest.json, or a sha256: object ref (lane hook loads it)",
+        "identity_hash": "optional asserted identity; must equal the manifest's or the canary refuses",
+        "probe_parallel": "bounded parallel probe count for the concurrency cap (default os.cpu_count())",
+        "deadline_s": "per-probe compile deadline",
+        "manifest/compiler/masker/verify_tree/on_proven": "explicit pieces instead of a HOOKS entry (tests, embedding)",
     }
 
-    def __init__(self, *, toolchain_path: str | None = None, identity_hash: str = "", probe_ref: ObjectRef | str | None = None, expected_masked_hash: str = "",
-                 compile_command: str = "", masker: Callable[[bytes], bytes] | None = None, deadline_s: float = 60.0, runner: Callable[..., "subprocess.CompletedProcess[bytes]"] = subprocess.run) -> None:
-        self.toolchain_path = toolchain_path
-        self.identity_hash = identity_hash
-        self.probe_ref = ObjectRef(probe_ref) if probe_ref else None
-        self.expected_masked_hash = expected_masked_hash
-        self.compile_command = compile_command
-        self.masker = masker
+    def __init__(self, *, toolchain_path: str | os.PathLike[str] | None = None, identity_hash: str = "", manifest_source: Any = None,
+                 probe_parallel: int | None = None, deadline_s: float = 60.0, hook: str = "toolchain",
+                 manifest: Any = None, compiler: Any = None, masker: Any = None, verify_tree: Callable[..., Any] | None = None,
+                 on_proven: Callable[[str], Mapping[str, Any]] | None = None) -> None:
+        self.toolchain_path = str(toolchain_path) if toolchain_path is not None else None
+        self.asserted_identity = identity_hash
+        self.manifest_source = manifest_source
+        self.probe_parallel = probe_parallel
         self.deadline_s = deadline_s
-        self.runner = runner
+        self.hook = hook
+        self.manifest = manifest
+        self.compiler = compiler
+        self.masker = masker
+        self.verify_tree = verify_tree
+        self.on_proven = on_proven
+        self.measured_slots: int | None = None
+        self.last_evidence: dict[str, Any] = {}
+
+    # ----------------------------------------------------------------- identity / capability
+    @property
+    def identity_hash(self) -> str:
+        if self.manifest is not None and getattr(self.manifest, "identity_hash", ""):
+            return str(self.manifest.identity_hash)
+        return self.asserted_identity
 
     @property
     def capability(self) -> str:
         return f"toolchain:{self.identity_hash}" if self.identity_hash else "toolchain:"
 
-    def _missing(self) -> list[str]:
+    def slots_canary(self) -> "ToolchainCanary.Slots":
+        return ToolchainCanary.Slots(self)
+
+    # ----------------------------------------------------------------- configuration
+    def _needs(self) -> list[str]:
         needs = []
-        if not self.toolchain_path:
-            needs.append("toolchain_path (--toolchain-path <dir>)")
-        elif not os.path.isdir(self.toolchain_path):
-            needs.append(f"toolchain_path {self.toolchain_path!r} is not a directory")
-        if not self.identity_hash:
-            needs.append("identity_hash (toolchain_identity_hash of the tree)")
-        if self.probe_ref is None:
-            needs.append("probe_ref (the fixed probe translation unit object)")
-        if not self.expected_masked_hash:
-            needs.append("expected_masked_hash (the pinned masked object hash)")
-        if not self.compile_command:
-            needs.append("compile_command template")
-        if self.masker is None:
-            needs.append("masker (masked object hasher from verify/masked_coff)")
+        explicit = all(x is not None for x in (self.manifest, self.compiler, self.masker, self.verify_tree))
+        if not explicit:
+            if not self.toolchain_path:
+                needs.append("toolchain_path (--toolchain-path <dir>)")
+            elif not os.path.isdir(self.toolchain_path):
+                needs.append("toolchain_path is not a directory")
+            if self.hook not in self.HOOKS:
+                needs.append(f"a lane hook named {self.hook!r} in ToolchainCanary.HOOKS (load the toolchain lane: config lanes / ADGRID_LANES)")
         return needs
 
+    def _configure(self, objects: ObjectStore) -> None:
+        if all(x is not None for x in (self.manifest, self.compiler, self.masker, self.verify_tree)):
+            return
+        cfg = self.HOOKS.get(self.hook).configure(root=self.toolchain_path, manifest_source=self.manifest_source, objects=objects)
+        self.manifest = cfg["manifest"]
+        self.toolchain_path = str(cfg.get("root", self.toolchain_path))
+        self.verify_tree = cfg["verify_tree"]
+        self.compiler = cfg["compiler"]
+        self.masker = cfg["masker"]
+        self.on_proven = cfg.get("on_proven", self.on_proven)
+
+    # ----------------------------------------------------------------- one probe
+    def _probe_once(self, scratch: Path) -> tuple[str, dict[str, Any]]:
+        """Compile the probe TU in *scratch*; return ``(masked_hash, facts)``; a named failure has ``''``."""
+        assert self.manifest is not None and self.compiler is not None and self.masker is not None
+        root = Path(self.toolchain_path or "")
+        probe = self.manifest.probe
+        scratch.mkdir(parents=True, exist_ok=True)
+        source = root / probe.tu_relpath
+        output = scratch / "probe.obj"
+        output.unlink(missing_ok=True)
+        run = self.compiler.compile(root, source, output, scratch=scratch, deadline_s=self.deadline_s)
+        facts: dict[str, Any] = {"wall_s": round(float(run.elapsed_s), 3), "returncode": run.returncode, "stderr_sha256": run.stderr_sha256}
+        if run.timed_out:
+            facts["failure"] = f"toolchain-canary: probe timed out after {self.deadline_s:.0f}s for {self.identity_hash[:16]}"
+            return "", facts
+        if run.returncode != 0 or not run.produced:
+            facts["failure"] = f"toolchain-canary: probe compile failed (exit {run.returncode}) for {self.identity_hash[:16]}"
+            return "", facts
+        data = output.read_bytes()
+        facts["object_bytes"] = len(data)
+        facts["raw_sha256"] = hashlib.sha256(data).hexdigest()
+        try:
+            return str(self.masker.masked_hash(data)), facts
+        except Exception as exc:   # a masker refusal is a named failure, never a traceback
+            facts["failure"] = f"toolchain-canary: masker refused ({exc.__class__.__name__}: {exc}) for {self.identity_hash[:16]}"
+            return "", facts
+
+    def _parallel_trial(self, scratch: Path, expected: str) -> dict[str, Any]:
+        """Run ``probe_parallel`` probes at once; the cap is how many finished with the pin."""
+        wanted = self.probe_parallel if self.probe_parallel and self.probe_parallel > 0 else (os.cpu_count() or 1)
+        n = max(1, min(int(wanted), 64))
+        results: list[tuple[str, dict[str, Any]] | None] = [None] * n
+
+        def work(i: int) -> None:
+            results[i] = self._probe_once(scratch / f"parallel-{i}")
+
+        threads = [threading.Thread(target=work, args=(i,), name=f"toolchain-probe-{i}", daemon=True) for i in range(n)]
+        started = time.monotonic()
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join(self.deadline_s + 5.0)
+        wall = time.monotonic() - started
+        hashes = [r[0] if r is not None else "" for r in results]
+        mismatched = sum(1 for h in hashes if h and h != expected)
+        passed = sum(1 for h in hashes if h == expected)
+        trial = {"requested": n, "passed": passed, "mismatched": mismatched, "wall_s": round(wall, 3)}
+        if mismatched:
+            trial["failure"] = f"toolchain-canary: masked hash mismatch under parallel load ({mismatched}/{n}) for {self.identity_hash[:16]}"
+        elif passed == 0:
+            trial["failure"] = f"toolchain-canary: no parallel probe finished within {self.deadline_s:.0f}s for {self.identity_hash[:16]}"
+        return trial
+
+    # ----------------------------------------------------------------- the canary
     def prove(self, objects: ObjectStore, scratch: str) -> tuple[bool, Mapping[str, Any]]:
-        needs = self._missing()
+        needs = self._needs()
         if needs:
             raise NotConfigured("toolchain canary needs: " + "; ".join(needs))
-        assert self.probe_ref is not None and self.masker is not None and self.toolchain_path is not None
-        if not objects.exists(self.probe_ref):
-            raise NotConfigured(f"toolchain canary needs the probe object {self.probe_ref} in the object store (fetch it from a fleet mirror)")
-        source = Path(scratch) / "probe.c"
-        output = Path(scratch) / "probe.obj"
-        source.write_bytes(objects.get(self.probe_ref))
-        cmd = self.compile_command.format(toolchain=shlex.quote(self.toolchain_path), source=shlex.quote(str(source)), output=shlex.quote(str(output)))
-        try:
-            proc = self.runner(cmd, shell=True, cwd=scratch, capture_output=True, timeout=self.deadline_s, start_new_session=True)
-        except subprocess.TimeoutExpired:
-            return False, {"failure": "timeout", "deadline_s": self.deadline_s}
-        if proc.returncode != 0 or not output.exists():
-            return False, {"failure": "compile-failed", "returncode": proc.returncode, "stderr_digest": digest(proc.stderr or b"")}
-        got = hashlib.sha256(self.masker(output.read_bytes())).hexdigest()
-        ok = got == self.expected_masked_hash
-        return ok, {"masked_hash": got, "expected": self.expected_masked_hash, "failure": "" if ok else "pin-mismatch", "identity_hash": self.identity_hash}
+        self._configure(objects)
+        assert self.manifest is not None and self.verify_tree is not None
+        identity = self.identity_hash
+        short = identity[:16]
+        evidence: dict[str, Any] = {"identity_hash": identity, "entries": len(self.manifest.entries)}
+        self.last_evidence = evidence
+
+        def fail(message: str) -> tuple[bool, Mapping[str, Any]]:
+            evidence["failure"] = message
+            return False, evidence
+
+        if self.asserted_identity and self.asserted_identity != identity:
+            return fail(f"toolchain-canary: asserted identity {self.asserted_identity[:16]} is not the manifest's {short}")
+        probe = getattr(self.manifest, "probe", None)
+        if probe is None or not getattr(probe, "expected_masked_hash", ""):
+            return fail(f"toolchain-canary: manifest {short} declares no probe pin")
+        expected = str(probe.expected_masked_hash)
+        evidence["expected_masked_hash"] = expected
+        tree = self.verify_tree(self.toolchain_path, self.manifest)
+        evidence["tree"] = tree.to_mapping() if hasattr(tree, "to_mapping") else dict(tree)
+        if not getattr(tree, "ok", False):
+            return fail(f"toolchain-canary: tree does not match manifest {short}: missing={len(tree.missing)} mismatched={len(tree.mismatched)}")
+        if probe.tu_relpath not in getattr(self.manifest, "paths", {rel for rel, _ in self.manifest.entries}):
+            return fail(f"toolchain-canary: probe TU is not a declared entry of {short}")
+        got, facts = self._probe_once(Path(scratch) / "serial")
+        evidence["probe"] = facts
+        if not got:
+            return fail(str(facts.get("failure", "probe-failed")))
+        evidence["masked_hash"] = got
+        if got != expected:
+            return fail(f"toolchain-canary: masked hash mismatch (pin-mismatch) for {short}")
+        trial = self._parallel_trial(Path(scratch), expected)
+        evidence["parallel"] = trial
+        if trial.get("failure"):
+            return fail(str(trial["failure"]))
+        self.measured_slots = int(trial["passed"])
+        evidence["slots"] = self.measured_slots
+        evidence["capability_slots"] = f"{self.capability}:slots={self.measured_slots}"
+        if self.on_proven is not None:
+            try:
+                evidence["binding"] = dict(self.on_proven(identity))
+            except NotConfigured:
+                raise
+            except Exception as exc:
+                return fail(f"toolchain-canary: binding refused ({exc.__class__.__name__}: {exc}) for {short}")
+        evidence["failure"] = ""
+        return True, evidence
 
     def describe(self) -> Mapping[str, Any]:
-        needs = self._missing()
-        return {"name": self.name, "capability": self.capability, "status": "working" if not needs else "declared", "needs": needs, "config_schema": dict(self.CONFIG_SCHEMA)}
+        needs = self._needs()
+        return {"name": self.name, "capability": self.capability, "status": "working" if not needs else "not-configured", "needs": needs,
+                "config_schema": dict(self.CONFIG_SCHEMA), "hooks": self.HOOKS.names(), "probe_parallel": self.probe_parallel or (os.cpu_count() or 1),
+                "compatibility_layer": "slot: persistent per-node server, health-checked, reused (lane probe compiler 'compatibility-layer')"}
+
+    # ----------------------------------------------------------------- the additional slots capability
+    class Slots:
+        """Advertises ``toolchain:<hash>:slots=<n>`` next to the plain capability; never instead of it.
+        Reuses the parent's measured cap when the parent already proved, else measures itself."""
+
+        name = "toolchain-slots"
+
+        def __init__(self, parent: "ToolchainCanary") -> None:
+            self.parent = parent
+
+        @property
+        def capability(self) -> str:
+            n = self.parent.measured_slots
+            return f"{self.parent.capability}:slots={n if n is not None else 0}"
+
+        def prove(self, objects: ObjectStore, scratch: str) -> tuple[bool, Mapping[str, Any]]:
+            parent = self.parent
+            if parent.measured_slots is None and parent.last_evidence.get("failure"):
+                return False, {"failure": str(parent.last_evidence["failure"]), "identity_hash": parent.identity_hash}
+            if parent.measured_slots is None:
+                ok, evidence = parent.prove(objects, scratch)
+                if not ok:
+                    return False, {"failure": str(evidence.get("failure", "toolchain canary failed")), "identity_hash": parent.identity_hash}
+            return True, {"slots": parent.measured_slots, "identity_hash": parent.identity_hash, "parallel": dict(parent.last_evidence.get("parallel", {}))}
+
+        def describe(self) -> Mapping[str, Any]:
+            return {"name": self.name, "capability": self.capability, "status": "working" if not self.parent._needs() else "not-configured",
+                    "needs": self.parent._needs(), "measures": "bounded parallel probe trial; cap = probes that reached the pin"}
 
 
 # --------------------------------------------------------------------------- declared: analyzer, parity, browser

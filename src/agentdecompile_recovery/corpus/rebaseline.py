@@ -30,10 +30,9 @@ supersession; ``<new_basis_hash[:16]>.diff.json`` holds the site diff
 against a prior pack when one is given. Neither file carries a clock
 value; ``basis_supersession.recorded_at`` is the only clock-derived value
 this verb writes and it lives in the store, never in a receipt. The
-receipt's ``sha256`` is stored in the supersession row. The receipt is staged
-and fsynced before the write transaction begins, then atomically installed
-after commit, so an unusable receipt directory cannot leave re-stamped rows
-without their receipt.
+receipt's ``sha256`` is stored in the supersession row, and the row commits
+before the file is written, so a receipt on disk always implies a
+committed supersession.
 
 Extension points, each with one working implementation and named slots:
 
@@ -60,7 +59,6 @@ import json
 import os
 import re
 import sqlite3
-import tempfile
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -495,110 +493,6 @@ def _existing_receipt_conflict(path: Path, old: str, new: str) -> None:
         )
 
 
-def _latest_receipt_status(
-    con: sqlite3.Connection, receipts_dir: Path, new_hash: str
-) -> dict | None:
-    """Describe the receipt for the latest supersession into *new_hash*.
-
-    An unchanged rerun is still an integrity observation: it must not hide a
-    receipt lost after the database commit.  The ledger hash is authoritative;
-    this helper never reconstructs or silently replaces the file.
-    """
-    row = con.execute(
-        f"SELECT old_basis_hash, new_basis_hash, receipt_sha256 FROM {SUPERSESSION_TABLE}"
-        " WHERE new_basis_hash=? ORDER BY id DESC LIMIT 1",
-        (new_hash,),
-    ).fetchone()
-    if row is None:
-        return None
-    old, new, expected = map(str, row)
-    path = receipts_dir / RECEIPT_DIRNAME / f"{new[:16]}.json"
-    report = {
-        "status": "missing",
-        "path": str(path),
-        "receipt_sha256": expected,
-        "old_basis_hash": old,
-        "new_basis_hash": new,
-    }
-    try:
-        actual = hashlib.sha256(path.read_bytes()).hexdigest()
-    except OSError:
-        return report
-    report["status"] = "present" if actual == expected else "mismatch"
-    if actual != expected:
-        report["actual_sha256"] = actual
-    return report
-
-
-def _stage_receipt(path: Path, data: bytes) -> Path:
-    """Create and fsync a temporary receipt beside *path*.
-
-    This runs before ``BEGIN IMMEDIATE``.  Any directory, permission or space
-    failure therefore happens before the policy can re-stamp a database row.
-    """
-    staged: Path | None = None
-    try:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        descriptor, name = tempfile.mkstemp(
-            prefix=f".{path.name}.", suffix=".tmp", dir=path.parent
-        )
-        staged = Path(name)
-        with os.fdopen(descriptor, "wb") as stream:
-            stream.write(data)
-            stream.flush()
-            os.fsync(stream.fileno())
-        return staged
-    except OSError as exc:
-        if staged is not None:
-            try:
-                staged.unlink()
-            except OSError:
-                pass
-        raise BasisError(f"rebaseline: could not stage receipt at {path}: {exc}") from exc
-
-
-def _rewrite_staged_receipt(path: Path, data: bytes, final_path: Path) -> None:
-    """Replace the staged bytes and fsync them while rollback is still possible."""
-    try:
-        with path.open("wb") as stream:
-            stream.write(data)
-            stream.flush()
-            os.fsync(stream.fileno())
-    except OSError as exc:
-        raise BasisError(f"rebaseline: could not stage receipt at {final_path}: {exc}") from exc
-
-
-def _replaceable_supersession_id(
-    con: sqlite3.Connection, old_hash: str, new_hash: str
-) -> int | None:
-    """Return an older pair row only when a later reverse proves oscillation.
-
-    The v3 schema permits one row per directed pair.  To record a later repeat
-    without changing that schema, the verb retains the latest occurrence of
-    each pair: delete the older row and insert the repeat with a new id.  A
-    higher-id reverse row is the evidence that distinguishes a legitimate
-    A->B->A->B oscillation from an out-of-band backward re-stamp.
-    """
-    row = con.execute(
-        f"SELECT id FROM {SUPERSESSION_TABLE} WHERE old_basis_hash=? AND new_basis_hash=?",
-        (old_hash, new_hash),
-    ).fetchone()
-    if row is None:
-        return None
-    existing_id = int(row[0])
-    reverse = con.execute(
-        f"SELECT id FROM {SUPERSESSION_TABLE}"
-        " WHERE old_basis_hash=? AND new_basis_hash=? AND id>? ORDER BY id DESC LIMIT 1",
-        (new_hash, old_hash, existing_id),
-    ).fetchone()
-    if reverse is None:
-        raise BasisError(
-            f"rebaseline: supersession {old_hash[:16]} -> {new_hash[:16]} is already recorded "
-            "without a later reverse supersession"
-        )
-    return existing_id
-
-
 # --- the verb ---------------------------------------------------------------
 
 
@@ -621,6 +515,21 @@ def _export_refusal(exc: BaseException) -> dict:
         # Bracketed lists in basis messages name builds; drop them.
         "detail": _BRACKETED.sub("[...]", str(exc)),
     }
+
+
+def _rows_with_hash(con: sqlite3.Connection, basis_hash_value: str) -> list[dict]:
+    """Every ``binary`` row carrying *basis_hash_value*, in canonical row order.
+
+    Unscoped on purpose (see the caller): the UPDATE the policy issues is
+    unscoped too, and the receipt must list exactly the rows it touches.
+    """
+    cur = con.execute(
+        "SELECT slug, content_sha256, analyzer_version, basis_hash, basis_source FROM binary"
+        " WHERE basis_hash = ? ORDER BY content_sha256, repo_path, slug",
+        (basis_hash_value,),
+    )
+    names = [d[0] for d in cur.description]
+    return [dict(zip(names, r)) for r in cur.fetchall()]
 
 
 def rebaseline(
@@ -669,7 +578,6 @@ def rebaseline(
             "algorithm_version": ALGORITHM_VERSION,
             "analyzer_version": analyzer_version,
             "rows": len(rows),
-            "receipt": _latest_receipt_status(con, receipts_dir, current),
             "run": run,
         }
     if len(stale) > 1:
@@ -679,7 +587,11 @@ def rebaseline(
             "mixed bases are never silently merged"
         )
     (old,) = stale
-    stale_rows = [r for r in rows if str(r["basis_hash"]) == old]
+    # Drift is judged on the rows the basis covers (A4 admission scope); the
+    # re-stamp reaches every row of the store that carries the old hash,
+    # admitted or not, so an unadmitted analyzed row never keeps a stale
+    # basis that would refuse the moment it is admitted.
+    stale_rows = _rows_with_hash(con, old)
 
     # Phase: resolve the old basis and build the receipt (no clock in it).
     try:
@@ -714,78 +626,63 @@ def rebaseline(
         return {"status": "dry_run", **receipt, "run": run}
     _existing_receipt_conflict(receipt_path, old, current)
 
-    # Phase: restamp. Establish that the receipt destination is writable and
-    # durable before taking the database write lock.  The policy can add
-    # deterministic result fields, so the same temp file is rewritten and
-    # fsynced inside the transaction before COMMIT, then atomically installed.
+    # Phase: restamp. One BEGIN IMMEDIATE transaction: the policy's writes,
+    # the supersession row, then COMMIT; the receipt file comes after.
     try:
         deadline.check("restamp")
     except DeadlineExceeded as exc:
         return {"status": "deadline", "phase": exc.phase, **receipt, "run": run}
-    initial_receipt_bytes = _dumps(receipt).encode("utf-8")
-    staged_receipt = _stage_receipt(receipt_path, initial_receipt_bytes)
     recorded_at = _recorded_at()
+    con.execute("BEGIN IMMEDIATE")
     try:
-        con.execute("BEGIN IMMEDIATE")
+        # The lock is held now; the rows must still be what the read phase saw.
+        if _hash_groups(stored_basis_rows(con)) != groups:
+            raise BasisError("rebaseline: binary rows changed under the verb; run it again")
+        _fire("before_restamp", con, receipt)
+        result = policy.on_supersede(con, receipt)
+        if int(result.get("restamped", -1)) != len(stale_rows):
+            raise BasisError(
+                f"rebaseline: policy {policy.name} re-stamped {result.get('restamped')} row(s), "
+                f"expected {len(stale_rows)}"
+            )
+        receipt["policy"] = {"name": policy.name, **result}
+        receipt_bytes = _dumps(receipt).encode("utf-8")
+        receipt_sha256 = hashlib.sha256(receipt_bytes).hexdigest()
         try:
-            # The lock is held now; the rows must still be what the read phase saw.
-            if _hash_groups(stored_basis_rows(con)) != groups:
-                raise BasisError("rebaseline: binary rows changed under the verb; run it again")
-            replace_id = _replaceable_supersession_id(con, old, current)
-            _fire("before_restamp", con, receipt)
-            result = policy.on_supersede(con, receipt)
-            if int(result.get("restamped", -1)) != len(stale_rows):
-                raise BasisError(
-                    f"rebaseline: policy {policy.name} re-stamped {result.get('restamped')} row(s), "
-                    f"expected {len(stale_rows)}"
-                )
-            receipt["policy"] = {"name": policy.name, **result}
-            receipt_bytes = _dumps(receipt).encode("utf-8")
-            receipt_sha256 = hashlib.sha256(receipt_bytes).hexdigest()
-            _rewrite_staged_receipt(staged_receipt, receipt_bytes, receipt_path)
-            if replace_id is not None:
-                con.execute(f"DELETE FROM {SUPERSESSION_TABLE} WHERE id=?", (replace_id,))
-            try:
-                con.execute(
-                    f"INSERT INTO {SUPERSESSION_TABLE}(old_basis_hash, new_basis_hash, old_algorithm_version,"
-                    " new_algorithm_version, old_package_basis_json, new_package_basis_json, analyzer_version,"
-                    " reason, binaries_restamped, receipt_sha256, recorded_at)"
-                    " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                    (
-                        old,
-                        current,
-                        resolved.algorithm_version,
-                        ALGORITHM_VERSION,
-                        None if resolved.package_basis is None else _compact(resolved.package_basis),
-                        _compact(new_package_basis),
-                        analyzer_version,
-                        reason,
-                        len(stale_rows),
-                        receipt_sha256,
-                        recorded_at,
-                    ),
-                )
-            except sqlite3.IntegrityError as exc:
-                raise BasisError(
-                    f"rebaseline: supersession {old[:16]} -> {current[:16]} is already recorded "
-                    f"but {len(stale_rows)} row(s) still carry the old hash"
-                ) from exc
-            con.execute("COMMIT")
-        except BaseException:
-            if con.in_transaction:
-                con.execute("ROLLBACK")
-            raise
-        try:
-            os.replace(staged_receipt, receipt_path)
-        except OSError as exc:
-            raise BasisError(f"rebaseline: could not install receipt at {receipt_path}: {exc}") from exc
-    finally:
-        try:
-            staged_receipt.unlink()
-        except FileNotFoundError:
-            pass
-        except OSError:
-            pass
+            con.execute(
+                f"INSERT INTO {SUPERSESSION_TABLE}(old_basis_hash, new_basis_hash, old_algorithm_version,"
+                " new_algorithm_version, old_package_basis_json, new_package_basis_json, analyzer_version,"
+                " reason, binaries_restamped, receipt_sha256, recorded_at)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    old,
+                    current,
+                    resolved.algorithm_version,
+                    ALGORITHM_VERSION,
+                    None if resolved.package_basis is None else _compact(resolved.package_basis),
+                    _compact(new_package_basis),
+                    analyzer_version,
+                    reason,
+                    len(stale_rows),
+                    receipt_sha256,
+                    recorded_at,
+                ),
+            )
+        except sqlite3.IntegrityError as exc:
+            # UNIQUE(old, new): this supersession is already on the ledger,
+            # yet rows still carry the old hash. Something re-stamped them
+            # backwards outside this verb; that is not silently repeated.
+            raise BasisError(
+                f"rebaseline: supersession {old[:16]} -> {current[:16]} is already recorded "
+                f"but {len(stale_rows)} row(s) still carry the old hash"
+            ) from exc
+        con.execute("COMMIT")
+    except BaseException:
+        if con.in_transaction:
+            con.execute("ROLLBACK")
+        raise
+    receipt_path.parent.mkdir(parents=True, exist_ok=True)
+    receipt_path.write_bytes(receipt_bytes)
     run["restamp"] = "committed"
     run["receipt_sha256"] = receipt_sha256
     run["recorded_at"] = recorded_at

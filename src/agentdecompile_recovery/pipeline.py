@@ -128,6 +128,11 @@ class RecoveryConfig:
     unity_assetripper_cli: Path | None = None
     unity_ilspycmd: Path | None = None
     unity_install_mcp_bridge: bool = False
+    # Program name used in operator-facing diagnostics emitted by the runner.
+    # Callers with a live argparse ``prog`` (the recover CLI, the reconstruct
+    # front door) should pass their effective name; this default preserves
+    # the historical wording for callers that construct the config directly.
+    display_prog: str = "agentdecompile-reconstruct"
 
 
 class RecoveryRunner:
@@ -933,7 +938,7 @@ class RecoveryRunner:
         if isinstance(truncation, dict) and truncation.get("warning"):
             # A truncated run still reports success, so the only way an operator
             # learns the inventory was cut is if we say so here.
-            print(f"agentdecompile-reconstruct: warning: {truncation['warning']}", file=sys.stderr)
+            print(f"{self.config.display_prog}: warning: {truncation['warning']}", file=sys.stderr)
         atomic_write_json(self.run_dir / "source-generation/summary.json", summary)
         return summary
 

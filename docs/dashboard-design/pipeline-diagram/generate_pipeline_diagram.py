@@ -2,14 +2,14 @@
 """Generate the AgentDecompile recovery-pipeline diagram as a Figma-importable SVG.
 
 Design rules (see chat): left->right = dependency order; vertical stacking = concurrency;
-five colour families; five concurrent lanes (A–E); every stage card answers try / how / in->out / gate; locks mark the
-only true serialisation points; dashed = failover; ladders = fallback stacks.
+five colour families; five concurrent lanes (A–E); every stage card answers try / how / in->out / gate; locks mark shared-state
+serialisation points; dashed = failover; ladders = fallback stacks.
 No product, binary or project names anywhere.
 """
 from __future__ import annotations
 import html
 
-W, H = 4400, 2990  # Lane E added 2026-09-22: +42 + 248 + 16
+W, H = 4400, 3110  # Revised contracts; preserve distributed-compute lane E.
 out: list[str] = []
 
 # ---- palette (graphite, restrained) ----
@@ -85,7 +85,7 @@ def card(x, y, w, h, fam, num, title, tryline, how, io, gatetxt=None, tag=None):
     out.append(f'<rect x="{x}" y="{y+22}" width="{w}" height="8" fill="{fill}"/>')
     if num: text(x+10, y+20, num, 13, STRONG, "bold")
     text(x + (44 if num else 10), y+20, title, 13.5, STRONG, "bold")
-    if tag: text(x+w-10, y+20, tag, 10.5, accent, "bold", "end")
+    if tag: text(x+w-10, y+37, tag, 9.5, accent, "bold", "end")
     yy = y + 48
     text(x+10, yy, "Trying to:", 10.5, accent, "bold"); yy += 15
     yy = lines(x+10, yy, tryline, 11.5, INK, 15)
@@ -122,40 +122,40 @@ rect(0, 0, W, H, BG, BG, 0, 0)
 out.append('<!--SEC:Header-->')
 # ---- header ----
 text(40, 52, "AgentDecompile — the recovery pipeline, end to end", 30, STRONG, "bold")
-text(40, 84, "Reading order: left → right is dependency order. Anything stacked vertically in a bracketed lane runs concurrently. "
+text(40, 84, "Reading order: named stages retain prerequisites; evidence feeds back and verification starts early. "
              "Every card answers: what we're trying to do · how · what goes in and comes out · what gates it.", 14, MUTED)
 rect(2700, 22, 1660, 96, PANEL, FAM["unify"][1], 6)
 text(2712, 44, "HOW TO READ THIS IN 20 SECONDS", 12, FAM["unify"][1], "bold")
-lines(2712, 64, ["1. Follow the top row left→right: that is the order things must happen.",
-                  "2. Everything inside the bracket runs at the same time as that row — the only waits are the five locks.",
-                  "3. When a lookup fails, read down its ladder; the bottom band is what you actually get."], 11.5, INK, 16)
-text(40, 108, "The bar: a level above conventional RE tools. They end at analysis a human must work with; this ends at usable exports — "
-              "packs, generated bindings, headers, readiness reports — ready to go.", 14, FAM["unify"][1], italic=True)
-text(40, 128, "Runs on a laptop; scales by concurrency, then by donated idle compute and free cloud nodes; every task miniature and non-blocking; working state concurrent and network-capable — a single stateful device is never the coordination point.", 12.5, MUTED, italic=True)
+lines(2712, 64, ["1. Follow prerequisites; identity/calibration iterate and parity runs continuously.",
+                  "2. Lanes may overlap within ownership, resource and snapshot-dependency limits.",
+                  "3. Try applicable lookups; exports state capabilities, uncertainty and evidence."], 11.5, INK, 16)
+text(40, 108, "Design target: recover from the best evidence, reuse only what transfers, verify at the level of use — "
+              "packs, generated bindings, headers and readiness reports with explicit capability limits.", 14, FAM["unify"][1], italic=True)
+text(40, 128, "Runs on a laptop; scales by concurrency, then by donated idle compute and free cloud nodes; task-specific budgets and isolated storage probes; complete prepared inputs enable independent continuation; see execution-contracts companion.", 12.5, MUTED, italic=True)
 
 out.append('<!--SEC:Row 0 - intake and the 8-stage ladder-->')
 # ================================================================== ROW 0: intake + 8 stages
 Y0 = 140
-lane_header(40, Y0, W-80, "recovery", "MAIN PIPELINE — recover once on the easiest build, propagate to every sibling, prove byte identity",
-            "eight named stages · do not reorder · skip any step whose receipt already exists")
+lane_header(40, Y0, W-80, "recovery", "MAIN PIPELINE — compatible reuse · validated reconstruction · independent claim gates",
+            "0 + eight named stages · feedback allowed · reuse valid unchanged receipts")
 
-CW, CH, GAP = 400, 330, 34
+CW, CH, GAP = 400, 380, 34
 cy = Y0 + 50
 cx = 40
 
 # Intake / reconcile (priority-zero)
 card(cx, cy, CW, CH, "xcut", "0", "Open · add · resume (priority-zero)",
      ["Start from the actual project, never a setup ritual:",
-      "opening a project, adding binaries or resuming prior",
-      "work starts analysis BY ITSELF — there is no Start button."],
-     ["reconcile bindings, corpus records, REUSE every receipt",
-      "gate ONLY mutation admission — reads never wait",
+      "open, add or resume admits only missing eligible work;",
+      "pause/resume controls admission — no Start ritual."],
+     ["reconcile bindings; reuse dependency-valid receipts",
+      "gate writes; reads use stable versioned snapshots",
       "the one control is pause/resume (+ scope), never start",
       "checkpoint-trusting; repair only on detected breakage:",
       "  NULL content_sha256 / mixed basis_hash → receipted",
       "  backfill, never auto-run",
-      "never re-analyze a program that already has analysis",
-      "new import admits work; reopening admits nothing"],
+      "revisit affected evidence only; no blanket reanalysis",
+      "reopen reuses valid work; changed evidence re-keys work"],
      ["in: .gpr / repo / binaries / prior receipts",
       "out: one active project, known state, no duplicate work"],
      gatetxt="mutation-admission only (real owner state)")
@@ -164,60 +164,60 @@ cx += CW + GAP
 
 card(cx, cy, CW, CH, "identity", "1", "Identity",
      ["Decide which functions/entities across builds are",
-      "the SAME logical thing — once, with evidence,",
-      "never by address, never by bytes alone."],
+      "logical entity, implementation variant and instance;",
+      "similarity does not prove interchangeable behavior."],
      ["extract facts once; short-circuit identical images",
       "cheap-first cascade: symbols/provenance → exact &",
       "  reloc-normalized hashes → rare refs / C++ meta →",
       "  neighborhood → CFG/SPP → BSim → ABI → optional",
       "  BinDiff/BinExport → optional emulation on residue",
       "require uniqueness + margin; keep ambiguity;",
-      "  quarantine bad seeds; regions not forced 1↔1"],
+      "  withdraw bad seeds + unsupported descendants"],
      ["in: analyzed programs, debug info, formats",
-      "out: logical_id per entity + evidence + margin"],
+      "out: entity / variant / instance + evidence lineage"],
      gatetxt="candidate ≠ acceptance", tag="∥ extraction + indexing run in parallel")
 arrow(cx+CW, cy+CH/2, cx+CW+GAP, cy+CH/2)
 cx += CW + GAP
 
-card(cx, cy, CW, CH, "recovery", "2", "Global calibration",
-     ["Pin the compiler, flags, ABI and global struct",
-      "layouts BEFORE touching any function, so every",
-      "later compile is apples-to-apples."],
-     ["compiler version + flags per build (exact ids)",
-      "calling conventions, storage rules per platform",
-      "global struct layouts, packing, pointer width",
-      "recorded into the determinism basis"],
+card(cx, cy, CW, CH, "recovery", "2", "Incremental calibration",
+     ["Establish minimum platform facts, then refine",
+      "compiler, ABI and layout hypotheses with",
+      "identity and function evidence; version each input."],
+     ["compiler/linker + headers/libs + macros + FP mode",
+      "scope: build / library / TU / function overrides",
+      "group fragments into TUs/LTCG as required",
+      "probe legacy switches; record scoped dependencies"],
      ["in: identified builds + toolchain evidence",
       "out: calibration record (part of the basis)"])
 arrow(cx+CW, cy+CH/2, cx+CW+GAP, cy+CH/2)
 cx += CW + GAP
 
-card(cx, cy, CW, CH, "recovery", "3", "Scaffolding (assembly floor)",
-     ["Get a complete, LINKABLE project immediately —",
-      "one file per function — so the image can be",
-      "rebuilt from day one and replaced progressively."],
-     ["donor workspace, one file per function",
-      "exact inline asm where no C exists yet (honest floor)",
-      "must link; floor bytes never count as recovered C",
-      "byte-accurate variant tracked separately from max-C"],
+card(cx, cy, CW, CH, "recovery", "3", "Validated linkable regions",
+     ["Reconstruct objects and placement from the image;",
+      "keep uncertain boundaries in larger regions;",
+      "prove reconstruction before scaling source work."],
+     ["bytes + fixups + refs + data + unwind metadata",
+      "architecture-specific objects / external assembly",
+      "extract → emit → place → compare original bytes",
+      "then prove a compiled replacement actually contributes"],
      ["in: calibration + donor build",
-      "out: linkable scaffold with per-function slots"],
-     gatetxt="must link")
+      "out: validated region scaffold; floor ≠ recovered C"],
+     gatetxt="round trip + independent linked-image oracle")
 arrow(cx+CW, cy+CH/2, cx+CW+GAP, cy+CH/2)
 cx += CW + GAP
 
-card(cx, cy, CW, CH, "recovery", "4", "Readable C (bulk decompile)",
-     ["Replace each asm slot with real, readable,",
-      "assembly-free C — but ONLY when it compiles."],
-     ["decompiler C per function → compile check",
-      "pass → slot becomes C (real_c=1)",
+card(cx, cy, CW, CH, "recovery", "4", "C/C++ candidates",
+     ["Produce readable candidates; preserve the floor",
+      "until replacement acceptance passes."],
+     ["recovery unit ≠ compilation unit ≠ comparison unit",
+      "compile pass → candidate (real_c is compile-only)",
       "fail → deterministic helpers (sanitizer/preparse) →",
       "  retry → ONE bounded LLM cleanup → retry → keep asm",
-      "never decompile the same logical function twice",
-      "compile pool parallel per isolated toolchain env"],
+      "never repeat valid unchanged work",
+      "repair explains preserved machine behavior"],
      ["in: scaffold + decompiler output",
-      "out: compiling C per slot + compile receipts"],
-     gatetxt="compile receipt per function", tag="∥ compile pool: one env per worker")
+      "out: compiled candidates + scoped compile receipts"],
+     gatetxt="compile admits candidate, not replacement", tag="isolated mutable outputs / PDB / Wine state")
 arrow(cx+CW, cy+CH/2, cx+CW+GAP, cy+CH/2)
 cx += CW + GAP
 
@@ -227,59 +227,65 @@ out.append(f'<path d="M{fx+300},{cy+CH} V{cy+CH+26} H{fx+80} V{cy+CH}" fill="non
 text(fx+190, cy+CH+42, "compile fails → helpers → bounded LLM → retry (dashed = failover, never blocks siblings)", 10.5, FAIL, anchor="middle", italic=True)
 
 card(cx, cy, CW, CH, "recovery", "5", "Propagation (cross-place)",
-     ["Reverse a function ONCE and share it with every",
-      "sibling build that has the same logical id —",
-      "but only source that actually compiles."],
-     ["copy compiling .c to siblings via logical_id",
+     ["Reuse a donor candidate only for compatible",
+      "recipient implementation variants;",
+      "each recipient earns its own acceptance."],
+     ["compile + variant/ABI/layout compatibility gate",
       "then byte-exact verify → permuter → LLM last",
       "a logical_id bind alone NEVER authorizes copying",
       "ABI-sensitive types re-validated per recipient",
       "field-level knowledge fusion runs alongside (lane A)"],
      ["in: compile receipts + identity table",
-      "out: sibling .c placements + placement receipts"],
-     gatetxt="COMPILE-GATED — the plan's central invariant", tag="the cross-match tier")
+      "out: recipient candidates; separate verification"],
+     gatetxt="candidate distribution ≠ accepted source", tag="the cross-match tier")
 arrow(cx+CW, cy+CH/2, cx+CW+GAP, cy+CH/2)
-gate(cx-GAP/2, cy+CH/2 - 60, "compile", "receipt required")
+gate(cx-GAP/2, cy+CH/2 - 60, "candidate", "compile + compatibility")
 cx += CW + GAP
 
 card(cx, cy, CW, CH, "recovery", "6", "Targeted AI (leftovers only)",
      ["Spend model effort ONLY on what deterministic",
       "methods left behind — leaves before callers."],
      ["residue queue, tagged with WHY AI was needed",
-      "never before stages 4–5 for functions that compile",
+      "diagnose behavior/types → ABI → context → codegen",
       "LLM output is a candidate — never a trusted edge",
-      "evidence-only context; addresses cited; no writes"],
+      "ReAgent checker; record exact proposals + bounds"],
      ["in: residue after 4–5",
       "out: candidate C for review + provenance"],
      gatetxt="candidate only")
 arrow(cx+CW, cy+CH/2, cx+CW+GAP, cy+CH/2)
 cx += CW + GAP
 
-card(cx, cy, CW, CH, "verify", "7", "Parity (objdiff)",
-     ["Prove each function's compiled object matches",
-      "the original — relocation-aware, per function."],
-     ["objdiff 0 per function, isolated toolchain",
-      "relocations compared by symbol+addend, never VA",
-      "three grades: matching / equivalent / non-matching",
+card(cx, cy, CW, CH, "verify", "7", "Continuous parity",
+     ["Compare emitted code/data against validated",
+      "targets and independently against linked bytes."],
+     ["objdiff local + linked-region checks (LTCG aware)",
+      "reccmp: supported MSVC / PDB diagnostics",
+      "compile / ABI / tested behavior / local / linked",
       "a function-level zero is NOT whole-image proof"],
-     ["in: compiled objects + originals",
-      "out: per-function parity receipts"],
-     gatetxt="objdiff 0 to claim verified C")
+     ["in: emitted regions + validated original references",
+      "out: separate facts with mapping, bounds + evidence"],
+     gatetxt="local zero ≠ full-image or behavior proof")
 arrow(cx+CW, cy+CH/2, cx+CW+GAP, cy+CH/2)
 cx += CW + GAP
 
 card(cx, cy, CW, CH, "verify", "8", "Whole-image byte identity",
      ["The terminal goal: relink into a file whose",
       "whole-file hash EQUALS the shipped binary."],
-     ["exact placement: pin every function/data to its VA",
+     ["early stage-3 round trips; fresh terminal compilation",
       "reproduce section order, padding, headers, IAT, relocs",
-      "fresh full build → relink → whole-file hash compare",
+      "prove replacement use → whole-file byte/hash check",
       "two variants measured separately: byte-accurate+floor",
       "  vs max-C; never borrow a receipt between them",
-      "an open engineering problem — core scope, said plainly"],
-     ["in: all per-function parity + layout spec",
+      "reconstruction ≠ original-style rebuild; record method"],
+     ["in: scoped parity + contribution map + layout recipe",
       "out: rebuilt image + whole-file hash receipt"],
      gatetxt="whole-file hash equality", tag="terminal")
+
+# Feedback is distinct from the forward prerequisite arrows.
+arrow(1080, cy+CH+12, 674, cy+CH+12, FAM["identity"][1], "4 4")
+text(860, cy+CH+28, "1 ↔ 2: refine scoped hypotheses", 11, FAM["identity"][1], anchor="middle")
+arrow(3200, cy+CH+12, 1560, cy+CH+12, FAM["verify"][1], "4 4")
+text(2880, cy+CH+29, "7–8 verify early scaffold and candidates", 11, FAM["verify"][1], anchor="middle")
 
 out.append('<!--SEC:Row 1 - concurrent lanes-->')
 # ================================================================== ROW 1: concurrent lanes
@@ -320,7 +326,7 @@ y = lane(y, "unify", "LANE A · Knowledge fusion — bidirectional, per field",
            ["human annotation → debug info / STABS →", "  authentic symbols → analysis names → placeholders", "provenance + rejected alternatives retained"],
            ["in: all builds' names", "out: merged names with origin"], None, "field-level"),
           ("", "Types & layouts", ["Merge struct/type knowledge only where", "compatibility gates allow."],
-           ["types/layouts keep their own gates (never auto-copied)", "platform-gated donors: (arch, bits, endian, compiler)", "scaled state for 32→64-bit layout shifts"],
+           ["types/layouts keep their own gates (never auto-copied)", "platform-gated donors: (arch, bits, endian, compiler)", "per-build layouts; unknown spans opaque; no scaling"],
            ["in: per-build type rows", "out: logical structs + field correspondence"], "compatibility gate", None),
           ("", "Comments · bookmarks · evidence", ["Nothing authored is lost; conflicts stay visible."],
            ["per-field precedence merge, never wholesale", "conflicts and human edits preserved", "receipt per merged field"],
@@ -337,21 +343,21 @@ y = lane(y, "unify", "LANE A · Knowledge fusion — bidirectional, per field",
 y = lane(y, "unify", "LANE B · Cross-build entity unification & export — every entity, not just functions",
          "portable signatures · entity catalog · data-root locator families with fallbacks · divergence · codecaves · ABI — feeds the runtime pack",
          connects="consumes stages 1–2 (+ raw images) · feeds lane C and the export bundle", cards_=[
-          ("", "Portable signatures (identity ≠ locator)", ["Find any entity on ANY build without", "an absolute address."],
-           ["identity-time evidence: the cascade (bytes last)", "runtime LOCATOR family: reloc-masked window →", "  anchor-relative (import/export/string) → verify hash", "corpus-computed uniqueness + margin shipped in pack", "library/CRT excluded; identical bodies → anchors"],
+          ("", "Portable signatures (identity ≠ locator)", ["Discover supported entities across related builds;", "record absent, ambiguous and unsupported outcomes."],
+           ["identity evidence cascade ≠ runtime locator search", "runtime LOCATOR family: reloc-masked window →", "  anchor-relative (import/export/string) → verify hash", "corpus-computed uniqueness + margin shipped in pack", "library/CRT excluded; identical bodies → anchors"],
            ["in: raw image + decode + reloc table", "out: logical_signature per entity + coverage"], None, "deterministic"),
           ("", "Entity catalog", ["Everything a mod could want, unified:"],
            ["functions · patch points · immediates · call sites", "globals · singletons · structs & fields · vtables · RTTI", "strings · tables · enums · imports/exports · dispatch", "TLS · unwind · sections · resources · integrity checks"],
            ["in: analysis + formats", "out: entities[] with kind, shape, locators"], None, "30 kinds (pack enum)"),
-          ("", "Data-root locator families", ["Every data root has an ORDERED fallback ladder", "so a build lacking one lookup still resolves."],
-           ["symbol → xref-from-identified-function → anchor-rel", "  → masked adjacency → pointer chain → vtable/RTTI", "  → module_rva / section_offset (last, pinned, portable:false)", "resolver: verify · memoize per build hash · report", "  member · REFUSE, never zero"],
+          ("", "Data-root locator families", ["Known build: identity → RVA → live check.", "Unknown build: applicable discovery + refusal."],
+           ["symbol → xref-from-identified-function → anchor-rel", "  → masked adjacency → pointer chain → vtable/RTTI", "  known-build RVA is preferred; portable:false", "resolver: verify · memoize per build hash · report", "  member · REFUSE, never zero"],
            ["in: entities + xrefs", "out: per-root recipes + per-build coverage"], "verify before trust", None),
           ("", "Divergence (3-way, never forced)", ["When the surrounding logic is too different,", "SAY so and SHOW it — never fake a match."],
            ["CFG delta + neighborhood symmetric difference", "integer components, rational thresholds (no floats)", "1↔1 · split-or-inlined · diverged", "review lane shows why; nothing propagates silently"],
            ["in: cross-build pairs", "out: relation + class + evidence"], None, None),
           ("", "Codecaves & ABI (Lua-ready)", ["Export what injection needs, portable:", "caves as plan templates, ABI as data."],
-           ["cave = anchor-sig + offset + capacity REQUIREMENT +", "  relocation rules + originals + restoration + claim", "ABI: convention · this-kind · per-arg storage · sret", "detours self-allocate; alloc_exec fallback = universal"],
-           ["in: entities + validation rules", "out: caves[] + abi blocks in pack v2"], "detourable at export", None),
+           ["cave = anchor-sig + offset + capacity REQUIREMENT +", "  relocation rules + originals + restoration + claim", "ABI: convention · this-kind · per-arg storage · sret", "allocation policy + lifetime checks; refusal supported"],
+           ["in: entities + validation rules", "out: caves[] + abi blocks in pack v2"], "exported plan ≠ live detour permission", None),
           ("", "Generic core · adapters", ["No product ever in the core."],
            ["L1 core: any PE/ELF/Mach-O/XBE — masks, CFG, caves", "L2 arch adapter: detour width, relocs, reach", "L3 engine adapter + build profile: script API, this-kind", "names live in external data packs only", "pack.json + sha256 in the basis; missing pack →", "  missing_adapter, never a default"],
            ["", ""], None, "3 layers"),
@@ -364,29 +370,29 @@ y = lane(y, "unify", "LANE B · Cross-build entity unification & export — ever
 y = lane(y, "runtime", "LANE C · Runtime reuse & learn-the-build — branches after identity/ABI evidence, before whole-image recovery",
          "calling original code never counts as recovered source; observations feed back as evidence with provenance",
          connects="branches after stages 1–2 evidence · consumes lane B's pack · feeds evidence back into stage 1", cards_=[
-          ("", "Pack → resolve", ["Bind every site on THIS build by its", "locator ladder, never a hardcoded VA."],
-           ["try members in order; verify each; memoize by image hash", "known build: read precomputed instances (offline cascade)", "unknown build: signature-only mode, coverage recorded"],
-           ["in: hookpack v2 + live image", "out: resolved sites + which member resolved"], "verify or refuse", None),
+          ("", "Pack → resolve", ["Verify build identity and live evidence before", "authorizing each requested runtime operation."],
+           ["try members in order; verify each; memoize by image hash", "known: recorded RVA first → expected live bytes", "unknown: bounded discovery; report uncertainty"],
+           ["in: hookpack v2 + live image", "out: located/readable/callable/detourable/writable"], "verify or refuse", None),
           ("", "Preflight → controlled call/install", ["Never write into a process blind."],
-           ["capacity + originals + page protection checked live", "thread quiescence (suspend + IP fixup) — mandatory", "CFG flags, integrity ranges, ownership claims respected", "journal every write with before-bytes; rollback"],
+           ["capacity + originals + page protection checked live", "tested install/remove + safe trampoline reclamation", "ABI / object lifetime / thread / policy / owner checked", "byte journal rollback ≠ undo of executed side effects"],
            ["in: resolved sites", "out: installed hooks / typed calls"], "quiescence + claim", None),
           ("", "Observe → evidence", ["Turn runtime behavior into corpus evidence."],
            ["traces: calls, args, returns, field changes", "provenance-bearing; refines names/types/behavior", "never promotes source parity"],
            ["in: live behavior", "out: observations with provenance"], None, None),
-          ("", "Learn the build", ["Every new build the runtime meets", "becomes a known build."],
+          ("", "Learn the build", ["Each new build contributes provisional evidence;", "contradictions may lower accepted coverage."],
            ["export per-member resolution results as a build report", "corpus ingests runtime_claim rows — never identity;", "  bind_identities promotes or rejects (receipt + delete)", "residue re-attacked offline (BSim, emulation)"],
-           ["in: build report", "out: new known build; smaller residue"], None, "shrinks residue"),
+           ["in: build report", "out: accepted/rejected evidence; updated coverage"], None, "records uncertainty"),
          ], outputs=["resolved sites per build + WHICH ladder member resolved each (feeds coverage + readiness)",
                      "observations → runtime_claim + observed_status; promotion only through bind_identities",
-                     "build reports → corpus ingest: an unknown build becomes a known build",
+                     "build reports → provisional claims → independent acceptance or named unresolved outcomes",
                      "never promotes source parity; never counts original bytes as recovered C"])
 
 # Lane D — verification & determinism
 y = lane(y, "verify", "LANE D · Verification & determinism — same inputs → byte-identical outputs, under a declared basis",
-         "the pipeline's outputs are pure functions of (inputs + basis); the basis is recorded in every artifact",
+         "replay recorded proposals and observations under a versioned basis; discovery itself need not be deterministic",
          connects="wraps every stage and lane · gates every export", cards_=[
           ("", "Determinism basis", ["Make 'same result' meaningful."],
-           ["decoder/analyzer revision + option set + cspec id", "algorithm / masking / threshold versions", "toolchain identity per build; filler set; seeds", "data-pack hashes; per-binary basis_hash", "refuse on unknown / empty / mixed basis", "sorted corpus-manifest hash"],
+           ["decoder/analyzer revision + option set + cspec id", "algorithm / masking / threshold versions", "toolchain identity per build; filler set; seeds", "data-pack hashes; per-binary basis_hash", "refuse on unknown / empty / mixed basis", "corpus hash only for corpus-dependent work"],
            ["in: environment", "out: basis object in every pack"], None, "recorded"),
           ("", "Two gates", ["Prove reproducibility, don't assume it."],
            ["export byte-diff: export twice → identical bytes", "cascade harness: three layouts (canonical · shuffled", "  rows + shuffled binary order · + VACUUM/ANALYZE)", "  + key-stability run → identity, match (incl. id),", "  logical_function, recovery_family equal as sorted row-sets"],
@@ -395,7 +401,7 @@ y = lane(y, "verify", "LANE D · Verification & determinism — same inputs → 
            ["every SELECT feeding a decision has a total ORDER BY", "every 'best/first' pick has a total tie-break", "sets/dicts sorted before hashing or serializing", "floats rounded before persistence"],
            ["", ""], None, None),
           ("", "Receipts & re-baseline", ["Change the basis deliberately, never silently."],
-           ["content-addressed receipts keyed by hash(inputs+basis)", "basis change → full re-export → diff → supersession record", "old packs stay loadable"],
+           ["receipts hash relevant dependencies + snapshot", "changed input → invalidate affected descendants", "acceptance rejects stale versions; old packs readable"],
            ["", ""], None, None),
          ], outputs=["the basis object stamped into every pack, header, report and receipt",
                      "two pass/fail gates in CI: export byte-diff and the cascade harness",
@@ -406,28 +412,28 @@ y = lane(y, "verify", "LANE D · Verification & determinism — same inputs → 
 y = lane(y, "xcut", "LANE E · Distributed compute (agentdecompile_grid) — laptop → concurrency → donated idle compute and free cloud nodes",
          "content-addressed objects · per-partition logs · every result a proposal · capability by canary, never by role · SQLite as a materialized view",
          connects="wraps every stage and lane · one-command join · fleet of free cloud nodes", cards_=[
-          ("", "Objects & logs", ["Working state that is never one stateful device:", "content-addressed, log-structured, network-capable."],
+          ("", "Objects & logs", ["Working state supports independent replicas:", "content-addressed, log-structured, network-capable."],
            ["sha256 objects, write-once (If-None-Match / atomic rename)", "per-partition append-only logs of signed, chained records", "heads = one CAS pointer per partition; rebuilt by chain scan", "adapters: local · S3-compatible · static mirror · peer HTTP", "compaction: signed checkpoints; peers prune below them"],
            ["in: inputs, sources, objects, receipts", "out: immutable objects + verifiable partition chains"], "write-once; chain verifies offline", "substrate"),
-          ("", "Tasks & frontier", ["Every job miniature, addressable, resumable anywhere;", "done = the result object exists."],
-           ["task_id = sha256(kind, version, inputs, params, basis projection)", "frontier = pure function of the log (no scheduler, no broker)", "intents are advisory TTL hints; a lost lease wastes compute only", "kill deadline per kind → result-timeout record; 3 → task-poison", "a basis field change re-keys only the kinds that consume it"],
+          ("", "Tasks & frontier", ["Jobs bounded and addressable; resume where inputs exist;", "result exists ≠ independently accepted claim."],
+           ["task_id = sha256(kind, version, inputs, params, basis projection)", "frontier from log; admission checks live resources separately", "expired lease fences publication; uncertain resources quarantine", "persistent input-scoped retry budget; deadline ≠ termination", "a basis field change re-keys only the kinds that consume it"],
            ["in: partition chain + checkpoint index", "out: offered tasks · result objects · timeout records"], "basis projection admitted", "never awaited"),
           ("", "Join (one command)", ["Any machine, one verb: laptop, donated idle box,", "free cloud node, browser tab."],
            ["attach-first: find the running local agent, never a second start", "canaries prove capability: python · parity · toolchain · analyzer", "capability decides lanes and fetches — a role never does", "roles decide only mirrors + who signs invites / verifies / applies", "outbound HTTPS only; no inbound port; --idle-only, --cores N"],
            ["in: invite URL + what the node can prove", "out: lanes offered by canary; inputs fetched by task"], "canary hash = pinned value", "capability-only"),
           ("", "Verify (every result a proposal)", ["Trust the hash, never the key — fleet nodes included."],
-           ["result-proposed → verified only by an independent key", "recompute or hash-lookup; byte-exact = recompile + parity", "no quorum, no credit, no reputation; a liar wastes ≤ 4 verifies", "donated .obj / .bin never evidence (byte-emitter refuted)", "verification ordered before generation (no livelock)"],
-           ["in: proposals from any key", "out: result-verified / result-refuted records"], "independent key, different lineage", "H8"),
+           ["acceptance requires independent evidence roots, not just keys", "recompute or hash-lookup; byte-exact = recompile + parity", "no quorum, no credit, no reputation; a liar wastes ≤ 4 verifies", "donated .obj / .bin never evidence (byte-emitter refuted)", "verification ordered before generation (no livelock)"],
+           ["in: proposals from any key", "out: result-verified / result-refuted records"], "independent evidence lineage", "H8"),
           ("", "Views (SQLite as a materialized view)", ["The corpus store and the similarity index are replays of", "verified records: deletable, rebuildable, never locked by work."],
            ["one applier per view; bounded transactions; ack after commit", "identity / logical / match / knowledge / receipts from deltas", "view-stale is a named state with an age (H11), never a stall", "no worker ever opens a view for writing (H1 by construction)", "adgrid view materialize rebuilds from record 1"],
            ["in: result-verified records", "out: grid_* tables · similarity index · receipts"], "materialize twice → identical dump", "H1 / H11"),
           ("", "Fleet (free cloud nodes)", ["The operator never depends on volunteers: rented", "free-tier nodes join with the same command in cloud-init."],
-           ["adgrid fleet up / down / status / replace; manifest as objects", "providers: manual · ssh · declared cloud adapters", "lane placement by canary, never by tier or role", "fleet keys sign invites, verify, apply — no laptop SPOF (H13)", "preemptible by design: advisory intents; loss stalls, never loses"],
-           ["in: provider credentials via the secret path; an invite", "out: nodes that joined; fleet manifest objects"], "user-data = the join command only", "no operator SPOF"),
+           ["adgrid fleet up / down / status / replace; manifest as objects", "providers: manual · ssh · declared cloud adapters", "lane placement by canary, never by tier or role", "host failover needs independent replica + capable worker", "host loss: continue only with complete surviving input closure"],
+           ["in: provider credentials via the secret path; an invite", "out: nodes that joined; fleet manifest objects"], "user-data = the join command only", "conditional host failover"),
          ], outputs=["one package (CLI adgrid) reusable for any CPU/IO-heavy work; the pipeline's lanes are adapters over it",
-                     "landed as a walking skeleton (U120–U124); integrator U125 next; adapters as units (plan Phase 15)",
+                     "planned grid contracts; implementation status belongs to delivery evidence, not this design diagram",
                      "every stage runs as grid tasks: compile / parity / decompile / cascade / export lanes, each a proposal",
-                     "the corpus store and the similarity index become views; hangs are named timeouts; nothing donated writes identity"], lch=248)
+                     "timeouts record attempt outcomes, not termination; resource release requires evidence; independent acceptance only"], lch=248)
 
 _tail = out[_bracket_at:]; del out[_bracket_at:]
 concurrency_bracket(30, Y1, y - 16, "RUNS CONCURRENTLY WITH STAGES 1–8 (where ownership permits)")
@@ -435,7 +441,7 @@ out.extend(_tail)
 out.append('<!--SEC:Row 2 - exhaustive resolution ladders-->')
 # ================================================================== ROW 2: ladders + locks + entities + export
 Y2 = y + 40
-text(40, Y2 + 22, "EXHAUSTIVE RESOLUTION LADDERS — a locator failing means 'try the next relationship', not 'stop'. Unresolved = the residue after EVERY strategy.", 15, STRONG, "bold")
+text(40, Y2 + 22, "BOUNDED RESOLUTION — try applicable methods; stop with absent / inlined-only / ambiguous / unsupported / insufficient evidence / budget exhausted.", 15, STRONG, "bold")
 
 LDX = 40; LDW = 400; LDH = 470; LDG = 14
 def ladder(x, y, fam, title, steps, final):
@@ -462,54 +468,54 @@ ladder(LDX, ly, "identity", "A · Function whose bytes changed",
         "[vtable_slot] via its vtable slot", "[neighbour_position] positional neighbour (order-preserving)", "[structural] structural match (embedded decoder)", "[region · review-only] region match (inlined / split)", "[symbol] symbol/debug info at runtime", "[offline] emulation, BSim on residue", "[annotation] annotation with provenance (a claim, never resolved)"],
        ["then: unresolved (per-member reasons)", "two verified hits disagree → contested"])
 ladder(LDX + (LDW+LDG)*1, ly, "unify", "B · Cave missing or too small",
-       ["N candidate caves per anchor", "live cave discovery (validated)", "section slack (raw→virtual size)", "header / stub space", "executable allocation (near, W^X)", "image extension (on-disk patches)"],
-       "then: no_placement — rare, named per build")
+       ["N candidate caves per anchor", "live cave discovery (validated)", "section slack only with expendability proof", "header / stub space only with explicit proof", "executable allocation if process policy permits", "image extension (on-disk patches)"],
+       "then: no_placement / unsupported_dynamic_code")
 ladder(LDX + (LDW+LDG)*2, ly, "unify", "C · Data root unresolved",
-       ["[symbol] symbol / debug info", "[xref_from_function] xref from ANY identified function", "[data_xref] inverse access-instruction scan", "[anchor_rel] anchor-relative to import/export/string", "[masked_window] data-section masked adjacency",
-        "[pointer_chain] pointer chain from a resolved root", "via constructor / initializer", "[vtable_slot] vtable / RTTI-derived", "value-shape probe + confirm", "[module_rva · pinned] module-relative RVA (last, portable:false)"],
+       ["[known build] identity → RVA → live check", "[unknown] symbol / debug info", "[xref_from_function] xref from identified function", "[data_xref] inverse access-instruction scan", "[anchor_rel] relative to import/export/string", "[masked_window] data-section adjacency",
+        "[pointer_chain] from a resolved root", "via constructor / initializer", "[vtable_slot] vtable / RTTI-derived", "value-shape probe + independent confirmation"],
        "then: unresolved — never a silent zero")
 ladder(LDX + (LDW+LDG)*3, ly, "unify", "D · Struct field moved / stripped build",
-       ["name / debug-info donor", "ACCESSOR DECODE → exact per-build offset", "constructor initializer sequence", "field-access fingerprint match", "sibling-field anchoring", "scaled inference (pointer width)"],
-       "then: ambiguous only for true ties")
+       ["name / debug-info donor", "ACCESSOR DECODE → exact per-build offset", "constructor initializer sequence", "field-access fingerprint match", "sibling-field anchoring", "pointer-width hints only; verify actual layout"],
+       "then: ambiguous / insufficient_evidence / absent")
 ladder(LDX + (LDW+LDG)*4, ly, "unify", "E · VTable / dispatch slots",
        ["RTTI", "constructor vtable-store decode", "slot matched by METHOD identity", "dispatch entries by HANDLER identity"],
        "then: per-slot unresolved")
 ladder(LDX + (LDW+LDG)*5, ly, "runtime", "F · Unknown build",
-       ["admit in signature-only mode", "run every ladder live (decoder)", "record every resolution + residue", "ingest as runtime_claim → bind_identities confirms → KNOWN", "residue re-attacked offline"],
-       "residue shrinks with every build seen")
+       ["admit in signature-only mode", "run applicable ladders within declared budget", "record every resolution + residue", "ingest as runtime_claim → bind_identities confirms → KNOWN", "residue re-attacked offline"],
+       "coverage may regress when collisions are found")
 
 out.append('<!--SEC:Row 2 - locks and failover rules-->')
 # locks + failover rule panel
 PX = LDX + (LDW+LDG)*6 + 20; PW = W - PX - 40
 rect(PX, ly, PW, 200, PANEL, LINE, 6)
-text(PX+12, ly+24, "THE ONLY TRUE SERIALIZATION POINTS (everything else overlaps)", 12.5, LOCK, "bold")
+text(PX+12, ly+24, "OWNERSHIP IS RESOURCE-SCOPED (eligible independent work overlaps)", 12.5, LOCK, "bold")
 lock(PX+22, ly+52, "writes to one Ghidra program's analysis DB")
 lock(PX+22, ly+76, "shared corpus mutation / conflict resolution")
-lock(PX+22, ly+100, "the same compiler/Wine environment or output tree")
-lock(PX+22, ly+124, "one live game/harness target + saves + cave state")
-lock(PX+22, ly+148, "central acceptance: identity bind + receipt writes")
-text(PX+12, ly+182, "Admission arbitrates on REAL owner/lock state and measured memory — never a catalog flag.", 10.5, MUTED, italic=True)
+lock(PX+22, ly+100, "shared mutable compiler outputs / Wine context (private outputs may overlap)")
+lock(PX+22, ly+124, "one scenario bundle: staged tree + saves + Wine + display + ports + harness")
+lock(PX+22, ly+148, "short acceptance commit: current basis + generation + independent proof")
+text(PX+12, ly+182, "Atomic resource-set admission; measured process-tree budgets and pressure; external owners remain external.", 10.5, MUTED, italic=True)
 
 rect(PX, ly+216, PW, 150, PANEL, FAIL, 6, dash="6 4")
 text(PX+12, ly+240, "FAILOVER RULE", 12.5, FAIL, "bold")
 lines(PX+12, ly+262, ["The affected branch stops VISIBLY at its real unmet dependency;", "every eligible sibling lane continues.",
-                       "Show the named owner/provider failure, last evidence, chosen fallback,", "retry eligibility. No silent retry storm. No stale-state reset. No restart.",
-                       "A job past its deadline is a NAMED failure (verb + elapsed), never a wait;", "starvation is drawn: oldest unreviewed review row, oldest waiting lane."], 11, INK, 15)
+                       "Show the named owner/provider failure, last evidence, chosen fallback,", "one retry owner and persistent budget; deterministic negatives require changed basis.",
+                       "Deadline ends attempt, not objective; expired ownership does not free resources;", "quarantine uncertain resources; show wake conditions, progress unknown and aging."], 11, INK, 15)
 
 out.append('<!--SEC:Terminal band - what you get-->')
 # terminal band: WHAT YOU GET
 TY = ly + LDH + 30
-lane_header(40, TY, W-80, "unify", "WHAT YOU GET — the export bundle. One deterministic verb; nothing this plan produces needs a human to finish it. This is the level above conventional RE tools.",
+lane_header(40, TY, W-80, "unify", "EXPORT TARGET — reusable recovery projects + vanilla-game bindings; capabilities and unknowns explicit",
             "re-run under the same basis → byte-identical bundle")
 bx = 40; bw = (W-80 - 6*16)/7; by = TY + 44; bh = 150
 for ttl, body in [
   ("hookpack v2", ["every entity kind, locator families,", "per-build coverage, ABI blocks, caves,", "integrity ranges, basis, pack hash"]),
   ("Generated Lua bindings", ["roots by name · typed struct accessors", "table/handle/bitfield/string helpers", "typed call stubs only for ABIs the", "descriptor layer expresses; else refuse", "NO literal address"]),
-  ("Per-build C/C++ headers", ["exact layouts (bitfields, unions,", "real pointee types) · prototypes with", "conventions + storage · build manifest"]),
+  ("Per-build C/C++ headers", ["evidenced per-build layouts;", "opaque unknown spans · prototypes with", "conventions + storage · build manifest"]),
   ("Readiness report", ["per entity × build: resolved(member) /", "pinned(member) / degraded(member, reason) /", "ambiguous / unresolved / contested", "observed_status separate · what a mod", "can do here"]),
   ("Divergence report", ["1↔1 · split-or-inlined · diverged", "field-map, slot and table deltas", "between any two builds"]),
   ("Receipts", ["content-addressed, keyed by", "hash(inputs+basis) · every artifact", "identical-basis re-run = cache hit"]),
-  ("Source variants (optional)", ["byte-accurate C+floor and max-C", "with manifests", "absent in this plan with a not_in_scope receipt"])]:
+  ("Source + comparison projects", ["byte-accurate C+floor and max-C", "with manifests", "reccmp reports + independent image receipts"])]:
     rect(bx, by, bw, bh, PANEL, FAM["unify"][1], 6, sw=1.6)
     text(bx+12, by+26, ttl, 14, STRONG, "bold")
     lines(bx+12, by+52, body, 11.5, INK, 17)
@@ -524,12 +530,12 @@ arrow(130, FY+20, 190, FY+20); text(198, FY+24, "data / dependency flow", 11, IN
 arrow(370, FY+20, 430, FY+20, FAIL, "6 4"); text(438, FY+24, "failover / fallback", 11, INK)
 gate(560, FY+20, "", None); text(586, FY+24, "gate — must pass (compile receipt, verify, hash)", 11, INK)
 lock(920, FY+22, "serialized — one owner");
-out.append(f'<path d="M{1130+14},{FY+8} H{1130} V{FY+32} H{1130+14}" fill="none" stroke="{FAM["unify"][1]}" stroke-width="2.5"/>'); text(1152, FY+24, "bracket — everything inside runs concurrently", 11, INK)
+out.append(f'<path d="M{1130+14},{FY+8} H{1130} V{FY+32} H{1130+14}" fill="none" stroke="{FAM["unify"][1]}" stroke-width="2.5"/>'); text(1152, FY+24, "bracket — eligible independent work may overlap", 11, INK)
 for i,(k,lab) in enumerate([("identity","identity"),("recovery","source recovery"),("unify","cross-build unification & export"),("runtime","runtime reuse / learn"),("verify","verification & determinism"),("xcut","intake / cross-cutting")]):
     x = 1520 + i*260
     out.append(f'<rect x="{x}" y="{FY+10}" width="18" height="18" rx="3" fill="{FAM[k][0]}" stroke="{FAM[k][1]}"/>')
     text(x+24, FY+24, lab, 11, INK)
-text(52, FY+52, "Every artifact above is a pure function of (inputs + determinism basis). Coverage is recorded per build so you always know what remains — and the corpus learns each new build, so the residue shrinks.", 11.5, MUTED, italic=True)
+text(52, FY+52, "DESIGN ONLY · future checks NOT RUN. Companions: execution-contracts.svg — evidence/admission; resilience-contracts.svg — prevention, containment, recovery. Replay records observations + dependencies.", 11.5, MUTED, italic=True)
 
 out.append("</svg>")
 

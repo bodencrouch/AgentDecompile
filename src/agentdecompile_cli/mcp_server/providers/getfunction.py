@@ -241,8 +241,8 @@ class GetFunctionToolProvider(ToolProvider):
                         "addressOrSymbol": {"type": "string", "description": "Alternative way to specify the function."},
                         "mode": {
                             "type": "string",
-                            "description": "What to do with tags: 'list' (view tags), 'add' (attach a tag), 'remove' (detach a tag), 'set' (replace all tags on the function), or 'search' (find functions by tag).",
-                            "enum": ["list", "add", "remove", "set", "search"],
+                            "description": "What to do with tags: 'get' or 'list' (view tags), 'add' (attach a tag), 'remove' (detach a tag), 'set' (replace all tags on the function), or 'search' (find functions by tag).",
+                            "enum": ["get", "list", "add", "remove", "set", "search"],
                         },
                         "tag": {"type": "string", "description": "The specific tag to add, remove, or search for (e.g. 'encryption')."},
                         "tagName": {"type": "string", "description": "Alternative parameter name for 'tag'."},
@@ -659,7 +659,9 @@ class GetFunctionToolProvider(ToolProvider):
                 return create_conflict_response(conflict_id, Tool.MANAGE_FUNCTION.value, conflict_summary, next_step)
 
         def _set_prototype() -> None:
-            func.setSignature(proto)
+            from agentdecompile_cli.mcp_server.function_signature import apply_function_signature
+
+            apply_function_signature(program, func, proto, rename=True)
 
         self._run_program_transaction(program, "set-prototype", _set_prototype)
         return create_success_response(
@@ -667,6 +669,7 @@ class GetFunctionToolProvider(ToolProvider):
                 "action": "set_prototype",
                 "function": func.getName(),
                 "prototype": proto,
+                "appliedSignature": str(func.getSignature()),
                 "success": True,
             },
         )
@@ -1009,6 +1012,9 @@ class GetFunctionToolProvider(ToolProvider):
                     results.append({"name": func.getName(), "address": str(func.getEntryPoint()), "tags": tag_names})
             return create_success_response({"action": "search", "tag": tag_name, "functions": results, "count": len(results)})
 
+        if not func_id and action_n in ("set", "add", "remove", "delete"):
+            raise ValueError(f"function or addressOrSymbol is required for tag mode '{action}'")
+
         if not func_id:
             # List all known tags
             fm = self._get_function_manager(program, program_info=program_info)
@@ -1021,11 +1027,11 @@ class GetFunctionToolProvider(ToolProvider):
         if func is None:
             raise ValueError(f"Function not found: {func_id}")
 
-        if action_n == "list":
+        if action_n in ("list", "get"):
             tags = [t.getName() for t in func.getTags()]
             return create_success_response(
                 {
-                    "action": "list",
+                    "action": action_n,
                     "function": func.getName(),
                     "tags": tags,
                     "count": len(tags),
@@ -1230,6 +1236,40 @@ class GetFunctionToolProvider(ToolProvider):
         total = len(source_callers) + len(source_callees)
         return shared_calls / total if total else 0.0
 
+    @staticmethod
+    def _is_match_stub(func: Any) -> bool:
+        """True for thunks and external functions, which carry no body of their own to compare."""
+        try:
+            return bool(func.isThunk()) or bool(func.isExternal())
+        except Exception:
+            return False
+
+    @staticmethod
+    def _single_program_similarity(
+        target: _FunctionMatchFeature,
+        candidate: _FunctionMatchFeature,
+    ) -> tuple[float, int, dict[str, Any]]:
+        """Score a same-program candidate in [0, 1].
+
+        70% call-graph Jaccard over tagged caller/callee names (two empty graphs
+        score 0, not 1) plus 30% signature agreement (param count and return type,
+        half each). Returns (score, shared neighbour count, detail fields).
+        """
+        target_graph = {("caller", name) for name in target.callers} | {("callee", name) for name in target.callees}
+        candidate_graph = {("caller", name) for name in candidate.callers} | {("callee", name) for name in candidate.callees}
+        union = target_graph | candidate_graph
+        shared = len(target_graph & candidate_graph)
+        call_graph = shared / len(union) if union else 0.0
+        signature = 0.5 * (target.param_count == candidate.param_count) + 0.5 * (target.return_type == candidate.return_type)
+        score = round(0.7 * call_graph + 0.3 * signature, 4)
+        detail = {
+            "sharedCallers": len(target.callers & candidate.callers),
+            "sharedCallees": len(target.callees & candidate.callees),
+            "callGraphSimilarity": round(call_graph, 4),
+            "signatureMatch": signature == 1.0,
+        }
+        return score, shared, detail
+
     def _list_source_function_identifiers(
         self,
         program: GhidraProgram,
@@ -1385,13 +1425,17 @@ class GetFunctionToolProvider(ToolProvider):
                     try:
 
                         def _set_proto() -> None:
-                            target_func.setSignature(source_sig)
+                            from agentdecompile_cli.mcp_server.function_signature import apply_function_signature
+
+                            apply_function_signature(target_program, target_func, source_func.getSignature(), rename=False)
 
                         self._run_program_transaction(target_program, "match-function-prototype", _set_proto)
                         entry["propagated"].append("prototype")
                         did_propagate = True
                     except Exception as e:
-                        logger.debug("Propagate prototype skipped for %s: %s", target_path, e)
+                        logger.debug("Propagate prototype failed for %s: %s", target_path, e)
+                        errors.append(f"{target_path}: prototype propagation failed: {e}")
+                        entry.setdefault("propagationErrors", []).append({"kind": "prototype", "error": str(e)})
 
             if propagate_tags:
                 source_tags = [t.getName() for t in source_func.getTags()]
@@ -1434,10 +1478,14 @@ class GetFunctionToolProvider(ToolProvider):
                                 self._run_program_transaction(target_program, "match-function-comment", _set_comment)
                                 entry["propagated"].append("comment")
                                 did_propagate = True
-                        except Exception:
+                        except Exception as e:
+                            errors.append(f"{target_path}: comment propagation failed: {e}")
+                            entry.setdefault("propagationErrors", []).append({"kind": "comment", "error": str(e)})
                             continue
                 except Exception as e:
-                    logger.debug("Propagate comments skipped: %s", e)
+                    logger.debug("Propagate comments failed: %s", e)
+                    errors.append(f"{target_path}: comment propagation failed: {e}")
+                    entry.setdefault("propagationErrors", []).append({"kind": "comments", "error": str(e)})
 
             if propagate_bookmarks:
                 try:
@@ -1461,7 +1509,9 @@ class GetFunctionToolProvider(ToolProvider):
                         entry["propagated"].append("bookmarks")
                         did_propagate = True
                 except Exception as e:
-                    logger.debug("Propagate bookmarks skipped: %s", e)
+                    logger.debug("Propagate bookmarks failed: %s", e)
+                    errors.append(f"{target_path}: bookmark propagation failed: {e}")
+                    entry.setdefault("propagationErrors", []).append({"kind": "bookmarks", "error": str(e)})
 
             # Enrich with get-function output for contextual details (same shape as get-function tool)
             manager: Any | None = getattr(self, "_manager", None)
@@ -1776,15 +1826,23 @@ class GetFunctionToolProvider(ToolProvider):
             signature_candidates = match_index.by_signature.get((target_feature.param_count, target_feature.return_type), [])
             candidate_addrs.update(feature.address for feature in signature_candidates if feature.address != func_addr)
 
-        scores: list[tuple[int, _FunctionMatchFeature]] = []
+        # Thunks and external stubs share callers with everything their caller calls
+        # (e.g. puts/printf called from main), so they are not candidates unless
+        # the reference function is itself one.
+        target_is_stub = self._is_match_stub(func)
+        scores: list[tuple[float, int, _FunctionMatchFeature, dict[str, Any]]] = []
+        excluded_stubs = 0
         top_k = max(max_results or 0, 1)
         for addr in candidate_addrs:
             feature = match_index.by_identity.get(addr)
             if feature is None:
                 continue
-            overlap = len(target_feature.callees & feature.callees) + len(target_feature.callers & feature.callers)
-            if overlap > 0:
-                scores.append((overlap, feature))
+            if not target_is_stub and self._is_match_stub(feature.function):
+                excluded_stubs += 1
+                continue
+            score, shared, detail = self._single_program_similarity(target_feature, feature)
+            if score > 0:
+                scores.append((score, shared, feature, detail))
 
         with ProfileCapture(
             "match-function-similarity",
@@ -1796,15 +1854,16 @@ class GetFunctionToolProvider(ToolProvider):
                 "candidateCount": len(candidate_addrs),
             },
         ):
-            top_matches = heapq.nlargest(top_k, scores, key=lambda item: item[0])
+            top_matches = heapq.nlargest(top_k, scores, key=lambda item: (item[0], item[1]))
 
-        similar = [{"name": feature.name, "address": feature.address, "similarityScore": score} for score, feature in top_matches]
+        similar = [{"name": feature.name, "address": feature.address, "similarityScore": score, **detail} for score, _shared, feature, detail in top_matches]
         return create_success_response(
             {
                 "function": func.getName(),
                 "mode": "similar",
                 "indexedFunctionCount": match_index.function_count,
                 "candidateCount": len(candidate_addrs),
+                "excludedStubCount": excluded_stubs,
                 "cacheHit": cache_hit,
                 "results": similar,
                 "count": len(similar),

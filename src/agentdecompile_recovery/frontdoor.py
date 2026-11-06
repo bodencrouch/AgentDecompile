@@ -48,35 +48,40 @@ LEGACY_COMMANDS = {
 
 UPSTREAM_COMMANDS = {"run", "atlas", "index-codebase"}
 
+# Program name shown in help and invocation hints when no ``prog`` is passed.
+# Callers that bridge this parser under another command (``agentdecompile-cli
+# reconstruct``) pass their own name so the usage line matches what was typed.
+DEFAULT_PROG = "agentdecompile-reconstruct"
+
 
 def repo_root() -> Path:
     return Path(__file__).resolve().parents[2]
 
 
-def run_decomp_cli_bridge(args: list[str]) -> int:
+def run_decomp_cli_bridge(args: list[str], *, prog: str = DEFAULT_PROG) -> int:
     root = repo_root()
     decomp = root / "scripts" / "decomp-cli.sh"
     if not decomp.exists():
-        print(f"agentdecompile-reconstruct: missing workspace bridge {decomp}", file=sys.stderr)
+        print(f"{prog}: missing workspace bridge {decomp}", file=sys.stderr)
         return 1
     proc = subprocess.run([str(decomp), *args], cwd=root)
     return int(proc.returncode or 0)
 
 
-def run_upstream_command(command: str, argv: list[str]) -> int:
+def run_upstream_command(command: str, argv: list[str], *, prog: str = DEFAULT_PROG) -> int:
     if command == "run":
         bridge_args = ["vacuum", "start", "--queue", "state/queue.json", "--max-functions", "1"]
         if argv:
             bridge_args = ["vacuum", "start", *argv]
-        return run_decomp_cli_bridge(bridge_args)
+        return run_decomp_cli_bridge(bridge_args, prog=prog)
     if command == "atlas":
         if not argv:
-            print("Usage: agentdecompile-reconstruct atlas <prompt-name>", file=sys.stderr)
+            print(f"Usage: {prog} atlas <prompt-name>", file=sys.stderr)
             return 2
-        return run_decomp_cli_bridge(["decomp-atlas", argv[0], *argv[1:]])
+        return run_decomp_cli_bridge(["decomp-atlas", argv[0], *argv[1:]], prog=prog)
     if command == "index-codebase":
-        return run_decomp_cli_bridge(["source-parity-feature-index", *argv])
-    return run_upstream_command_guard(command)
+        return run_decomp_cli_bridge(["source-parity-feature-index", *argv], prog=prog)
+    return run_upstream_command_guard(command, prog=prog)
 
 
 def default_work_dir(target_path: Path, preferred_name: str | None = None) -> Path:
@@ -108,9 +113,9 @@ def target_compiler_hint(target_path: Path, preferred_name: str | None = None) -
     return detect_pe_compiler_hint(identity.binary_path)
 
 
-def build_parser() -> argparse.ArgumentParser:
+def build_parser(prog: str | None = None) -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="agentdecompile-reconstruct",
+        prog=prog or DEFAULT_PROG,
         description="One-shot binary recovery packaging front door.",
         epilog=(
             "PE critical path (bounded checkpoints): "
@@ -364,9 +369,9 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def build_self_check_parser() -> argparse.ArgumentParser:
+def build_self_check_parser(prog: str | None = None) -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="agentdecompile-reconstruct self-check",
+        prog=f"{prog or DEFAULT_PROG} self-check",
         description="Verify install-time Recovery assets and local recovery tool availability.",
     )
     parser.add_argument("--json", action="store_true", help="Emit machine-readable JSON.")
@@ -374,9 +379,9 @@ def build_self_check_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def build_upstream_status_parser() -> argparse.ArgumentParser:
+def build_upstream_status_parser(prog: str | None = None) -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="agentdecompile-reconstruct upstream-status",
+        prog=f"{prog or DEFAULT_PROG} upstream-status",
         description="Report how this package maps the vendored reference implementation surfaces.",
     )
     parser.add_argument("--json", action="store_true", help="Emit machine-readable JSON.")
@@ -422,7 +427,7 @@ def parse_csv_string(value: str | None) -> tuple[str, ...]:
     return tuple(sorted({item.strip() for item in value.split(",") if item.strip()}))
 
 
-def run_one_shot(args: argparse.Namespace) -> int:
+def run_one_shot(args: argparse.Namespace, *, prog: str = DEFAULT_PROG) -> int:
     if args.force:
         args.resume = False
     if getattr(args, "vc_root", None) and not getattr(args, "source_synthesis_vc_root", None):
@@ -440,12 +445,12 @@ def run_one_shot(args: argparse.Namespace) -> int:
         # Advisory only -- never blocks the run.
         disk_warning = rotational_disk_warning(work_dir)
         if disk_warning:
-            print(f"agentdecompile-reconstruct: warning: {disk_warning}", file=sys.stderr)
+            print(f"{prog}: warning: {disk_warning}", file=sys.stderr)
 
     if getattr(args, "dump_source_only", False):
         if not getattr(args, "dump_source", None):
             print(
-                "agentdecompile-reconstruct: --dump-source-only requires --dump-source DIR",
+                f"{prog}: --dump-source-only requires --dump-source DIR",
                 file=sys.stderr,
             )
             return 2
@@ -460,7 +465,7 @@ def run_one_shot(args: argparse.Namespace) -> int:
 
         problem = project_input_error(project)
         if problem:
-            print(f"agentdecompile-reconstruct: --project error: {problem}", file=sys.stderr)
+            print(f"{prog}: --project error: {problem}", file=sys.stderr)
             return 2
 
     acquisition_receipt = None
@@ -535,7 +540,7 @@ def run_one_shot(args: argparse.Namespace) -> int:
         )
         if curated_receipt.get("status") != "complete":
             print(
-                f"agentdecompile-reconstruct: warning: curated project extraction failed "
+                f"{prog}: warning: curated project extraction failed "
                 f"(continuing without curated names/hints): {curated_receipt.get('reason')}",
                 file=sys.stderr,
             )
@@ -589,6 +594,7 @@ def run_one_shot(args: argparse.Namespace) -> int:
         skip_enrichment=bool(args.skip_enrichment),
         project=project,
         project_program=getattr(args, "project_program", None),
+        display_prog=prog,
         **unity_config_kwargs(args),
     )
     rc = RecoveryRunner(config).run()
@@ -1143,13 +1149,13 @@ def run_self_check(args: argparse.Namespace) -> int:
     return 0 if ok else 1
 
 
-def run_upstream_command_guard(command: str) -> int:
+def run_upstream_command_guard(command: str, *, prog: str = DEFAULT_PROG) -> int:
     print(
         "\n".join(
             [
-                f"agentdecompile-reconstruct: upstream command '{command}' is not packaged in this Python front door.",
-                "Use `agentdecompile-reconstruct upstream-status` for the exact surface mapping.",
-                "For direct binary recovery use: `agentdecompile-reconstruct <path/to/binary-or-folder>`.",
+                f"{prog}: upstream command '{command}' is not packaged in this Python front door.",
+                f"Use `{prog} upstream-status` for the exact surface mapping.",
+                f"For direct binary recovery use: `{prog} <path/to/binary-or-folder>`.",
                 "The vendored upstream TypeScript implementation remains under the repo's vendor tree in this checkout.",
             ]
         ),
@@ -1158,22 +1164,31 @@ def run_upstream_command_guard(command: str) -> int:
     return 2
 
 
-def main(argv: list[str] | None = None) -> int:
+def main(argv: list[str] | None = None, prog: str | None = None) -> int:
+    """Dispatch the reconstruct front door.
+
+    ``prog`` overrides the program name in help and invocation hints. When it
+    is omitted every delegate keeps its own historical name, so the corpus and
+    legacy recover parsers still print ``agentdecompile-corpus`` /
+    ``agentdecompile-recover`` exactly as before.
+    """
+
+    effective_prog = prog or DEFAULT_PROG
     args = list(argv if argv is not None else sys.argv[1:])
     if args and args[0] == "corpus":
         from .corpus.cli import main as corpus_main
 
-        return corpus_main(args[1:])
+        return corpus_main(args[1:], prog=f"{prog} corpus" if prog else None)
     if args and args[0] == "self-check":
-        return run_self_check(build_self_check_parser().parse_args(args[1:]))
+        return run_self_check(build_self_check_parser(prog).parse_args(args[1:]))
     if args and args[0] == "upstream-status":
-        return run_upstream_status(build_upstream_status_parser().parse_args(args[1:]))
+        return run_upstream_status(build_upstream_status_parser(prog).parse_args(args[1:]))
     if args and args[0] in UPSTREAM_COMMANDS:
-        return run_upstream_command(args[0], args[1:])
+        return run_upstream_command(args[0], args[1:], prog=effective_prog)
     if args and args[0] in LEGACY_COMMANDS:
-        return legacy_main(args)
-    parser = build_parser()
-    return run_one_shot(parser.parse_args(args))
+        return legacy_main(args, prog=prog)
+    parser = build_parser(prog)
+    return run_one_shot(parser.parse_args(args), prog=effective_prog)
 
 
 if __name__ == "__main__":

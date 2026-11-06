@@ -424,8 +424,10 @@ class PythonMcpServer:
             (any case/separator variant accepted) before dispatch.  The MCP SDK's
             jsonschema validation would reject valid aliased params.
             """
+            # No rendering default here: `format` belongs to tools such as get-data,
+            # export and inspect-memory (format->mode), and the manager already
+            # renders markdown unless responseFormat=json.
             call_args: dict[str, Any] = dict(arguments or {})
-            call_args.setdefault("format", "markdown")
             # Don't pass the server's program_info here.  server.set_program_info()
             # already cascades to the manager at startup.  Passing a stale copy on
             # every call would revert updates made by tools (e.g. checkout from a

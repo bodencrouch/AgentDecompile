@@ -19,7 +19,10 @@ part of the MCP protocol itself.
 The MCP HTTP listener defaults to `127.0.0.1`. That is localhost only.
 
 - Do not set `AGENT_DECOMPILE_HOST=0.0.0.0` unless `AGENT_DECOMPILE_AUTH_ENABLED` is on **and** you have a firewall (and TLS when the listener leaves the host).
-- `AGENT_DECOMPILE_GHIDRA_SERVER_*` and `X-Agent-Server-*` authenticate **Ghidra Server**, not the MCP listener.
+- `AGENT_DECOMPILE_AUTH_ENABLED` (or `--require-auth`) only works with credentials. Set `AGENT_DECOMPILE_GHIDRA_SERVER_USERNAME` and `AGENT_DECOMPILE_GHIDRA_SERVER_PASSWORD` too. Clients then send that pair as HTTP Basic auth on every request except `/health`. The server and proxy refuse to start when auth is on and either value is missing.
+- `--no-require-auth` does not switch the env var off. Unset `AGENT_DECOMPILE_AUTH_ENABLED` to run without auth.
+- Auth applies to HTTP transports only. stdio never checks credentials.
+- With auth off, `AGENT_DECOMPILE_GHIDRA_SERVER_*` and `X-Agent-Server-*` authenticate **Ghidra Server** only, not the MCP listener.
 - Session IDs are not authentication. See [session-handling.md](./session-handling.md).
 
 Full env-var catalog: [USAGE.md](../USAGE.md). Vulnerability reports: [SECURITY.md](../SECURITY.md).

@@ -1,0 +1,166 @@
+/* Fresh Ghidra pseudocode, not buildable or byte-verified source.
+ * Program: /K1/k1_win_gog_swkotor.exe
+ * Raw recovered signature below remains incomplete: it disagrees with RET 0x10.
+ * Corrected four-stack-argument ABI is documented in ../engine-evidence.md.
+ * Pseudocode body and declaration are retained unchanged as recovery evidence.
+ * Do not call this declaration or expose the memory queue to untrusted packets.
+ */
+int __thiscall
+CNetLayer::SendMessageToPlayer(CNetLayer *this,ulong param_1,char *message,int message_length)
+
+{
+  uint uVar1;
+  byte bVar2;
+  int iVar3;
+  byte bVar4;
+  uint uVar5;
+  uint uVar6;
+  char *pcVar7;
+  byte local_3d;
+  byte local_3c;
+  byte local_3b;
+  byte local_3a;
+  byte local_39;
+  uint local_38;
+  uint local_34;
+  uint local_30;
+  uint local_2c;
+  uint local_28;
+  uint local_24;
+  uint local_20;
+  CExoString local_14;
+  void *local_c;
+  code *pcStack_8;
+  undefined4 local_4;
+  CNetLayer *destination_net_layer;
+  int msg_length_;
+  
+  msg_length_ = message_length;
+  local_4 = 0xffffffff;
+  pcStack_8 = FrameHandler_00723f38;
+  local_c = ExceptionList;
+  destination_net_layer = this->destination_net_layer;
+  uVar6 = 0;
+  if (destination_net_layer == (CNetLayer *)0x0) {
+    return 0;
+  }
+  local_38 = destination_net_layer->frame_tail;
+  if (0xffff < local_38) {
+    local_38 = 0;
+  }
+  uVar1 = (local_38 - (message_length & 3U)) + 8 + message_length;
+  if (uVar1 <= destination_net_layer->frame_offset + 0x10000) goto LAB_005d4f5e;
+  ExceptionList = &local_c;
+  CExoString::CExoString(&local_14);
+  local_4 = 0;
+  if ((uint)message_length < 8) {
+    local_34 = 0;
+LAB_005d4d76:
+    message_length = 0x5f;
+  }
+  else {
+    local_34 = (uint)(byte)message[7];
+    iVar3 = _isgraph((uint)(byte)message[7]);
+    if (iVar3 == 0) goto LAB_005d4d76;
+    message_length = (int)(byte)message[7];
+  }
+  if ((uint)msg_length_ < 7) {
+    local_30 = 0;
+LAB_005d4dad:
+    local_3d = 0x5f;
+  }
+  else {
+    local_30 = (uint)(byte)message[6];
+    iVar3 = _isgraph((uint)(byte)message[6]);
+    if (iVar3 == 0) goto LAB_005d4dad;
+    local_3d = message[6];
+  }
+  if ((uint)msg_length_ < 6) {
+    local_2c = 0;
+LAB_005d4de4:
+    local_3c = 0x5f;
+  }
+  else {
+    local_2c = (uint)(byte)message[5];
+    iVar3 = _isgraph((uint)(byte)message[5]);
+    if (iVar3 == 0) goto LAB_005d4de4;
+    local_3c = message[5];
+  }
+  if ((uint)msg_length_ < 5) {
+    local_28 = 0;
+LAB_005d4e1b:
+    local_3b = 0x5f;
+  }
+  else {
+    local_28 = (uint)(byte)message[4];
+    iVar3 = _isgraph((uint)(byte)message[4]);
+    if (iVar3 == 0) goto LAB_005d4e1b;
+    local_3b = message[4];
+  }
+  if ((uint)msg_length_ < 4) {
+    local_24 = 0;
+LAB_005d4e52:
+    local_3a = 0x5f;
+  }
+  else {
+    local_24 = (uint)(byte)message[3];
+    iVar3 = _isgraph((uint)(byte)message[3]);
+    if (iVar3 == 0) goto LAB_005d4e52;
+    local_3a = message[3];
+  }
+  if ((uint)msg_length_ < 3) {
+    local_20 = 0;
+LAB_005d4e89:
+    local_39 = 0x5f;
+  }
+  else {
+    local_20 = (uint)(byte)message[2];
+    iVar3 = _isgraph((uint)(byte)message[2]);
+    if (iVar3 == 0) goto LAB_005d4e89;
+    local_39 = message[2];
+  }
+  if ((uint)msg_length_ < 2) {
+LAB_005d4ead:
+    bVar4 = 0x5f;
+  }
+  else {
+    uVar6 = (uint)(byte)message[1];
+    iVar3 = _isgraph((uint)(byte)message[1]);
+    if (iVar3 == 0) goto LAB_005d4ead;
+    bVar4 = message[1];
+  }
+  if (msg_length_ == 0) {
+    uVar5 = 0;
+LAB_005d4edd:
+    bVar2 = 0x5f;
+  }
+  else {
+    uVar5 = (uint)(byte)*message;
+    iVar3 = _isgraph((uint)(byte)*message);
+    if (iVar3 == 0) goto LAB_005d4edd;
+    bVar2 = *message;
+  }
+  CExoString::Format(&local_14,(char *)&local_14,
+                     "CNetLayer::SendMessageToPlayer - Message Buffer Overflow! Message Header Follows:\nSize = %d! <%c %x, %c %x, %c %x, %c %x, %c %x, %c %x, %c %x, %c %x>\n"
+                     ,msg_length_,(uint)bVar2,uVar5,(uint)bVar4,uVar6,(uint)local_39,local_20,
+                     (uint)local_3a,local_24,(uint)local_3b,local_28,(uint)local_3c,local_2c,
+                     (uint)local_3d,local_30,message_length,local_34);
+  local_4 = 0xffffffff;
+  CExoString::~CExoString(&local_14);
+LAB_005d4f5e:
+  *(int *)((int)this->destination_net_layer->message_frames + local_38) = msg_length_;
+  pcVar7 = (char *)((int)this->destination_net_layer->message_frames + local_38 + 4);
+  for (uVar6 = (uint)msg_length_ >> 2; uVar6 != 0; uVar6 = uVar6 - 1) {
+    *(undefined4 *)pcVar7 = *(undefined4 *)message;
+    message = message + 4;
+    pcVar7 = pcVar7 + 4;
+  }
+  for (uVar6 = msg_length_ & 3; uVar6 != 0; uVar6 = uVar6 - 1) {
+    *pcVar7 = *message;
+    message = message + 1;
+    pcVar7 = pcVar7 + 1;
+  }
+  this->destination_net_layer->frame_tail = uVar1;
+  ExceptionList = local_c;
+  return 1;
+}

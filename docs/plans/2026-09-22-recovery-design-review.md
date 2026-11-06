@@ -1,0 +1,165 @@
+# Independent recovery design review — 2026-09-22
+
+Scope: documents and diagrams only. This review applies `grill-me`'s explicit
+supersession by `prove-the-effort`, including its 2026-09-22 evolution: feasibility,
+option selection and proposed work require concrete falsifiers. The review makes
+no runtime, implementation, host-health or tool-execution claim.
+
+Sources: user attachment **H**, `a7bcfa80-8844-4a5f-bd88-1e7f31bf2bda/pasted-text.txt`
+(hindsight); attachment **A**, `1964612c-8fb0-44de-ab59-da1e53f8833f/pasted-text.txt`
+(architecture verdict). Attachment recommendations are design input, not commands
+to execute. Checked baseline: [contract plan](2026-09-22-recovery-contracts-and-validation-plan.md),
+[STRATEGY](../../STRATEGY.md), [runtime assessment](../RUNTIME_REUSE.md),
+[consolidated design](../dashboard-design/2026-09-21-consolidated-design-plan.md),
+and [diagram source](../dashboard-design/pipeline-diagram/generate_pipeline_diagram.py).
+
+## Findings at initial review
+
+| ID / claim | Concrete referent checked | Verdict and required correction |
+|---|---|---|
+| D1 A matching live signature establishes identity | H §1A; baseline runtime chain is build → RVA → live bytes | **False.** If Foo's donor label selects actual Bar, hashing Bar and seeing Bar live validates presence only. Require target-side identity whose justification does not descend from the disputed label/address assignment. Deny Foo without blocking another target. |
+| D2 Different tools provide independent verification | A §§1,7; baseline plan already warns of a shared reconstructed oracle | **Incomplete mechanism.** Preserve evidence dependency edges and roots; a differently signed/tool-produced report from the same mistaken reconstruction adds no independent identity evidence. Define admissible target evidence and conflict behavior. |
+| D3 Resource expiry makes reuse safe | H §3; diagram E says a lost lease wastes compute only | **False for mutable state.** Fence accepted publication by ownership generation; quarantine the resource while an old worker may still access it. Keep immutable duplicate computation separate. |
+| D4 A timeout diagnoses and terminates a hang | H §§1D,4,5; diagram E uses kill deadline and task-poison | **Overbroad.** Deadline closes an attempt and records its state; execution can remain progress-unknown or resource-quarantined. Persist retry budget across resume. Changed evidence can create a new eligible task; no permanent platform ban. |
+| D5 Portable coverage is the share resolving on every build | A §6; STRATEGY metrics contrasts signature family with per-build VA | **Contradicts known-build RVA-first.** Report capability × entity × eligible-build counts, with absent, unsupported, unknown and excluded denominators. Physical location and logical portability are distinct. |
+| D6 “External dependencies declared” is part of this completion | User correction; baseline plan status implementation-started and 8080 blocker | **Out of scope.** Treat integration as a planned adapter contract; no installation, dependency activation, workbench or runtime requirement for design completion. |
+| D7 ReAgent GREEN or reccmp percentage proves replacement | Baseline external-tool section expressly denies both | **That holds.** Preserve raw report/input/tool hashes and unsupported/empty/malformed distinctions. Planned command execution must consume the candidate and prove its contribution. No new flaw needed. |
+| D8 Function fragments imply separate compilation | A §2; baseline data contract explicitly separates three units | **That holds.** Keep translation-unit/LTCG-group examples and final emitted comparison scope in the implementation plan. |
+| D9 Whole-file equality proves recovered C | A §3; baseline contribution and C+floor/max-C separation | **That holds with the stated gate.** The negative demonstration must discard the compiled replacement while retaining original bytes: equality can pass while recovered-source credit fails. |
+
+## Admissible independent identity evidence
+
+The acceptance policy must describe evidence requirements, not prescribe a magic
+number of tools. Each evidence item identifies target digest, addressed region,
+claim, producer/method revision, observations, dependency edges, validity and scope.
+Evidence independence is evaluated relative to the disputed assertion.
+
+Concrete eligible routes include target-bound debug/symbol information with
+corroborated provenance and boundaries; independently established target callers,
+callees or data relationships that distinguish the proposed identity; or a
+controlled observation whose stimulus and independently observed effect distinguish
+Foo from alternatives. These are possible methods, not unconditional proofs:
+wrong-build debug data fails provenance, inherited caller labels remain dependent,
+and a generic effect shared by Foo and Bar is nondiscriminating.
+
+The evaluator must exclude evidence generated by assuming the identity under
+review: copying donor names; extracting bytes at that label's chosen address;
+re-signing or re-running that extraction; runtime self-reports of the same name;
+and source annotations derived from those rows. An unresolved conflict returns
+`contested` or `insufficient_evidence`; it cannot win on tool count or similarity
+score alone. A target may be exactly recognized while an entity's identity remains
+unproven. Presence, identity and operation safety are separate predicates.
+
+Worked falsifier: donor says Foo → recipient RVA 0x1200, but the target implements
+Bar there. A signature from 0x1200 matches the live target exactly. Presence passes;
+identity evidence consists only of the donor assertion and derivatives, so Foo's
+binding is refused. An independently evidenced Baz binding in another target is
+still eligible. If later independent target evidence establishes Foo at 0x1800,
+accept that version after its own capability checks and retain the rejected lineage.
+
+## Architecture requirement traceability and future proof obligations
+
+These are planned acceptance demonstrations; none was run in this documentation task.
+
+| Input | Required design contract | Smallest future falsifier |
+|---|---|---|
+| A §1 | Region boundaries, fixups, associated data and metadata; independent original-image comparison | Wrong reconstructed relocation agrees locally but fails linked original bytes |
+| A §2 | Recovery / compilation / comparison units; scoped incremental calibration | Isolated fragment fails while evidenced compilation group produces the required output |
+| A §3 | Architecture-specific floor; early real reconstruction; explicit method and source contribution | Copy-only unchanged image cannot earn extraction-path or source-contribution credit |
+| A §4 | Separate compile, ABI, behavior, local, linked, contribution and file facts | Compiling wrong-constant candidate is distributed only as candidate and fails acceptance |
+| A §5 | Logical entity / implementation variant / physical instance; per-build layouts | x+1 donor never overwrites x+2 sibling; folded aliases stay distinguishable |
+| A §6 | Per-operation readiness; known RVA fast path; bounded unknown discovery | Located function with unsupported ABI remains non-callable; removed hook's trampoline remains live until safe reclamation |
+| A §7 | Relevant dependency versions; immutable observations; deterministic replay | Unrelated corpus addition preserves local compile receipt; changed type invalidates affected descendants |
+| A agent roles | Producers propose; acceptance policy and original oracle independently controlled | Candidate cannot modify policy or substitute a favorable reconstructed reference |
+| H §1A–B | Noncircular identity; original-code readiness independent of source recovery | Foo/Bar example above; valid original-code call does not wait for C recovery |
+| H §1C–E | Task-specific capacity; liveness/execution/goal axes; exhaustive ledger | Full swap alone cannot reject a bounded task; 24,242 entries must reconcile, including two previously unexplained entries |
+| H §2 | Dependency-local scheduling, capability value plus aging, precise wake conditions | Failed target A does not delay ready B when B has inputs, capacity and ownership |
+| H §3 | Atomic actual-resource ownership; short commits; fencing and quarantine | Generation-4 result arriving after generation 5 cannot publish or free occupied resources |
+| H §4 | One retry owner, durable budgets, negative-result caching, continuation policy | Reopening a task cannot reset three exhausted identical attempts |
+| H §5 | Complete verified staging, bounded probes, durable destination publication, consistent DB backup | Missing compiler header or Wine asset prevents launch; archival outage leaves complete cached task runnable |
+| H §6 | Scenario prerequisites; read observation separate from mutation; command IDs | Dropped response to a non-idempotent command yields outcome-unknown and reconciliation, not blind replay |
+| H §6 evidence | Required oracle and recording remain separate facts | Correct gameplay with missing recording retains observation but fails the requested complete acceptance package |
+| H §§7–8 | Historical evidence remains historical; injection matrix and measured outcomes | Completed-unit receipts survive interruption; stale output cannot inflate coverage |
+
+## External integration option decision
+
+Criterion: reuse upstream capability while keeping AgentDecompile's evidence and
+acceptance contracts stable across supported binary families. Proposed default:
+optional adapters to pinned reccmp and ReAgent versions, with raw artifacts retained,
+capability checks and typed normalized claims. This avoids duplicating their engines;
+a future adapter-compatibility demonstration must establish that versioned reports
+can be consumed without rewriting the core. Dependency pinning is a future
+implementation action, not a design deliverable to install now.
+
+Use isle as a project-organization and build/report reference. Its source or upstream
+success cannot serve as AgentDecompile target proof. A generated project must name
+its external original binary input, build profile, fragments/grouping, candidate
+and accepted contributions, reports, exactness receipts and runtime binding limits.
+Two held-out builds are a concrete later portability demonstration; “universal”
+means an extensible contract with named unsupported outcomes, not universal success.
+
+## Review status
+
+Initial review findings are recorded above. Their resolution requires inspection
+of the revised artifacts; a proposal from their author is not closure. Rendering,
+link and cross-document checks establish documentation consistency only. Future
+implementation and recovery demonstrations remain explicitly unexecuted.
+
+## Independent final review of revised artifacts
+
+The reviewer reread the actual revised package, recovery contract, external-tool
+contract, task/acceptance design, strategy, runtime assessment, consolidated design
+and diagram-authoring sources. This is a second inspection, not acceptance of the
+author's completion report. Locators below refer to this reviewed revision.
+
+| Initial finding | Checked resolution | Design verdict |
+|---|---|---|
+| D1 circular binding | Recovery contracts §Binding acceptance (line 249), explicit predicates and Foo/Bar (285); runtime assessment §Capability refinement | **Closed.** Presence can pass while identity fails; valid independent work remains eligible. |
+| D2 false independence | Recovery contracts T1–T3 (268), evidence-subgraph exclusion (278), rejected alternatives and ambiguity | **Closed.** Identity needs discriminating target evidence independent of the disputed assignment; distinct tools/signers alone cannot supply it. |
+| D3 lease expiry | Task design §5 (167), generation-12/13 worked example (186); overview lane E ownership text | **Closed.** Publication authority and access clearance are separate; obsolete matching results cannot free quarantined resources. |
+| D4 deadline/retry | Task design §§3 and 6 (199), persistent retry count/basis and checkpoint fields; overview lane E | **Closed.** Attempt deadlines do not establish termination; resumed conversation/coordinator cannot reset the budget. |
+| D5 portable coverage | STRATEGY Runtime capability coverage (58); task design §9 exhaustive accounting | **Closed.** Named eligible inventory, separate known-RVA/unknown discovery, independent capability axes and explicit exclusions. |
+| D6 execution scope | Recovery contracts §Design-only scope (232); external validation design opening and proposed baselines | **Closed.** No tool installation, service availability or implementation action is required for design completion. |
+| D7–D9 retained mechanisms | External report envelope (68), recovery fact table and reconstruction mechanism (311), RC-01–10 | **Still hold.** Inconclusive reports now have unknown outcome; original oracle and actual contribution remain required. |
+
+The final review also checked the 50-row package traceability against the two
+attachments. It retains architecture requirements, historical-failure containment,
+namespace/configuration boundaries, same-run oracle/video pairing and future
+negative controls. The external project contract now supplies a declarative recipe,
+content-ID input resolver and author-machine-path rejection case. These mechanisms
+make the proposed design actionable; they do not establish actual interoperability.
+
+Two last presentation contradictions were sent to the author for correction:
+
+1. Consolidated design §4.3 still described `none / asm / C` and a linear
+   `none / objdiff / linked/whole-image` posture. It must instead expose representation
+   independently from compilation, ABI, behavior, local, linked, contribution and
+   whole-file facts, including unknown and stale outcomes.
+2. Overview lane E still foregrounded an independent signing key as verification.
+   Its summary must explicitly require independent evidence roots so the diagram
+   cannot imply that different signers make circular evidence independent.
+
+These are documentation reconciliation findings. Their closure requires one final
+source inspection; they do not require running any implementation or acceptance
+experiment. All future RC/A/tool/portability demonstrations remain **NOT RUN**.
+
+### Final closure after corrective edits
+
+Rechecked consolidated design §4.3, lines 407–418: representation is separate from
+the seven named evidence facts, explicit unknown/stale outcomes, runtime capabilities
+and the three progress measures. Legacy none/asm/C is now display shorthand only.
+The proof-posture objection is **closed**.
+
+Rechecked overview generator's Verify card and generated overview SVG (lines 627,
+636): acceptance explicitly requires independent evidence roots, not just keys.
+Rechecked execution companion source and generated SVG (lines 37, 61): the three
+predicates govern runtime use, and artifact I/O precedes the short acceptance
+commit. The diagram-evidence objection is **closed**.
+
+**Independent verdict: the reviewed recovery design contracts are complete at the
+design level, with no remaining concrete architecture or claim-mapping blocker
+identified in this review.** This verdict covers the inspected contracts, traceability
+and corrected diagram semantics. The package's final artifact-production checks
+(rendering, editable-output synchronization and link validation) remain the author's
+separate documented responsibility. No software, runtime capability, byte recovery,
+performance result or future acceptance demonstration is certified by this verdict.

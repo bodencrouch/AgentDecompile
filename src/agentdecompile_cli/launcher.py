@@ -1,14 +1,8 @@
-"""Merged module: launcher, context, and server entry point.
+"""PyGhidra launcher and project context.
 
-Merged from:
-  - context.py         (ProgramInfo dataclass, PyGhidraContext)
-  - launcher.py        (AgentDecompileLauncher, _log_config_block)
-  - server.py          (init_agentdecompile_context, _env_port, _env_host, main)
-
-ProjectManager lives in project_manager.py and is re-exported here for backward compatibility.
-
-Python MCP Server launcher for AgentDecompile CLI.
-Handles PyGhidra initialization, Python MCP server startup, and project management.
+ProgramInfo, PyGhidraContext, and AgentDecompileLauncher live here.
+ProjectManager is re-exported from project_manager.py.
+Server process entry is agentdecompile_cli.server:main.
 """
 
 from __future__ import annotations
@@ -19,6 +13,7 @@ import json
 import logging
 import multiprocessing
 import os
+import signal
 import socket
 import sys
 import tempfile
@@ -38,9 +33,7 @@ except Exception:
     Settings = None  # type: ignore[assignment]
 
 from agentdecompile_cli.app_logger import basename_hint
-from agentdecompile_cli.executor import get_client, normalize_backend_url, run_async
 from agentdecompile_cli.project_manager import ProjectManager
-from agentdecompile_cli.registry import Tool
 from agentdecompile_cli.tools.wrappers import GhidraTools
 
 try:
@@ -67,9 +60,6 @@ if TYPE_CHECKING:
         Function as GhidraFunction,
         Program as GhidraProgram,
     )
-    from mcp.client.session import ClientSession
-    from mcp.types import TextContent
-
     from agentdecompile_cli.mcp_server import PythonMcpServer
     from agentdecompile_cli.models import (  # pyright: ignore[reportMissingImports, reportMissingModuleSource, reportMissingTypeStubs]  # noqa: F401
         DecompiledFunction,
@@ -558,15 +548,21 @@ class PyGhidraContext:
     def close(self, save: bool = True):
         """Saves changes to all open programs and closes the project."""
         logger.debug("diag.enter %s", "launcher.py:PyGhidraContext.close")
-        for _program_name, program_info in self.programs.items():
-            program: GhidraProgram = program_info.program
-            self.project.close(program)
-
         if self.executor is not None:
             self.executor.shutdown(wait=True)
 
         if self.import_executor is not None:
             self.import_executor.shutdown(wait=True)
+
+        # GhidraProject.save owns the outer transaction handle. Save all
+        # programs before releasing any, so a save failure keeps them open.
+        if save:
+            for program_info in self.programs.values():
+                self.project.save(program_info.program)
+
+        for _program_name, program_info in self.programs.items():
+            program: GhidraProgram = program_info.program
+            self.project.close(program)
 
         self.project.close()
         logger.info(f"Project {self.project_name} closed.")
@@ -674,11 +670,12 @@ class PyGhidraContext:
             except Exception as e:
                 # Log warning but continue - individual program failures shouldn't crash server
                 logger.warning(
-                    "pyghidra_startup_open_program_fail index=%s total=%s basename=%s exc_type=%s",
+                    "pyghidra_startup_open_program_fail index=%s total=%s basename=%s exc_type=%s detail=%s",
                     idx,
                     total_bin,
                     basename_hint(PurePosixPath(binary_path_str).name),
                     type(e).__name__,
+                    str(e)[:500],
                 )
                 continue
 
@@ -903,6 +900,14 @@ class PyGhidraContext:
         #     return None
 
         logger.debug("diag.enter %s", "launcher.py:PyGhidraContext._detect_binary_format")
+        if path.suffix.lower() == ".nds":
+            try:
+                from agentdecompile_recovery.containers import is_nds_binary
+
+                if is_nds_binary(path):
+                    return "NDS"
+            except Exception:
+                pass
         magic_table: dict[bytes, str] = {
             b"\x7fELF": "ELF",
             b"MZ": "PE",
@@ -1015,7 +1020,7 @@ class PyGhidraContext:
             name=program.name,
             program=program,
             flat_api=GhidraFlatProgramAPI(program),
-            decompiler=self.setup_decompiler(program),
+            decompiler=None,
             metadata=metadata,
             ghidra_analysis_complete=False,
             file_path=metadata["Executable Location"],
@@ -1425,9 +1430,24 @@ class PyGhidraContext:
                     GhidraProgramUtilities.markProgramAnalyzed(program)
                 else:
                     raise Exception("Missing set analyzed flag method!")
+            except Exception as exc:
+                # Ghidra can finish analysis and then reject a redundant
+                # transaction while a domain-file save is being coordinated.
+                # The analyzed flag is authoritative here: retain completed
+                # work instead of reporting it as a failed analysis job.
+                if "active transaction" in str(exc).lower() and not GhidraProgramUtilities.shouldAskToAnalyze(program):
+                    logger.warning("analysis_save_transaction_reconciled program=%s", program.getName())
+                else:
+                    raise
             finally:
                 GhidraScriptUtil.releaseBundleHostReference()
-                self.project.save(program)
+                try:
+                    self.project.save(program)
+                except Exception as exc:
+                    if "active transaction" in str(exc).lower() and not GhidraProgramUtilities.shouldAskToAnalyze(program):
+                        logger.warning("analysis_project_save_reconciled program=%s", program.getName())
+                    else:
+                        raise
         else:
             logger.info("Analysis already complete.. skipping %s!", program)
 
@@ -1721,6 +1741,105 @@ def _resolve_project_path_setting(
     return resolved_directory, resolved_project_name, None
 
 
+def _inodes_for_listen(port: int) -> set[int]:
+    found: set[int] = set()
+    port_h = f"{int(port):04X}"
+    for name in ("/proc/net/tcp", "/proc/net/tcp6"):
+        path = Path(name)
+        if not path.is_file():
+            continue
+        try:
+            text = path.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        for line in text.splitlines()[1:]:
+            parts = line.split()
+            if len(parts) < 10:
+                continue
+            local = parts[1]
+            state = parts[3]
+            if state != "0A":
+                continue
+            if not local.upper().endswith(":" + port_h):
+                continue
+            try:
+                found.add(int(parts[9]))
+            except ValueError:
+                continue
+    return found
+
+
+def pids_listening_on(port: int) -> list[int]:
+    """PIDs with a listening socket on ``port`` (Linux /proc)."""
+    inodes = _inodes_for_listen(port)
+    if not inodes:
+        return []
+    pids: list[int] = []
+    proc = Path("/proc")
+    for entry in proc.iterdir():
+        if not entry.name.isdigit():
+            continue
+        fd_dir = entry / "fd"
+        try:
+            for fd in fd_dir.iterdir():
+                try:
+                    target = os.readlink(fd)
+                except OSError:
+                    continue
+                if not target.startswith("socket:["):
+                    continue
+                raw = target[8:].rstrip("]")
+                try:
+                    inode = int(raw)
+                except ValueError:
+                    continue
+                if inode in inodes:
+                    pids.append(int(entry.name))
+                    break
+        except OSError:
+            continue
+    return pids
+
+
+def reclaim_listen_port(host: str, port: int, *, timeout: float = 8.0) -> bool:
+    """Stop a previous agentdecompile-server on this port. Other owners stay."""
+    _ = host
+    mine = []
+    for pid in pids_listening_on(port):
+        if pid in {os.getpid(), os.getppid()}:
+            continue
+        cmd = Path(f"/proc/{pid}/cmdline")
+        try:
+            blob = cmd.read_bytes()
+        except OSError:
+            continue
+        text = blob.replace(b"\x00", b" ").decode("utf-8", "replace")
+        if "agentdecompile" in text:
+            mine.append(pid)
+    if not mine:
+        return not pids_listening_on(port)
+    for pid in mine:
+        try:
+            os.kill(pid, signal.SIGTERM)
+        except OSError:
+            continue
+        sys.stderr.write(f"[launcher.start] Replacing agentdecompile-server pid {pid} on port {port}\n")
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        left = [p for p in mine if Path(f"/proc/{p}").exists()]
+        if not left:
+            break
+        time.sleep(0.15)
+    for pid in mine:
+        if Path(f"/proc/{pid}").exists():
+            try:
+                os.kill(pid, signal.SIGKILL)
+            except OSError:
+                pass
+    time.sleep(0.2)
+    return not pids_listening_on(port)
+
+
 class AgentDecompileLauncher:
     """Python MCP Server launcher with PyGhidra integration.
 
@@ -1986,30 +2105,21 @@ class AgentDecompileLauncher:
                     },
                 )
 
-            # Start the server.  When the configured port is already in use
-            # (e.g. another agentdecompile-server instance on the same host),
-            # auto-recover by picking a random available port so that the stdio
-            # bridge still works. The user is warned clearly.
+            # Start the server. An older agentdecompile-server on the same
+            # port is replaced so operators keep one URL. A foreign listener
+            # is an error, not a hop to a random port.
+            wanted = int(server_config.port)
+            reclaim_listen_port(selected_host, wanted)
             try:
                 self.port = self.mcp_server.start()
             except RuntimeError as _port_err:
                 if "already in use" not in str(_port_err):
                     raise
-                # Pick a random available port and retry once
-                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as _tmp:
-                    _tmp.bind((selected_host, 0))
-                    fallback_port = int(_tmp.getsockname()[1])
-                sys.stderr.write(
-                    f"[launcher.start] WARNING: Port {server_config.port} on {selected_host} is already in use. "
-                    f"Auto-selecting random port {fallback_port} so the server can start.\n"
-                    f"  Tip: stop the other process or pass --port <N> to choose a specific port.\n"
-                )
-                logger.warning(
-                    "Port %s in use — falling back to random port %s: %s",
-                    server_config.port, fallback_port, _port_err,
-                )
-                server_config.port = fallback_port
-                os.environ["AGENT_DECOMPILE_PORT"] = str(fallback_port)
+                if not reclaim_listen_port(selected_host, wanted):
+                    raise RuntimeError(
+                        f"Port {wanted} on {selected_host} is already in use by a "
+                        "process that is not agentdecompile-server."
+                    ) from _port_err
                 self.mcp_server = PythonMcpServer(server_config, auth_config=auth_config)
                 self.mcp_server.set_program_info(self.program_info)
                 if self.pyghidra_context is not None:
@@ -2021,7 +2131,7 @@ class AgentDecompileLauncher:
                             "projectName": project_name,
                             "projectPathGpr": str(Path(projects_dir) / f"{project_name}.gpr"),
                             "serverHost": selected_host,
-                            "serverPort": fallback_port,
+                            "serverPort": wanted,
                             "transportMode": "local-pyghidra",
                         },
                     )
@@ -2121,492 +2231,3 @@ class AgentDecompileLauncher:
                 sys.stderr.write(f"Error cleaning up temporary directory: {e.__class__.__name__}: {e}\n")
             finally:
                 self.temp_project_dir = None
-
-
-# ---------------------------------------------------------------------------
-# Server entry point  (formerly server.py)
-# ---------------------------------------------------------------------------
-
-
-def init_agentdecompile_context(
-    *,
-    input_paths: list[Path],
-    project_name: str,
-    project_directory: str,
-    project_path_gpr: Path | None,
-    force_analysis: bool = False,
-    verbose_analysis: bool = False,
-    no_symbols: bool = False,
-    gdts: list[str] | None = None,
-    program_options_path: str | None = None,
-    gzfs_path: str | None = None,
-    threaded: bool = True,
-    max_workers: int = 0,
-    wait_for_analysis: bool = False,
-    list_project_binaries: bool = False,
-    delete_project_binary: str | None = None,
-    symbols_path: str | None = None,
-    sym_file_path: str | None = None,
-    port: int | None = None,
-    host: str | None = None,
-    config_file: Path | None = None,
-) -> tuple[AgentDecompileLauncher, ProjectManager | None]:
-    """Initialize AgentDecompile: project resolution, PyGhidra, launcher, optional list/delete/import.
-
-    When project_path_gpr is set (a .gpr file), sets AGENT_DECOMPILE_PROJECT_PATH so the
-    launcher uses that project. Otherwise uses project_directory and project_name for
-    an ephemeral or directory-based project.
-
-    If list_project_binaries is True, lists programs via MCP and exits (does not return).
-    If delete_project_binary is set, attempts to remove that program and exits (does not return).
-
-    Returns (launcher, project_manager). project_manager is only set when not using a .gpr.
-    """
-    logger.debug("diag.enter %s", "launcher.py:init_agentdecompile_context")
-    bin_paths: list[Path] = [Path(p) for p in input_paths]
-    logger.info("Project: %s", project_name)
-    logger.info("Project location: %s", project_directory)
-
-    if project_path_gpr is not None and project_path_gpr.suffix.lower() == ".gpr":
-        os.environ["AGENT_DECOMPILE_PROJECT_PATH"] = str(project_path_gpr.resolve())
-
-    # Launcher is started by the caller after PyGhidra is initialized (see main()).
-    # We only compute launcher args here; actual start happens in main() after pyghidra.start().
-    use_random_port = port is None
-    launcher = AgentDecompileLauncher(config_file=config_file, use_random_port=use_random_port)
-    project_manager: ProjectManager | None = None
-    if not (os.getenv("AGENT_DECOMPILE_PROJECT_PATH") or os.getenv("AGENTDECOMPILE_PROJECT_PATH")):
-        project_manager = ProjectManager()
-
-    # Start the server (caller must have called pyghidra.start() before)
-    started_port = launcher.start(
-        port=port,
-        host=host,
-        project_directory=project_directory if project_path_gpr is None else None,
-        project_name=project_name if project_path_gpr is None else None,
-    )
-
-    async def _list_and_exit() -> None:
-        client: ClientSession = get_client(host="127.0.0.1", port=started_port)
-        async with client:
-            try:
-                result = await client.read_resource("ghidra://programs")
-                contents: list[Any] = result.contents if isinstance(result, TextContent) else []
-                for c in contents:
-                    text = c.text if isinstance(c, TextContent) else None
-                    if text:
-                        data = json.loads(text) if isinstance(text, str) else text
-                        programs = data if isinstance(data, list) else (data.get("programs") if isinstance(data, dict) else [])
-                        if isinstance(programs, list) and programs:
-                            sys.stderr.write("Project programs:\n")
-                            for p in programs:
-                                name = p.get("programPath", p.get("name", p)) if isinstance(p, dict) else p
-                                sys.stderr.write(f"  - {name}\n")
-                            sys.exit(0)
-                sys.stderr.write("No programs in project.\n")
-            except Exception as e:
-                sys.stderr.write(f"Error listing programs: {e}\n")
-            sys.exit(0)
-
-    if list_project_binaries:
-        run_async(_list_and_exit())
-
-    if delete_project_binary:
-
-        async def _delete_and_exit() -> None:
-            sys.stderr.write(
-                "Delete program is not implemented via CLI; use MCP tools or Ghidra UI.\n",
-            )
-            sys.exit(0)
-
-        run_async(_delete_and_exit())
-
-    if bin_paths:
-        logger.info("Importing binaries: %s", ", ".join(str(p) for p in bin_paths))
-        logger.info("cli_positional_import_batch path_count=%s", len(bin_paths))
-
-        async def _import_binaries() -> None:
-            client = get_client(host="127.0.0.1", port=started_port)
-            async with client:
-                for path in bin_paths:
-                    try:
-                        await client.call_tool(Tool.OPEN.value, {"path": str(path.resolve()), "runAnalysis": True})
-                        sys.stderr.write(f"Imported: {path}\n")
-                    except Exception as e:
-                        logger.warning(
-                            "cli_positional_import_item_fail basename=%s exc_type=%s",
-                            basename_hint(str(path)),
-                            type(e).__name__,
-                        )
-                        sys.stderr.write(f"Import failed for {path}: {e}\n")
-
-        run_async(_import_binaries())
-
-    if wait_for_analysis:
-        # Optional: wait a few seconds for analysis to progress (server is already up)
-        time.sleep(5)
-
-    return launcher, project_manager
-
-
-def _env_port() -> int:
-    """Default port from AGENT_DECOMPILE_PORT (1:1 Java applyHeadlessServerEnvOverrides)."""
-    logger.debug("diag.enter %s", "launcher.py:_env_port")
-    v = os.environ.get("AGENT_DECOMPILE_PORT")
-    if not v:
-        return 8080
-    try:
-        p = int(v)
-        return p if p > 0 else 8080
-    except ValueError:
-        return 8080
-
-
-def _env_host() -> str:
-    """Default host from AGENT_DECOMPILE_HOST (1:1 Java applyHeadlessServerEnvOverrides)."""
-    logger.debug("diag.enter %s", "launcher.py:_env_host")
-    return (os.environ.get("AGENT_DECOMPILE_HOST") or "").strip() or "127.0.0.1"
-
-
-def _resolve_proxy_backend_url(
-    explicit_backend_url: str | None,
-    explicit_mcp_server_url: str | None = None,
-) -> str | None:
-    """Resolve proxy backend URL from CLI/env and normalize to /mcp/message.
-
-    Priority: --backend-url > --mcp-server-url > AGENT_DECOMPILE_* env
-              > AGENTDECOMPILE_* env (compact form, e.g. AGENTDECOMPILE_MCP_SERVER_URL).
-    """
-    logger.debug("diag.enter %s", "launcher.py:_resolve_proxy_backend_url")
-    raw = explicit_backend_url
-    if not raw or not raw.strip():
-        raw = explicit_mcp_server_url
-    if not raw or not raw.strip():
-        raw = os.environ.get("AGENT_DECOMPILE_BACKEND_URL") or os.environ.get("AGENT_DECOMPILE_MCP_SERVER_URL") or os.environ.get("AGENT_DECOMPILE_SERVER_URL")
-    if not raw or not raw.strip():
-        raw = os.environ.get("AGENTDECOMPILE_BACKEND_URL") or os.environ.get("AGENTDECOMPILE_MCP_SERVER_URL") or os.environ.get("AGENTDECOMPILE_SERVER_URL")
-    if not raw or not raw.strip():
-        return None
-    return normalize_backend_url(raw.strip())
-
-
-def main() -> None:
-    """Parse server options and run init + transport."""
-    logger.debug("diag.enter %s", "launcher.py:main")
-    import argparse
-
-    try:
-        from agentdecompile_cli import __version__
-    except ImportError:
-        __version__ = "0.0.0.dev0"
-
-    parser = argparse.ArgumentParser(
-        description="AgentDecompile MCP server with project and transport options",
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-    )
-    parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
-
-    # Server options (defaults from env to match Java headless launcher)
-    g_server = parser.add_argument_group("Server options")
-    g_server.add_argument(
-        "-t",
-        "--transport",
-        choices=["stdio", "streamable-http", "sse", "http"],
-        default="stdio",
-        help="Transport: stdio (stdio bridge) or HTTP-based (server only)",
-    )
-    g_server.add_argument(
-        "-p",
-        "--port",
-        "--mcp-port",
-        "--mcp-listen-port",
-        type=int,
-        default=None,
-        help="Port for HTTP transports (default: AGENT_DECOMPILE_PORT or 8080)",
-    )
-    g_server.add_argument(
-        "-o",
-        "--host",
-        "--mcp-host",
-        "--mcp-listen-ip",
-        "--mcp-listen-host",
-        type=str,
-        default=None,
-        help="Host for HTTP transports (default: AGENT_DECOMPILE_HOST or 127.0.0.1)",
-    )
-    g_server.add_argument(
-        "--mcp-backend-url",
-        "--backend-url",
-        "--server-url",
-        dest="backend_url",
-        type=str,
-        default=None,
-        help=("Run in proxy mode and forward all MCP requests to an existing MCP server (http(s)://host:port[/mcp/message]); skips local PyGhidra/JVM startup"),
-    )
-    g_server.add_argument(
-        "--mcp-server-url",
-        dest="mcp_server_url",
-        type=str,
-        default=None,
-        help=("Fallback backend URL if --backend-url is not provided (equivalent to AGENT_DECOMPILE_MCP_SERVER_URL)"),
-    )
-    g_server.add_argument(
-        "--ghidra-server-host",
-        type=str,
-        default=None,
-        help="Shared Ghidra server host (prefer AGENT_DECOMPILE_GHIDRA_SERVER_HOST in environment)",
-    )
-    g_server.add_argument(
-        "--ghidra-server-port",
-        type=int,
-        default=None,
-        help="Shared Ghidra server port (prefer AGENT_DECOMPILE_GHIDRA_SERVER_PORT in environment)",
-    )
-    g_server.add_argument(
-        "--ghidra-server-username",
-        type=str,
-        default=None,
-        help="Shared Ghidra server username (prefer AGENT_DECOMPILE_GHIDRA_SERVER_USERNAME in environment)",
-    )
-    g_server.add_argument(
-        "--ghidra-server-password",
-        type=str,
-        default=None,
-        help="Shared Ghidra server password (prefer AGENT_DECOMPILE_GHIDRA_SERVER_PASSWORD in environment)",
-    )
-    g_server.add_argument(
-        "--ghidra-server-repository",
-        type=str,
-        default=None,
-        help="Shared Ghidra repository (prefer AGENT_DECOMPILE_GHIDRA_SERVER_REPOSITORY in environment)",
-    )
-    g_server.add_argument(
-        "--project-path",
-        type=Path,
-        default=Path("agentdecompile_projects"),
-        help="Project directory or path to .gpr file",
-    )
-    g_server.add_argument(
-        "--project-name",
-        type=str,
-        default="my_project",
-        help="Project name (ignored when using .gpr)",
-    )
-    g_server.add_argument("--threaded", dest="threaded", action="store_true", help="Allow threaded analysis")
-    g_server.add_argument("--no-threaded", dest="threaded", action="store_false", help="Disable threaded analysis")
-    g_server.set_defaults(threaded=True)
-    g_server.add_argument("--max-workers", type=int, default=0, help="Workers for analysis (0 = CPU count)")
-    g_server.add_argument("--wait-for-analysis", dest="wait_for_analysis", action="store_true", help="Wait for initial analysis before serving")
-    g_server.add_argument("--no-wait-for-analysis", dest="wait_for_analysis", action="store_false", help="Do not wait for initial analysis before serving")
-    g_server.set_defaults(wait_for_analysis=False)
-
-    # Project management
-    g_proj = parser.add_argument_group("Project management")
-    g_proj.add_argument("--list-project-binaries", action="store_true", help="List programs and exit")
-    g_proj.add_argument("--delete-project-binary", type=str, metavar="NAME", help="Delete a program and exit")
-
-    # Analysis options (passed through for future use; Java backend may use env)
-    g_analysis = parser.add_argument_group("Analysis options")
-    g_analysis.add_argument("--force-analysis", dest="force_analysis", action="store_true", help="Force re-analysis")
-    g_analysis.add_argument("--no-force-analysis", dest="force_analysis", action="store_false", help="Disable forced re-analysis")
-    g_analysis.set_defaults(force_analysis=False)
-    g_analysis.add_argument("--verbose-analysis", dest="verbose_analysis", action="store_true", help="Verbose analysis log")
-    g_analysis.add_argument("--no-verbose-analysis", dest="verbose_analysis", action="store_false", help="Disable verbose analysis log")
-    g_analysis.set_defaults(verbose_analysis=False)
-    g_analysis.add_argument("--no-symbols", action="store_true", help="Disable symbols for analysis")
-    g_analysis.add_argument("--symbols-path", type=Path, default=None, help="Symbols directory")
-    g_analysis.add_argument("--sym-file-path", type=Path, default=None, help="Single PDB symbol file")
-    g_analysis.add_argument("--gdt", type=Path, action="append", default=[], help="GDT file (repeatable)")
-    g_analysis.add_argument("--program-options", type=Path, default=None, help="JSON program options")
-    g_analysis.add_argument("--gzfs-path", type=Path, default=None, help="GZF output path")
-
-    parser.add_argument(
-        "input_paths",
-        nargs="*",
-        type=Path,
-        help="Binary paths to import before serving",
-    )
-    parser.add_argument("--config", type=Path, default=None, help="AgentDecompile config file")
-    args = parser.parse_args()
-
-    if args.ghidra_server_host:
-        os.environ["AGENT_DECOMPILE_GHIDRA_SERVER_HOST"] = str(args.ghidra_server_host)
-    if args.ghidra_server_port is not None:
-        os.environ["AGENT_DECOMPILE_GHIDRA_SERVER_PORT"] = str(args.ghidra_server_port)
-    if args.ghidra_server_username:
-        os.environ["AGENT_DECOMPILE_GHIDRA_SERVER_USERNAME"] = str(args.ghidra_server_username)
-    if args.ghidra_server_password:
-        os.environ["AGENT_DECOMPILE_GHIDRA_SERVER_PASSWORD"] = str(args.ghidra_server_password)
-    if args.ghidra_server_repository:
-        os.environ["AGENT_DECOMPILE_GHIDRA_SERVER_REPOSITORY"] = str(args.ghidra_server_repository)
-
-    # Apply env defaults for host/port (1:1 Java headless)
-    port = args.port if args.port is not None else _env_port()
-    host = args.host if args.host is not None else _env_host()
-    backend_url = _resolve_proxy_backend_url(args.backend_url, getattr(args, "mcp_server_url", None))
-
-    if backend_url:
-        from agentdecompile_cli.bridge import _apply_mcp_session_fix
-
-        _apply_mcp_session_fix()
-
-        if args.list_project_binaries:
-            parser.error("--list-project-binaries is not supported with --backend-url proxy mode")
-        if args.delete_project_binary:
-            parser.error("--delete-project-binary is not supported with --backend-url proxy mode")
-        if args.input_paths:
-            parser.error("input_paths import is not supported with --backend-url proxy mode")
-
-        try:
-            if args.transport == "stdio":
-                from agentdecompile_cli.__main__ import AgentDecompileCLI
-
-                cli = AgentDecompileCLI(
-                    launcher=None,
-                    project_manager=None,
-                    backend=backend_url,
-                )
-                run_async(cli.run())
-            elif args.transport in ["streamable-http", "http", "sse"]:
-                from agentdecompile_cli.mcp_server.proxy_server import (
-                    AgentDecompileMcpProxyServer,
-                    ProxyServerConfig,
-                )
-
-                proxy_server = AgentDecompileMcpProxyServer(
-                    ProxyServerConfig(
-                        host=host,
-                        port=port,
-                        backend_url=backend_url,
-                    ),
-                )
-                started_port = proxy_server.start()
-                sys.stderr.write(
-                    f"AgentDecompile proxy server running at http://{host}:{started_port}/mcp/message\n",
-                )
-                sys.stderr.write(f"Forwarding requests to backend {backend_url}\n")
-                sys.stderr.write("Press Ctrl+C to stop.\n")
-                while True:
-                    time.sleep(3600)
-            else:
-                sys.stderr.write(f"Unknown transport: {args.transport}\n")
-                sys.exit(1)
-        except KeyboardInterrupt:
-            sys.stderr.write("\nShutdown complete\n")
-        finally:
-            if args.transport in ["streamable-http", "http", "sse"] and "proxy_server" in locals():
-                proxy_server.stop()
-        return
-
-    # Resolve project path (.gpr vs directory)
-    project_path = args.project_path.resolve()
-    if project_path.suffix.lower() == ".gpr":
-        if args.project_name != "my_project":
-            parser.error("Cannot use --project-name with a .gpr file")
-        project_directory = str(project_path.parent)
-        project_name = project_path.stem
-        project_path_gpr = project_path
-    else:
-        project_directory = str(project_path)
-        project_name = args.project_name
-        project_path_gpr = None
-
-    # PyGhidra and filters (same as __main__)
-    from agentdecompile_cli.bridge import _apply_mcp_session_fix
-
-    _apply_mcp_session_fix()
-
-    original_stdout = sys.stdout
-    original_stderr = sys.stderr
-    try:
-        from agentdecompile_cli.__main__ import StderrFilter, StdoutFilter, _redirect_java_outputs
-    except ImportError:
-        StderrFilter = None
-        StdoutFilter = None
-        _redirect_java_outputs = None
-
-    if StderrFilter is not None and StdoutFilter is not None:
-        sys.stderr = StderrFilter(original_stderr)
-        sys.stdout = StdoutFilter(original_stdout)
-
-    try:
-        sys.stderr.write("Initializing PyGhidra...\n")
-        try:
-            import pyghidra
-        except ImportError:
-            sys.stderr.write(
-                "PyGhidra is not installed. Install with: pip install 'agentdecompile[local]'\n",
-            )
-            sys.exit(1)
-        pyghidra.start(verbose=args.verbose_analysis)
-        if _redirect_java_outputs:
-            _redirect_java_outputs()
-        sys.stderr.write("PyGhidra initialized\n")
-
-        launcher, project_manager = init_agentdecompile_context(
-            input_paths=args.input_paths,
-            project_name=project_name,
-            project_directory=project_directory,
-            project_path_gpr=project_path_gpr,
-            force_analysis=args.force_analysis,
-            verbose_analysis=args.verbose_analysis,
-            no_symbols=args.no_symbols,
-            gdts=[str(p) for p in args.gdt] if args.gdt else [],
-            program_options_path=str(args.program_options) if args.program_options else None,
-            gzfs_path=str(args.gzfs_path) if args.gzfs_path else None,
-            threaded=args.threaded,
-            max_workers=args.max_workers,
-            wait_for_analysis=args.wait_for_analysis,
-            list_project_binaries=args.list_project_binaries,
-            delete_project_binary=args.delete_project_binary,
-            symbols_path=str(args.symbols_path) if args.symbols_path else None,
-            sym_file_path=str(args.sym_file_path) if args.sym_file_path else None,
-            port=port if args.transport != "stdio" else None,
-            host=host if args.transport != "stdio" else None,
-            config_file=args.config,
-        )
-    except Exception as e:
-        if sys.stdout != original_stdout:
-            sys.stdout = original_stdout
-        if sys.stderr != original_stderr:
-            sys.stderr = original_stderr
-        sys.stderr.write(f"Initialization error: {e}\n")
-        raise
-        # sys.exit(1)
-
-    port = launcher.get_port()
-    assert port is not None
-
-    try:
-        if args.transport == "stdio":
-            from agentdecompile_cli.__main__ import AgentDecompileCLI
-
-            cli = AgentDecompileCLI(
-                launcher=launcher,
-                project_manager=project_manager,
-                backend=port,
-            )
-            run_async(cli.run())
-        elif args.transport in ["streamable-http", "http", "sse"]:
-            bind_host = host
-            sys.stderr.write(f"AgentDecompile server running at http://{bind_host}:{port}/mcp/message\n")
-            sys.stderr.write("Press Ctrl+C to stop.\n")
-            while True:
-                time.sleep(3600)
-        else:
-            sys.stderr.write(f"Unknown transport: {args.transport}\n")
-            sys.exit(1)
-    except KeyboardInterrupt:
-        sys.stderr.write("\nShutdown complete\n")
-    finally:
-        if launcher:
-            launcher.stop()
-        if project_manager and hasattr(project_manager, "cleanup"):
-            try:
-                project_manager.cleanup()
-            except Exception:
-                pass
-
-
-if __name__ == "__main__":
-    main()

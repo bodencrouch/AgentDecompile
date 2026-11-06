@@ -1,13 +1,14 @@
-"""Base ToolProvider with centralized normalization, dispatch, and manager.
+"""Base ToolProvider with shared normalization, dispatch, and manager.
 
-ALL normalization happens HERE, in ONE place.  The single canonical function
-is ``n()`` (alias for ``registry.normalize_identifier``).  It strips everything
-except lowercase ASCII letters: ``re.sub(r'[^a-z]', '', s.lower())``.
+Input boundaries reuse one canonical algorithm: ``n()`` is an alias for
+``registry.normalize_identifier`` and strips everything except lowercase ASCII
+letters. This module applies it at the provider boundary; CLI and registry
+boundaries use the same algorithm with their own precedence contracts.
 
 Flow:
   1. MCP Server → ToolProviderManager.call_tool(name, arguments)
   2. Manager normalizes ``name`` → looks up the owning ToolProvider
-  3. Provider.call_tool() normalizes ALL argument keys, dispatches to handler.
+  3. Provider.call_tool() normalizes top-level argument keys, dispatches to handler.
   4. Handler uses ``self._get(args, ...)`` helpers on already-normalized dicts.
 
 Consolidation Helpers (Phase 2b):
@@ -21,14 +22,17 @@ Consolidation Helpers (Phase 2b):
 from __future__ import annotations
 
 import asyncio
+import inspect
 import json as _json
 import logging
 import multiprocessing
 import os
 import re
+import threading
 import time
 
 from concurrent.futures import ProcessPoolExecutor
+from functools import partial
 from pathlib import Path
 from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any, ClassVar, TypeVar
@@ -37,7 +41,13 @@ from mcp import types  # pyright: ignore[reportMissingImports]
 
 from agentdecompile_cli.app_logger import basename_hint, norm_arg_keys, redact_session_id
 from agentdecompile_cli.launcher import ProgramInfo  # pyright: ignore[reportMissingImports]
-from agentdecompile_cli.mcp_utils.program_analysis import analysis_gate_exempt_tool
+from agentdecompile_cli.mcp_server.program_metadata import (  # pyright: ignore[reportMissingImports]
+    attach_auto_checkin_to_payload,
+    attach_project_context_to_payload,
+    inject_project_context,
+    inject_ui_hints,
+    payload_has_mutating_action,
+)
 
 # iter_items imported lazily in _resolve_function to avoid circular import
 from agentdecompile_cli.mcp_server.response_formatter import render_tool_response  # pyright: ignore[reportMissingImports]
@@ -48,17 +58,29 @@ from agentdecompile_cli.mcp_server.session_context import (  # pyright: ignore[r
     get_current_request_auto_match_target_paths,
     is_shared_server_handle,
 )
+from agentdecompile_cli.mcp_utils.program_analysis import (
+    ProgramAnalysisTimeout,
+    analysis_gate_exempt_tool,
+)
 from agentdecompile_cli.registry import (  # pyright: ignore[reportMissingImports]
-    ADVERTISED_TOOLS,
     ADVERTISED_TOOL_PARAMS,
+    RESPONSE_FORMAT_PARAM,
+    RESPONSE_FORMAT_VALUES,
+    SELECTOR_PARAM_ALIASES as _SELECTOR_PARAM_ALIASES,
+    MODE_PARAM_PRECEDENCE,
     TOOL_ALIASES,
     TOOL_PARAM_ALIASES,
     Tool,
     _auto_checkin_enabled,
+    apply_alias_implied_arguments,
+    get_advertised_tools_for_list,
+    get_effective_max_analysis_tier,
+    get_tool_analysis_tier,
     is_tool_advertised,
     normalize_identifier,
     resolve_tool_name,
     to_snake_case,
+    tool_owns_format_param,
 )
 
 if TYPE_CHECKING:
@@ -81,6 +103,14 @@ if TYPE_CHECKING:
     from agentdecompile_cli.registry import Tool
 
 logger = logging.getLogger(__name__)
+
+
+
+class _ProgramInfoUnset:
+    pass
+
+
+_PROGRAM_INFO_UNSET = _ProgramInfoUnset()
 
 
 def _shared_bootstrap_skip_local_project_path(program_key: str) -> bool:
@@ -148,9 +178,12 @@ _AUTO_CHECKIN_TRIGGER_TOOLS: frozenset[str] = frozenset(
         "managefunction",
         "managecomments",
         "managestructures",
+        "manageenums",
+        "managedatatypes",
         "applydatatype",
         "managebookmarks",
         "managefunctiontags",
+        "managestrings",
         "matchfunction",
     }
 )
@@ -160,6 +193,8 @@ _AUTO_CHECKIN_TRIGGER_TOOLS: frozenset[str] = frozenset(
 _NO_AUTO_SELECT_TOOLS: frozenset[str] = frozenset(
     {
         "openproject",
+        "manageworkflow",
+        "readworkspaceactivity",
         "open",
         "importbinary",
         "listprojectfiles",
@@ -171,6 +206,11 @@ _NO_AUTO_SELECT_TOOLS: frozenset[str] = frozenset(
         "listprocessors",
         "changeprocessor",
     }
+)
+
+# manage-files modes whose `path` is a filesystem path (never a program key).
+_MANAGE_FILES_FILESYSTEM_MODES: frozenset[str] = frozenset(
+    {"list", "import", "export", "info", "mkdir", "touch", "read", "write", "append", "copy"}
 )
 
 # Maximum number of programs to eagerly open when a project is opened.
@@ -357,21 +397,13 @@ _ARRAY_PARAMS = frozenset(
     },
 )
 
-_SELECTOR_PARAM_ALIASES = frozenset(
-    {
-        "action",
-        "actiontype",
-        "command",
-        "intent",
-        "method",
-        "mode",
-        "op",
-        "operation",
-        "task",
-        "type",
-        "verb",
-    },
-)
+# Deterministic order for the selector-schema fallback in `list_tools`:
+# registry precedence first, then any selector not ranked there, sorted.
+# Iterating the frozenset directly made the chosen schema depend on
+# PYTHONHASHSEED.
+_SELECTOR_PARAM_FALLBACK_ORDER: tuple[str, ...] = tuple(
+    alias for alias in MODE_PARAM_PRECEDENCE if alias in _SELECTOR_PARAM_ALIASES
+) + tuple(sorted(_SELECTOR_PARAM_ALIASES.difference(MODE_PARAM_PRECEDENCE)))
 
 
 T = TypeVar("T")
@@ -406,9 +438,39 @@ def _infer_param_schema(param_name: str) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 
-def create_success_response(data: dict[str, Any]) -> list[types.TextContent]:
-    """Create a standardized MCP success response."""
+def _function_search_contract_error(norm_tool_name: str, args: dict[str, Any], payload: Any) -> str | None:
+    """Reject successful providers that silently ignore a function search request."""
+    if norm_tool_name != "listfunctions" or str(args.get("mode", "")).strip().lower() != "search":
+        return None
+    if isinstance(payload, dict) and (payload.get("success") is False or payload.get("error")):
+        return None
+    query = next((str(args[key]).strip() for key in ("query", "searchstring") if args.get(key) is not None and str(args[key]).strip()), "")
+    if not query:
+        # Missing selectors remain the provider's validation responsibility.
+        return None
+    if isinstance(payload, dict) and str(payload.get("mode", "")).strip().lower() == "search" and payload.get("query") == query:
+        return None
+    return (
+        "The list-functions provider did not confirm the requested search mode and query. "
+        "Its result may be an unfiltered inventory and has been rejected. "
+        "Update or reconcile the backend's FunctionToolProvider search implementation, then retry this command."
+    )
+
+
+def create_success_response(
+    data: dict[str, Any],
+    *,
+    program_info: ProgramInfo | SimpleNamespace | None = None,
+) -> list[types.TextContent]:
+    """Create a response, optionally bound to a program activated by this operation."""
     logger.debug("diag.enter %s", "mcp_server/tool_providers.py:create_success_response")
+    if program_info is not None:
+        data = dict(data)
+        try:
+            attach_project_context_to_payload(data, get_current_mcp_session_id(), target_program_info=program_info)
+        except Exception as exc:
+            # A completed activation must not fail or inherit the incoming program's context.
+            data.setdefault("projectContext", {"scope": "target-program", "activeProgram": str(getattr(program_info, "name", "")), "contextUnavailable": str(exc)})
     return [types.TextContent(type="text", text=_json.dumps(data))]
 
 
@@ -652,6 +714,9 @@ def create_error_response(
     *,
     context: dict[str, Any] | None = None,
     next_steps: list[str] | None = None,
+    session_id: str | None = None,
+    tool_name_normalized: str = "",
+    target_program_info: ProgramInfo | SimpleNamespace | None = _PROGRAM_INFO_UNSET,
 ) -> list[types.TextContent]:
     """Create a standardized MCP error response with optional actionable metadata."""
     logger.debug("diag.enter %s", "mcp_server/tool_providers.py:create_error_response")
@@ -676,7 +741,108 @@ def create_error_response(
                 payload[key] = value
     if next_steps:
         payload["nextSteps"] = next_steps
+    try:
+        sid = session_id if session_id is not None else get_current_mcp_session_id()
+        if target_program_info is _PROGRAM_INFO_UNSET:
+            attach_project_context_to_payload(
+                payload,
+                sid,
+                tool_name_normalized=tool_name_normalized,
+            )
+        elif target_program_info is not None:
+            attach_project_context_to_payload(
+                payload,
+                sid,
+                tool_name_normalized=tool_name_normalized,
+                target_program_info=target_program_info,
+            )
+    except Exception as inject_exc:
+        logger.debug("project_context_error_inject_skip: %s", inject_exc)
     return [types.TextContent(type="text", text=_json.dumps(payload))]
+
+
+def resolve_domain_program_path(program: Any, fallback_path: str | None) -> str | None:
+    """Prefer DomainFile pathname over session/request fallback for error context."""
+    try:
+        domain_file = program.getDomainFile()
+        if domain_file is not None:
+            pathname = str(domain_file.getPathname()).strip()
+            # Immutable repository snapshots have no project-backed DomainFile.
+            # Ghidra exposes their transient backing database as /Untitled;
+            # retain the session's canonical repository path instead.
+            if pathname and pathname.strip('/').casefold() != "untitled":
+                return pathname
+    except Exception as e:
+        logger.debug("Unable to resolve program path from DomainFile; using fallback: %s", e)
+    return fallback_path
+
+
+def uses_existing_string_listing(norm_tool_name: str, norm_args: dict[str, Any]) -> bool:
+    """Keep string inspection from implicitly starting analysis before dispatch."""
+    if norm_tool_name == "liststrings":
+        return True  # This handler always forces list mode.
+    if norm_tool_name != "managestrings":
+        return False
+    selectors = set(MODE_PARAM_PRECEDENCE)
+    selectors.update(key for key, targets in TOOL_PARAM_ALIASES.get(norm_tool_name, {}).items() if "mode" in targets)
+    read_modes = {"", "list", "search", "regex", "count", "similarity"}
+    # Do not exempt mutations or conflicting/unknown selectors before provider
+    # aliases are applied. Explicit analyze-program keeps its existing lifecycle.
+    return all(n(str(value)) in read_modes for key, value in norm_args.items() if key in selectors and value is not None)
+
+
+def analysis_skipped_warning(program: Any, program_info: Any, program_path: str | None) -> str | None:
+    """One-line warning when the gate let a tool run past a recorded analysis failure.
+
+    Blocking (Ghidra calls); run it off the event loop.  A stale record on a
+    program that is analyzed now yields no warning.
+    """
+    from agentdecompile_cli.mcp_utils.program_analysis import analysis_failure, program_needs_analysis
+
+    failure = analysis_failure(program, program_path)
+    if failure is None or not program_needs_analysis(program, program_info=program_info):
+        return None
+    return (
+        f"Warning: auto-analysis of {program_path or 'this program'} failed earlier ({failure}); "
+        "this result uses the listing as it is. Run analyze-program to retry."
+    )
+
+
+def attach_analysis_warning(result: list[Any], warning: str | None, *, markdown: bool) -> list[Any]:
+    """Put ``warning`` into the first text part: a key in a JSON object, else a leading line."""
+    if not warning or not result or not isinstance(result[0], types.TextContent):
+        return result
+    text = result[0].text or ""
+    if not markdown:
+        try:
+            data = _json.loads(text)
+        except Exception:
+            data = None
+        if isinstance(data, dict):
+            data["analysisWarning"] = warning
+            return [types.TextContent(type="text", text=_json.dumps(data)), *result[1:]]
+    prefix = f"> {warning}" if markdown else warning
+    return [types.TextContent(type="text", text=f"{prefix}\n\n{text}"), *result[1:]]
+
+
+def analysis_timeout_error_response(
+    exc: ProgramAnalysisTimeout,
+    program_path: str | None,
+) -> list[types.TextContent]:
+    """Structured MCP error for Ghidra analysis timeout (gate or provider paths)."""
+    return create_error_response(
+        ActionableError(
+            str(exc),
+            context={
+                "state": "analysis-timeout",
+                "programPath": program_path or "",
+            },
+            next_steps=[
+                "Wait for Ghidra auto-analysis to finish, then retry this tool.",
+                "Call analyze-program for this programPath (use force if analysis appears stuck).",
+            ],
+        ),
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -748,17 +914,18 @@ class ToolProvider:
                     return create_success_response({...})
 
     **Normalization Contract:**
-        1. All tool names and argument keys are normalized via ``n()`` (alias for
+        1. Tool names and top-level argument keys are normalized via ``n()`` (alias for
            ``registry.normalize_identifier()``): ``re.sub(r'[^a-z]', '', s.lower())``.
            This strips everything except lowercase letters, making matching case/punct-insensitive.
-        2. Handlers NEVER receive raw keys; the base class normalizes ALL keys before dispatch.
+        2. Handlers receive normalized top-level keys. Nested dictionaries, values,
+           and output field names remain opaque.
         3. Handlers use the helper methods ``_get*()`` which handle alias lookup
            on already-normalized dicts.
 
     **call_tool() Flow:**
         1. Normalize tool name via ``resolve_tool_name()`` in registry.
         2. Find the handler method in HANDLERS dict.
-        3. Normalize ALL argument keys (recursively for nested dicts).
+        3. Normalize top-level argument keys; later duplicate spellings win.
         4. Dispatch to handler method.
         5. Wrap any exception as an error response with context and guidance.
 
@@ -801,16 +968,20 @@ class ToolProvider:
         return []
 
     # ------------------------------------------------------------------
-    # Dispatch – the ONLY normalization site
+    # Dispatch – provider input boundary
     # ------------------------------------------------------------------
 
     async def call_tool(
         self,
         name: str,
         arguments: dict[str, Any],
+        *,
+        program_info: ProgramInfo | SimpleNamespace | None | _ProgramInfoUnset = _PROGRAM_INFO_UNSET,
     ) -> list[types.TextContent]:
         """Normalize name + args, dispatch to handler, catch errors."""
         logger.debug("diag.enter %s", "mcp_server/tool_providers.py:ToolProvider.call_tool")
+        has_program_override = not isinstance(program_info, _ProgramInfoUnset)
+        effective_program_info = program_info if has_program_override else self.program_info
         norm_name: str = n(name)
         handler_method_name: str | None = self.HANDLERS.get(norm_name)
         if handler_method_name is None:
@@ -826,12 +997,17 @@ class ToolProvider:
         canonical_tool = resolve_tool_name(name) or name
         logger.info("tool=%s provider=%s", canonical_tool, self.__class__.__name__)
 
-        handler: Callable[[dict[str, Any]], Awaitable[list[types.TextContent]]] = getattr(self, handler_method_name)
+        handler: Callable[..., Awaitable[list[types.TextContent]]] = getattr(self, handler_method_name)
 
-        # Normalize ALL argument keys here – the single place normalization happens so handlers
-        # always see lowercase a-z keys (e.g. programpath, function, mode).
+        # Normalize top-level argument keys at the provider boundary. Dict assignment
+        # preserves the existing last-spelling-wins behavior for colliding inputs.
         norm_args: dict[str, Any] = {n(k): v for k, v in (arguments or {}).items()}
         auto_prereq_invocation: bool = self._get_bool(norm_args, "autoprereqinvocation", default=False)
+
+        # An overload alias such as get-function-count implies its mode when the
+        # caller chose none. `name` is still the name the caller used. Runs before the
+        # synonym pass, which would copy the output `format` into inspect-memory's mode.
+        norm_args = apply_alias_implied_arguments(name, norm_args)
 
         # Apply tool-specific parameter aliases: if the client sent a synonym (e.g. "action"
         # instead of "mode"), copy the value to the canonical key so _get_str(args, "mode", "action")
@@ -847,34 +1023,56 @@ class ToolProvider:
                         norm_args[target] = value
 
         try:
-            result = await handler(norm_args)
+            handler_params = inspect.signature(handler).parameters
+            accepts_program_info = "program_info" in handler_params or any(
+                param.kind is inspect.Parameter.VAR_KEYWORD for param in handler_params.values()
+            )
+            if accepts_program_info:
+                result = await handler(norm_args, program_info=effective_program_info)
+            else:
+                # Existing providers read self.program_info. Keep their established
+                # handoff until each handler opts into call-scoped program_info.
+                if self.program_info is not effective_program_info:
+                    self.set_program_info(effective_program_info)
+                result = await handler(norm_args)
             logger.debug("tool=%s completed", canonical_tool)
 
             # --- Inject projectContext into successful JSON responses ---
             try:
-                from agentdecompile_cli.mcp_server.program_metadata import inject_project_context
                 from agentdecompile_cli.mcp_server.session_context import get_current_mcp_session_id as _get_sid
 
                 sid = _get_sid()
                 if result and isinstance(result[0], types.TextContent):
-                    result[0] = types.TextContent(
-                        type="text",
-                        text=inject_project_context(
-                            result[0].text,
+                    injected_text = result[0].text
+                    if effective_program_info is not None or not has_program_override:
+                        injected_text = inject_project_context(
+                            injected_text,
                             sid,
                             tool_name_normalized=norm_name,
-                        ),
+                            target_program_info=effective_program_info,
+                        )
+                    injected_text = inject_ui_hints(
+                        injected_text,
+                        sid,
+                        tool_name_normalized=norm_name,
+                        auto_checkin_enabled=_auto_checkin_enabled(),
+                    )
+                    result[0] = types.TextContent(
+                        type="text",
+                        text=injected_text,
                     )
             except Exception as inject_exc:
                 logger.debug("project_context_inject_skip: %s", inject_exc)
 
             return result
+        except ProgramAnalysisTimeout:
+            raise
         except Exception as e:
             logger.error("tool=%s error=%s message=%s", canonical_tool, e.__class__.__name__, e)
             extra_context: dict[str, Any] | None = None
             if isinstance(e, ActionableError) and not auto_prereq_invocation:
                 try:
-                    extra_context = await self._build_prerequisite_call_context(e, norm_args)
+                    extra_context = await self._build_prerequisite_call_context(e, norm_args, program_info=effective_program_info)
                 except Exception as prereq_exc:
                     logger.debug("Failed to build prerequisite call context for %s: %s", name, prereq_exc)
             return create_error_response(
@@ -888,6 +1086,12 @@ class ToolProvider:
                         "errorTimestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
                     },
                     extra_context,
+                ),
+                tool_name_normalized=norm_name,
+                target_program_info=(
+                    effective_program_info
+                    if effective_program_info is not None or has_program_override
+                    else _PROGRAM_INFO_UNSET
                 ),
             )
 
@@ -972,7 +1176,13 @@ class ToolProvider:
 
         return plan
 
-    async def _run_prerequisite_call(self, tool_name: str, tool_args: dict[str, Any]) -> dict[str, Any]:
+    async def _run_prerequisite_call(
+        self,
+        tool_name: str,
+        tool_args: dict[str, Any],
+        *,
+        program_info: ProgramInfo | SimpleNamespace | None,
+    ) -> dict[str, Any]:
         """Run a single prerequisite tool (e.g. list_tools or list-project-files) and return a result dict for error context."""
         logger.debug("diag.enter %s", "mcp_server/tool_providers.py:ToolProvider._run_prerequisite_call")
         if tool_name == "list_tools":
@@ -994,7 +1204,7 @@ class ToolProvider:
 
         invocation_args = dict(tool_args)
         invocation_args["__auto_prereq_invocation"] = True  # skip building nested prerequisite context on this call
-        response = await self._manager.call_tool(tool_name, invocation_args, program_info=self.program_info)
+        response = await self._manager.call_tool(tool_name, invocation_args, program_info=program_info)
 
         output: Any
         success: bool
@@ -1017,7 +1227,13 @@ class ToolProvider:
             "output": output,
         }
 
-    async def _build_prerequisite_call_context(self, error: ActionableError, args: dict[str, Any]) -> dict[str, Any] | None:
+    async def _build_prerequisite_call_context(
+        self,
+        error: ActionableError,
+        args: dict[str, Any],
+        *,
+        program_info: ProgramInfo | SimpleNamespace | None,
+    ) -> dict[str, Any] | None:
         """Build error context with prerequisiteCalls: merge error's next_steps with inferred steps, run suggested tools, attach outputs."""
         logger.debug("diag.enter %s", "mcp_server/tool_providers.py:ToolProvider._build_prerequisite_call_context")
         inferred_context, inferred_steps = _default_error_guidance(error.message)
@@ -1034,7 +1250,7 @@ class ToolProvider:
             raw_args = entry.get("arguments")
             tool_args: dict[str, Any] = raw_args if isinstance(raw_args, dict) else {}
             trigger = str(entry.get("trigger", "")).strip()
-            result = await self._run_prerequisite_call(tool_name, tool_args)
+            result = await self._run_prerequisite_call(tool_name, tool_args, program_info=program_info)
             result["trigger"] = trigger
             results.append(result)
 
@@ -1201,7 +1417,12 @@ class ToolProvider:
         limit = self._get_int(args, "limit", "maxresults", "maxcount", "max", default=DEFAULT_PAGE_LIMIT if default_limit is None else default_limit)
         return offset if offset is not None else 0, limit if limit is not None else 0
 
-    def _dispatch_handler(self, *args: Any, **kwargs: Any) -> Any:
+    def _dispatch_handler(
+        self,
+        *args: Any,
+        program_info: ProgramInfo | SimpleNamespace | None = _PROGRAM_INFO_UNSET,
+        **kwargs: Any,
+    ) -> Any:
         """Unified handler dispatch with error handling.
 
         Supports two calling patterns:
@@ -1242,6 +1463,13 @@ class ToolProvider:
                         "Check the tool's inputSchema for valid enum values.",
                     ],
                 )
+            if program_info is _PROGRAM_INFO_UNSET:
+                return handler
+            handler_params = inspect.signature(handler).parameters
+            if "program_info" in handler_params or any(
+                param.kind is inspect.Parameter.VAR_KEYWORD for param in handler_params.values()
+            ):
+                return partial(handler, program_info=program_info)
             return handler
         # Pattern 2: (args_dict, mode_key, dispatch_dict, **kwargs) → invokes handler and returns result
         if len(args) == 3 and isinstance(args[2], dict):
@@ -1263,6 +1491,12 @@ class ToolProvider:
                     ],
                 )
             handler = getattr(self, handler_name)  # pyright: ignore[reportArgumentType]
+            if program_info is not _PROGRAM_INFO_UNSET:
+                handler_params = inspect.signature(handler).parameters
+                if "program_info" in handler_params or any(
+                    param.kind is inspect.Parameter.VAR_KEYWORD for param in handler_params.values()
+                ):
+                    kwargs["program_info"] = program_info
             return handler(args_dict, **kwargs)  # pyright: ignore[reportOptionalCall]
         raise ValueError("Invalid _dispatch_handler call signature")
 
@@ -1270,7 +1504,11 @@ class ToolProvider:
     # Program guards
     # ------------------------------------------------------------------
 
-    def _require_program(self) -> None:
+    def _require_program(
+        self,
+        *,
+        program_info: ProgramInfo | SimpleNamespace | None = _PROGRAM_INFO_UNSET,
+    ) -> None:
         """Ensure a program is loaded for this request; raise ActionableError with next_steps if not.
 
         program_info is set by the manager from SessionContext (active or programPath) before
@@ -1278,7 +1516,8 @@ class ToolProvider:
         / domain files; if still None here, no programs exist in this session at all.
         """
         logger.debug("diag.enter %s", "mcp_server/tool_providers.py:ToolProvider._require_program")
-        if self.program_info is None or self.program_info.program is None:
+        effective_program_info = self.program_info if program_info is _PROGRAM_INFO_UNSET else program_info
+        if effective_program_info is None or effective_program_info.program is None:
             # Include available program info in error for debugging
             session_id = get_current_mcp_session_id()
             session = SESSION_CONTEXTS.get_or_create(session_id)
@@ -1320,6 +1559,8 @@ class ToolProvider:
         function_identifier: str,
         program: Any | None = None,
         include_externals: bool = True,
+        *,
+        program_info: ProgramInfo | SimpleNamespace | None = _PROGRAM_INFO_UNSET,
     ) -> Any | None:
         """Resolve a function by name, entrypoint string, or address/symbol.
 
@@ -1331,9 +1572,10 @@ class ToolProvider:
         if not function_identifier:
             return None
 
-        if self.program_info is None:
-            return None
-        target_program: GhidraProgram | None = program or self.program_info.program
+        effective_program_info = self.program_info if program_info is _PROGRAM_INFO_UNSET else program_info
+        target_program: GhidraProgram | None = program
+        if target_program is None and effective_program_info is not None:
+            target_program = effective_program_info.program
         if target_program is None:
             return None
 
@@ -1402,7 +1644,13 @@ class ToolProvider:
 
         return None
 
-    def _resolve_address(self, address_or_symbol: str, program: GhidraProgram | None = None) -> GhidraAddress | None:
+    def _resolve_address(
+        self,
+        address_or_symbol: str,
+        program: GhidraProgram | None = None,
+        *,
+        program_info: ProgramInfo | SimpleNamespace | None = _PROGRAM_INFO_UNSET,
+    ) -> GhidraAddress | None:
         """Resolve an address/symbol string against the active program.
 
         Supports both thunk addresses (e.g. CreateFileA @ 0x004011fc) and IAT addresses
@@ -1414,9 +1662,10 @@ class ToolProvider:
         # opened ProgramDB while session program_info may already be cleared).
         target_program: GhidraProgram | None = program
         if target_program is None:
-            if self.program_info is None:
+            effective_program_info = self.program_info if program_info is _PROGRAM_INFO_UNSET else program_info
+            if effective_program_info is None:
                 raise ValueError("No program loaded in program_info")
-            target_program = self.program_info.program
+            target_program = effective_program_info.program
         if target_program is None:
             raise ValueError("No program loaded")
 
@@ -1424,7 +1673,12 @@ class ToolProvider:
 
         return AddressUtil.resolve_address_or_symbol_prefer_thunk(target_program, address_or_symbol)
 
-    def _get_function_manager(self, program: GhidraProgram | None = None) -> GhidraFunctionManager | None:
+    def _get_function_manager(
+        self,
+        program: GhidraProgram | None = None,
+        *,
+        program_info: ProgramInfo | SimpleNamespace | None = _PROGRAM_INFO_UNSET,
+    ) -> GhidraFunctionManager | None:
         """Get function manager from program, with safe access and caching.
 
         Consolidates 20+ repeated patterns of:
@@ -1433,51 +1687,70 @@ class ToolProvider:
         Eliminates boilerplate and ensures consistent error handling.
         """
         logger.debug("diag.enter %s", "mcp_server/tool_providers.py:ToolProvider._get_function_manager")
-        if self.program_info is None:
-            raise ValueError("No program loaded in program_info")
-        target_program: GhidraProgram | None = program or self.program_info.program
+        effective_program_info = self.program_info if program_info is _PROGRAM_INFO_UNSET else program_info
+        target_program: GhidraProgram | None = program
+        if target_program is None and effective_program_info is not None:
+            target_program = effective_program_info.program
         if target_program is None:
             raise ValueError("No program loaded")
         return target_program.getFunctionManager()
 
-    def _get_listing(self, program: GhidraProgram | None = None) -> GhidraListing | None:
+    def _get_listing(
+        self,
+        program: GhidraProgram | None = None,
+        *,
+        program_info: ProgramInfo | SimpleNamespace | None = _PROGRAM_INFO_UNSET,
+    ) -> GhidraListing | None:
         """Get program listing (instructions/data units) with safe access.
 
         Consolidates 15+ repeated patterns of:
             listing = program.getListing()
         """
         logger.debug("diag.enter %s", "mcp_server/tool_providers.py:ToolProvider._get_listing")
-        if self.program_info is None:
-            raise ValueError("No program loaded in program_info")
-        target_program: GhidraProgram | None = program or self.program_info.program
+        effective_program_info = self.program_info if program_info is _PROGRAM_INFO_UNSET else program_info
+        target_program: GhidraProgram | None = program
+        if target_program is None and effective_program_info is not None:
+            target_program = effective_program_info.program
         if target_program is None:
             raise ValueError("No program loaded")
         return target_program.getListing()
 
-    def _get_memory(self, program: GhidraProgram | None = None) -> GhidraMemory | None:
+    def _get_memory(
+        self,
+        program: GhidraProgram | None = None,
+        *,
+        program_info: ProgramInfo | SimpleNamespace | None = _PROGRAM_INFO_UNSET,
+    ) -> GhidraMemory | None:
         """Get program memory interface with safe access.
 
         Consolidates repeated memory access patterns:
             memory = program.getMemory()
         """
         logger.debug("diag.enter %s", "mcp_server/tool_providers.py:ToolProvider._get_memory")
-        if self.program_info is None:
-            raise ValueError("No program loaded in program_info")
-        target_program: GhidraProgram | None = program or self.program_info.program
+        effective_program_info = self.program_info if program_info is _PROGRAM_INFO_UNSET else program_info
+        target_program: GhidraProgram | None = program
+        if target_program is None and effective_program_info is not None:
+            target_program = effective_program_info.program
         if target_program is None:
             raise ValueError("No program loaded")
         return target_program.getMemory()
 
-    def _get_symbol_table(self, program: GhidraProgram | None = None) -> GhidraSymbolTable | None:
+    def _get_symbol_table(
+        self,
+        program: GhidraProgram | None = None,
+        *,
+        program_info: ProgramInfo | SimpleNamespace | None = _PROGRAM_INFO_UNSET,
+    ) -> GhidraSymbolTable | None:
         """Get symbol table from program with safe access.
 
         Consolidates patterns like:
             st = program.getSymbolTable()
         """
         logger.debug("diag.enter %s", "mcp_server/tool_providers.py:ToolProvider._get_symbol_table")
-        if self.program_info is None:
-            raise ValueError("No program loaded in program_info")
-        target_program: GhidraProgram | None = program or self.program_info.program
+        effective_program_info = self.program_info if program_info is _PROGRAM_INFO_UNSET else program_info
+        target_program: GhidraProgram | None = program
+        if target_program is None and effective_program_info is not None:
+            target_program = effective_program_info.program
         if target_program is None:
             raise ValueError("No program loaded")
         return target_program.getSymbolTable()
@@ -1647,11 +1920,9 @@ class ToolProvider:
 
     def program_opened(self, program_path: str) -> None:
         logger.debug("diag.enter %s", "mcp_server/tool_providers.py:ToolProvider.program_opened")
-        pass
 
     def program_closed(self, program_path: str) -> None:
         logger.debug("diag.enter %s", "mcp_server/tool_providers.py:ToolProvider.program_closed")
-        pass
 
     def cleanup(self) -> None:
         """Override to release provider-specific resources (e.g. caches, handles); default no-op."""
@@ -1670,7 +1941,9 @@ class ToolProviderManager:
         self.providers: list[ToolProvider] = []
         self._tool_map: dict[str, ToolProvider] = {}  # normalized tool name → provider; filled by _register()
         self.program_info: ProgramInfo | None = None
-        self.ghidra_project: Any | None = None  # GhidraProject from PyGhidraContext
+        self._project_handles_lock = threading.RLock()
+        self._owned_gpr_projects: dict[str, Any] = {}
+        self._ghidra_project: Any | None = None  # GhidraProject from PyGhidraContext
         # Stable subdir under %TEMP%/agentdecompile_shared/ for shared checkout (avoid PID reuse lock collisions).
         self.shared_server_workspace_subdir: str | None = None
         # True after connect-shared successfully bound GhidraProject to shared checkout tree (skip rebind on repeat open).
@@ -1678,6 +1951,68 @@ class ToolProviderManager:
         # Set by launcher so connect-shared can replace context.project when swapping the active Ghidra project.
         self.pyghidra_context_ref: Any = None
         self._on_program_info_changed: Callable[[ProgramInfo], None] | None = None
+
+    @staticmethod
+    def _canonical_gpr(path: str | Path) -> str:
+        return os.path.normcase(str(Path(path).expanduser().resolve()))
+
+    @staticmethod
+    def _project_gpr(project: Any) -> str | None:
+        try:
+            native = project.getProject()
+            if native is None or native.isClosed():
+                return None
+            locator = native.getProjectLocator()
+            return ToolProviderManager._canonical_gpr(Path(str(locator.getLocation())) / f"{locator.getName()}.gpr")
+        except Exception:
+            return None
+
+    @property
+    def ghidra_project(self) -> Any | None:
+        handle = SESSION_CONTEXTS.get_project_handle(get_current_mcp_session_id())
+        if handle and str(handle.get('mode') or '').replace('-', '').lower() == 'localgpr':
+            path = handle.get('path')
+            if path:
+                key = self._canonical_gpr(path)
+                with self._project_handles_lock:
+                    project = self._owned_gpr_projects.get(key)
+                    return project if project is not None and self._project_gpr(project) == key else None
+        return self._ghidra_project
+
+    @ghidra_project.setter
+    def ghidra_project(self, project: Any | None) -> None:
+        # Switching the active project must not orphan the still-open native
+        # owner of its file lock or close programs referenced by another tab.
+        with self._project_handles_lock:
+            if project is not None:
+                path = self._project_gpr(project)
+                if path:
+                    self._owned_gpr_projects[path] = project
+            self._ghidra_project = project
+
+    def owned_gpr_project(self, path: str | Path, opener: Callable[[], Any]) -> Any:
+        """Reuse this process's native owner, or acquire the project once.
+
+        This lock covers lookup plus native open so independent sessions cannot
+        both create a GhidraProject manager for the same canonical path. Handles
+        remain retained until their explicit lifecycle owner closes them; an
+        already-closed shared-project handle is evicted before reopening.
+        """
+        key = self._canonical_gpr(path)
+        with self._project_handles_lock:
+            existing = self._owned_gpr_projects.get(key)
+            if existing is not None and self._project_gpr(existing) == key:
+                return existing
+            self._owned_gpr_projects.pop(key, None)
+            project = opener()
+            actual = self._project_gpr(project)
+            if actual != key:
+                # Never cache a handle under an unrelated requested locator.
+                if actual:
+                    self._owned_gpr_projects[actual] = project
+                raise ValueError(f"Opened project locator does not match {path}")
+            self._owned_gpr_projects[key] = project
+            return project
 
     def set_ghidra_project(self, project: Any) -> None:
         """Store the GhidraProject reference so providers can use it for checkout."""
@@ -1695,60 +2030,10 @@ class ToolProviderManager:
     def register_all_providers(self) -> None:
         """Import and register every concrete provider; called at server startup so _tool_map has all HANDLERS."""
         logger.debug("diag.enter %s", "mcp_server/tool_providers.py:ToolProviderManager.register_all_providers")
-        from agentdecompile_cli.mcp_server.providers import (
-            BookmarkToolProvider,
-            CallGraphToolProvider,
-            CommentToolProvider,
-            ConflictResolutionToolProvider,
-            ConstantSearchToolProvider,
-            CrossReferencesToolProvider,
-            DataFlowToolProvider,
-            DataToolProvider,
-            DataTypeToolProvider,
-            DecompilerToolProvider,
-            FunctionToolProvider,
-            GetFunctionAioToolProvider,
-            GetFunctionToolProvider,
-            ImportExportToolProvider,
-            MemoryToolProvider,
-            ProjectToolProvider,
-            PromptToolProvider,
-            ScriptToolProvider,
-            SearchEverythingToolProvider,
-            StringToolProvider,
-            StructureToolProvider,
-            SuggestionToolProvider,
-            SymbolToolProvider,
-            VtableToolProvider,
-        )
+        from agentdecompile_cli.mcp_server.providers import PROVIDER_CLASSES
 
         # Register each provider; one failure does not block others
-        for cls in (
-            BookmarkToolProvider,
-            CallGraphToolProvider,
-            CommentToolProvider,
-            ConflictResolutionToolProvider,
-            ConstantSearchToolProvider,
-            CrossReferencesToolProvider,
-            DataFlowToolProvider,
-            DataToolProvider,
-            DataTypeToolProvider,
-            DecompilerToolProvider,
-            GetFunctionAioToolProvider,
-            FunctionToolProvider,
-            GetFunctionToolProvider,
-            ImportExportToolProvider,
-            MemoryToolProvider,
-            ProjectToolProvider,
-            PromptToolProvider,
-            ScriptToolProvider,
-            SearchEverythingToolProvider,
-            StringToolProvider,
-            StructureToolProvider,
-            SuggestionToolProvider,
-            SymbolToolProvider,
-            VtableToolProvider,
-        ):
+        for cls in PROVIDER_CLASSES:
             try:
                 self._register(cls(self.program_info))
             except Exception as e:
@@ -1784,7 +2069,7 @@ class ToolProviderManager:
         self,
         session_id: str,
         requested_program_key: str,
-    ) -> None:
+    ) -> ProgramInfo | None:
         """Connect to shared server from request auth context (X-Ghidra-* headers) or env, then checkout the requested program in this session."""
         logger.debug("diag.enter %s", "mcp_server/tool_providers.py:ToolProviderManager._bootstrap_shared_session_from_env")
         project_provider = self._get_project_provider()
@@ -1860,7 +2145,7 @@ class ToolProviderManager:
         }
 
         try:
-            await project_provider._handle_open_project(open_args)
+            await project_provider._handle_open_project(open_args, program_info=None)
         except Exception as e:
             logger.warning(
                 "shared_env_bootstrap_outcome ok=False phase=open session_id=%s program_tail=%s exc_type=%s",
@@ -1881,11 +2166,14 @@ class ToolProviderManager:
             )
             return
 
+        activated = None
         if handle and is_shared_server_handle(handle):
             repository_adapter = handle.get("repository_adapter")
             if repository_adapter is not None:
                 try:
-                    await project_provider._checkout_shared_program(repository_adapter, requested_program_key, session_id)
+                    activated = await project_provider._checkout_shared_program(
+                        repository_adapter, requested_program_key, session_id, program_info=None,
+                    )
                 except Exception as e:
                     logger.warning(
                         "shared_env_bootstrap_outcome ok=False phase=checkout session_id=%s program_tail=%s exc_type=%s",
@@ -1893,12 +2181,15 @@ class ToolProviderManager:
                         basename_hint(requested_program_key),
                         type(e).__name__,
                     )
-        if SESSION_CONTEXTS.get_program_info(session_id, requested_program_key) is not None:
+        if activated is None:
+            activated = SESSION_CONTEXTS.get_program_info(session_id, requested_program_key)
+        if activated is not None:
             logger.info(
                 "shared_env_bootstrap_outcome ok=True session_id=%s program_tail=%s",
                 redact_session_id(session_id),
                 basename_hint(requested_program_key),
             )
+        return activated
 
     def _resolve_project_data(self) -> Any | None:
         logger.debug("diag.enter %s", "mcp_server/tool_providers.py:ToolProviderManager._resolve_project_data")
@@ -1927,23 +2218,23 @@ class ToolProviderManager:
         logger.debug("diag.enter %s", "mcp_server/tool_providers.py:ToolProviderManager._find_domain_file_by_name")
         stack: list[Any] = [folder]
         visited = 0
+        found = None
         while stack and visited < max_results:
             current = stack.pop()
             visited += 1
             try:
                 for domain_file in current.getFiles() or []:
                     if str(domain_file.getName()) == file_name:
-                        return domain_file
+                        if found is not None and str(found.getPathname()) != str(domain_file.getPathname()):
+                            return None
+                        found = domain_file
                 for subfolder in current.getFolders() or []:
                     stack.append(subfolder)
             except Exception as ex:
-                logger.debug(
-                    "pyghidra_domain_tree_skip visited=%s exc_type=%s",
-                    visited,
-                    type(ex).__name__,
-                )
-                continue
-        return None
+                logger.debug("pyghidra_domain_tree_skip visited=%s exc_type=%s", visited, type(ex).__name__)
+                return None
+        # A partial scan cannot establish that a short name is unambiguous.
+        return found if not stack else None
 
     def _activate_local_program_by_path(
         self,
@@ -1978,7 +2269,7 @@ class ToolProviderManager:
 
         if domain_file is None:
             file_name = Path(normalized).name
-            if file_name:
+            if file_name and '/' not in normalized.replace('\\', '/'):
                 try:
                     root = project_data.getRootFolder()
                     domain_file = self._find_domain_file_by_name(root, file_name)
@@ -2031,7 +2322,7 @@ class ToolProviderManager:
             flat_api=None,
             decompiler=None,
             metadata={},
-            ghidra_analysis_complete=True,
+            ghidra_analysis_complete=False,
             file_path=None,
             load_time=None,
         )
@@ -2049,6 +2340,7 @@ class ToolProviderManager:
     ) -> ProgramInfo | None:
         """Resolve and activate a program by path: cache → shared checkout → bootstrap → local path."""
         logger.debug("diag.enter %s", "mcp_server/tool_providers.py:ToolProviderManager._activate_requested_program")
+        requested_program_key = SESSION_CONTEXTS.canonicalize_program_path(session_id, requested_program_key)
         existing = SESSION_CONTEXTS.get_program_info(session_id, requested_program_key)
         if existing is not None:
             logger.info(
@@ -2064,7 +2356,7 @@ class ToolProviderManager:
         handle_early = session.project_handle if isinstance(session.project_handle, dict) else None
         rn = ""
         if handle_early and is_shared_server_handle(handle_early):
-            rn = str((handle_early.get("repository_name") or "")).replace("\\", "/").strip().strip("/").lower()
+            rn = str(handle_early.get("repository_name") or "").replace("\\", "/").strip().strip("/").lower()
         if rn and rk == rn:
             logger.debug("activate_requested_program noop_repository_name_key %r", requested_program_key)
             return None
@@ -2088,11 +2380,14 @@ class ToolProviderManager:
         handle: dict[str, Any] | None = session.project_handle if isinstance(session.project_handle, dict) else None
         project_provider: ToolProvider | None = self._get_project_provider()
 
+        activated = None
         if project_provider is not None and handle and is_shared_server_handle(handle):
             repository_adapter = handle.get("repository_adapter")
             if repository_adapter is not None:
                 try:
-                    await project_provider._checkout_shared_program(repository_adapter, requested_program_key, session_id)
+                    activated = await project_provider._checkout_shared_program(
+                        repository_adapter, requested_program_key, session_id, program_info=None,
+                    )
                 except Exception as e:
                     logger.warning(
                         "activate_requested_program shared_checkout_failed session_id=%s program_tail=%s exc_type=%s",
@@ -2101,7 +2396,8 @@ class ToolProviderManager:
                         type(e).__name__,
                     )
 
-        activated = SESSION_CONTEXTS.get_program_info(session_id, requested_program_key)
+        if activated is None:
+            activated = SESSION_CONTEXTS.get_program_info(session_id, requested_program_key)
         if activated is not None:
             logger.info(
                 "activate_requested_program route=shared_checkout session_id=%s program_tail=%s",
@@ -2111,8 +2407,10 @@ class ToolProviderManager:
             return activated
 
         if project_provider is not None:
-            await self._bootstrap_shared_session_from_env(session_id, requested_program_key)
-            activated = SESSION_CONTEXTS.get_program_info(session_id, requested_program_key)
+            activated = await self._bootstrap_shared_session_from_env(session_id, requested_program_key)
+            requested_program_key = SESSION_CONTEXTS.canonicalize_program_path(session_id, requested_program_key)
+            if activated is None:
+                activated = SESSION_CONTEXTS.get_program_info(session_id, requested_program_key)
             if activated is not None:
                 logger.info(
                     "activate_requested_program route=bootstrap session_id=%s program_tail=%s",
@@ -2193,8 +2491,8 @@ class ToolProviderManager:
         session = SESSION_CONTEXTS.get_or_create(session_id)
 
         # 1. Already-open program in session (pick first with a live .program)
-        for key, info in (session.open_programs or {}).items():
-            if info is not None and info.program is not None:
+        for key, info in list((session.open_programs or {}).items()):
+            if info is not None and info.program is not None and SESSION_CONTEXTS.get_program_info(session_id, key) is info:
                 SESSION_CONTEXTS.set_active_program_info(session_id, key, info)
                 self.set_program_info(info)
                 logger.info(
@@ -2273,7 +2571,7 @@ class ToolProviderManager:
         return results
 
     def list_tools(self) -> list[types.Tool]:
-        """Build the MCP tools/list response: merge all providers' tools, then return only ADVERTISED_TOOLS with normalized params and format option."""
+        """Build the MCP tools/list response: merge providers' tools, then return advertised tools (optionally tier-filtered) with normalized params and format option."""
         logger.debug("diag.enter %s", "mcp_server/tool_providers.py:ToolProviderManager.list_tools")
         provider_tools: list[types.Tool] = []
         for p in self.providers:
@@ -2285,8 +2583,8 @@ class ToolProviderManager:
             by_norm.setdefault(n(tool.name), tool)
 
         advertised_tools: list[types.Tool] = []
-        for canonical_name in ADVERTISED_TOOLS:
-            canonical_params: list[str] = ADVERTISED_TOOL_PARAMS.get(canonical_name, [])
+        for canonical_name in get_advertised_tools_for_list():
+            canonical_params: list[str] = list(ADVERTISED_TOOL_PARAMS.get(canonical_name, []))
 
             normalized_name: str = n(canonical_name)
             provider_tool: types.Tool | None = by_norm.get(normalized_name)
@@ -2299,14 +2597,32 @@ class ToolProviderManager:
             for key, value in properties.items():
                 props_by_norm[n(key)] = value
 
+            # Provider-owned capabilities may grow ahead of the registry's aliases.
+            # Retain canonical spellings while exposing every actual provider field.
+            aliases = TOOL_PARAM_ALIASES.get(normalized_name, {})
+            canonical_norms = {n(param) for param in canonical_params}
+            for provider_param in properties:
+                normalized_param = n(provider_param)
+                if normalized_param in canonical_norms:
+                    continue
+                if normalized_param in _SELECTOR_PARAM_ALIASES and canonical_norms.intersection(_SELECTOR_PARAM_ALIASES):
+                    continue
+                canonical_params.append(provider_param)
+                canonical_norms.add(normalized_param)
+
             # Build properties from canonical param list; use provider schema when present, else infer from param name
             advertised_properties: dict[str, Any] = {}
             for param in canonical_params:
                 snake_param = to_snake_case(param)
                 normalized_param = n(param)
                 provider_param_schema = props_by_norm.get(normalized_param)
+                if provider_param_schema is None:
+                    for alias, targets in aliases.items():
+                        if normalized_param in targets and alias in props_by_norm:
+                            provider_param_schema = props_by_norm[alias]
+                            break
                 if provider_param_schema is None and normalized_param in _SELECTOR_PARAM_ALIASES:
-                    for selector_alias in _SELECTOR_PARAM_ALIASES:
+                    for selector_alias in _SELECTOR_PARAM_FALLBACK_ORDER:
                         provider_param_schema = props_by_norm.get(selector_alias)
                         if provider_param_schema is not None:
                             break
@@ -2328,7 +2644,10 @@ class ToolProviderManager:
             advertised_required: list[str] = []
             for param in canonical_params:
                 normalized_param = n(param)
-                is_required = normalized_param in required_norm
+                is_required = normalized_param in required_norm or any(
+                    alias in required_norm and normalized_param in targets
+                    for alias, targets in aliases.items()
+                )
                 if not is_required and normalized_param == "mode":
                     is_required = any(selector_alias in required_norm for selector_alias in _SELECTOR_PARAM_ALIASES)
                 if normalized_param in _optional_program_norm:
@@ -2355,22 +2674,22 @@ class ToolProviderManager:
         self,
         name: str,
         arguments: dict[str, Any],
-        program_info: ProgramInfo | None = None,
+        *,
+        program_info: ProgramInfo | SimpleNamespace | None | _ProgramInfoUnset = _PROGRAM_INFO_UNSET,
     ) -> list[types.TextContent]:
-        """Resolve tool name and program, find provider, set provider's program_info, then delegate to provider.call_tool.
+        """Resolve tool name and program, then delegate with call-scoped program info.
 
         Flow:
           (1) Resolve tool name (alias → canonical).
           (2) Reject GUI-only tools in headless.
           (3) Record in session tool history.
           (4) Find provider (direct or via TOOL_ALIASES).
-          (5) Resolve program: from args (programPath/binary/path), else session active, else manager default.
+          (5) Resolve program: from args, call override, session active, then manager default.
           (6) If a program was requested but not open, try _activate_requested_program (open/import).
-          (7) Set provider's program_info and call provider.call_tool; optionally apply markdown formatting.
+          (7) Pass call-scoped program_info to provider.call_tool; optionally apply markdown formatting.
         """
         logger.debug("diag.enter %s", "mcp_server/tool_providers.py:ToolProviderManager.call_tool")
-        if program_info is not None and program_info is not self.program_info:
-            self.set_program_info(program_info)
+        has_program_override = not isinstance(program_info, _ProgramInfoUnset)
 
         session_id: str = get_current_mcp_session_id()
         resolved_name: str = resolve_tool_name(name) or name
@@ -2386,6 +2705,32 @@ class ToolProviderManager:
                     ],
                 ),
             )
+
+        auto_prereq_invocation: bool = bool((arguments or {}).get("__auto_prereq_invocation"))
+        max_analysis_tier: int | None = get_effective_max_analysis_tier()
+        if max_analysis_tier is not None and not auto_prereq_invocation:
+            tool_tier: int = get_tool_analysis_tier(resolved_name)
+            if tool_tier > max_analysis_tier:
+                return create_error_response(
+                    ActionableError(
+                        (
+                            f"Tool '{resolved_name}' requires analysis tier {tool_tier}, "
+                            f"but max_analysis_tier is {max_analysis_tier}."
+                        ),
+                        context={
+                            "tool": resolved_name,
+                            "toolAnalysisTier": tool_tier,
+                            "maxAnalysisTier": max_analysis_tier,
+                            "state": "max-analysis-tier-exceeded",
+                        },
+                        next_steps=[
+                            f"Use a tool with analysis tier {max_analysis_tier} or lower (see tools/list).",
+                            "Raise the limit with AGENTDECOMPILE_MAX_ANALYSIS_TIER=3 or header X-AgentDecompile-Max-Analysis-Tier: 3.",
+                        ],
+                    ),
+                    tool_name_normalized=n(resolved_name),
+                )
+
         # Security: do not log full session id (log redacted hint only)
         _sid_hint = redact_session_id(session_id)
         logger.info(
@@ -2437,7 +2782,7 @@ class ToolProviderManager:
         norm_args: dict[str, Any] = {n(k): v for k, v in (arguments or {}).items()}
         logger.debug("normalized arg keys: %s", norm_arg_keys(norm_args))
 
-        # Program resolution order: args (programPath/binary/path) → session active → manager default
+        # Program resolution order: args → call override → session active → manager default
         requested_program_key: str | None = None
         # import-binary: programPath is the *destination* name in the project/repo, not an existing program.
         # Resolving it here runs shared checkout / local getFile before the import creates the file — breaks
@@ -2446,6 +2791,11 @@ class ToolProviderManager:
             # open/connect-shared-project/sync-project use `path` for project/repository selection, not an existing program.
             # Pre-activating that value as a program causes false "program-resolution-failed" before those tools run.
             resolution_keys = ("programpath", "binary", "binaryname") if norm_name in {"open", "connectsharedproject", "syncproject"} else ("programpath", "binary", "binaryname", "path")
+            # manage-files list/import/export/... take a filesystem `path`, not a program.
+            if norm_name == "managefiles":
+                fs_mode = n(str(norm_args.get("mode") or norm_args.get("operation") or norm_args.get("action") or ""))
+                if fs_mode in _MANAGE_FILES_FILESYSTEM_MODES:
+                    resolution_keys = ("programpath", "binary", "binaryname")
             for key in resolution_keys:
                 value = norm_args.get(key)
                 if value is None:
@@ -2470,7 +2820,15 @@ class ToolProviderManager:
             requested_program_info = await self._activate_requested_program(session_id, requested_program_key)
 
         session_program_info: ProgramInfo | None = SESSION_CONTEXTS.get_active_program_info(session_id)
-        effective_program_info: ProgramInfo | None = requested_program_info or session_program_info or self.program_info
+        if requested_program_key:
+            # Do not fall back to the session active program when the client named a specific path.
+            effective_program_info = requested_program_info
+        elif has_program_override:
+            effective_program_info = program_info
+        else:
+            # A project-bound session must never borrow the manager's program
+            # from another project/session when its own selection is empty.
+            effective_program_info = session_program_info or (self.program_info if not SESSION_CONTEXTS.get_project_handle(session_id) else None)
 
         # Auto-select: when no program is active and no programPath was requested, try to
         # auto-select from project binaries / domain files so tools don't fail with "No program loaded".
@@ -2479,6 +2837,7 @@ class ToolProviderManager:
             (effective_program_info is None or getattr(effective_program_info, "program", None) is None)
             and norm_name not in _NO_AUTO_SELECT_TOOLS
             and not requested_program_key
+            and not has_program_override
         ):
             auto_selected = await self._auto_select_program(session_id)
             if auto_selected is not None:
@@ -2488,7 +2847,11 @@ class ToolProviderManager:
         if requested_program_key and effective_program_info is None:
             prereq_calls: list[dict[str, Any]] = []
             try:
-                response: list[types.TextContent] | None = await self.call_tool(Tool.LIST_PROJECT_FILES.value, {"__auto_prereq_invocation": True})
+                response: list[types.TextContent] | None = await self.call_tool(
+                    Tool.LIST_PROJECT_FILES.value,
+                    {"__auto_prereq_invocation": True},
+                    program_info=effective_program_info,
+                )
                 output: dict[str, Any]
                 success: bool = True
                 if response and isinstance(response[0], types.TextContent):
@@ -2538,31 +2901,59 @@ class ToolProviderManager:
                 ),
             )
 
-        if effective_program_info is not None and provider.program_info is not effective_program_info:
-            try:
-                provider.set_program_info(effective_program_info)
-            except Exception as e:
-                logger.warning(f"Failed to set session program info for {provider.__class__.__name__}: {e}")
+        resolved_prog_path: str | None = requested_program_key or SESSION_CONTEXTS.get_active_program_key(session_id)
+        analysis_warning: str | None = None
+        if effective_program_info is not None and effective_program_info.program is not None:
+            resolved_prog_path = resolve_domain_program_path(
+                effective_program_info.program,
+                resolved_prog_path,
+            )
 
         if (
             effective_program_info is not None
             and effective_program_info.program is not None
             and not analysis_gate_exempt_tool(norm_name)
+            and not uses_existing_string_listing(norm_name, norm_args)
             and not norm_args.get("autoprereqinvocation")
         ):
             from agentdecompile_cli.mcp_utils.program_analysis import wait_for_program_analysis_ready
 
             prog = effective_program_info.program
-            prog_path = requested_program_key or SESSION_CONTEXTS.get_active_program_key(session_id)
-            await asyncio.to_thread(
-                wait_for_program_analysis_ready,
-                prog,
-                effective_program_info,
-                program_path=prog_path,
-            )
+
+            def _run_analysis_gate() -> str | None:
+                wait_for_program_analysis_ready(
+                    prog,
+                    effective_program_info,
+                    program_path=resolved_prog_path,
+                )
+                return analysis_skipped_warning(prog, effective_program_info, resolved_prog_path)
+
+            try:
+                analysis_warning = await asyncio.to_thread(_run_analysis_gate)
+            except ProgramAnalysisTimeout as exc:
+                return analysis_timeout_error_response(exc, resolved_prog_path)
 
         # Dispatch to the provider that owns this tool; provider receives original name + normalized args
-        result = await provider.call_tool(name, arguments)
+        try:
+            result = await provider.call_tool(name, arguments, program_info=effective_program_info)
+        except ProgramAnalysisTimeout as exc:
+            return analysis_timeout_error_response(exc, resolved_prog_path)
+        # Verify search selectors while the response is still structured JSON,
+        # before markdown rendering can hide an incompatible provider's mode.
+        if norm_name == "listfunctions" and str(norm_args.get("mode", "")).strip().lower() == "search":
+            try:
+                search_payload = _json.loads(result[0].text) if result and isinstance(result[0], types.TextContent) else None
+            except (ValueError, TypeError):
+                search_payload = None
+            contract_error = _function_search_contract_error(norm_name, norm_args, search_payload)
+            if contract_error:
+                result = create_error_response(
+                    contract_error,
+                    context={"state": "incompatible-function-search-provider", "searchApplied": False},
+                    tool_name_normalized=norm_name,
+                    target_program_info=effective_program_info,
+                )
+
         logger.info(
             "mcp provider returned tool=%s provider=%s response_parts=%s",
             resolved_name,
@@ -2674,29 +3065,66 @@ class ToolProviderManager:
             except Exception:
                 tool_success = False
             if tool_success:
+                if not payload_has_mutating_action(norm_name, parsed):
+                    tool_success = False
+            if tool_success:
                 try:
-                    await self.call_tool(
+                    checkin_result = await self.call_tool(
                         Tool.CHECKIN_PROGRAM.value,
                         {"__auto_checkin_invocation": True, "comment": "Auto check-in after modification"},
+                        program_info=effective_program_info,
                     )
+                    if result and isinstance(result[0], types.TextContent):
+                        try:
+                            parent_parsed = _json.loads(result[0].text)
+                        except Exception:
+                            parent_parsed = None
+                        if isinstance(parent_parsed, dict):
+                            checkin_payload: dict[str, Any] | None = None
+                            if checkin_result and isinstance(checkin_result[0], types.TextContent):
+                                try:
+                                    loaded = _json.loads(checkin_result[0].text)
+                                    if isinstance(loaded, dict):
+                                        checkin_payload = loaded
+                                except Exception:
+                                    pass
+                            attach_auto_checkin_to_payload(parent_parsed, checkin_payload)
+                            result[0] = types.TextContent(type="text", text=_json.dumps(parent_parsed))
                 except Exception as auto_checkin_exc:
                     logger.warning("Auto check-in after modify failed (best-effort): %s", auto_checkin_exc)
+                    if result and isinstance(result[0], types.TextContent):
+                        try:
+                            parent_parsed = _json.loads(result[0].text)
+                        except Exception:
+                            parent_parsed = None
+                        if isinstance(parent_parsed, dict):
+                            attach_auto_checkin_to_payload(
+                                parent_parsed,
+                                None,
+                                exception=str(auto_checkin_exc),
+                            )
+                            result[0] = types.TextContent(type="text", text=_json.dumps(parent_parsed))
 
-        # Convert JSON response to rich markdown via response_formatter unless responseFormat/format=json.
+        # Convert JSON response to rich markdown via response_formatter unless responseFormat=json.
         # Argument keys are normalized earlier, so responseFormat and response_format both map to responseformat.
+        # A legacy `format` of markdown/json is honoured only on tools that do not own a `format`
+        # argument: export-context's format=json is its surrogate format, not a rendering request.
+        legacy_fmt: Any = None if tool_owns_format_param(norm_name) else norm_args.get("format")
         response_fmt: str = str(
-            norm_args.get(n("responseFormat"))
-            or (norm_args.get("format") if norm_args.get("format") in ("markdown", "json") else "markdown")
+            norm_args.get(n(RESPONSE_FORMAT_PARAM))
+            or (legacy_fmt if legacy_fmt in RESPONSE_FORMAT_VALUES else "markdown")
         )
         if not norm_args.get("autoprereqinvocation") and response_fmt != "json" and result and isinstance(result[0], types.TextContent):
             try:
                 data = _json.loads(result[0].text)
                 markdown = render_tool_response(norm_name, data)
-                return [types.TextContent(type="text", text=markdown)]
+                return attach_analysis_warning(
+                    [types.TextContent(type="text", text=markdown)], analysis_warning, markdown=True
+                )
             except Exception:
                 pass  # Fall back to raw JSON on any formatting error
 
-        return result
+        return attach_analysis_warning(result, analysis_warning, markdown=False)
 
     def program_opened(self, program_info_or_path: ProgramInfo | os.PathLike | str) -> None:
         """Notify all providers that a program was opened; accept path string or ProgramInfo/PathLike."""

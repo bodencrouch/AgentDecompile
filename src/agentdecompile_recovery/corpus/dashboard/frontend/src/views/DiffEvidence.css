@@ -1,0 +1,1 @@
+.diff-evidence{display:grid;gap:8px;min-width:0}.diff-evidence h3,.diff-evidence p{margin:0}.diff-evidence ol,.diff-evidence ul{margin:0;padding-left:20px}.diff-evidence li{margin:6px 0;overflow-wrap:anywhere}.diff-evidence small{color:var(--fg-muted)}.diff-evidence pre{max-height:180px;overflow:auto;white-space:pre-wrap;font:11px/1.4 var(--font-mono,monospace)}

@@ -34,7 +34,7 @@ from typing import TYPE_CHECKING, Any, Callable
 
 from mcp.server.models import InitializationOptions
 
-from httpx import AsyncClient, HTTPStatusError, Timeout
+from httpx import AsyncClient, ConnectError, ConnectTimeout, HTTPStatusError, Timeout
 from mcp.server import Server
 from mcp.server.stdio import stdio_server
 from mcp.shared.message import SessionMessage
@@ -50,8 +50,14 @@ from mcp.types import (
 
 from agentdecompile_cli.app_logger import basename_hint, redact_session_id
 from agentdecompile_cli.executor import get_server_start_message, normalize_backend_url
+from agentdecompile_cli.mcp_server.constants import MAX_CONFIGURED_TIMEOUT_SECONDS
 from agentdecompile_cli.mcp_server.session_context import get_current_mcp_session_id
-from agentdecompile_cli.registry import resolve_tool_name
+from agentdecompile_cli.mcp_utils.tool_reference import build_initialize_instructions
+from agentdecompile_cli.registry import (
+    apply_alias_implied_arguments,
+    normalize_identifier,
+    resolve_tool_name,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -404,17 +410,26 @@ class RawMcpHttpBackend:
         """POST a JSON-RPC envelope and return the parsed response dict."""
         logger.debug("diag.enter %s", "bridge.py:RawMcpHttpBackend._post")
         had_session_id = bool(self._session_id)
+        timeout = self._tool_request_timeout(body)
+
+        async def post(url: str) -> Any:
+            if timeout is None:
+                return await self._client.post(url, json=body, headers=self._headers())
+            return await self._client.post(url, json=body, headers=self._headers(), timeout=timeout)
+
         try:
-            resp = await self._client.post(self._url, json=body, headers=self._headers())
-        except Exception as e:
-            # Retry once with a trailing slash for backends that strictly require it.
+            resp = await post(self._url)
+        except (ConnectError, ConnectTimeout) as e:
+            # A connection failure occurs before dispatch. Read/write timeouts and
+            # protocol failures can happen after the server has accepted a tool;
+            # replaying those requests could execute a mutation or script twice.
             logger.debug(
                 "mcp_http_post_retry exc_type=%s retry_trailing_slash=True mcp_method=%s",
                 type(e).__name__,
                 str(body.get("method", "")),
             )
             retry_url = f"{self._url}/"
-            resp = await self._client.post(retry_url, json=body, headers=self._headers())
+            resp = await post(retry_url)
 
         # Capture session id from response so subsequent requests reuse the same session
         sid = resp.headers.get("mcp-session-id") or resp.headers.get("Mcp-Session-Id")
@@ -425,7 +440,7 @@ class RawMcpHttpBackend:
         if resp.status_code == 404 and self._url.endswith("/mcp/message/"):
             logger.info("mcp http 404 on /mcp/message; retrying without /message suffix")
             retry_url = self._url.rstrip("/")
-            resp = await self._client.post(retry_url, json=body, headers=self._headers())
+            resp = await post(retry_url)
             sid = resp.headers.get("mcp-session-id") or resp.headers.get("Mcp-Session-Id")
             self._apply_mcp_session_from_response(sid)
             self._save_session_cookie_from_response(resp)
@@ -434,7 +449,7 @@ class RawMcpHttpBackend:
         if resp.status_code == 400 and had_session_id:
             logger.info("mcp http 400 with session id; retrying POST without mcp-session-id (stale session)")
             self._session_id = None
-            resp = await self._client.post(self._url, json=body, headers=self._headers())
+            resp = await post(self._url)
             sid = resp.headers.get("mcp-session-id") or resp.headers.get("Mcp-Session-Id")
             self._apply_mcp_session_from_response(sid)
             self._save_session_cookie_from_response(resp)
@@ -487,6 +502,42 @@ class RawMcpHttpBackend:
                 )
                 return {"error": {"code": -32600, "message": f"Unparseable SSE response ({len(_txt)} bytes)"}}
         return resp.json()  # type: ignore[return-value]
+
+    @staticmethod
+    def _tool_request_timeout(body: dict[str, Any]) -> Timeout | None:
+        """Keep decompilation HTTP waits above server-side timeout budgets."""
+        if body.get("method") != "tools/call":
+            return None
+        params = body.get("params")
+        if not isinstance(params, dict):
+            return None
+        tool_name = params.get("name")
+        if not isinstance(tool_name, str):
+            return None
+        normalized_name = resolve_tool_name(tool_name) or tool_name.strip().lower().replace("_", "-")
+        if normalized_name not in {"decompile", "decompile-function", "get-function", "get-functions"}:
+            return None
+        arguments = params.get("arguments")
+        requested = None
+        if isinstance(arguments, dict):
+            requested = next(
+                (
+                    value
+                    for name, value in arguments.items()
+                    if normalize_identifier(name) in {"timeout", "decompiletimeout"}
+                ),
+                None,
+            )
+        try:
+            seconds = int(requested) if requested is not None else MAX_CONFIGURED_TIMEOUT_SECONDS
+        except (TypeError, ValueError):
+            seconds = MAX_CONFIGURED_TIMEOUT_SECONDS
+        if seconds <= 0:
+            seconds = MAX_CONFIGURED_TIMEOUT_SECONDS
+        # The HTTP budget must outlive the server-side decompiler budget so
+        # the server can return its timeout diagnostics instead of the client
+        # abandoning the request first.
+        return Timeout(max(BACKEND_OP_TIMEOUT, seconds + 30), connect=CONNECT_TIMEOUT)
 
     async def _notify(
         self,
@@ -1034,7 +1085,13 @@ class AgentDecompileStdioBridge:
             self.port = None
             self.url = normalize_backend_url(backend)
 
-        self.server: Server = Server("AgentDecompile")
+        from agentdecompile_cli import _version
+
+        self.server: Server = Server(
+            "AgentDecompile",
+            version=_version.__version__,
+            instructions=build_initialize_instructions(),
+        )
         self._backends: dict[str, RawMcpHttpBackend] = {}
         self._backend_locks: dict[str, asyncio.Lock] = {}
         self._backend_map_lock = asyncio.Lock()
@@ -1386,8 +1443,9 @@ class AgentDecompileStdioBridge:
 
         logger.info("stdio bridge forwarding call_tool name=%s", backend_name)
         try:
-            call_args: dict[str, Any] = dict(arguments or {})
-            call_args.setdefault("format", "markdown")
+            # The backend sees only the canonical name, so add the mode an overload
+            # alias (get-function-count -> mode=count) implies before it is dropped.
+            call_args: dict[str, Any] = apply_alias_implied_arguments(name, dict(arguments or {})) if isinstance(name, str) else dict(arguments or {})
             raw_result: dict[str, Any] = await self._backend_request("call_tool", backend_name, call_args)
             # raw_result is the JSON-RPC "result" value which should be
             # a CallToolResult-shaped dict: {content: [...], isError: bool}

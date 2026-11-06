@@ -219,6 +219,9 @@ cython_debug/
 # Ruff stuff:
 .ruff_cache/
 
+# Local web-research captures (untrusted fetched content; never commit).
+.firecrawl/
+
 # PyPI configuration file
 .pypirc
 
@@ -266,6 +269,7 @@ gradle/wrapper/
 # AgentDecompile local project directories
 .agentdecompile/
 .lfg_run/
+lfg_run/
 .history/
 __init__.pyi
 .cursor/mcp.json
@@ -274,6 +278,8 @@ __init__.pyi
 .vscode/extensions.json
 .vscode/mcp.json
 .vscode/settings.json
+# MCP configuration files with credentials
+mcp.json
 *.pypredef
 **/pypredef/
 .firecrawl/
@@ -332,14 +338,51 @@ tmp/
 tmp/vendor_exhaustive_appendix.md
 TOOLS_LIST_GENERATED.md
 uv.lock
-vendor/
+vendor/*
+!vendor/ghidra
 volumes/
 agentdecompile*/
+# Tracked grid source is part of the consolidated CLI.
+!src/agentdecompile_grid/
+!src/agentdecompile_grid/**
+!src/agentdecompile_cli/
+!src/agentdecompile_cli/**
+!src/agentdecompile_recovery/
+!src/agentdecompile_recovery/**
+src/agentdecompile_cli/__pycache__/
+src/agentdecompile_cli/**/*.pyc
+src/agentdecompile_recovery/__pycache__/
+src/agentdecompile_recovery/**/*.pyc
+!.claude/skills/agentdecompile*/
+!.claude/skills/agentdecompile*/**
 .lfg_*/
 .venv*/
 ralphy-spec/
 openspec/
 os/
 lib/
+!scripts/lib/
+!scripts/lib/agentdecompile-config.sh
 META-INF/
 test_shared_project/
+
+# Compound Engineering machine-local config
+.compound-engineering/*.local.yaml
+
+# Coverage reports
+.coverage
+coverage.xml
+htmlcov/
+
+# Local UI Skills catalog (https://www.ui-skills.com/) — never commit
+.ui-skills/
+
+# Local scratch and session dumps (never commit)
+clutter/
+codex-session-*.md
+node_modules/
+/package.json
+/package-lock.json
+
+# Claude Code worktrees live beside the checkout; never track them as gitlinks.
+.claude/worktrees/

@@ -1,0 +1,399 @@
+{
+ "build": "amazon",
+ "va": 6503376,
+ "cacheName": "FUN_00633bd0",
+ "cacheSize": 147,
+ "source": {
+  "evidence": "/home/brunner56/agentdecompile-deliverables/2026-09-27-tie-triage/evidence.json",
+  "evidenceSha256": "8972699e1caa2213e2ce60c870b8acf683e19e31254ee6b517efb0622b73ca30",
+  "jsonPath": "bodies['amazon:0x633bd0'].independentDecode",
+  "handRowsPath": "handRows['amazon:0x633bd0']"
+ },
+ "image": {
+  "imageSha256": "0b6a2a7f8b4880a4986aecfe758a94b7b8fefec1cba4dac6fd06dda3ae0e7f3e",
+  "va": 6503376,
+  "fileOffset": 2306000
+ },
+ "spanSha256": "902cd87c0182064b3fbd4c6d3cbfa06462ce2179eeb99cd676f353a48ad07f0c",
+ "capstoneBanner": "capstone 5.0.7",
+ "instructions": [
+  {
+   "va": 6503376,
+   "hex": "55",
+   "text": "push ebp"
+  },
+  {
+   "va": 6503377,
+   "hex": "8bec",
+   "text": "mov ebp, esp"
+  },
+  {
+   "va": 6503379,
+   "hex": "51",
+   "text": "push ecx"
+  },
+  {
+   "va": 6503380,
+   "hex": "8b4508",
+   "text": "mov eax, dword ptr [ebp + 8]"
+  },
+  {
+   "va": 6503383,
+   "hex": "33c9",
+   "text": "xor ecx, ecx"
+  },
+  {
+   "va": 6503385,
+   "hex": "56",
+   "text": "push esi"
+  },
+  {
+   "va": 6503386,
+   "hex": "57",
+   "text": "push edi"
+  },
+  {
+   "va": 6503387,
+   "hex": "8b7d0c",
+   "text": "mov edi, dword ptr [ebp + 0xc]"
+  },
+  {
+   "va": 6503390,
+   "hex": "33d2",
+   "text": "xor edx, edx"
+  },
+  {
+   "va": 6503392,
+   "hex": "8b00",
+   "text": "mov eax, dword ptr [eax]"
+  },
+  {
+   "va": 6503394,
+   "hex": "8945fc",
+   "text": "mov dword ptr [ebp - 4], eax"
+  },
+  {
+   "va": 6503397,
+   "hex": "8b37",
+   "text": "mov esi, dword ptr [edi]"
+  },
+  {
+   "va": 6503399,
+   "hex": "85f6",
+   "text": "test esi, esi"
+  },
+  {
+   "va": 6503401,
+   "hex": "745c",
+   "text": "je 0x633c47"
+  },
+  {
+   "va": 6503403,
+   "hex": "53",
+   "text": "push ebx"
+  },
+  {
+   "va": 6503404,
+   "hex": "0f1f4000",
+   "text": "nop dword ptr [eax]"
+  },
+  {
+   "va": 6503408,
+   "hex": "8a18",
+   "text": "mov bl, byte ptr [eax]"
+  },
+  {
+   "va": 6503410,
+   "hex": "80fb0a",
+   "text": "cmp bl, 0xa"
+  },
+  {
+   "va": 6503413,
+   "hex": "740f",
+   "text": "je 0x633c06"
+  },
+  {
+   "va": 6503415,
+   "hex": "80fb0d",
+   "text": "cmp bl, 0xd"
+  },
+  {
+   "va": 6503418,
+   "hex": "740a",
+   "text": "je 0x633c06"
+  },
+  {
+   "va": 6503420,
+   "hex": "80fb20",
+   "text": "cmp bl, 0x20"
+  },
+  {
+   "va": 6503423,
+   "hex": "7405",
+   "text": "je 0x633c06"
+  },
+  {
+   "va": 6503425,
+   "hex": "80fb09",
+   "text": "cmp bl, 9"
+  },
+  {
+   "va": 6503428,
+   "hex": "7540",
+   "text": "jne 0x633c46"
+  },
+  {
+   "va": 6503430,
+   "hex": "8bca",
+   "text": "mov ecx, edx"
+  },
+  {
+   "va": 6503432,
+   "hex": "3bd6",
+   "text": "cmp edx, esi"
+  },
+  {
+   "va": 6503434,
+   "hex": "7316",
+   "text": "jae 0x633c22"
+  },
+  {
+   "va": 6503436,
+   "hex": "0f1f4000",
+   "text": "nop dword ptr [eax]"
+  },
+  {
+   "va": 6503440,
+   "hex": "8a10",
+   "text": "mov dl, byte ptr [eax]"
+  },
+  {
+   "va": 6503442,
+   "hex": "80fa0a",
+   "text": "cmp dl, 0xa"
+  },
+  {
+   "va": 6503445,
+   "hex": "7405",
+   "text": "je 0x633c1c"
+  },
+  {
+   "va": 6503447,
+   "hex": "80fa0d",
+   "text": "cmp dl, 0xd"
+  },
+  {
+   "va": 6503450,
+   "hex": "7506",
+   "text": "jne 0x633c22"
+  },
+  {
+   "va": 6503452,
+   "hex": "41",
+   "text": "inc ecx"
+  },
+  {
+   "va": 6503453,
+   "hex": "40",
+   "text": "inc eax"
+  },
+  {
+   "va": 6503454,
+   "hex": "3bce",
+   "text": "cmp ecx, esi"
+  },
+  {
+   "va": 6503456,
+   "hex": "72ee",
+   "text": "jb 0x633c10"
+  },
+  {
+   "va": 6503458,
+   "hex": "8bd1",
+   "text": "mov edx, ecx"
+  },
+  {
+   "va": 6503460,
+   "hex": "3bce",
+   "text": "cmp ecx, esi"
+  },
+  {
+   "va": 6503462,
+   "hex": "7312",
+   "text": "jae 0x633c3a"
+  },
+  {
+   "va": 6503464,
+   "hex": "8a18",
+   "text": "mov bl, byte ptr [eax]"
+  },
+  {
+   "va": 6503466,
+   "hex": "80fb20",
+   "text": "cmp bl, 0x20"
+  },
+  {
+   "va": 6503469,
+   "hex": "7405",
+   "text": "je 0x633c34"
+  },
+  {
+   "va": 6503471,
+   "hex": "80fb09",
+   "text": "cmp bl, 9"
+  },
+  {
+   "va": 6503474,
+   "hex": "7506",
+   "text": "jne 0x633c3a"
+  },
+  {
+   "va": 6503476,
+   "hex": "42",
+   "text": "inc edx"
+  },
+  {
+   "va": 6503477,
+   "hex": "40",
+   "text": "inc eax"
+  },
+  {
+   "va": 6503478,
+   "hex": "3bd6",
+   "text": "cmp edx, esi"
+  },
+  {
+   "va": 6503480,
+   "hex": "72ee",
+   "text": "jb 0x633c28"
+  },
+  {
+   "va": 6503482,
+   "hex": "3bd6",
+   "text": "cmp edx, esi"
+  },
+  {
+   "va": 6503484,
+   "hex": "7406",
+   "text": "je 0x633c44"
+  },
+  {
+   "va": 6503486,
+   "hex": "3bce",
+   "text": "cmp ecx, esi"
+  },
+  {
+   "va": 6503488,
+   "hex": "72ae",
+   "text": "jb 0x633bf0"
+  },
+  {
+   "va": 6503490,
+   "hex": "eb02",
+   "text": "jmp 0x633c46"
+  },
+  {
+   "va": 6503492,
+   "hex": "8bca",
+   "text": "mov ecx, edx"
+  },
+  {
+   "va": 6503494,
+   "hex": "5b",
+   "text": "pop ebx"
+  },
+  {
+   "va": 6503495,
+   "hex": "8b5508",
+   "text": "mov edx, dword ptr [ebp + 8]"
+  },
+  {
+   "va": 6503498,
+   "hex": "8b45fc",
+   "text": "mov eax, dword ptr [ebp - 4]"
+  },
+  {
+   "va": 6503501,
+   "hex": "03c1",
+   "text": "add eax, ecx"
+  },
+  {
+   "va": 6503503,
+   "hex": "8902",
+   "text": "mov dword ptr [edx], eax"
+  },
+  {
+   "va": 6503505,
+   "hex": "33c0",
+   "text": "xor eax, eax"
+  },
+  {
+   "va": 6503507,
+   "hex": "290f",
+   "text": "sub dword ptr [edi], ecx"
+  },
+  {
+   "va": 6503509,
+   "hex": "3bc1",
+   "text": "cmp eax, ecx"
+  },
+  {
+   "va": 6503511,
+   "hex": "5f",
+   "text": "pop edi"
+  },
+  {
+   "va": 6503512,
+   "hex": "1bc0",
+   "text": "sbb eax, eax"
+  },
+  {
+   "va": 6503514,
+   "hex": "f7d8",
+   "text": "neg eax"
+  },
+  {
+   "va": 6503516,
+   "hex": "5e",
+   "text": "pop esi"
+  },
+  {
+   "va": 6503517,
+   "hex": "8be5",
+   "text": "mov esp, ebp"
+  },
+  {
+   "va": 6503519,
+   "hex": "5d",
+   "text": "pop ebp"
+  },
+  {
+   "va": 6503520,
+   "hex": "c20800",
+   "text": "ret 8"
+  }
+ ],
+ "handRows": [
+  {
+   "va": 6503379,
+   "hex": "51",
+   "meaning": "push ecx in the prologue = local slot (the only read of entry ECX)",
+   "cachedText": "PUSH ECX",
+   "imageVerified": true
+  },
+  {
+   "va": 6503383,
+   "hex": "33c9",
+   "meaning": "xor ecx,ecx kills entry ECX",
+   "cachedText": "XOR ECX,ECX",
+   "imageVerified": true
+  },
+  {
+   "va": 6503520,
+   "hex": "c20800",
+   "meaning": "ret 8",
+   "cachedText": "RET 0x8",
+   "imageVerified": true
+  }
+ ]
+}

@@ -15,10 +15,10 @@ import socket
 import threading
 import time
 
-from typing import Callable
+from collections.abc import Awaitable, Callable
 from contextlib import AbstractContextManager
 from contextvars import Token
-from typing import TYPE_CHECKING, Any, Awaitable
+from typing import TYPE_CHECKING, Any
 
 import uvicorn
 
@@ -41,6 +41,41 @@ logger = logging.getLogger(__name__)
 
 # Cookie name for MCP session (allowlist only this cookie when forwarding to backend).
 _MCP_SESSION_COOKIE_NAME = "mcp_session_id"
+
+PROXY_FORWARDABLE_SHARED_HEADER_NAMES: frozenset[str] = frozenset(
+    {
+        "authorization",
+        "mcp-session-id",
+        "x-ghidra-server-host",
+        "x-ghidra-server-port",
+        "x-ghidra-repository",
+        "x-agent-server-username",
+        "x-agent-server-password",
+        "x-agent-server-repository",
+        "x-agentdecompile-auto-match-propagate",
+        "x-agentdecompile-auto-match-target-paths",
+        "x-agentdecompile-max-analysis-tier",
+        "x-agentdecompile-project-path",
+    }
+)
+
+
+def forwardable_shared_headers_from_scope(scope: dict[str, Any]) -> dict[str, str]:
+    """Extract allowlisted client headers from an ASGI HTTP scope for backend forwarding."""
+    forwarded: dict[str, str] = {}
+    if scope.get("type") != "http":
+        return forwarded
+
+    key_b: bytes
+    value_b: bytes
+    for key_b, value_b in scope.get("headers", []):
+        key = key_b.decode("latin1").lower()
+        if key in PROXY_FORWARDABLE_SHARED_HEADER_NAMES:
+            forwarded[key_b.decode("latin1")] = value_b.decode("latin1").strip()
+    cookie_sid = _parse_mcp_session_cookie_from_scope(scope)
+    if cookie_sid:
+        forwarded["Cookie"] = f"{_MCP_SESSION_COOKIE_NAME}={cookie_sid}"
+    return forwarded
 
 
 def _parse_mcp_session_cookie_from_scope(scope: dict[str, Any]) -> str | None:
@@ -140,6 +175,12 @@ class ProxyServerConfig(BaseModel):
     """Path to TLS certificate file (PEM). Enables HTTPS when combined with tls_keyfile."""
     tls_keyfile: str | None = None
     """Path to TLS private key file (PEM). Enables HTTPS when combined with tls_certfile."""
+    enable_exchange: bool = False
+    """EXPERIMENTAL: serve the donated-compute work exchange under
+    ``/dashboard/api/exchange/*``. Disabled by default; set
+    ``AGENT_DECOMPILE_EXCHANGE_ENABLED=true`` or pass ``--enable-exchange``.
+    When false the routes are never registered, so the surface is absent
+    rather than merely refusing."""
 
 
 class AgentDecompileMcpProxyServer:
@@ -238,6 +279,13 @@ class AgentDecompileMcpProxyServer:
                     "protocol": "Model Context Protocol (MCP) — JSON-RPC 2.0 over HTTP",
                 },
                 "health": "/health",
+                "pages": {
+                    "app": "/app",
+                    "dashboard": "/dashboard",
+                    "atlas": "/atlas",
+                    "report": "/report",
+                    "note": "Dashboard, Atlas, and Report share this HTTP server. They are not separate ports.",
+                },
             }
 
         @self.app.get("/api/reference", tags=["reference"])
@@ -262,6 +310,8 @@ class AgentDecompileMcpProxyServer:
                     "x-agent-server-username",
                     "x-agent-server-password",
                     "x-agent-server-repository",
+                    "x-agentdecompile-project-path",
+                    "x-agentdecompile-max-analysis-tier",
                 ],
                 "shared_server_http_mapping": {
                     "request_url": "Use the proxy MCP URL itself, typically http://host:port/mcp",
@@ -273,6 +323,10 @@ class AgentDecompileMcpProxyServer:
                         "AGENT_DECOMPILE_GHIDRA_SERVER_PASSWORD": ["Authorization", "X-Agent-Server-Password"],
                         "AGENTDECOMPILE_AUTO_MATCH_PROPAGATE": ["X-AgentDecompile-Auto-Match-Propagate"],
                         "AGENTDECOMPILE_AUTO_MATCH_TARGET_PATHS": ["X-AgentDecompile-Auto-Match-Target-Paths"],
+                        "AGENTDECOMPILE_MAX_ANALYSIS_TIER": ["X-AgentDecompile-Max-Analysis-Tier"],
+                        "AGENT_DECOMPILE_MAX_ANALYSIS_TIER": ["X-AgentDecompile-Max-Analysis-Tier"],
+                        "AGENTDECOMPILE_PROJECT_PATH": ["X-AgentDecompile-Project-Path"],
+                        "AGENT_DECOMPILE_PROJECT_PATH": ["X-AgentDecompile-Project-Path"],
                     },
                     "transport_headers": {
                         "content-type": "application/json",
@@ -295,6 +349,24 @@ class AgentDecompileMcpProxyServer:
         async def legacy_api_info() -> dict[str, Any]:
             """Backward-compatible alias for the API index."""
             return await api_info()
+
+        from agentdecompile_recovery.unified_pages import mount_unified_pages
+
+        mount_unified_pages(self.app)
+
+        # EXPERIMENTAL: donated-compute work exchange, off by default.
+        # Registered only when enabled so the route surface is absent rather
+        # than present-and-refusing. Contributors claim leases and submit
+        # proposals here; nothing they send is trusted, because the
+        # compile-verify gate remains the sole proof mechanism.
+        if self.config.enable_exchange:
+            from agentdecompile_recovery.exchange.routes import create_exchange_router
+
+            self.app.include_router(create_exchange_router())
+            logger.warning(
+                "EXPERIMENTAL work exchange enabled: serving /dashboard/api/exchange/* "
+                "with no authentication. Submissions are proposals only.",
+            )
 
         logger.debug("diag.enter %s", "mcp_server/proxy_server.py:AgentDecompileMcpProxyServer._setup_routes")
         for method in ("GET", "POST", "DELETE"):
@@ -323,35 +395,6 @@ class AgentDecompileMcpProxyServer:
 
         mcp_handle = self._session_manager.handle_request
 
-        def _forwardable_shared_headers(scope: dict[str, Any]) -> dict[str, str]:
-            forwarded: dict[str, str] = {}
-            if scope.get("type") != "http":
-                return forwarded
-
-            allowed_headers: set[str] = {
-                "authorization",
-                "mcp-session-id",
-                "x-ghidra-server-host",
-                "x-ghidra-server-port",
-                "x-ghidra-repository",
-                "x-agent-server-username",
-                "x-agent-server-password",
-                "x-agent-server-repository",
-                "x-agentdecompile-auto-match-propagate",
-                "x-agentdecompile-auto-match-target-paths",
-            }
-            key_b: bytes
-            value_b: bytes
-            for key_b, value_b in scope.get("headers", []):
-                key = key_b.decode("latin1").lower()
-                if key in allowed_headers:
-                    forwarded[key_b.decode("latin1")] = value_b.decode("latin1").strip()
-            # Forward only the MCP session cookie (allowlist) so backend receives session id via cookie.
-            cookie_sid = _parse_mcp_session_cookie_from_scope(scope)
-            if cookie_sid:
-                forwarded["Cookie"] = f"{_MCP_SESSION_COOKIE_NAME}={cookie_sid}"
-            return forwarded
-
         async def _mcp_asgi(scope: dict[str, Any], receive: Callable[[], Awaitable[Message]], send: Callable[[Message], Awaitable[None]]) -> None:
             session_id: str = "default"
             user_agent: str = ""
@@ -377,7 +420,7 @@ class AgentDecompileMcpProxyServer:
                         session_id = cookie_sid
                 session_id = _validate_session_id(session_id)
 
-            self._bridge._set_streamable_http_headers(session_id, _forwardable_shared_headers(scope))
+            self._bridge._set_streamable_http_headers(session_id, forwardable_shared_headers_from_scope(scope))
 
             pre_sessions: set[str] = set(session_manager._server_instances.keys())
 

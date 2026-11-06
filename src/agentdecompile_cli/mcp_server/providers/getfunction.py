@@ -22,26 +22,31 @@ from __future__ import annotations
 import heapq
 import json
 import logging
+import re
 import uuid
 
 from collections import defaultdict
-from pathlib import Path
 from dataclasses import dataclass
 from itertools import islice
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, ClassVar, cast
 
 if TYPE_CHECKING:
+    from types import SimpleNamespace
+
     from ghidra.program.model.listing import (  # pyright: ignore[reportMissingImports, reportMissingModuleSource, reportMissingTypeStubs]
         Function as GhidraFunction,
         FunctionManager as GhidraFunctionManager,
         Program as GhidraProgram,
     )
 
+    from agentdecompile_cli.launcher import ProgramInfo
+
 from mcp import types
 
 from agentdecompile_cli.app_logger import basename_hint, redact_session_id
-from agentdecompile_cli.mcp_server.providers._collectors import iter_items, make_task_monitor
 from agentdecompile_cli.mcp_server.profiling import ProfileCapture
+from agentdecompile_cli.mcp_server.providers._collectors import iter_items, make_task_monitor
 from agentdecompile_cli.mcp_server.session_context import (
     SESSION_CONTEXTS,
     get_current_mcp_session_id,
@@ -58,6 +63,44 @@ from agentdecompile_cli.mcp_utils.symbol_util import SymbolUtil
 from agentdecompile_cli.registry import Tool
 
 logger = logging.getLogger(__name__)
+
+_DEFAULT_DECOMP_VAR_PATTERNS = (
+    re.compile(r"^local_[0-9a-fA-F]+$"),
+    re.compile(r"^[a-z]Var[0-9]+$"),
+    re.compile(r"^param_[0-9]+$"),
+    re.compile(r"^unaff_[a-zA-Z0-9_]+$"),
+    re.compile(r"^in_[a-zA-Z0-9_]+$"),
+    re.compile(r"^out_[a-zA-Z0-9_]+$"),
+)
+
+
+def parse_colon_mappings(raw: str, *, label: str) -> list[tuple[str, str]]:
+    """Parse comma-separated ``left:right`` mapping strings (CLI/registry format)."""
+    if not raw or not str(raw).strip():
+        return []
+    pairs: list[tuple[str, str]] = []
+    for part in str(raw).split(","):
+        entry = part.strip()
+        if not entry:
+            continue
+        if ":" not in entry:
+            raise ValueError(f"Invalid {label} entry {entry!r}; expected key:value pairs separated by commas")
+        left, right = entry.split(":", 1)
+        left = left.strip()
+        right = right.strip()
+        if not left or not right:
+            raise ValueError(f"Invalid {label} entry {entry!r}; both sides of ':' must be non-empty")
+        pairs.append((left, right))
+    return pairs
+
+
+def is_default_decompiler_var_name(name: str) -> bool:
+    """True for Ghidra-generated decompiler names (local_8, uVar2, etc.)."""
+    if not name:
+        return True
+    if SymbolUtil.is_default_symbol_name(name):
+        return True
+    return any(pattern.match(name) for pattern in _DEFAULT_DECOMP_VAR_PATTERNS)
 
 
 def _detail_limits(result_count: int) -> tuple[int | None, int | None, int]:
@@ -119,6 +162,10 @@ class GetFunctionToolProvider(ToolProvider):
         "managefunctiontags": "_handle_tags",
         "matchfunction": "_handle_match",
         "migratemetadata": "_handle_migrate_metadata",
+        "renamevariable": "_handle_rename_variable_alias",
+        "renamevariables": "_handle_rename_variable_alias",
+        "setlocalvariabletype": "_handle_set_variable_type_alias",
+        "changevariabledatatypes": "_handle_change_datatypes_alias",
     }
 
     def list_tools(self) -> list[types.Tool]:
@@ -135,16 +182,49 @@ class GetFunctionToolProvider(ToolProvider):
                         "addressOrSymbol": {"type": "string", "description": "Alternative way to specify the function's starting address."},
                         "mode": {
                             "type": "string",
-                            "description": "What modification you want to make: 'rename' (change name), 'set_prototype' (change arguments), 'set_calling_convention' (how arguments are passed), 'set_return_type', 'delete', or 'create'.",
-                            "enum": ["rename", "set_prototype", "set_calling_convention", "set_return_type", "delete", "create"],
+                            "description": "Read 'info' for current properties/storage and architecture choices; 'set_properties' changes namespace/flags/fixup/thunk; 'set_storage' sets explicit register/stack pieces; 'rename' changes function name, 'set_prototype', 'set_calling_convention', 'set_return_type', 'rename_variable', 'set_variable_type', 'change_datatypes', 'delete', or 'create'.",
+                            "enum": [
+                                "rename",
+                                "set_prototype",
+                                "info",
+                                "set_properties",
+                                "set_storage",
+                                "set_calling_convention",
+                                "set_return_type",
+                                "rename_variable",
+                                "set_variable_type",
+                                "change_datatypes",
+                                "delete",
+                                "create",
+                            ],
                         },
-                        "newName": {"type": "string", "description": "If mode is 'rename', the new name you want to give the function."},
+                        "newName": {"type": "string", "description": "If mode is 'rename', the new function name; if mode is 'rename_variable', the new variable name."},
+                        "oldName": {"type": "string", "description": "For rename_variable: current decompiler variable name (alias for variableName)."},
+                        "variableName": {"type": "string", "description": "Decompiler variable to rename or retype."},
+                        "newType": {"type": "string", "description": "For set_variable_type or change_datatypes: C type string (e.g. 'uint32_t', 'char *')."},
+                        "variableMappings": {
+                            "type": "string",
+                            "description": "Batch rename: comma-separated oldName:newName pairs (e.g. 'var_1:itemCount,local_8:slotIndex').",
+                        },
+                        "datatypeMappings": {
+                            "type": "string",
+                            "description": "Batch retype: comma-separated varName:type pairs (e.g. 'local_10:uint32_t').",
+                        },
                         "prototype": {
                             "type": "string",
                             "description": "If mode is 'set_prototype', the complete C-style signature you want to apply (e.g. 'int main(int argc, char** argv)').",
                         },
                         "callingConvention": {"type": "string", "description": "If mode is 'set_calling_convention', the new convention (e.g., '__stdcall', '__fastcall')."},
-                        "returnType": {"type": "string", "description": "If mode is 'set_return_type', the new return data type (e.g. 'int', 'void')."},
+                        "returnType": {"type": "string", "description": "Return data type for set_return_type or set_storage."},
+                        "namespace": {"type": "string", "description": "set_properties: qualified namespace, empty for global."},
+                        "inline": {"type": "boolean"},
+                        "noReturn": {"type": "boolean"},
+                        "varArgs": {"type": "boolean"},
+                        "callFixup": {"type": "string", "description": "set_properties: fixup name; empty clears."},
+                        "thunkTarget": {"type": "string", "description": "set_properties: target function address; empty clears."},
+                        "customStorage": {"type": "boolean", "description": "set_storage: enable explicit register/stack storage."},
+                        "returnStorage": {"type": "array", "items": {"type": "object", "properties": {"register": {"type": "string"}, "stackOffset": {"type": "integer"}, "size": {"type": "integer", "minimum": 1}}, "required": ["size"]}, "description": "Ordered storage pieces; each has register OR stackOffset and size. High significance first, matching Ghidra varnode order."},
+                        "parameterStorage": {"type": "array", "items": {"type": "object", "properties": {"ordinal": {"type": "integer", "minimum": 0}, "dataType": {"type": "string"}, "storage": {"type": "array", "items": {"type": "object"}}}, "required": ["ordinal", "storage"]}, "description": "Existing parameter ordinals with storage pieces and optional dataType."},
                         "address": {"type": "string", "description": "If mode is 'create', the memory address where the new function should start."},
                     },
                     "required": [],
@@ -161,11 +241,15 @@ class GetFunctionToolProvider(ToolProvider):
                         "addressOrSymbol": {"type": "string", "description": "Alternative way to specify the function."},
                         "mode": {
                             "type": "string",
-                            "description": "What to do with tags: 'list' (view tags), 'add' (attach a tag), 'remove' (detach a tag), or 'search' (find functions by tag).",
-                            "enum": ["list", "add", "remove", "search"],
+                            "description": "What to do with tags: 'get' or 'list' (view tags), 'add' (attach a tag), 'remove' (detach a tag), 'set' (replace all tags on the function), or 'search' (find functions by tag).",
+                            "enum": ["get", "list", "add", "remove", "set", "search"],
                         },
                         "tag": {"type": "string", "description": "The specific tag to add, remove, or search for (e.g. 'encryption')."},
                         "tagName": {"type": "string", "description": "Alternative parameter name for 'tag'."},
+                        "tags": {
+                            "type": "string",
+                            "description": "For mode 'set', comma-separated tag names that replace all existing tags on the function (e.g. 'crypto,network').",
+                        },
                     },
                     "required": [],
                 },
@@ -259,23 +343,24 @@ class GetFunctionToolProvider(ToolProvider):
     async def _handle_manage(
         self,
         args: dict[str, Any],
+        *, program_info: ProgramInfo | SimpleNamespace | None,
     ) -> list[types.TextContent]:
         logger.debug("diag.enter %s", "mcp_server/providers/getfunction.py:GetFunctionToolProvider._handle_manage")
-        self._require_program()
+        self._require_program(program_info=program_info)
         action = self._require_str(args, "mode", "action", "operation", name="mode")
         func_id = self._get_address_or_symbol(args)
-        assert self.program_info is not None, "program_info should not be None after _require_program()"
-        program = self.program_info.program
+        assert program_info is not None, "program_info should not be None after _require_program()"
+        program = program_info.program
 
         action_n = n(action)
         # Handle create early (no target function required)
         if action_n == "create":
             addr_str = self._require_address_or_symbol(args)
-            addr = self._resolve_address(addr_str, program=program)
+            addr = self._resolve_address(addr_str, program=program, program_info=program_info)
             name = self._get_str(args, "newname", "name", "functionname", default="")
 
             def _create_function():
-                fm = self._get_function_manager(program)
+                fm = self._get_function_manager(program, program_info=program_info)
                 from ghidra.program.model.symbol import SourceType  # pyright: ignore[reportMissingModuleSource]
 
                 return fm.createFunction(name or None, addr, None, SourceType.USER_DEFINED)
@@ -286,7 +371,7 @@ class GetFunctionToolProvider(ToolProvider):
         # All other actions need an existing function (rename, set_prototype, delete, etc.)
         if not func_id:
             raise ValueError("function or addressOrSymbol required")
-        func = self._resolve_function(func_id, program=program)
+        func = self._resolve_function(func_id, program=program, program_info=program_info)
         if func is None:
             raise ValueError(f"Function not found: {func_id}")
 
@@ -295,18 +380,128 @@ class GetFunctionToolProvider(ToolProvider):
             args,
             action,
             {
+                "info": "_handle_guide_function",
+                "setproperties": "_handle_guide_function",
+                "setstorage": "_handle_guide_function",
                 "rename": "_handle_rename",
                 "setprototype": "_handle_set_prototype",
                 "setcallingconvention": "_handle_set_calling_convention",
                 "callingconvention": "_handle_set_calling_convention",
                 "setreturntype": "_handle_set_return_type",
                 "returntype": "_handle_set_return_type",
+                "renamevariable": "_handle_rename_variable",
+                "setvariabletype": "_handle_set_variable_type",
+                "changevariabledatatypes": "_handle_change_datatypes",
+                "changedatatypes": "_handle_change_datatypes",
                 "delete": "_handle_delete",
             },
             program=program,
             func=func,
             func_id=func_id,
+            program_info=program_info,
         )
+
+    async def _handle_guide_function(self, args, program, func, func_id, *, program_info: ProgramInfo | SimpleNamespace | None):
+        from .guide_function import function_properties, update_function
+        mode = n(self._get_str(args, "mode"))
+        before = function_properties(program, func)
+        if mode == "info":
+            return create_success_response({"action": "info", **before})
+        if not args.get(FORCE_APPLY_CONFLICT_ID_KEY):
+            return self._store_variable_conflict(args, "Change function properties/storage. Current values:\n" + json.dumps({k: v for k, v in before.items() if not k.startswith("available")}, indent=2) + "\nRequested values:\n" + json.dumps(args, default=str), program_info=program_info)
+        self._run_program_transaction(program, mode, lambda: update_function(program, func, args, mode))
+        self._notify_versioned_checkout_after_program_edit(program, program_info=program_info)
+        return create_success_response({"success": True, "action": mode, **function_properties(program, func)})
+
+    async def _handle_mode_alias(self, args: dict[str, Any], mode: str, *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
+        forwarded_args = dict(args)
+        forwarded_args.setdefault("mode", mode)
+        return await self._handle_manage(forwarded_args, program_info=program_info)
+
+    async def _handle_rename_variable_alias(self, args: dict[str, Any], *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
+        return await self._handle_mode_alias(args, "rename_variable", program_info=program_info)
+
+    async def _handle_set_variable_type_alias(self, args: dict[str, Any], *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
+        return await self._handle_mode_alias(args, "set_variable_type", program_info=program_info)
+
+    async def _handle_change_datatypes_alias(self, args: dict[str, Any], *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
+        return await self._handle_mode_alias(args, "change_datatypes", program_info=program_info)
+
+    def _session_decompiler(self, *, program_info: ProgramInfo | SimpleNamespace | None) -> Any | None:
+        if program_info is None:
+            return None
+        getter = getattr(program_info, "get_decompiler", None)
+        if callable(getter):
+            try:
+                return getter()
+            except Exception:
+                return getattr(program_info, "decompiler", None)
+        return getattr(program_info, "decompiler", None)
+
+    def _decompile_high_function(self, program: GhidraProgram, func: GhidraFunction, timeout_s: int = 60, *, program_info: ProgramInfo | SimpleNamespace | None) -> Any:
+        from agentdecompile_cli.mcp_utils.decompiler_util import acquire_decompiler_for_program
+
+        session_decomp = self._session_decompiler(program_info=program_info)
+        with acquire_decompiler_for_program(session_decomp, program) as lease:
+            result = lease.decompiler.decompileFunction(func, timeout_s, make_task_monitor())
+            if result is None or not result.decompileCompleted():
+                msg = ""
+                try:
+                    msg = str(result.getErrorMessage() or "") if result is not None else ""
+                except Exception:
+                    msg = ""
+                detail = msg.strip() or "decompilation failed or timed out"
+                raise ValueError(f"Decompilation failed for {func.getName()}: {detail}")
+            hfunc = result.getHighFunction()
+            if hfunc is None:
+                raise ValueError(f"No high-level function available for {func.getName()}")
+            return hfunc
+
+    @staticmethod
+    def _find_high_symbol(hfunc: Any, variable_name: str) -> Any:
+        target = variable_name.strip()
+        if not target:
+            raise ValueError("variableName is required")
+        exact: Any | None = None
+        case_insensitive: Any | None = None
+        target_lower = target.lower()
+        for sym in hfunc.getLocalSymbolMap().getSymbols():
+            name = str(sym.getName() or "")
+            if name == target:
+                exact = sym
+                break
+            if case_insensitive is None and name.lower() == target_lower:
+                case_insensitive = sym
+        found = exact if exact is not None else case_insensitive
+        if found is None:
+            raise ValueError(f"Variable not found in function: {variable_name}")
+        return found
+
+    def _store_variable_conflict(
+        self,
+        args: dict[str, Any],
+        summary: str,
+        *, program_info: ProgramInfo | SimpleNamespace | None,
+    ) -> list[types.TextContent]:
+        from agentdecompile_cli.mcp_server.conflict_store import store as conflict_store_store
+
+        conflict_id = str(uuid.uuid4())
+        next_step = (
+            f'To apply this change, call `resolve-modification-conflict` with `conflictId` = "{conflict_id}" '
+            f'and `resolution` = "overwrite". To discard, use `resolution` = "skip".'
+        )
+        program_path = args.get(n("programPath")) or (getattr(program_info, "path", None) if program_info else None) or (
+            getattr(program_info, "file_path", None) if program_info else None
+        )
+        conflict_store_store(
+            get_current_mcp_session_id(),
+            conflict_id,
+            tool=Tool.MANAGE_FUNCTION.value,
+            arguments=dict(args),
+            program_path=str(program_path) if program_path else None,
+            summary=summary,
+        )
+        return create_conflict_response(conflict_id, Tool.MANAGE_FUNCTION.value, summary, next_step)
 
     async def _handle_rename(
         self,
@@ -314,6 +509,7 @@ class GetFunctionToolProvider(ToolProvider):
         program: GhidraProgram,
         func: GhidraFunction,
         func_id: str,
+        *, program_info: ProgramInfo | SimpleNamespace | None,
     ) -> list[types.TextContent]:
         logger.debug("diag.enter %s", "mcp_server/providers/getfunction.py:GetFunctionToolProvider._handle_rename")
         new_name = self._require_str(args, "newname", "name", name="newName")
@@ -326,7 +522,7 @@ class GetFunctionToolProvider(ToolProvider):
                 conflict_id = str(uuid.uuid4())
                 conflict_summary = f"Rename would overwrite existing custom function name:\n\n```diff\n- {current_name}\n+ {new_name}\n```"
                 next_step = f'To apply this change, call `resolve-modification-conflict` with `conflictId` = "{conflict_id}" and `resolution` = "overwrite". To discard, use `resolution` = "skip".'
-                program_path = args.get(n("programPath")) or (getattr(self.program_info, "path", None) if self.program_info else None) or (getattr(self.program_info, "file_path", None) if self.program_info else None)
+                program_path = args.get(n("programPath")) or (getattr(program_info, "path", None) if program_info else None) or (getattr(program_info, "file_path", None) if program_info else None)
                 conflict_store_store(
                     get_current_mcp_session_id(),
                     conflict_id,
@@ -350,7 +546,7 @@ class GetFunctionToolProvider(ToolProvider):
             self._touch_listing_for_shared_checkin(program)
 
         self._run_program_transaction(program, "rename-function", _rename_function)
-        self._notify_versioned_checkout_after_program_edit(program, self._get_str(args, "programpath", "program_path", "path"))
+        self._notify_versioned_checkout_after_program_edit(program, self._get_str(args, "programpath", "path"), program_info=program_info)
         return create_success_response(
             {
                 "action": "rename",
@@ -360,7 +556,7 @@ class GetFunctionToolProvider(ToolProvider):
             },
         )
 
-    def _notify_versioned_checkout_after_program_edit(self, program: GhidraProgram, program_path: str | None = None) -> None:
+    def _notify_versioned_checkout_after_program_edit(self, program: GhidraProgram, program_path: str | None = None, *, program_info: ProgramInfo | SimpleNamespace | None) -> None:
         """Align shared checkout metadata with function edits so versioned checkin can persist updates."""
         logger.debug("diag.enter %s", "mcp_server/providers/getfunction.py:GetFunctionToolProvider._notify_versioned_checkout_after_program_edit")
         if program is None:
@@ -387,7 +583,7 @@ class GetFunctionToolProvider(ToolProvider):
                 if iep is not None:
                     if hasattr(iep, "_bump_versioned_checkout_dirty_bookmark"):
                         iep._bump_versioned_checkout_dirty_bookmark(program)
-                    iep._persist_open_program_for_versioned_checkin(program)
+                    iep._persist_open_program_for_versioned_checkin(program, program_info=program_info)
 
             _ImportExport._force_domain_object_changed_for_versioned_checkin(program)
             df = None
@@ -398,7 +594,7 @@ class GetFunctionToolProvider(ToolProvider):
             if df is not None:
                 if iep is not None and hasattr(iep, "_save_domain_file_before_versioned_checkin"):
                     try:
-                        iep._save_domain_file_before_versioned_checkin(df, program)
+                        iep._save_domain_file_before_versioned_checkin(df, program, program_info=program_info)
                     except Exception as flush_exc:
                         logger.debug("save_domain_file_before_versioned_checkin after edit: %s", flush_exc)
                 _ImportExport._try_mark_versioned_checkout_dirty(df)
@@ -438,6 +634,7 @@ class GetFunctionToolProvider(ToolProvider):
         program: GhidraProgram,
         func: GhidraFunction,
         func_id: str,
+        *, program_info: ProgramInfo | SimpleNamespace | None,
     ) -> list[types.TextContent]:
         logger.debug("diag.enter %s", "mcp_server/providers/getfunction.py:GetFunctionToolProvider._handle_set_prototype")
         proto = self._require_str(args, "prototype", "signature", name="prototype")
@@ -450,7 +647,7 @@ class GetFunctionToolProvider(ToolProvider):
                 conflict_id = str(uuid.uuid4())
                 conflict_summary = f"Set prototype would overwrite existing signature:\n\n```diff\n- {current_sig}\n+ {proto}\n```"
                 next_step = f'To apply this change, call `resolve-modification-conflict` with `conflictId` = "{conflict_id}" and `resolution` = "overwrite". To discard, use `resolution` = "skip".'
-                program_path = args.get(n("programPath")) or (getattr(self.program_info, "path", None) if self.program_info else None) or (getattr(self.program_info, "file_path", None) if self.program_info else None)
+                program_path = args.get(n("programPath")) or (getattr(program_info, "path", None) if program_info else None) or (getattr(program_info, "file_path", None) if program_info else None)
                 conflict_store_store(
                     get_current_mcp_session_id(),
                     conflict_id,
@@ -462,7 +659,9 @@ class GetFunctionToolProvider(ToolProvider):
                 return create_conflict_response(conflict_id, Tool.MANAGE_FUNCTION.value, conflict_summary, next_step)
 
         def _set_prototype() -> None:
-            func.setSignature(proto)
+            from agentdecompile_cli.mcp_server.function_signature import apply_function_signature
+
+            apply_function_signature(program, func, proto, rename=True)
 
         self._run_program_transaction(program, "set-prototype", _set_prototype)
         return create_success_response(
@@ -470,6 +669,7 @@ class GetFunctionToolProvider(ToolProvider):
                 "action": "set_prototype",
                 "function": func.getName(),
                 "prototype": proto,
+                "appliedSignature": str(func.getSignature()),
                 "success": True,
             },
         )
@@ -480,6 +680,7 @@ class GetFunctionToolProvider(ToolProvider):
         program: GhidraProgram,
         func: GhidraFunction,
         func_id: str,
+        *, program_info: ProgramInfo | SimpleNamespace | None,
     ) -> list[types.TextContent]:
         logger.debug("diag.enter %s", "mcp_server/providers/getfunction.py:GetFunctionToolProvider._handle_set_calling_convention")
         cc = self._require_str(args, "callingconvention", "convention", name="callingConvention")
@@ -492,7 +693,7 @@ class GetFunctionToolProvider(ToolProvider):
                 conflict_id = str(uuid.uuid4())
                 conflict_summary = f"Set calling convention would overwrite existing:\n\n```diff\n- {current_cc}\n+ {cc}\n```"
                 next_step = f'To apply this change, call `resolve-modification-conflict` with `conflictId` = "{conflict_id}" and `resolution` = "overwrite". To discard, use `resolution` = "skip".'
-                program_path = args.get(n("programPath")) or (getattr(self.program_info, "path", None) if self.program_info else None) or (getattr(self.program_info, "file_path", None) if self.program_info else None)
+                program_path = args.get(n("programPath")) or (getattr(program_info, "path", None) if program_info else None) or (getattr(program_info, "file_path", None) if program_info else None)
                 conflict_store_store(
                     get_current_mcp_session_id(),
                     conflict_id,
@@ -522,6 +723,7 @@ class GetFunctionToolProvider(ToolProvider):
         program: GhidraProgram,
         func: GhidraFunction,
         func_id: str,
+        *, program_info: ProgramInfo | SimpleNamespace | None,
     ) -> list[types.TextContent]:
         logger.debug("diag.enter %s", "mcp_server/providers/getfunction.py:GetFunctionToolProvider._handle_set_return_type")
         rt_str = self._require_str(args, "returntype", "newtype", "type", name="returnType")
@@ -539,7 +741,7 @@ class GetFunctionToolProvider(ToolProvider):
                 conflict_id = str(uuid.uuid4())
                 conflict_summary = f"Set return type would overwrite existing:\n\n```diff\n- {current_rt}\n+ {rt_str}\n```"
                 next_step = f'To apply this change, call `resolve-modification-conflict` with `conflictId` = "{conflict_id}" and `resolution` = "overwrite". To discard, use `resolution` = "skip".'
-                program_path = args.get(n("programPath")) or (getattr(self.program_info, "path", None) if self.program_info else None) or (getattr(self.program_info, "file_path", None) if self.program_info else None)
+                program_path = args.get(n("programPath")) or (getattr(program_info, "path", None) if program_info else None) or (getattr(program_info, "file_path", None) if program_info else None)
                 conflict_store_store(
                     get_current_mcp_session_id(),
                     conflict_id,
@@ -565,9 +767,218 @@ class GetFunctionToolProvider(ToolProvider):
             },
         )
 
-    async def _handle_delete(self, args: dict[str, Any], program: GhidraProgram, func: GhidraFunction, func_id: str) -> list[types.TextContent]:
+    async def _handle_rename_variable(
+        self,
+        args: dict[str, Any],
+        program: GhidraProgram,
+        func: GhidraFunction,
+        func_id: str,
+        *, program_info: ProgramInfo | SimpleNamespace | None,
+    ) -> list[types.TextContent]:
+        logger.debug("diag.enter %s", "mcp_server/providers/getfunction.py:GetFunctionToolProvider._handle_rename_variable")
+        mappings = parse_colon_mappings(self._get_str(args, "variablemappings", default=""), label="variableMappings")
+        if mappings:
+            results: list[dict[str, Any]] = []
+            for old_name, new_name in mappings:
+                item_args = dict(args)
+                item_args["variableName"] = old_name
+                item_args["newName"] = new_name
+                response = await self._apply_single_variable_rename(item_args, program, func, old_name, new_name, program_info=program_info)
+                if isinstance(response, list):
+                    return response
+                results.append(response)
+            self._notify_versioned_checkout_after_program_edit(program, self._get_str(args, "programpath", "path"), program_info=program_info)
+            return create_success_response(
+                {
+                    "action": "rename_variable",
+                    "function": func.getName(),
+                    "count": len(results),
+                    "results": results,
+                    "success": True,
+                },
+            )
+
+        variable_name = self._get_str(args, "variablename", "oldname", default="").strip()
+        new_name = self._get_str(args, "newname", "name", default="").strip()
+        if not variable_name or not new_name:
+            raise ValueError("variableName (or oldName) and newName are required for rename_variable")
+        result = await self._apply_single_variable_rename(args, program, func, variable_name, new_name, program_info=program_info)
+        if isinstance(result, list):
+            return result
+        self._notify_versioned_checkout_after_program_edit(program, self._get_str(args, "programpath", "path"), program_info=program_info)
+        return create_success_response(
+            {
+                "action": "rename_variable",
+                "function": func.getName(),
+                **result,
+                "success": True,
+            },
+        )
+
+    async def _apply_single_variable_rename(
+        self,
+        args: dict[str, Any],
+        program: GhidraProgram,
+        func: GhidraFunction,
+        variable_name: str,
+        new_name: str,
+        *, program_info: ProgramInfo | SimpleNamespace | None,
+    ) -> dict[str, Any] | list[types.TextContent]:
+        hfunc = self._decompile_high_function(program, func, program_info=program_info)
+        high_symbol = self._find_high_symbol(hfunc, variable_name)
+        current_name = str(high_symbol.getName() or variable_name)
+
+        if not args.get(FORCE_APPLY_CONFLICT_ID_KEY) and current_name != new_name and not is_default_decompiler_var_name(current_name):
+            summary = (
+                f"Rename variable would overwrite existing custom name in {func.getName()}:\n\n"
+                f"```diff\n- {current_name}\n+ {new_name}\n```"
+            )
+            return self._store_variable_conflict(args, summary, program_info=program_info)
+
+        from ghidra.program.model.pcode import HighFunctionDBUtil  # pyright: ignore[reportMissingModuleSource]
+        from ghidra.program.model.symbol import SourceType  # pyright: ignore[reportMissingModuleSource]
+
+        def _rename_variable_tx() -> None:
+            HighFunctionDBUtil.updateDBVariable(high_symbol, new_name, None, SourceType.USER_DEFINED)
+            self._touch_listing_for_shared_checkin(program)
+
+        self._run_program_transaction(program, "rename-variable", _rename_variable_tx)
+        return {"variableName": current_name, "newName": new_name}
+
+    async def _handle_set_variable_type(
+        self,
+        args: dict[str, Any],
+        program: GhidraProgram,
+        func: GhidraFunction,
+        func_id: str,
+        *, program_info: ProgramInfo | SimpleNamespace | None,
+    ) -> list[types.TextContent]:
+        logger.debug("diag.enter %s", "mcp_server/providers/getfunction.py:GetFunctionToolProvider._handle_set_variable_type")
+        mappings = parse_colon_mappings(self._get_str(args, "datatypemappings", default=""), label="datatypeMappings")
+        if mappings:
+            results: list[dict[str, Any]] = []
+            for var_name, type_str in mappings:
+                item_args = dict(args)
+                item_args["variableName"] = var_name
+                item_args["newType"] = type_str
+                response = await self._apply_single_variable_type(item_args, program, func, var_name, type_str, program_info=program_info)
+                if isinstance(response, list):
+                    return response
+                results.append(response)
+            self._notify_versioned_checkout_after_program_edit(program, self._get_str(args, "programpath", "path"), program_info=program_info)
+            return create_success_response(
+                {
+                    "action": "set_variable_type",
+                    "function": func.getName(),
+                    "count": len(results),
+                    "results": results,
+                    "success": True,
+                },
+            )
+
+        variable_name = self._get_str(args, "variablename", default="").strip()
+        new_type = self._get_str(args, "newtype", "type", default="").strip()
+        if not variable_name or not new_type:
+            raise ValueError("variableName and newType are required for set_variable_type")
+        result = await self._apply_single_variable_type(args, program, func, variable_name, new_type, program_info=program_info)
+        if isinstance(result, list):
+            return result
+        self._notify_versioned_checkout_after_program_edit(program, self._get_str(args, "programpath", "path"), program_info=program_info)
+        return create_success_response(
+            {
+                "action": "set_variable_type",
+                "function": func.getName(),
+                **result,
+                "success": True,
+            },
+        )
+
+    async def _apply_single_variable_type(
+        self,
+        args: dict[str, Any],
+        program: GhidraProgram,
+        func: GhidraFunction,
+        variable_name: str,
+        new_type: str,
+        *, program_info: ProgramInfo | SimpleNamespace | None,
+    ) -> dict[str, Any] | list[types.TextContent]:
+        from ghidra.util.data import DataTypeParser  # pyright: ignore[reportMissingModuleSource]
+
+        hfunc = self._decompile_high_function(program, func, program_info=program_info)
+        high_symbol = self._find_high_symbol(hfunc, variable_name)
+        current_type = ""
+        try:
+            current_type = str(high_symbol.getDataType() or "")
+        except Exception:
+            current_type = ""
+
+        if not args.get(FORCE_APPLY_CONFLICT_ID_KEY) and current_type and current_type != new_type and not is_default_decompiler_var_name(variable_name):
+            summary = (
+                f"Set variable type would overwrite existing type for {variable_name} in {func.getName()}:\n\n"
+                f"```diff\n- {current_type}\n+ {new_type}\n```"
+            )
+            return self._store_variable_conflict(args, summary, program_info=program_info)
+
+        dtm = program.getDataTypeManager()
+        parser = DataTypeParser(dtm, dtm, cast("Any", None), DataTypeParser.AllowedDataTypes.ALL)
+        parsed_type = parser.parse(new_type)
+
+        from ghidra.program.model.pcode import HighFunctionDBUtil  # pyright: ignore[reportMissingModuleSource]
+        from ghidra.program.model.symbol import SourceType  # pyright: ignore[reportMissingModuleSource]
+
+        def _set_variable_type_tx() -> None:
+            HighFunctionDBUtil.updateDBVariable(high_symbol, None, parsed_type, SourceType.USER_DEFINED)
+            self._touch_listing_for_shared_checkin(program)
+
+        self._run_program_transaction(program, "set-variable-type", _set_variable_type_tx)
+        return {"variableName": variable_name, "newType": new_type}
+
+    async def _handle_change_datatypes(
+        self,
+        args: dict[str, Any],
+        program: GhidraProgram,
+        func: GhidraFunction,
+        func_id: str,
+        *, program_info: ProgramInfo | SimpleNamespace | None,
+    ) -> list[types.TextContent]:
+        logger.debug("diag.enter %s", "mcp_server/providers/getfunction.py:GetFunctionToolProvider._handle_change_datatypes")
+        datatype_mappings = parse_colon_mappings(self._get_str(args, "datatypemappings", default=""), label="datatypeMappings")
+        rename_mappings = parse_colon_mappings(self._get_str(args, "variablemappings", default=""), label="variableMappings")
+        if not datatype_mappings and not rename_mappings:
+            raise ValueError("change_datatypes requires datatypeMappings and/or variableMappings")
+
+        results: list[dict[str, Any]] = []
+        for var_name, type_str in datatype_mappings:
+            item_args = dict(args)
+            item_args["variableName"] = var_name
+            item_args["newType"] = type_str
+            response = await self._apply_single_variable_type(item_args, program, func, var_name, type_str, program_info=program_info)
+            if isinstance(response, list):
+                return response
+            results.append({"kind": "type", **response})
+        for old_name, new_name in rename_mappings:
+            item_args = dict(args)
+            item_args["variableName"] = old_name
+            item_args["newName"] = new_name
+            response = await self._apply_single_variable_rename(item_args, program, func, old_name, new_name, program_info=program_info)
+            if isinstance(response, list):
+                return response
+            results.append({"kind": "rename", **response})
+
+        self._notify_versioned_checkout_after_program_edit(program, self._get_str(args, "programpath", "path"), program_info=program_info)
+        return create_success_response(
+            {
+                "action": "change_datatypes",
+                "function": func.getName(),
+                "count": len(results),
+                "results": results,
+                "success": True,
+            },
+        )
+
+    async def _handle_delete(self, args: dict[str, Any], program: GhidraProgram, func: GhidraFunction, func_id: str, *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
         def _delete_function() -> None:
-            self._get_function_manager(program).removeFunction(func.getEntryPoint())
+            self._get_function_manager(program, program_info=program_info).removeFunction(func.getEntryPoint())
 
         logger.debug("diag.enter %s", "mcp_server/providers/getfunction.py:GetFunctionToolProvider._handle_delete")
         self._run_program_transaction(program, "delete-function", _delete_function)
@@ -579,20 +990,20 @@ class GetFunctionToolProvider(ToolProvider):
             },
         )
 
-    async def _handle_tags(self, args: dict[str, Any]) -> list[types.TextContent]:
+    async def _handle_tags(self, args: dict[str, Any], *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
         logger.debug("diag.enter %s", "mcp_server/providers/getfunction.py:GetFunctionToolProvider._handle_tags")
-        self._require_program()
+        self._require_program(program_info=program_info)
         action = self._get_str(args, "mode", "action", "operation", default="list")
         func_id = self._get_address_or_symbol(args)
         tag_name = self._get_str(args, "tag", "tagname", "tags", "name")
-        assert self.program_info is not None, "program_info should not be None after _require_program()"
-        program = self.program_info.program
+        assert program_info is not None, "program_info should not be None after _require_program()"
+        program = program_info.program
 
         action_n = n(action)
 
         if action_n == "search":
             # Search for functions with a specific tag
-            fm = self._get_function_manager(program)
+            fm = self._get_function_manager(program, program_info=program_info)
             results = []
             for func in iter_items(fm.getFunctions(True)):
                 tags = list(func.getTags())
@@ -601,29 +1012,55 @@ class GetFunctionToolProvider(ToolProvider):
                     results.append({"name": func.getName(), "address": str(func.getEntryPoint()), "tags": tag_names})
             return create_success_response({"action": "search", "tag": tag_name, "functions": results, "count": len(results)})
 
+        if not func_id and action_n in ("set", "add", "remove", "delete"):
+            raise ValueError(f"function or addressOrSymbol is required for tag mode '{action}'")
+
         if not func_id:
             # List all known tags
-            fm = self._get_function_manager(program)
+            fm = self._get_function_manager(program, program_info=program_info)
             all_tags = set()
             for func in iter_items(fm.getFunctions(True)):
                 all_tags.update(t.getName() for t in func.getTags())
             return create_success_response({"action": "list", "tags": sorted(all_tags), "count": len(all_tags)})
 
-        func = self._resolve_function(func_id, program=program)
+        func = self._resolve_function(func_id, program=program, program_info=program_info)
         if func is None:
             raise ValueError(f"Function not found: {func_id}")
 
-        if action_n == "list":
+        if action_n in ("list", "get"):
             tags = [t.getName() for t in func.getTags()]
             return create_success_response(
                 {
+                    "action": action_n,
                     "function": func.getName(),
                     "tags": tags,
                     "count": len(tags),
                 },
             )
 
-        if action_n in ("add", "set"):
+        if action_n == "set":
+            tag_names = self._parse_tag_names(args)
+            if not tag_names:
+                raise ValueError("tags, tag, or tagName required for set mode")
+
+            def _set_function_tags() -> None:
+                for existing in list(func.getTags()):
+                    func.removeTag(existing.getName())
+                for name in tag_names:
+                    func.addTag(name)
+
+            self._run_program_transaction(program, "set-function-tags", _set_function_tags)
+            return create_success_response(
+                {
+                    "action": "set",
+                    "function": func.getName(),
+                    "tags": tag_names,
+                    "count": len(tag_names),
+                    "success": True,
+                },
+            )
+
+        if action_n == "add":
             if not tag_name:
                 raise ValueError("tag or tagName required")
 
@@ -658,6 +1095,16 @@ class GetFunctionToolProvider(ToolProvider):
             )
 
         raise ValueError(f"Unknown tag action: {action}")
+
+    def _parse_tag_names(self, args: dict[str, Any]) -> list[str]:
+        """Resolve tag name list from tags (list or comma-separated) or single tag."""
+        tag_list = self._get_list(args, "tags", "taglist")
+        if tag_list:
+            return [str(item).strip() for item in tag_list if str(item).strip()]
+        tag_name = self._get_str(args, "tag", "tagname", "name")
+        if tag_name:
+            return [tag_name]
+        return []
 
     def _get_match_index(
         self,
@@ -789,15 +1236,50 @@ class GetFunctionToolProvider(ToolProvider):
         total = len(source_callers) + len(source_callees)
         return shared_calls / total if total else 0.0
 
+    @staticmethod
+    def _is_match_stub(func: Any) -> bool:
+        """True for thunks and external functions, which carry no body of their own to compare."""
+        try:
+            return bool(func.isThunk()) or bool(func.isExternal())
+        except Exception:
+            return False
+
+    @staticmethod
+    def _single_program_similarity(
+        target: _FunctionMatchFeature,
+        candidate: _FunctionMatchFeature,
+    ) -> tuple[float, int, dict[str, Any]]:
+        """Score a same-program candidate in [0, 1].
+
+        70% call-graph Jaccard over tagged caller/callee names (two empty graphs
+        score 0, not 1) plus 30% signature agreement (param count and return type,
+        half each). Returns (score, shared neighbour count, detail fields).
+        """
+        target_graph = {("caller", name) for name in target.callers} | {("callee", name) for name in target.callees}
+        candidate_graph = {("caller", name) for name in candidate.callers} | {("callee", name) for name in candidate.callees}
+        union = target_graph | candidate_graph
+        shared = len(target_graph & candidate_graph)
+        call_graph = shared / len(union) if union else 0.0
+        signature = 0.5 * (target.param_count == candidate.param_count) + 0.5 * (target.return_type == candidate.return_type)
+        score = round(0.7 * call_graph + 0.3 * signature, 4)
+        detail = {
+            "sharedCallers": len(target.callers & candidate.callers),
+            "sharedCallees": len(target.callees & candidate.callees),
+            "callGraphSimilarity": round(call_graph, 4),
+            "signatureMatch": signature == 1.0,
+        }
+        return score, shared, detail
+
     def _list_source_function_identifiers(
         self,
         program: GhidraProgram,
         include_externals: bool = True,
         limit: int | None = None,
+        *, program_info: ProgramInfo | SimpleNamespace | None,
     ) -> list[str]:
         """List function identifiers (name or address) from source program for bulk match."""
         logger.debug("diag.enter %s", "mcp_server/providers/getfunction.py:GetFunctionToolProvider._list_source_function_identifiers")
-        fm = self._get_function_manager(program)
+        fm = self._get_function_manager(program, program_info=program_info)
         identifiers: list[str] = []
         for func in iter_items(fm.getFunctions(include_externals)):
             name = func.getName() or ""
@@ -824,6 +1306,7 @@ class GetFunctionToolProvider(ToolProvider):
         propagate_prototype: bool = False,
         propagate_bookmarks: bool = False,
         detail_result_count: int | None = None,
+        *, program_info: ProgramInfo | SimpleNamespace | None,
     ) -> list[types.TextContent]:
         """Match source function to equivalent functions in target programs; optionally propagate name, tags, comments, prototype, bookmarks."""
         logger.debug("diag.enter %s", "mcp_server/providers/getfunction.py:GetFunctionToolProvider._handle_match_cross_program")
@@ -873,7 +1356,7 @@ class GetFunctionToolProvider(ToolProvider):
                     results_per_target.append({"targetProgramPath": target_path, "matched": None, "error": f"Checkout failed: {e}"})
                     continue
 
-            target_fm = self._get_function_manager(target_program)
+            target_fm = self._get_function_manager(target_program, program_info=program_info)
             target_index, _ = self._get_match_index(target_program, target_fm)
 
             candidates = target_index.by_signature.get(sig_key, [])
@@ -942,13 +1425,17 @@ class GetFunctionToolProvider(ToolProvider):
                     try:
 
                         def _set_proto() -> None:
-                            target_func.setSignature(source_sig)
+                            from agentdecompile_cli.mcp_server.function_signature import apply_function_signature
+
+                            apply_function_signature(target_program, target_func, source_func.getSignature(), rename=False)
 
                         self._run_program_transaction(target_program, "match-function-prototype", _set_proto)
                         entry["propagated"].append("prototype")
                         did_propagate = True
                     except Exception as e:
-                        logger.debug("Propagate prototype skipped for %s: %s", target_path, e)
+                        logger.debug("Propagate prototype failed for %s: %s", target_path, e)
+                        errors.append(f"{target_path}: prototype propagation failed: {e}")
+                        entry.setdefault("propagationErrors", []).append({"kind": "prototype", "error": str(e)})
 
             if propagate_tags:
                 source_tags = [t.getName() for t in source_func.getTags()]
@@ -991,10 +1478,14 @@ class GetFunctionToolProvider(ToolProvider):
                                 self._run_program_transaction(target_program, "match-function-comment", _set_comment)
                                 entry["propagated"].append("comment")
                                 did_propagate = True
-                        except Exception:
+                        except Exception as e:
+                            errors.append(f"{target_path}: comment propagation failed: {e}")
+                            entry.setdefault("propagationErrors", []).append({"kind": "comment", "error": str(e)})
                             continue
                 except Exception as e:
-                    logger.debug("Propagate comments skipped: %s", e)
+                    logger.debug("Propagate comments failed: %s", e)
+                    errors.append(f"{target_path}: comment propagation failed: {e}")
+                    entry.setdefault("propagationErrors", []).append({"kind": "comments", "error": str(e)})
 
             if propagate_bookmarks:
                 try:
@@ -1018,7 +1509,9 @@ class GetFunctionToolProvider(ToolProvider):
                         entry["propagated"].append("bookmarks")
                         did_propagate = True
                 except Exception as e:
-                    logger.debug("Propagate bookmarks skipped: %s", e)
+                    logger.debug("Propagate bookmarks failed: %s", e)
+                    errors.append(f"{target_path}: bookmark propagation failed: {e}")
+                    entry.setdefault("propagationErrors", []).append({"kind": "bookmarks", "error": str(e)})
 
             # Enrich with get-function output for contextual details (same shape as get-function tool)
             manager: Any | None = getattr(self, "_manager", None)
@@ -1053,6 +1546,7 @@ class GetFunctionToolProvider(ToolProvider):
                         gf_resp: list[types.TextContent] | None = await manager.call_tool(
                             "get-function",
                             gf_payload,
+                            program_info=target_info,
                         )
                         if gf_resp and isinstance(gf_resp[0], types.TextContent) and gf_resp[0].text:
                             parsed = json.loads(gf_resp[0].text)
@@ -1087,17 +1581,17 @@ class GetFunctionToolProvider(ToolProvider):
             },
         )
 
-    async def _handle_migrate_metadata(self, args: dict[str, Any]) -> list[types.TextContent]:
+    async def _handle_migrate_metadata(self, args: dict[str, Any], *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
         """Bulk metadata migration: delegate to match-function with no functionIdentifier so it iterates all functions."""
         # Omit any function identifier so _handle_match always takes the bulk path
         logger.debug("diag.enter %s", "mcp_server/providers/getfunction.py:GetFunctionToolProvider._handle_migrate_metadata")
         bulk_args: dict[str, Any] = {k: v for k, v in args.items() if n(k) not in ("functionidentifier", "function", "addressorsymbol", "address")}
-        return await self._handle_match(bulk_args)
+        return await self._handle_match(bulk_args, program_info=program_info)
 
-    async def _handle_match(self, args: dict[str, Any]) -> list[types.TextContent]:
+    async def _handle_match(self, args: dict[str, Any], *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
         """Entry for match-function: cross-program (targetProgramPaths set) or single-program (similar/callers/callees/signature)."""
         logger.debug("diag.enter %s", "mcp_server/providers/getfunction.py:GetFunctionToolProvider._handle_match")
-        self._require_program()
+        self._require_program(program_info=program_info)
         raw_targets: list[str] | str | None = args.get(n("targetprogrampaths"))
         target_paths: list[str] = []
         if raw_targets is not None:
@@ -1106,9 +1600,9 @@ class GetFunctionToolProvider(ToolProvider):
             elif str(raw_targets).strip():
                 target_paths = [str(raw_targets).strip()]
         # Cross-program: single function or all functions (when no functionIdentifier given)
-        assert self.program_info is not None
-        program: GhidraProgram = self.program_info.program
-        source_path: str = self._get_str(args, "programpath", "programpath", default="") or getattr(self.program_info, "file_path", None) or getattr(self.program_info, "path", None) or ""
+        assert program_info is not None
+        program: GhidraProgram = program_info.program
+        source_path: str = self._get_str(args, "programpath", default="") or getattr(program_info, "file_path", None) or getattr(program_info, "path", None) or ""
         source_path = str(source_path).strip() if source_path else ""
         # Resolve targets: from args or discover from session (so bulk works without targetProgramPaths)
         resolved_targets: list[str] = target_paths if target_paths else self._discover_target_paths(source_path or "unknown")
@@ -1117,7 +1611,7 @@ class GetFunctionToolProvider(ToolProvider):
             func_id: str = self._get_address_or_symbol(args)
             if func_id:
                 # Single function: existing behavior
-                func: GhidraFunction | None = self._resolve_function(func_id)
+                func: GhidraFunction | None = self._resolve_function(func_id, program_info=program_info)
                 if func is None:
                     raise ValueError(f"Function not found: {func_id}")
                 min_sim = self._normalize_min_similarity(args)
@@ -1145,16 +1639,17 @@ class GetFunctionToolProvider(ToolProvider):
                     propagate_prototype,
                     propagate_bookmarks,
                     detail_result_count=None,
+                    program_info=program_info,
                 )
 
             # No functionIdentifier: iterate all functions (bulk migration)
             targets: list[str] = resolved_targets
-            include_externals: bool = self._get_bool(args, "includeexternals", "includeexternals", default=True)
+            include_externals: bool = self._get_bool(args, "includeexternals", default=True)
             limit: int | None = self._get_int(args, "limit", "maxfunctions", "maxcount", default=None)
             # Treat limit<=0 as no limit (process all functions)
             if limit is not None and limit <= 0:
                 limit = None
-            identifiers: list[str] = self._list_source_function_identifiers(program, include_externals, limit)
+            identifiers: list[str] = self._list_source_function_identifiers(program, include_externals, limit, program_info=program_info)
             logger.info(
                 "match-function bulk: source_path=%s target_count=%d identifier_count=%d limit=%s",
                 source_path,
@@ -1186,7 +1681,7 @@ class GetFunctionToolProvider(ToolProvider):
             for idx, ident in enumerate(identifiers):
                 if progress_interval and (idx + 1) % progress_interval == 0:
                     logger.info("match-function bulk progress: %d/%d", idx + 1, len(identifiers))
-                func: GhidraFunction | None = self._resolve_function(ident)
+                func: GhidraFunction | None = self._resolve_function(ident, program_info=program_info)
                 if func is None:
                     continue
                 try:
@@ -1201,6 +1696,7 @@ class GetFunctionToolProvider(ToolProvider):
                         propagate_prototype,
                         propagate_bookmarks,
                         detail_result_count=len(identifiers) * len(targets),
+                        program_info=program_info,
                     )
                 except Exception as e:
                     errors_count += 1
@@ -1257,13 +1753,13 @@ class GetFunctionToolProvider(ToolProvider):
         mode = self._get_str(args, "mode", default="similar")
         max_results = self._get_int(args, "maxresults", "limit", "maxfunctions", "maxcount", default=50)
 
-        func = self._resolve_function(func_id)
+        func = self._resolve_function(func_id, program_info=program_info)
         if func is None:
             raise ValueError(f"Function not found: {func_id}")
 
-        assert self.program_info is not None, "program_info should not be None after _require_program()"
-        program = self.program_info.program
-        fm = self._get_function_manager(program)
+        assert program_info is not None, "program_info should not be None after _require_program()"
+        program = program_info.program
+        fm = self._get_function_manager(program, program_info=program_info)
 
         mode_n = n(mode)
         match_index: _FunctionMatchIndex | None = None
@@ -1330,15 +1826,23 @@ class GetFunctionToolProvider(ToolProvider):
             signature_candidates = match_index.by_signature.get((target_feature.param_count, target_feature.return_type), [])
             candidate_addrs.update(feature.address for feature in signature_candidates if feature.address != func_addr)
 
-        scores: list[tuple[int, _FunctionMatchFeature]] = []
+        # Thunks and external stubs share callers with everything their caller calls
+        # (e.g. puts/printf called from main), so they are not candidates unless
+        # the reference function is itself one.
+        target_is_stub = self._is_match_stub(func)
+        scores: list[tuple[float, int, _FunctionMatchFeature, dict[str, Any]]] = []
+        excluded_stubs = 0
         top_k = max(max_results or 0, 1)
         for addr in candidate_addrs:
             feature = match_index.by_identity.get(addr)
             if feature is None:
                 continue
-            overlap = len(target_feature.callees & feature.callees) + len(target_feature.callers & feature.callers)
-            if overlap > 0:
-                scores.append((overlap, feature))
+            if not target_is_stub and self._is_match_stub(feature.function):
+                excluded_stubs += 1
+                continue
+            score, shared, detail = self._single_program_similarity(target_feature, feature)
+            if score > 0:
+                scores.append((score, shared, feature, detail))
 
         with ProfileCapture(
             "match-function-similarity",
@@ -1350,15 +1854,16 @@ class GetFunctionToolProvider(ToolProvider):
                 "candidateCount": len(candidate_addrs),
             },
         ):
-            top_matches = heapq.nlargest(top_k, scores, key=lambda item: item[0])
+            top_matches = heapq.nlargest(top_k, scores, key=lambda item: (item[0], item[1]))
 
-        similar = [{"name": feature.name, "address": feature.address, "similarityScore": score} for score, feature in top_matches]
+        similar = [{"name": feature.name, "address": feature.address, "similarityScore": score, **detail} for score, _shared, feature, detail in top_matches]
         return create_success_response(
             {
                 "function": func.getName(),
                 "mode": "similar",
                 "indexedFunctionCount": match_index.function_count,
                 "candidateCount": len(candidate_addrs),
+                "excludedStubCount": excluded_stubs,
                 "cacheHit": cache_hit,
                 "results": similar,
                 "count": len(similar),

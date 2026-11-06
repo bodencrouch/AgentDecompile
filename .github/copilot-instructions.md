@@ -1,40 +1,19 @@
 # AgentDecompile – Copilot/Claude Instructions
 
-## Terminal-First Verification Policy
+Read [AGENTS.md](../AGENTS.md) for operational authority and canonical naming;
+[STRATEGY.md](../STRATEGY.md) owns pipeline, matching and acceptance policy.
+[Runtime reuse](../docs/RUNTIME_REUSE.md) separates original-binary calls from
+source recovery. Use the [plans hub](../docs/plans/README.md) for current work.
 
-- Any code change that affects runtime behavior, transports, CLI behavior, MCP tool routing, project opening, shared-server access, sync, import/export, or server startup must be verified in the terminal before being treated as complete.
-- Prefer running the real local entry points from this repo such as `uv run agentdecompile-server ...` and `uv run agentdecompile-cli ...` instead of only reasoning from source or updating tests.
-- When a change touches MCP behavior, verify the actual transport path that the user will exercise: stdio, streamable-http, proxy mode, or CLI, as applicable.
-- Validate behavior with real tool calls whenever terminal access is available. Do not stop at `tools/list` or startup health alone when the affected feature is deeper than that.
-- After terminal verification, update or add focused tests that reflect the observed real behavior. Tests are secondary to terminal validation, not a substitute for it.
-- If terminal validation is blocked by a missing local prerequisite, unavailable credential flow, or unavailable tool capability, say exactly what blocked it and what was still validated.
+Verify the actual behavior affected by an authorized code change; tool listing,
+startup, job success and screenshots alone are insufficient. State the evidence
+and limits. For the current recovery mission, do not run filesystem tests/builds,
+restart processes, use systemctl or create alternate ports. Use the existing
+8080 catalog; manually corroborate ownership before admitting work. General
+development test recipes elsewhere do not override these constraints.
 
-## Naming Conventions
-
-When generating or suggesting names for symbols, variables, parameters, fields, types, or constants during reverse engineering work, apply these conventions consistently:
-
-| Identifier kind | Convention | Example |
-|---|---|---|
-| Local variables | `camelCase` | `itemCount`, `saveBuffer` |
-| Global variables | `camelCase` | `gameState`, `playerStats` |
-| Function parameters | `camelCase` | `charIndex`, `saveFilePath` |
-| Classes and types | `CapitalCase` (PascalCase) | `SaveGameHeader`, `ItemRecord` |
-| Structure fields | `snake_case` | `save_version`, `char_name` |
-| Enum constants | `COBRA_CASE` (SCREAMING_SNAKE) | `SAVE_SLOT_EMPTY`, `ITEM_TYPE_WEAPON` |
-
-Apply these conventions in:
-- Decompiled pseudocode variable and parameter names produced by `decompile-function` or `execute-script`
-- Symbol rename suggestions from `rename-function`, `rename-variable`, `rename-data-label`
-- Structure and field names in `create-structure` / `edit-structure` tool calls
-- Enum members defined via `create-enum` / `edit-enum`
-- Documentation, comments, and analysis summaries that reference named symbols
-
-When a name is ambiguous or cannot be inferred, prefer the convention that matches the identifier category above rather than leaving it in a raw mangled/numbered form (e.g., prefer `slotIndex` over `local_8` for a loop counter).
-
-## Planning and Documentation Diagram Policy
-
-- Every new or updated planning/design document must include at least one Mermaid diagram.
-- The diagram should appear near the top (after objective/scope) and provide a high-level flow.
-- Keep diagrams synchronized with the written steps when plans evolve.
-- Prefer simple `flowchart TD` diagrams for execution plans and phase sequencing.
-- If a document has multiple phases/modules, include one top-level diagram plus optional focused diagrams.
+Keep changes narrow and preserve user-owned state. Naming conventions are
+centralized in AGENTS.md; tool naming and parameter contracts are in USAGE.md.
+Optional multi-agent artifact notes remain advisory under the
+[RE artifact protocol](instructions/re-artifact-protocol.instructions.md).
+Use diagrams when they explain a relationship; do not create duplicate policy.

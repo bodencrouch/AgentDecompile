@@ -1,0 +1,9 @@
+[package]
+name = "gnsdk-sys"
+version = "0.1.0"
+edition = "2021"
+links = "gnsdk"
+build = "build.rs"
+
+[build-dependencies]
+bindgen = "0.72"

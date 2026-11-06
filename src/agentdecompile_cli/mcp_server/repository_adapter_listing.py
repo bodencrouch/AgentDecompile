@@ -25,7 +25,10 @@ def repository_adapter_folder_candidates(folder_path: str) -> list[str]:
     """Folder strings to try for ``getItem`` / ``getItemList`` / ``checkout`` (root aliasing)."""
     fp = (folder_path or "/").strip() or "/"
     out: list[str] = []
-    for c in (fp, "/", "", "."):
+    # RepositoryAdapter accepts both slash-prefixed and relative folder names
+    # depending on whether it was obtained before or after a shared-project
+    # link.  Try the exact spelling first, then its relative equivalent.
+    for c in (fp, fp.lstrip("/"), "/", "", "."):
         if c not in out:
             out.append(c)
     return out

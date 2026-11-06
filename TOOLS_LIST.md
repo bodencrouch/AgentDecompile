@@ -1,10 +1,16 @@
-# Exhaustive AgentDecompile Tools Reference (Python MCP Implementation)
+# AgentDecompile tools reference
 
-This document provides an exhaustive, consolidated reference for all canonical tools implemented in the Python MCP (from `src/agentdecompile_cli/registry.py`), including all aliases and synonyms. Each tool is documented once under its canonical name, with aliases/synonyms forwarding to the primary entry (no logic duplication). Parameter normalization handles casing and separators (e.g., `programPath` = `program_path` = `programPath`). Overloads are documented explicitly per canonical tool. Descriptions are detailed, expert-crafted paragraphs explaining the tool's purpose, behavior, and use cases. All parameters are fully documented, including types where specified. Synonyms for parameters are listed exhaustively. Each tool includes an examples section with practical usage scenarios.
+Canonical tools from `src/agentdecompile_cli/registry.py`: **77** tools, **73** advertised by default, **4** GUI-only.
 
-**Legacy naming policy**: only the default curated advertised tool names are considered primary. Any other tool name in this document (including non-default canonical names and synonyms) is a legacy compatibility name. Legacy names remain callable, and can be re-advertised by setting `AGENTDECOMPILE_SHOW_LEGACY_TOOLS=1` or `AGENTDECOMPILE_ENABLE_LEGACY_TOOLS=1`.
+Install and start: [README.md](README.md). Day-to-day CLI: [USAGE.md](USAGE.md). Hub: [docs/INDEX.md](docs/INDEX.md).
 
-**GUI vs Headless**: `programPath` (and synonyms) is optional in GUI mode (uses active program) but required in headless for program-scoped tools.
+Each tool is documented once under its kebab-case name. Aliases forward to that entry. Parameter names accept `programPath`, `program_path`, and `program-path`.
+
+**Legacy names** stay callable. Re-advertise them with `AGENTDECOMPILE_SHOW_LEGACY_TOOLS=1` or `AGENTDECOMPILE_ENABLE_LEGACY_TOOLS=1`.
+
+**GUI vs headless:** `programPath` is optional in GUI (active program) and required in headless for program-scoped tools.
+
+Do not hand-edit **Canonical Tool Docs** below. Refresh overloads with `helper_scripts/generate_tools_list.py`. Reorder headings with `helper_scripts/reorder_tools_list_canonical.py`.
 
 ## Server Configuration
 
@@ -37,6 +43,9 @@ AGENT_DECOMPILE_PROJECT_PATH=/my/projects/analysis mcp-agentdecompile
   - [Server Configuration](#server-configuration)
     - [Local project](#local-project)
   - [Table of Contents](#table-of-contents)
+  - [Control workspace recovery](#control-workspace-recovery)
+    - [`read-workspace-activity`](#read-workspace-activity)
+    - [`manage-workflow`](#manage-workflow)
   - [Canonical Tool Docs](#canonical-tool-docs)
     - [`analyze-data-flow`](#analyze-data-flow)
     - [`analyze-program`](#analyze-program)
@@ -51,6 +60,8 @@ AGENT_DECOMPILE_PROJECT_PATH=/my/projects/analysis mcp-agentdecompile
     - [`delete-project-binary`](#delete-project-binary)
     - [`sync-project`](#sync-project)
     - [`export`](#export)
+    - [`export-context`](#export-context)
+    - [`acquisition-query`](#acquisition-query)
     - [`gen-callgraph`](#gen-callgraph)
     - [`get-call-graph`](#get-call-graph)
     - [`remove-program-binary`](#remove-program-binary)
@@ -88,6 +99,10 @@ AGENT_DECOMPILE_PROJECT_PATH=/my/projects/analysis mcp-agentdecompile
     - [`open`](#open)
     - [`read-bytes`](#read-bytes)
     - [`resolve-modification-conflict`](#resolve-modification-conflict)
+    - [`run-decomp-match`](#run-decomp-match)
+    - [`bsim-createdatabase`](#bsim-createdatabase)
+    - [`bsim-ingest`](#bsim-ingest)
+    - [`bsim-report`](#bsim-report)
     - [`search-code`](#search-code)
     - [`search-constants`](#search-constants)
     - [`search-everything`](#search-everything)
@@ -161,6 +176,39 @@ AGENT_DECOMPILE_PROJECT_PATH=/my/projects/analysis mcp-agentdecompile
       - [GOT/PLT Overwrite](#gotplt-overwrite)
       - [Shellcode Injection](#shellcode-injection)
     - [Practical Workflow](#practical-workflow)
+
+## Control workspace recovery
+
+These tools share scheduling and evidence state with the static and Vite workbenches. They use the server's configured corpus workspace. Neither requires an open Ghidra program.
+
+### `read-workspace-activity`
+
+Read activity, measured progress, ETA basis, proof references, and durable preparation IDs. Optional `locator` and `slug` scope function detail; workspace project and binary rollups remain visible. The response contains `entities`, `revision`, and `preparations`. This Tier 0 tool does not admit work.
+
+```bash
+agentdecompile-cli --mcp-server-url http://127.0.0.1:8080/mcp tool read-workspace-activity '{}'
+```
+
+### `manage-workflow`
+
+Source archives use this same shared workflow surface. `operation=export-source` accepts a registered `slug` and optional exact `locator`/`program`, returning the source export job. `operation=export-status` accepts its `jobId` and returns status, output, and the completed ZIP receipt. These operations require the workflow mutation tier because export admission can invoke the native toolchain and write artifacts. Source archive completion does not establish compilation or byte verification.
+
+Control the same automatic workflow used after dashboard imports. This Tier 3 tool can schedule analysis and mutations; a lower analysis ceiling rejects it before admission. Preparation reuses valid analysis and receipts. A new workflow has a 24-hour execution budget. Routine transitions and supported fallbacks happen in the backend.
+
+| Operation | Additional parameters | Result |
+|---|---|---|
+| `snapshot` | Optional `locator`, `slug` | Same state as `read-workspace-activity` |
+| `prepare` | `locator` or registered binary `slug` | Admit missing work or return the existing admission |
+| `pause` | `preparationId` | Pause between stages; accepted native work drains |
+| `resume` | `preparationId` | Continue the recorded workflow within its budget |
+| `stop` | `preparationId` | Stop scheduling further stages |
+| `budget` | `preparationId`, `seconds: null` or `unlimited: true`; optional finite integer `seconds` from 1 to 604800 | Default is no wall-time limit. A finite allowance starts from now and does not predict completion. Per-function attempt limits remain in effect. |
+
+```bash
+agentdecompile-cli --mcp-server-url http://127.0.0.1:8080/mcp tool manage-workflow '{"operation":"prepare","locator":"/path/to/Analysis.gpr"}'
+```
+
+Use the returned preparation `id` for controls. Names also accept snake_case; `preparation_id` and `preparationId` address the same parameter. A completed operation is not byte verification. Inspect the recorded proof receipt separately.
 
 ## Canonical Tool Docs
 
@@ -249,7 +297,7 @@ AGENT_DECOMPILE_PROJECT_PATH=/my/projects/analysis mcp-agentdecompile
 - `maxEntries` (integer, optional): Maximum vtable entries to analyze (default: 200).
   - Synonyms: `maxEntries`, `maxe`.
 - `maxResults` (integer, optional): Maximum results for `callers` or `containing` (default: 100).
-  - Synonyms: `analysisMode`, `vtable`, `function`, `max_entries`, `max_results`, `maxr`.
+  - Synonyms: `maxResults`, `maxr`.
 **Overloads**:
 - `analyze-vtable(programPath, vtableAddress, maxEntries)` → forwards to `analyze-vtables`.
 - `find-vtable-callers(programPath, functionAddress, vtableAddress, maxResults)` → forwards to `analyze-vtables`.
@@ -286,7 +334,7 @@ AGENT_DECOMPILE_PROJECT_PATH=/my/projects/analysis mcp-agentdecompile
 - `dataTypeString` (string, required): String representation of the data type (e.g., "uint8_t[256]").
   - Synonyms: `dataTypeString`, `datats`.
 - `archiveName` (string, optional): Name of the data type archive to use.
-  - Synonyms: `address`, `symbol`, `dataType`, `type`, `archive`, `archiveName`, `archiven`.
+  - Synonyms: `archive`, `archiveName`, `archiven`.
 **Overloads**:
 - `apply-data-type(programPath, addressOrSymbol, dataTypeString, archiveName)` → forwards to `apply-data-type`.
 
@@ -351,9 +399,9 @@ AGENT_DECOMPILE_PROJECT_PATH=/my/projects/analysis mcp-agentdecompile
 - `programPath` (string, optional): Path to the program in the project.
   - Synonyms: `programPath`, `programp`, `program`, `path`, `binaryPath`, `filePath`, `targetProgram`.
 - `comment` (string, optional): Check-in comment describing changes.
-  - Synonyms: `comment`
+  - Synonyms: `comment`, `message`
 - `keepCheckedOut` (boolean, optional): Keep the program checked out after commit (default: false).
-  - Synonyms: `path`, `message`, `keepOpen`, `keepCheckedOut`, `keepco`.
+  - Synonyms: `keepOpen`, `keepCheckedOut`, `keepco`.
 **Overloads**:
 - `checkin-program(programPath, message, keepCheckedOut)` → forwards to `checkin-program`.
 
@@ -433,7 +481,7 @@ AGENT_DECOMPILE_PROJECT_PATH=/my/projects/analysis mcp-agentdecompile
 - `includeIncomingReferences` (boolean, optional): Include references (default: true).
   - Synonyms: `includeIncomingReferences`, `includeir`.
 - `includeReferenceContext` (boolean, optional): Include context snippets (default: true).
-  - Synonyms: `function`, `identifier`, `startLine`, `lineCount`, `comments`, `refs`, `context`, `includeReferenceContext`
+  - Synonyms: `refs`, `context`, `includeReferenceContext`
 - `includeDisassembly` (boolean, optional): Include disassembly alongside decompilation (default: false).
   - Synonyms: `includeDisassembly`, `includedisasm`.
 - `includeCallers` (boolean, optional): Include caller context (default: false).
@@ -463,7 +511,7 @@ AGENT_DECOMPILE_PROJECT_PATH=/my/projects/analysis mcp-agentdecompile
 - `programPath` (string, required): Path to the binary to delete.
   - Synonyms: `programPath`, `programp`, `program`, `path`, `binaryPath`, `filePath`, `targetProgram`, `binary_name`
 - `confirm` (boolean, optional): Confirm deletion (default: false).
-  - Synonyms: `binaryPath`, `force`, `confirm`
+  - Synonyms: `force`, `confirm`
 **Overloads**:
 - `delete_project_binary(binary_name)` → forwards to `delete-project-binary`.
 
@@ -508,7 +556,7 @@ AGENT_DECOMPILE_PROJECT_PATH=/my/projects/analysis mcp-agentdecompile
 - `programPath` (string, optional): Program path (optional in GUI mode if active program is set).
   - Synonyms: `programPath`, `program`, `path`, `binaryPath`, `filePath`, `targetProgram`.
 - `outputPath` (string, required): Output file path.
-  - Synonyms: `outputPath`, `output`, `file`, `path`.
+  - Synonyms: `outputPath`, `output`, `file`.
 - `format` (string, optional): Export format (`gzf`, `c`, `cpp`, `cxx`, `sarif`, `xml`, `html`, `ascii`; default: `cpp`).
   - Synonyms: `format`, `exportType`.
 - `createHeader` (boolean, optional): Emit header output for C/C++ export when supported (default: true).
@@ -535,6 +583,68 @@ AGENT_DECOMPILE_PROJECT_PATH=/my/projects/analysis mcp-agentdecompile
 - **`ghidra.app.util.exporter.Exporter`** — [Javadoc](https://ghidra.re/ghidra_docs/api/ghidra/app/util/exporter/Exporter)
 - **`ghidra.app.util.exporter.GzfExporter`** — [Javadoc](https://ghidra.re/ghidra_docs/api/ghidra/app/util/exporter/GzfExporter)
 - **`ghidra.app.util.exporter.CppExporter`** — [Javadoc](https://ghidra.re/ghidra_docs/api/ghidra/app/util/exporter/CppExporter)
+
+### `export-context`
+
+**Description**: Dismantles an app, installer, archive, or binary tree into navigable context files (`manifest.json`, `tree.json`, `TREE.md`, `LLM_CONTEXT.*`, `extracted/`). Tier 0 — does **not** require an open Ghidra program. Output is **advisory layout context** only (claim boundary in the response): not recovered source and not objdiff proof. Prefer conservative `maxFiles` for large installers.
+
+**Parameters**:
+- `inputPath` (string, required): File or folder to export (binary, archive, installer, or app tree).
+  - Synonyms: `inputPath`, `input_path`, `input-path`, `path`, `source`, `target`.
+- `outDir` (string, required): Output directory for manifest, tree, and per-file surrogates.
+  - Synonyms: `outDir`, `out_dir`, `out-dir`, `output`, `outputDir`, `output_dir`.
+- `format` (string, optional): Per-file surrogate format (`json`, `md`; default `json`).
+  - Synonyms: `format`.
+- `binaryAnalysis` (string, optional): Binary analysis depth (`light`, `standard`, `deep`; default `light` on MCP).
+  - Synonyms: `binaryAnalysis`, `binary_analysis`, `binary-analysis`, `analysis`.
+- `extractContainers` (boolean, optional): Recursively extract archives/installers with 7z when available (default true).
+  - Synonyms: `extractContainers`, `extract_containers`, `extract-containers`.
+- `includeLowSignalMembers` (boolean, optional): Also export low-signal members such as cursor/icon resources (default false).
+  - Synonyms: `includeLowSignalMembers`, `include_low_signal_members`, `include-low-signal-members`.
+- `maxFiles` (integer, optional): Maximum files to visit (default 250 on MCP).
+  - Synonyms: `maxFiles`, `max_files`, `max-files`, `limit`.
+- `maxDepth` (integer, optional): Maximum recursive container extraction depth (default 3).
+  - Synonyms: `maxDepth`, `max_depth`, `max-depth`, `depth`.
+
+**Overloads**:
+- `export-context(inputPath, outDir, format, binaryAnalysis, extractContainers, includeLowSignalMembers, maxFiles, maxDepth)` canonical signature.
+
+**Synonyms**: `export-context`, `export_context`, `exportContext`
+
+**Examples**:
+- Light tree export: `export-context inputPath="./app" outDir="./target/context-export" binaryAnalysis="light" maxFiles=250`.
+
+**Notes**:
+- Distinct from `export` (Ghidra program exporters). Use this for package/installer/layout trees before or without opening a program.
+- See [VISION.md](VISION.md) and [STRATEGY.md](STRATEGY.md) — substrate context, not matching recovery.
+
+### `acquisition-query`
+
+**Description**: Read-only query against a registered or explicit acquisition bundle (`inspect`, `search-everything`, `get-function`, `get-global`, `get-type`, `get-xrefs`). Returns address-keyed **advisory** evidence and conflicts. Tier 0 — does **not** require an open Ghidra program. Not verification: compile and objdiff gates remain required for verified claims.
+
+**Parameters**:
+- `bundleDir` (string, optional): Explicit acquisition-bundle directory. Omit to resolve the latest registered bundle.
+  - Synonyms: `bundleDir`, `bundle_dir`, `bundle-dir`, `bundle`, `path`.
+- `action` (string, optional): Query action (`inspect`, `search-everything`, `get-function`, `get-global`, `get-type`, `get-xrefs`; default `inspect`).
+  - Synonyms: `action`, `op`, `operation`, `mode`.
+- `query` (string, optional): Optional text query for search/get actions.
+  - Synonyms: `query`, `q`, `search`, `text`.
+- `address` (string, optional): Optional address (decimal or `0x`-hex) to filter entities.
+  - Synonyms: `address`, `addr`, `addressOrSymbol`.
+- `limit` (integer, optional): Maximum results (default 25).
+  - Synonyms: `limit`, `maxCount`, `count`.
+
+**Overloads**:
+- `acquisition-query(bundleDir, action, query, address, limit)` canonical signature.
+
+**Synonyms**: `acquisition-query`, `acquisition_query`, `acquisitionQuery`
+
+**Examples**:
+- Inspect latest bundle: `acquisition-query action="inspect"`.
+- Search a bundle: `acquisition-query bundleDir="./target/acquisition" action="search-everything" query="SaveGame" limit=25`.
+
+**Notes**:
+- Advisory evidence only — do not promote results into `verified/` without compile+objdiff honesty.
 
 ### `gen-callgraph`
 
@@ -571,7 +681,7 @@ AGENT_DECOMPILE_PROJECT_PATH=/my/projects/analysis mcp-agentdecompile
 - `includeCallContext` (boolean, optional): Include call-site context (default: true).
   - Synonyms: `includeCallContext`, `includecc`.
 - `functionAddresses` (string, optional): Comma-separated addresses for `common_callers`.
-  - Synonyms: `function`, `analysisMode`, `level`, `dir`, `max_depth`, `offset`, `limit`, `context`, `functions`, `functionAddresses`
+  - Synonyms: `functionAddresses`, `functions`.
 **Overloads**:
 - `find-common-callers(programPath, functionAddresses)` → forwards to `get-call-graph`.
 - `get-call-graph(programPath, functionAddress, depth)` → forwards to `get-call-graph`.
@@ -651,7 +761,7 @@ AGENT_DECOMPILE_PROJECT_PATH=/my/projects/analysis mcp-agentdecompile
 - `addressOrSymbol` (string, required): Target address or symbol.
   - Synonyms: `addressOrSymbol`, `addressos`, `address`, `symbol`, `target`, `nameOrAddress`, `addrOrSym`.
 - `view` (string, optional): Data view (`hex`, `ascii`, `structured`, default: hex).
-  - Synonyms: `address`, `symbol`, `format`, `view`
+  - Synonyms: `view`, `format`
 **Overloads**:
 - `get-data(programPath, addressOrSymbol)` → forwards to `get-data`.
 
@@ -696,7 +806,7 @@ AGENT_DECOMPILE_PROJECT_PATH=/my/projects/analysis mcp-agentdecompile
 - `programPath` (string or array, optional): Source program path(s).
   - Synonyms: `programPath`, `programp`, `program`, `path`, `binaryPath`, `filePath`, `targetProgram`.
 - `identifier` (string or array, optional): Function identifier(s) (omit for all).
-  - Synonyms: `identifier`, `overrideMaxFunctionsLimit`, `address`.
+  - Synonyms: `identifier`, `address`.
 - `view` (string, optional): View (`decompile`, `disassemble`, `info`, `calls`, default: decompile).
   - Synonyms: `view`
 - `offset` (integer, optional): Decompile line start (1-based, default: 1).
@@ -704,15 +814,15 @@ AGENT_DECOMPILE_PROJECT_PATH=/my/projects/analysis mcp-agentdecompile
 - `limit` (integer, optional): Decompile line count (default: 50).
   - Synonyms: `limit`, `maxResults`, `maxCount`, `count`, `size`, `max`, `take`, `cap`, `pageSize`.
 - `includeCallers` (boolean, optional): Include callers (default: false).
-  - Synonyms: `includeCallers`, `includec`.
+  - Synonyms: `includeCallers`.
 - `includeCallees` (boolean, optional): Include callees (default: false).
-  - Synonyms: `includeCallees`, `includec`.
+  - Synonyms: `includeCallees`.
 - `includeComments` (boolean, optional): Include comments (default: false).
-  - Synonyms: `includeComments`, `includec`.
+  - Synonyms: `includeComments`.
 - `includeIncomingReferences` (boolean, optional): Include incoming references (default: true).
   - Synonyms: `includeIncomingReferences`, `includeir`.
 - `includeReferenceContext` (boolean, optional): Include context (default: true).
-  - Synonyms: `identifiers`, `functionIdentifier`, `mode`, `startIndex`, `maxLines`, `callers`, `callees`, `comments`, `refs`, `context`, `includeReferenceContext`
+  - Synonyms: `includeReferenceContext`, `context`.
 - `filterDefaultNames` (boolean, optional): Filter out default-named functions (default: false).
   - Synonyms: `filterDefaultNames`, `filterdn`.
 - `filterByTag` (string, optional): Filter functions by tag.
@@ -757,7 +867,7 @@ AGENT_DECOMPILE_PROJECT_PATH=/my/projects/analysis mcp-agentdecompile
 - `includeRefContext` (boolean, optional): Include context (default: true).
   - Synonyms: `includeRefContext`, `includerc`, `includeContext`.
 - `includeDataRefs` (boolean, optional): Include data refs (default: true).
-  - Synonyms: `addressOrSymbol`, `type`, `dir`, `start`, `count`, `max`, `library`, `index`, `max_refs`, `context`, `dataRefs`, `includeDataRefs`, `includeData`.
+  - Synonyms: `includeDataRefs`, `dataRefs`, `includeData`.
 - `contextLines` (integer, optional): Number of context lines to include (default: 3).
   - Synonyms: `contextLines`, `contextSize`.
 - `importName` (string, optional): Import function name to find references for.
@@ -790,7 +900,7 @@ AGENT_DECOMPILE_PROJECT_PATH=/my/projects/analysis mcp-agentdecompile
   - Synonyms: `recursive`
 - `maxDepth` (integer, optional): Recursion depth (default: unlimited).
   - Synonyms: `maxDepth`, `maxd`, `depth`, `level`, `treeDepth`, `maxLevel`, `depthLimit`.
-- `analyzeAfterImport` (boolean, optional): Run analysis post-import (default: true).
+- `analyzeAfterImport` (boolean, optional): Legacy hint for headless/shared import paths (default: true). Local `open` / `import-binary` always run incremental Ghidra analysis when needed; other program-scoped tools block until analysis completes.
   - Synonyms: `analyzeAfterImport`, `analyzeai`.
 - `stripLeadingPath` (boolean, optional): Strip leading paths (default: false).
   - Synonyms: `stripLeadingPath`, `striplp`.
@@ -799,7 +909,7 @@ AGENT_DECOMPILE_PROJECT_PATH=/my/projects/analysis mcp-agentdecompile
 - `mirrorFs` (boolean, optional): Mirror filesystem structure (default: false).
   - Synonyms: `mirrorFs`, `mirrorf`.
 - `enableVersionControl` (boolean, optional): Request import into shared-project version control (default: false). Local-only imports cannot satisfy this request and fail explicitly.
-  - Synonyms: `filePath`, `destFolder`, `recurse`, `depth`, `autoAnalyze`, `stripPath`, `stripContainer`, `mirror`, `versioning`, `enableVersionControl`
+  - Synonyms: `versioning`, `enableVersionControl`
 **Overloads**:
 - `import_binary(binary_path)` → forwards to `import-binary`.
 - `import-file(path, destinationFolder, recursive, maxDepth, analyzeAfterImport, stripLeadingPath, stripAllContainerPath, mirrorFs, enableVersionControl)` → forwards to `import-binary`.
@@ -819,7 +929,7 @@ AGENT_DECOMPILE_PROJECT_PATH=/my/projects/analysis mcp-agentdecompile
 - `programPath` (string, optional): Path to the program in the project.
   - Synonyms: `programPath`, `programp`, `program`, `path`, `binaryPath`, `filePath`, `targetProgram`.
 - `mode` (string, required): Inspection mode (`bytes`, `disasm`, `data`).
-  - Synonyms: `mode`, `analysisMode`, `action`, `view`, `operation`, `type`, `kind`, `strategy`, `behaviorMode`, `format`.
+  - Synonyms: `mode`, `analysisMode`, `action`, `view`, `operation`, `type`, `kind`, `strategy`, `behaviorMode`.
 - `address` (string, required): Starting address.
   - Synonyms: `address`, `addr`, `startAddress`, `targetAddress`, `location`, `offsetAddress`, `addressValue`, `memAddress`, `va`, `addressOrSymbol`, `symbol`, `target`, `nameOrAddress`, `addrOrSym`.
 - `length` (integer, optional): Bytes to inspect (default: 256).
@@ -827,12 +937,12 @@ AGENT_DECOMPILE_PROJECT_PATH=/my/projects/analysis mcp-agentdecompile
 - `offset` (integer, optional): Result offset.
   - Synonyms: `offset`, `startIndex`, `start`, `index`, `from`, `skip`, `cursor`, `begin`, `position`.
 - `limit` (integer, optional): Max results.
-  - Synonyms: `view`, `start`, `size`, `startIndex`, `max`, `limit`, `maxResults`, `maxCount`, `count`, `take`, `cap`.
+  - Synonyms: `limit`, `maxResults`, `maxCount`, `count`, `take`, `cap`.
 **Overloads**:
 - `list_data_items(offset, limit)` → forwards to `inspect-memory`.
 - `list_segments(offset, limit)` → forwards to `inspect-memory`.
 - `get-memory-blocks(programPath)` → forwards to `inspect-memory`.
-- `read-memory(programPath, addressOrSymbol, length, format)` → forwards to `inspect-memory`.
+- `read-memory(programPath, addressOrSymbol, length)` → forwards to `inspect-memory`.
 
 **Synonyms**: `inspect-memory`, `tool_inspect_memory`, `inspect_memory_tool`, `cmd_inspect_memory`, `run_inspect_memory`, `do_inspect_memory`, `api_inspect_memory`, `mcp_inspect_memory`, `ghidra_inspect_memory`, `agentdecompile_inspect_memory`, `inspect_memory_command`, `inspect_memory_action`, `inspect_memory_op`, `inspect_memory_task`, `execute_inspect_memory`, `list_segments`, `list_data_items`, `get-memory-blocks`, `read-memory`
 
@@ -896,7 +1006,7 @@ AGENT_DECOMPILE_PROJECT_PATH=/my/projects/analysis mcp-agentdecompile
 - `verbose` (boolean, optional): Include details (default: false).
   - Synonyms: `verbose`
 - `identifiers` (array, optional): Specific IDs.
-  - Synonyms: `filter`, `pattern`, `minRefs`, `index`, `max`, `start`, `count`, `defaults`, `tag`, `noTags`, `tagged`, `details`.
+  - Synonyms: `identifiers`, `functions`.
 **Overloads**:
 - `list_functions()` → forwards to `list-functions`.
 - `list_methods(offset, limit)` → forwards to `list-functions`.
@@ -1277,7 +1387,7 @@ AGENT_DECOMPILE_PROJECT_PATH=/my/projects/analysis mcp-agentdecompile
 - `maxFunctions` (integer, optional): Max functions.
   - Synonyms: `maxFunctions`, `maxf`.
 - `batchSize` (integer, optional): Batch size.
-  - Synonyms: `sourcePath`, `function`, `targets`, `maxInstr`, `simThreshold`, `propNames`, `propTags`, `propComms`, `defaults`, `tag`, `maxFuncs`, `batch`.
+  - Synonyms: `batch`.
 **Overloads**:
 - `match-function(programPath, functionIdentifier, targetProgramPaths, maxInstructions, minSimilarity, propagateNames, propagateTags, propagateComments, filterDefaultNames, filterByTag, maxFunctions, batchSize)` canonical signature.
 
@@ -1286,6 +1396,42 @@ AGENT_DECOMPILE_PROJECT_PATH=/my/projects/analysis mcp-agentdecompile
 
 **Examples**:
 - Match function: `match-function programPath="/bin1.exe" functionIdentifier="main" targetProgramPaths=["/bin2.exe"] minSimilarity=0.9 propagateNames=true`.
+
+**Bytecode matching:** For decompilation projects requiring instruction-level object match, use **`run-decomp-match`** with `tool=objdiff` instead. `match-function` does not compare bytes or object code.
+
+### `run-decomp-match`
+
+**Description**: Tier 1 decomp matching facade — invokes external **m2c** (assembly→C), **objdiff-cli** (bytecode/object match verification), or **decomp-permuter** when installed on PATH. Does **not** require Ghidra or an open MCP session program. Success criterion for decomp workflows is **objdiff match %** (see [TWW decompiling guide](https://github.com/zeldaret/tww/blob/main/docs/decompiling.md)). For **shared/versioned Ghidra Server** projects, use Ghidra MCP (Tier 2–3) only for checkout, struct export, and check-in — not for every verify loop.
+
+**Parameters**:
+- `tool` (string, optional): `m2c`, `objdiff`, `permuter`, or `all` (bundle).
+- `tools` (array, optional): Explicit bundle list.
+- `assemblyPath` (string, optional): `.s` assembly file for m2c.
+- `functionName` (string, optional): m2c `-f` filter.
+- `target` (string, optional): m2c `--target` (e.g. `ppc-mwcc-c++`).
+- `contextPath` (string, optional): m2c `--context` header.
+- `projectPath` (string, optional): Decomp project root (`objdiff.json`) for objdiff report/diff.
+- `unitName` (string, optional): objdiff translation unit filter.
+- `targetObjectPath` / `baseObjectPath` (string, optional): Direct `.o` paths for objdiff diff mode.
+- `symbol` (string, optional): Function symbol for objdiff diff.
+- `objdiffMode` (string, optional): `report` (default) or `diff`.
+- `permuterDir` (string, optional): Permuter input directory.
+- `permuterScript` (string, optional): Path to `permuter.py`.
+- `jobs` (integer, optional): Permuter `-j` workers.
+- `extraArgs` (array, optional): Extra CLI args for m2c/permuter.
+- `outputLimit` (integer, optional): Max output lines (default 200).
+- `timeout` (integer, optional): Timeout ms (default 120000).
+
+**Overloads**:
+- `run-decomp-match(tool, assemblyPath, projectPath, permuterDir, ...)` canonical signature.
+
+**Synonyms**: `run-decomp-match`, `run_decomp_match`, `decomp-match`, `decompmatch`
+
+**Examples**:
+- Verify TU match: `run-decomp-match tool=objdiff projectPath="/decomp" unitName="d_a_wall"`.
+- m2c switch helper: `run-decomp-match tool=m2c assemblyPath="func.s" target="ppc-mwcc-c++" functionName="getAnswer"`.
+- Permute near-match: `run-decomp-match tool=permuter permuterDir="/perm/input" jobs=4`.
+
 ### `migrate-metadata`
 
 **Description**: Auto-generated stub; see `src/agentdecompile_cli/registry.py` and the MCP implementation for full behavior.
@@ -1312,18 +1458,22 @@ AGENT_DECOMPILE_PROJECT_PATH=/my/projects/analysis mcp-agentdecompile
 
 ### `execute-script`
 
-**Description**: Auto-generated placeholder section from `agentdecompile_cli/registry.py`.
+**Description**: Execute Python code inside the Ghidra server process. Ghidra globals include `currentProgram`, `flatApi`, and `monitor`. Assign `__result__` to return a value; stdout and stderr are captured until execution completes.
 
 **Parameters**:
-- None.
+- `code` (string, required): Python expression or statements to execute.
+- `programPath` (string, optional): Program to provide as `currentProgram`.
+- `timeout` (integer, optional): Compatibility parameter; **not enforced** for in-process scripts. It cannot terminate Python or Ghidra work. Bound individual operations inside the script.
+
+Client wait limits do not guarantee server cancellation. See [script execution and time budgets](USAGE.md#script-execution-and-time-budgets) before running a batch.
 
 **Overloads**:
-- `execute-script()` canonical signature.
+- `execute-script(code, programPath?, timeout?)` canonical signature.
 
 **Synonyms**: `execute-script`
 
 **Examples**:
-- `execute-script`
+- `execute-script --code 'print(currentProgram.getName())' --program_path /myapp`
 
 ### `open-all-programs-in-code-browser`
 
@@ -1366,7 +1516,7 @@ AGENT_DECOMPILE_PROJECT_PATH=/my/projects/analysis mcp-agentdecompile
 - `extensions` (string, optional): See MCP schema / `registry.py` TOOL_PARAMS.
 - `openAllPrograms` (string, optional): See MCP schema / `registry.py` TOOL_PARAMS.
 - `destinationFolder` (string, optional): See MCP schema / `registry.py` TOOL_PARAMS.
-- `analyzeAfterImport` (string, optional): See MCP schema / `registry.py` TOOL_PARAMS.
+- `analyzeAfterImport` (string, optional): See MCP schema / `registry.py` TOOL_PARAMS. Server always runs incremental analysis on `open` / `import-binary` when Ghidra reports it is needed; program-scoped tools wait on the analysis gate until complete.
 - `enableVersionControl` (string, optional): See MCP schema / `registry.py` TOOL_PARAMS.
 - `serverUsername` (string, optional): See MCP schema / `registry.py` TOOL_PARAMS.
 - `serverPassword` (string, optional): See MCP schema / `registry.py` TOOL_PARAMS.
@@ -1462,7 +1612,7 @@ AGENT_DECOMPILE_PROJECT_PATH=/my/projects/analysis mcp-agentdecompile
 - `includeSmallValues` (boolean, optional): Include small in common (default: false).
   - Synonyms: `includeSmallValues`, `includesv`.
 - `topN` (integer, optional): Top N in common (default: 50).
-  - Synonyms: `action`, `val`, `min`, `max`, `limit`, `smallVals`, `top`, `topN`
+  - Synonyms: `topN`, `top`
 **Overloads**:
 - `find-constant-uses(programPath, value, maxResults)` → forwards to `search-constants`.
 - `find-constants-in-range(programPath, minValue, maxValue, maxResults)` → forwards to `search-constants`.
@@ -1577,12 +1727,71 @@ AGENT_DECOMPILE_PROJECT_PATH=/my/projects/analysis mcp-agentdecompile
 - `dataType` (string, optional): Type suggestion.
   - Synonyms: `dataType`, `datat`.
 - `variableAddress` (string, optional): Var address.
-  - Synonyms: `type`, `addr`, `func`, `dt`, `varAddr`, `variableAddress`, `variablea`.
+  - Synonyms: `varAddr`, `variableAddress`, `variablea`.
 **Overloads**:
 - `suggest(programPath, suggestionType, address, function, dataType, variableAddress)` canonical signature.
 
 **Examples**:
 - Suggest name: `suggest programPath="/bin.exe" suggestionType="name" address="0x401000"`.
+
+### `bsim-createdatabase`
+
+**Description**: Create a Ghidra BSim database in a PostgreSQL datadir or `file:` store by wrapping `support/bsim createdatabase`. Starting `BSimControlLaunchable` only runs PostgreSQL — this command is what actually creates the BSim schema. Distinguishing “server is up” from “database exists” is the point of issue 169.
+
+**Parameters**:
+- `bsimUrl` (string, optional): `postgresql://host[:port]/dbname` or `file:/dir/dbname`.
+- `datadir` (string, optional): BSimControl PostgreSQL data directory; used to derive a URL when `bsimUrl` is omitted.
+- `name` (string, optional): Database name when deriving the URL (default `bsim`).
+- `template` (string, optional): `large_32` | `medium_32` | `medium_64` | `medium_cpool` | `medium_nosize`.
+- `owner` (string, optional): BSim database owner metadata.
+- `description` (string, optional): BSim database description.
+
+**Overloads**:
+- `bsim-createdatabase(bsimUrl, datadir, name, template, owner, description)` canonical signature.
+
+**Synonyms**: `bsim-createdatabase`, `bsim_createdatabase`, `create-bsim-database`
+
+**Examples**:
+- `bsim-createdatabase datadir="/data/bsim_datadir" name="odyssey" template="medium_nosize"`.
+
+### `bsim-ingest`
+
+**Description**: Ingest every program in a Ghidra project or shared repository: generate signatures and commit them to a BSim database (`bsim generatesigs … --bsim`). Per-program progress is returned. Already-committed programs are skipped unless `force` is set, so a 24-program run that fails partway can resume.
+
+**Parameters**:
+- `repository` (string, required): Shared-fs folder, `.gpr`, or `ghidra://` repository.
+- `bsimUrl` (string, optional): Target BSim URL.
+- `datadir` (string, optional): BSimControl data directory (URL + receipt default).
+- `name` (string, optional): Database name when deriving the URL.
+- `ghidraUrl` (string, optional): `ghidra://host/repo` prefix; program names are appended.
+- `programs` (array, optional): Limit ingest to these program names.
+- `receipt` (string, optional): JSON receipt path (default `<datadir or repo>/agentdecompile-bsim-ingest.json`).
+- `force` (boolean, optional): Re-ingest programs already in the database or receipt.
+
+**Overloads**:
+- `bsim-ingest(repository, bsimUrl, datadir, name, ghidraUrl, programs, receipt, force)` canonical signature.
+
+**Synonyms**: `bsim-ingest`, `bsim_ingest`, `ingest-bsim`, `bsim-commit-repo`
+
+**Examples**:
+- `bsim-ingest repository="/data/repos/_odyssey" datadir="/data/bsim_datadir" name="odyssey"`.
+
+### `bsim-report`
+
+**Description**: Report what a BSim datadir or database holds. Distinguishes **datadir has no BSim database** (initdb templates only, or `createdatabase` never ran), **database exists but is empty**, and **database holds N executables** (names and architectures). Does not infer corpus presence from PostgreSQL OID folder sizes.
+
+**Parameters**:
+- `datadir` (string, optional): BSimControl PostgreSQL data directory.
+- `bsimUrl` (string, optional): Database URL to query with `getmetadata` / `getexecount` / `listexes`.
+- `name` (string, optional): Database name when deriving the URL.
+
+**Overloads**:
+- `bsim-report(datadir, bsimUrl, name)` canonical signature.
+
+**Synonyms**: `bsim-report`, `bsim_report`, `list-bsim`, `bsim-status`
+
+**Examples**:
+- `bsim-report datadir="/data/bsim_datadir"`.
 
 ## Usage Tips
 
@@ -2276,5 +2485,3 @@ Calculate jump address to shellcode
 
 **Examples**:
 - `checkout-status`
-
-

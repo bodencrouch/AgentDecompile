@@ -16,13 +16,15 @@ import logging
 import os
 import re
 import socket
+import sys
 import threading
 import time
 
 from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING, Any
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.responses import RedirectResponse
 from mcp.server import Server, Server as MCPServer
 from mcp.server.streamable_http_manager import StreamableHTTPSessionManager
 from pydantic import BaseModel
@@ -41,20 +43,18 @@ from agentdecompile_cli.mcp_server.session_context import (
     CURRENT_MCP_SESSION_ID,
     CURRENT_REQUEST_AUTO_MATCH_PROPAGATE,
     CURRENT_REQUEST_AUTO_MATCH_TARGET_PATHS,
+    CURRENT_REQUEST_MAX_ANALYSIS_TIER,
     CURRENT_REQUEST_PROJECT_PATH_OVERRIDE,
     SESSION_CONTEXTS,
 )
 from agentdecompile_cli.mcp_server.tool_providers import UnifiedToolProviderManager
 from agentdecompile_cli.mcp_utils.debug_logger import DebugLogger
+from agentdecompile_cli.mcp_utils.tool_reference import (
+    build_initialize_instructions,
+    build_tool_reference_payload,
+)
 from agentdecompile_cli.registry import (
-    ADVERTISED_TOOLS,
-    TOOLS,
-    TOOL_ALIASES,
     Tool,
-    get_active_tool_surface_profile,
-    get_tool_metadata,
-    get_tool_params,
-    get_tool_profiles,
 )
 
 if TYPE_CHECKING:
@@ -77,123 +77,6 @@ def _safe_list(value: Any) -> list[Any]:
     """Ensure value is a list for JSON/response building; return empty list if not."""
     logger.debug("diag.enter %s", "mcp_server/server.py:_safe_list")
     return value if isinstance(value, list) else []
-
-
-def _build_tool_alias_index() -> dict[str, list[str]]:
-    """Build canonical tool name → sorted list of alias names for the /tool-reference payload."""
-    logger.debug("diag.enter %s", "mcp_server/server.py:_build_tool_alias_index")
-    alias_index: dict[str, list[str]] = {canonical: [] for canonical in TOOLS}
-    for alias_name, canonical_name in TOOL_ALIASES.items():
-        if canonical_name not in alias_index:
-            alias_index[canonical_name] = []
-        if alias_name != canonical_name:
-            alias_index[canonical_name].append(alias_name)
-    for canonical_name, aliases in alias_index.items():
-        alias_index[canonical_name] = sorted(set(aliases))
-    return alias_index
-
-
-def _build_tool_reference_payload() -> dict[str, Any]:
-    logger.debug("diag.enter %s", "mcp_server/server.py:_build_tool_reference_payload")
-    alias_index = _build_tool_alias_index()
-    canonical_tools: list[dict[str, Any]] = []
-    for canonical_name in sorted(TOOLS):
-        params = [str(param) for param in get_tool_params(canonical_name)]
-        metadata = get_tool_metadata(canonical_name)
-        canonical_tools.append(
-            {
-                "name": canonical_name,
-                "advertised": canonical_name in ADVERTISED_TOOLS,
-                "parameters": params,
-                "aliases": alias_index.get(canonical_name, []),
-                "profiles": get_tool_profiles(canonical_name),
-                "metadata": {
-                    "context_rich": bool(metadata.context_rich) if metadata is not None else False,
-                    "single_purpose": bool(metadata.single_purpose) if metadata is not None else False,
-                    "writes_state": bool(metadata.writes_state) if metadata is not None else False,
-                    "legacy": bool(metadata.legacy) if metadata is not None else False,
-                    "replacement": list(metadata.replacement) if metadata is not None else [],
-                },
-            },
-        )
-
-    profile_counts = {
-        "curated": sum("curated" in item["profiles"] for item in canonical_tools),
-        "full": sum("full" in item["profiles"] for item in canonical_tools),
-        "legacy": sum("legacy" in item["profiles"] for item in canonical_tools),
-    }
-
-    return {
-        "summary": {
-            "canonical_tool_count": len(TOOLS),
-            "advertised_tool_count": len(ADVERTISED_TOOLS),
-            "alias_count": sum(len(item["aliases"]) for item in canonical_tools),
-            "active_tool_surface_profile": get_active_tool_surface_profile(),
-            "profile_counts": profile_counts,
-        },
-        "transport": {
-            "canonical_endpoint": "/mcp",
-            "compatibility_endpoint": "/mcp/message",
-            "notes": [
-                "Use /mcp as the canonical MCP streamable-HTTP route.",
-                "Use /mcp/message only for compatibility with clients that hardcode that path.",
-                "Standalone CLI calls are session-isolated; use tool-seq to keep state in one session.",
-            ],
-        },
-        "shared_server_headers": {
-            "authorization": "Basic <base64(username:password)>",
-            "x-ghidra-server-host": "Shared Ghidra server host",
-            "x-ghidra-server-port": "Shared Ghidra server port (usually 13100)",
-            "x-ghidra-repository": "Shared repository name",
-            "x-agent-server-username": "Optional username alias header",
-            "x-agent-server-password": "Optional password alias header",
-            "x-agent-server-repository": "Optional repository alias header",
-        },
-        "shared_server_http_mapping": {
-            "request_url": {
-                "env": "AGENT_DECOMPILE_MCP_SERVER_URL",
-                "usage": "Request URL itself, typically http://host:port/mcp",
-            },
-            "env_to_headers": {
-                "AGENT_DECOMPILE_GHIDRA_SERVER_HOST": ["X-Ghidra-Server-Host"],
-                "AGENT_DECOMPILE_GHIDRA_SERVER_PORT": ["X-Ghidra-Server-Port"],
-                "AGENT_DECOMPILE_GHIDRA_SERVER_REPOSITORY": ["X-Ghidra-Repository", "X-Agent-Server-Repository"],
-                "AGENT_DECOMPILE_GHIDRA_SERVER_USERNAME": ["Authorization", "X-Agent-Server-Username"],
-                "AGENT_DECOMPILE_GHIDRA_SERVER_PASSWORD": ["Authorization", "X-Agent-Server-Password"],
-            },
-            "transport_headers": {
-                "content-type": "application/json",
-                "accept": "application/json, text/event-stream",
-                "mcp-session-id": "Send on follow-up requests after the server returns it",
-            },
-            "precedence": {
-                "credentials": ["Authorization", "X-Agent-Server-Username/X-Agent-Server-Password"],
-                "repository": ["X-Ghidra-Repository", "X-Agent-Server-Repository"],
-            },
-        },
-        "environment_variables": {
-            "shared_server": [
-                "AGENT_DECOMPILE_GHIDRA_SERVER_HOST",
-                "AGENT_DECOMPILE_GHIDRA_SERVER_PORT",
-                "AGENT_DECOMPILE_GHIDRA_SERVER_USERNAME",
-                "AGENT_DECOMPILE_GHIDRA_SERVER_PASSWORD",
-                "AGENT_DECOMPILE_GHIDRA_SERVER_REPOSITORY",
-            ],
-            "local_project": [
-                "AGENT_DECOMPILE_PROJECT_PATH",
-                "AGENT_DECOMPILE_PROJECT_NAME",
-            ],
-            "tool_advertisement": [
-                "AGENTDECOMPILE_TOOL_SURFACE",
-                "AGENT_DECOMPILE_TOOL_SURFACE",
-                "AGENTDECOMPILE_ENABLE_TOOLS",
-                "AGENTDECOMPILE_DISABLE_TOOLS",
-                "AGENTDECOMPILE_ENABLE_LEGACY_TOOLS",
-                "AGENTDECOMPILE_SHOW_LEGACY_TOOLS",
-            ],
-        },
-        "canonical_tools": canonical_tools,
-    }
 
 
 def _mcp_post_openapi_extra() -> dict[str, Any]:
@@ -223,6 +106,7 @@ def _mcp_post_openapi_extra() -> dict[str, Any]:
                                     "resources/list",
                                     "resources/read",
                                     "prompts/list",
+                                    "prompts/get",
                                 ],
                             },
                             "params": {"type": "object", "additionalProperties": True},
@@ -451,7 +335,6 @@ def _auth_context_from_scope_headers(
         repository=repository or None,
     )
 
-
 class ServerConfig(BaseModel):
     """Configuration for the MCP server."""
 
@@ -508,6 +391,7 @@ class PythonMcpServer:
         self._running: bool = False
         self._shutdown_event: threading.Event = threading.Event()
         self._server_thread: threading.Thread | None = None
+        self._uvicorn_server: Any | None = None
         self._session_manager = StreamableHTTPSessionManager(
             app=self.mcp_server,
             json_response=True,
@@ -521,7 +405,11 @@ class PythonMcpServer:
     def _create_mcp_server(self) -> MCPServer:
         """Create the MCP server instance."""
         logger.debug("diag.enter %s", "mcp_server/server.py:PythonMcpServer._create_mcp_server")
-        server = Server(name=self.config.name, version=self.config.version)
+        server = Server(
+            name=self.config.name,
+            version=self.config.version,
+            instructions=build_initialize_instructions(),
+        )
 
         @server.list_tools()
         async def list_tools() -> list[types.Tool]:
@@ -536,8 +424,10 @@ class PythonMcpServer:
             (any case/separator variant accepted) before dispatch.  The MCP SDK's
             jsonschema validation would reject valid aliased params.
             """
+            # No rendering default here: `format` belongs to tools such as get-data,
+            # export and inspect-memory (format->mode), and the manager already
+            # renders markdown unless responseFormat=json.
             call_args: dict[str, Any] = dict(arguments or {})
-            call_args.setdefault("format", "markdown")
             # Don't pass the server's program_info here.  server.set_program_info()
             # already cascades to the manager at startup.  Passing a stale copy on
             # every call would revert updates made by tools (e.g. checkout from a
@@ -591,6 +481,17 @@ class PythonMcpServer:
             """List all available MCP prompts."""
             return prompt_providers.list_prompts()
 
+        @server.get_prompt()
+        async def get_prompt(name: str, arguments: dict[str, str] | None) -> types.GetPromptResult:
+            """Render an MCP prompt with session-aware substitution."""
+            from agentdecompile_cli.mcp_server.session_context import get_current_mcp_session_id
+
+            return prompt_providers.get_prompt(
+                name,
+                dict(arguments or {}),
+                session_id=get_current_mcp_session_id(),
+            )
+
         return server
 
     # Paths that the MCP session handler should serve.
@@ -635,13 +536,21 @@ class PythonMcpServer:
 
         @self.app.get("/health", tags=["meta"])
         async def health_check() -> dict[str, Any]:
-            """Health check endpoint."""
+            """Health check endpoint with in-process source update observations."""
+            runtime: dict[str, Any] = {
+                "pid": os.getpid(),
+                "revision": os.environ.get("AGENT_DECOMPILE_RUNTIME_REVISION", ""),
+            }
+            reloader = sys.modules.get("inplace_hotreload")
+            runtime["reload"] = reloader.status() if reloader else {"enabled": False}
             return {
                 "status": "healthy" if self._running else "starting",
                 "server": self.config.name,
                 "version": self.config.version,
                 "programs": (1 if self.program_info and self.program_info.program else 0),
                 "sessions": SESSION_CONTEXTS.stats(),
+                "runtime": runtime,
+                "reloadPolicy": "Compatible Python updates retain the running process; rejected edits never trigger a restart.",
             }
 
         @self.app.get("/.well-known/oauth-authorization-server", tags=["meta"], include_in_schema=False)
@@ -655,9 +564,15 @@ class PythonMcpServer:
                 "scopes_supported": [],
             }
 
-        @self.app.get("/", tags=["meta"])
-        async def api_info() -> dict[str, Any]:
-            """API index — links to interactive documentation and transport endpoints."""
+        @self.app.get("/", tags=["meta"], response_model=None)
+        async def api_info(request: Request) -> dict[str, Any] | RedirectResponse:
+            """API index — browsers with corpus env go straight to the workbench."""
+            accept = (request.headers.get("accept") or "").lower()
+            if "text/html" in accept and (
+                os.environ.get("AGENT_DECOMPILE_CORPUS_DB")
+                or os.environ.get("AGENT_DECOMPILE_CORPUS_WORK_DIR")
+            ):
+                return RedirectResponse("/dashboard", status_code=302)
             return {
                 "server": self.config.name,
                 "version": self.config.version,
@@ -672,6 +587,13 @@ class PythonMcpServer:
                     "protocol": "Model Context Protocol (MCP) — JSON-RPC 2.0 over HTTP",
                 },
                 "health": "/health",
+                "pages": {
+                    "app": "/app",
+                    "dashboard": "/dashboard",
+                    "atlas": "/atlas",
+                    "report": "/report",
+                    "note": "Dashboard, Atlas, and Report share this HTTP server. They are not separate ports.",
+                },
             }
 
         @self.app.get("/api/reference", tags=["reference"])
@@ -695,6 +617,7 @@ class PythonMcpServer:
                         "resources/list",
                         "resources/read",
                         "prompts/list",
+                        "prompts/get",
                     ],
                 },
                 "auth_and_shared_project": {
@@ -734,7 +657,7 @@ class PythonMcpServer:
         @self.app.get("/api/tool-reference", tags=["reference"])
         async def tool_reference() -> dict[str, Any]:
             """List canonical tools, advertised subset, parameters, and aliases."""
-            return _build_tool_reference_payload()
+            return build_tool_reference_payload()
 
         @self.app.get("/api/usage-examples", tags=["reference"])
         async def usage_examples() -> dict[str, Any]:
@@ -755,6 +678,10 @@ class PythonMcpServer:
         async def legacy_api_info() -> dict[str, Any]:
             """Backward-compatible alias for the API index."""
             return await api_info()
+
+        from agentdecompile_recovery.unified_pages import mount_unified_pages
+
+        mount_unified_pages(self.app)
 
         logger.debug("diag.enter %s", "mcp_server/server.py:PythonMcpServer._setup_routes")
         for method in ("GET", "POST", "DELETE"):
@@ -801,6 +728,7 @@ class PythonMcpServer:
             project_path_override: str | None = None
             auto_match_propagate: str | None = None
             auto_match_target_paths: str | None = None
+            max_analysis_tier: str | None = None
             request_scheme: str = "http"
             if scope.get("type") == "http":
                 request_scheme = scope.get("scheme", "http")
@@ -821,6 +749,8 @@ class PythonMcpServer:
                         auto_match_propagate = value_b.decode("latin1").strip() or None
                     elif header_name == "x-agentdecompile-auto-match-target-paths":
                         auto_match_target_paths = value_b.decode("latin1").strip() or None
+                    elif header_name == "x-agentdecompile-max-analysis-tier":
+                        max_analysis_tier = value_b.decode("latin1").strip() or None
                 client_info: tuple[int, int] | None = scope.get("client")
                 if client_info:
                     remote_addr = str(client_info[0]) if isinstance(client_info, (list, tuple)) else ""
@@ -845,12 +775,15 @@ class PythonMcpServer:
             project_path_token: Token[str | None] | None = None
             auto_match_propagate_token: Token[str | None] | None = None
             auto_match_target_paths_token: Token[str | None] | None = None
+            max_analysis_tier_token: Token[str | None] | None = None
             if project_path_override:
                 project_path_token = CURRENT_REQUEST_PROJECT_PATH_OVERRIDE.set(project_path_override)
             if auto_match_propagate is not None:
                 auto_match_propagate_token = CURRENT_REQUEST_AUTO_MATCH_PROPAGATE.set(auto_match_propagate)
             if auto_match_target_paths is not None:
                 auto_match_target_paths_token = CURRENT_REQUEST_AUTO_MATCH_TARGET_PATHS.set(auto_match_target_paths)
+            if max_analysis_tier is not None:
+                max_analysis_tier_token = CURRENT_REQUEST_MAX_ANALYSIS_TIER.set(max_analysis_tier)
 
             # Inject mcp-session-id in response so CLI can persist and resend it (two-command session persistence)
             session_id_for_response: str = session_id
@@ -888,6 +821,8 @@ class PythonMcpServer:
                     CURRENT_REQUEST_AUTO_MATCH_PROPAGATE.reset(auto_match_propagate_token)
                 if auto_match_target_paths_token is not None:
                     CURRENT_REQUEST_AUTO_MATCH_TARGET_PATHS.reset(auto_match_target_paths_token)
+                if max_analysis_tier_token is not None:
+                    CURRENT_REQUEST_MAX_ANALYSIS_TIER.reset(max_analysis_tier_token)
                 if auth_token is not None:
                     CURRENT_AUTH_CONTEXT.reset(auth_token)
 
@@ -910,8 +845,6 @@ class PythonMcpServer:
 
         # Optionally wrap with auth (experimental, off by default).
         mcp_app: Callable[[dict[str, Any], Any, Any], Awaitable[None]] = _mcp_asgi
-        if self.auth_config is not None:
-            mcp_app = AuthMiddleware(_mcp_asgi, self.auth_config)
 
         # Wrap the entire FastAPI app with an outer middleware that
         # intercepts MCP paths before Starlette's router sees them.
@@ -981,8 +914,8 @@ class PythonMcpServer:
                         return
                 await inner_app(scope, receive, send)
 
-        # Replace self.app so uvicorn serves the middleware-wrapped version.
-        self.app = _MCPRoutingMiddleware()  # type: ignore[assignment]
+        routing = _MCPRoutingMiddleware()
+        self.app = AuthMiddleware(routing, self.auth_config) if self.auth_config is not None else routing  # type: ignore[assignment]
 
     def set_project_manager(
         self,
@@ -1100,6 +1033,10 @@ class PythonMcpServer:
         logger.debug("diag.enter %s", "mcp_server/server.py:PythonMcpServer._is_port_available")
         try:
             with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+                if os.name != "nt":
+                    # Match asyncio/uvicorn's POSIX bind behavior: recently
+                    # closed HTTP connections must not prevent a restart.
+                    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
                 sock.bind((host, int(port)))
                 return True
         except OSError:
@@ -1121,6 +1058,19 @@ class PythonMcpServer:
             uvicorn_kwargs["ssl_keyfile"] = self.config.tls_keyfile
         config = uvicorn.Config(**uvicorn_kwargs)
         server = uvicorn.Server(config)
+        self._uvicorn_server = server
+
+        from agentdecompile_recovery.corpus.dashboard.server_control import register_server_hooks
+
+        def _shutdown_http() -> None:
+            server.should_exit = True
+
+        def _restart_http() -> None:
+            from agentdecompile_recovery.corpus.dashboard.server_control import spawn_restart_then_shutdown
+
+            spawn_restart_then_shutdown()
+
+        register_server_hooks(shutdown=_shutdown_http, restart=_restart_http)
 
         try:
             # Run server until shutdown
@@ -1176,15 +1126,18 @@ class PythonMcpServer:
         self._cleanup_provider(self.resource_providers, "Resource providers")
 
         # Stop the server thread
-        if self._server_thread is not None and self._server_thread.is_alive():
-            # For uvicorn, we need to send shutdown signal
-            try:
-                import os
-                import signal
+        if self._uvicorn_server is not None:
+            self._uvicorn_server.should_exit = True
 
-                os.kill(os.getpid(), signal.SIGTERM)
-            except Exception:
-                pass
+        if self._server_thread is not None and self._server_thread.is_alive():
+            if self._uvicorn_server is None:
+                try:
+                    import os
+                    import signal
+
+                    os.kill(os.getpid(), signal.SIGTERM)
+                except Exception:
+                    pass
 
             self._server_thread.join(timeout=5.0)
 

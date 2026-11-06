@@ -5982,6 +5982,41 @@ def _run_embedded_cli(
         raise SystemExit(int(entrypoint(forwarded, **kwargs) or 0))
 
 
+@main.command(
+    "recover",
+    context_settings={"ignore_unknown_options": True, "allow_extra_args": True, "token_normalize_func": _identity_cli_token},
+    add_help_option=False,
+    help="Run the integrated staged recovery CLI. Pass subcommand args directly, for example `agentdecompile-cli recover inspect <path>`.",
+)
+@click.argument("args", nargs=-1, type=click.UNPROCESSED)
+def recover_passthrough_cmd(args: tuple[str, ...]) -> None:
+    from agentdecompile_recovery.cli import main as recovery_main
+
+    _run_embedded_cli(recovery_main, args)
+
+
+@main.command(
+    "reconstruct",
+    context_settings={"ignore_unknown_options": True, "allow_extra_args": True, "token_normalize_func": _identity_cli_token},
+    add_help_option=False,
+    help="Run the integrated reconstruction front door. Pass arguments directly, for example `agentdecompile-cli reconstruct <binary>` or `agentdecompile-cli reconstruct self-check`.",
+)
+@click.argument("args", nargs=-1, type=click.UNPROCESSED)
+def reconstruct_passthrough_cmd(args: tuple[str, ...]) -> None:
+    from agentdecompile_recovery.frontdoor import main as reconstruct_main
+
+    _run_embedded_cli(reconstruct_main, args)
+
+
+# ---------------------------------------------------------------------------
+# Entry (click group is invoked directly)
+# ---------------------------------------------------------------------------
+
+if __name__ == "__main__":
+    _ensure_dynamic_commands_registered()
+    main()
+
+
 # Register dynamic commands for normal CLI invocation paths as well
 # (important for subcommand resolution before main() callback runs).
 _ensure_dynamic_commands_registered()

@@ -1022,6 +1022,8 @@ class ToolProvider:
                     if norm_args.get(target) is None:
                         norm_args[target] = value
 
+        # Freeze the resolved target before a handler can yield or open another program.
+        response_program_info = effective_program_info if norm_args.get("programpath") else None
         try:
             handler_params = inspect.signature(handler).parameters
             accepts_program_info = "program_info" in handler_params or any(

@@ -134,6 +134,7 @@ async def test_call_scoped_program_survives_two_program_interleaving(
         # The gate is now passed as a closure to asyncio.to_thread. Its first
         # invocation belongs to A; pause that dispatch while B completes.
         if not a_waiting.is_set():
+
             a_waiting.set()
             await release_a.wait()
 

@@ -7,10 +7,11 @@ iteration order, resumability, and the receipts.
 
 Receipts: one JSON file per (pass, binary) under ``receipts_dir/<pass>/``.
 The file name and the ``key`` inside it come from the raw image's own
-sha256 when the image exists, and from the slug when it does not. Nothing
-in a receipt is clock-derived. With ``resume=True`` a valid completed
-receipt is not rewritten; an explicit fresh run may change its status from
-``updated`` to ``unchanged``.
+sha256 when the image exists, and from the slug when it does not. No receipt
+field is clock-derived; with unchanged inputs and state, the derived content
+is deterministic. With ``resume=True`` a valid completed receipt is not
+rewritten; an explicit fresh run may change its status from ``updated`` to
+``unchanged``.
 
 A receipt records the pair's ``status``. Resume trusts a receipt only when
 that status is ``updated`` or ``unchanged`` *and* the row still satisfies

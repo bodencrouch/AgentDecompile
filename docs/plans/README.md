@@ -18,6 +18,7 @@ Update these when the work they name changes:
 |---|---|
 | [September 18–21 design scope](2026-09-27-weekend-design-scope.md) | Governing baseline index: full weekend designs, plans, brainstorms, diagrams and named units; later packages refine rather than replace it |
 | [Weekend program progress and usable live track](2026-09-27-implementation-progress-and-live-track.md) | Current progress/todo ledger for that full baseline and later adopted work; useful RE/cross-matching runs alongside implementation |
+| [Weekend unit delivery ledger](2026-09-27-weekend-unit-delivery.json) | 193 source-qualified D/U records with original definitions/acceptance spans, explicit withdrawals/absorptions and separate source/test/installed/live evidence; initial delivery states are unverified |
 | [September 21 portable-signatures/codecaves plan](2026-09-21-portable-signatures-codecaves-generic-plan.md) | Full Phases 0–15 and D/U unit baseline; historical completion marks need current requalification |
 | [September 21 distributed-compute design](2026-09-21-distributed-compute-design.md) | Required reusable compute/state foundation and adapters; scale follows a qualified local lane |
 | [Session obligation audit](2026-09-22-session-obligation-audit.md) | Active goal: direct user directives, 110 contract/acceptance items, priorities and completion evidence |
@@ -28,6 +29,7 @@ Update these when the work they name changes:
 | [2026-09-08-0156-feat-recovery-pipeline-ladder-plan.md](./2026-09-08-0156-feat-recovery-pipeline-ladder-plan.md) | Historical ladder with current reconciliation; active package linked above |
 | [2026-09-08-0225-feat-portable-signatures-phasor-export-plan.md](./2026-09-08-0225-feat-portable-signatures-phasor-export-plan.md) | Portable signatures + Phasor hook-pack export |
 | [2026-07-24-perf-recovery-one-shot-living-plan.md](./2026-07-24-perf-recovery-one-shot-living-plan.md) | Historical G14–G16 fixes; cold-host wall-time acceptance measurement remains open |
+| [2026-09-08-2330-feat-ghidra-native-sdk-plan.md](./2026-09-08-2330-feat-ghidra-native-sdk-plan.md) | Native Ghidra SDK: export savefiles once, replay without a JVM (WP0–WP11 in progress) |
 
 The 2026-08-30 corpus living plan is historical. Do not rewrite its deltas.
 

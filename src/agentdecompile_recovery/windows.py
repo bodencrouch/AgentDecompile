@@ -737,7 +737,8 @@ def coverage_next_action(
             "reason": "not all effective recoverable function candidates have packaged source candidates",
             "unresolvedMissingPlanCandidates": unresolved_missing,
             "suggestedCommand": [
-                "agentdecompile-recover",
+                "agentdecompile-cli",
+                "recover",
                 "recover-windows",
                 str(aggregate.get("input") or "<input>"),
                 "--work-dir",

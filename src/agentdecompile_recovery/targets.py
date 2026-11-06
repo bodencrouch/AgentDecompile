@@ -125,8 +125,8 @@ def identify_binary_snapshot(input_path: Path, binary: Path, data: bytes, *, ret
     )
 
 
-def inspect_magic(path: Path, *, data: bytes | None = None) -> tuple[str, str]:
-    data = (path.read_bytes() if data is None else data)[:0x1000]
+def inspect_magic(path: Path) -> tuple[str, str]:
+    data = path.read_bytes()[:0x1000]
     from agentdecompile_recovery.containers import detect_container
 
     if detect_container(path, head=data[:0x200]):

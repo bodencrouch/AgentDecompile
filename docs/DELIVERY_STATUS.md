@@ -11,13 +11,58 @@ its [implementation plan](plans/2026-09-20-unified-reversing-workstation.md)
 remain the frontend requirements and implementation references within that program.
 Requirements being documented or source code being present is not delivery.
 
+## Match-review frontend and backend — 2026-09-27
+
+Match-review is implemented in source across the workstation, the static
+`/dashboard` window and the full app: token- and selection-bound decisions, a
+pending HTTP 202 response, a two-step confirm before sending a decision, and
+select-all for the current page. Every UI now pages the review queue by match
+ID; the old score-ordered cursor is refused by name instead of being misread.
+
+This is staged, synthetic qualification only, not a mounted-consumer check.
+Backend: 90 tests passed and 3 were skipped (no native `clang`, so the
+compiler-backed consumer half is not qualified). Frontend: 23 tests passed and
+`tsc --noEmit` is clean. The mounted consumer on port 8080 is blocked: no
+process owns 8080 in this session (see the 8080 diagnosis below), so none of
+this was exercised in a browser. The Vite bundle under `static/react/` predates
+this work and is stale; it needs to be rebuilt from current sources before the
+optional Vite app can show any of it. The hand-written `static/workbench-app.js`
+has no behavior tests of its own; only `node --check` (syntax) and the parallel
+TypeScript logic, which `tsc` covers, back it.
+
+Packaging status is separate from this frontend work: the `.18` overlay is in
+qualification (built from the accepted `.16` wheel plus checkpoint fixes; it
+excludes match-review and frontend changes). `.16` remains the accepted wheel.
+
 ## Cross-place and weekend export qualification — 2026-09-27
 
-The [living ledger](plans/2026-09-27-implementation-progress-and-live-track.md#active-source-repair-cross-place-admission)
-records the active cross-place repair: current address-only receipts and direct
-recipient writes do not meet the shared admission/candidate contract. All three
-placement entry paths are included. Source implementation, independent review and
-installed acceptance remain pending; no live propagation was run.
+The subsequent [D3 destination-isolation receipt](verification/2026-09-27-d3-destination-scope.md)
+records accepted `.16`: conflict demotion is scoped to the actual destination
+binary, with an explicit phase0.4 basis revision and retained phase0.3 history.
+Its affected installed selection passed 32 cases and independent final artifact
+review approved. Historical rows were not repaired or rebaselined; universal direct
+mutator basis enforcement and live activation remain open. This quick matching
+correctness prerequisite precedes the larger watch-continuation implementation.
+
+The [living ledger](plans/2026-09-27-implementation-progress-and-live-track.md#accepted-admission-active-implementation-cross-place-continuation)
+records the cross-place repair of address-only receipts and direct recipient
+writes. All three placement entry paths now use the reviewed candidate admission
+source. Repair3 passed 24 affected source cases, and a separate actual native
+negative/replay case passed; earlier attempts and failures remain recorded. The
+`.15` wheel passed **203 installed checks** and independent final artifact review
+approved its bounded scope; the [receipt](verification/2026-09-27-cross-place-admission.md)
+retains exact artifact hashes, earlier attempts and evidence classifications. No live propagation
+was run. Its first constant-leaf provider does not establish general variant/ABI
+compatibility or recipient source acceptance.
+
+Continuous watch remains unfinished: the current process-local 128-key limit has
+no automatic successor/cursor mechanism. Durable failure budgets, bounded epochs
+and uninterrupted output ownership across session-cleared generations are the next
+required increment. `.15` is a bounded safety increment, not completion of this
+workstream. The [weekend unit ledger](plans/2026-09-27-weekend-unit-delivery.json)
+now enumerates all 193 original D/U identifiers. Delivery starts unverified and
+advances only on scoped evidence; D1/D9 have the first partial evidence entries,
+without inheriting historical checkmarks as completion.
 
 The same ledger now records a source-qualified Phase 12 U87–U90 audit: the v1
 exporter and legacy header path are partial prerequisites, while the aggregate v2

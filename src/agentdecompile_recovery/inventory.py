@@ -283,12 +283,7 @@ def supports_binary_format(binary_format: str) -> bool:
 
 
 def build_binary_inventory(target: TargetIdentity, *, analysis_target: dict[str, Any] | None = None) -> dict[str, Any]:
-    data = target.snapshot if target.snapshot is not None else target.binary_path.read_bytes()
-    view = BinaryView(target.binary_path, data)
-    # The inventory digest describes the bytes parsed, never an earlier path read.
-    # Retain the selected analysis format (e.g. extracted NDS CPU images do not
-    # carry a cartridge header), but bind all size/digest fields to this read.
-    target = replace(target, sha256=hashlib.sha256(data).hexdigest(), size=len(data), snapshot=None)
+    view = BinaryView(target.binary_path, target.binary_path.read_bytes())
     if target.format == "pe":
         return pe_inventory(target, view)
     if target.format == "elf":

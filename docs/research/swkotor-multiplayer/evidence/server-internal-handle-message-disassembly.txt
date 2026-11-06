@@ -1,0 +1,54 @@
+Input SHA256: 9c10e0450a6eeca417e036e3cde7474fed1f0a92aab018446d156944dea91435
+Command: objdump -d --start-address=0x4b15d0 --stop-address=0x4b1646 /home/brunner56/agentdecompile-nvme/agentdecompile_projects/extract/raw/K1__k1_win_gog_swkotor.exe
+
+
+/home/brunner56/agentdecompile-nvme/agentdecompile_projects/extract/raw/K1__k1_win_gog_swkotor.exe:     file format pei-i386
+
+
+Disassembly of section .text:
+
+004b15d0 <.text+0xb05d0>:
+  4b15d0:	8b 44 24 10          	mov    0x10(%esp),%eax
+  4b15d4:	85 c0                	test   %eax,%eax
+  4b15d6:	57                   	push   %edi
+  4b15d7:	8b f9                	mov    %ecx,%edi
+  4b15d9:	75 65                	jne    0x4b1640
+  4b15db:	53                   	push   %ebx
+  4b15dc:	8b 5c 24 10          	mov    0x10(%esp),%ebx
+  4b15e0:	80 3b 73             	cmpb   $0x73,(%ebx)
+  4b15e3:	55                   	push   %ebp
+  4b15e4:	8b 6c 24 18          	mov    0x18(%esp),%ebp
+  4b15e8:	56                   	push   %esi
+  4b15e9:	8b 74 24 14          	mov    0x14(%esp),%esi
+  4b15ed:	75 20                	jne    0x4b160f
+  4b15ef:	8b 8f 40 00 01 00    	mov    0x10040(%edi),%ecx
+  4b15f5:	56                   	push   %esi
+  4b15f6:	e8 75 3b 12 00       	call   0x5d5170
+  4b15fb:	83 78 24 01          	cmpl   $0x1,0x24(%eax)
+  4b15ff:	75 0e                	jne    0x4b160f
+  4b1601:	8b 8f 10 00 01 00    	mov    0x10010(%edi),%ecx
+  4b1607:	55                   	push   %ebp
+  4b1608:	53                   	push   %ebx
+  4b1609:	56                   	push   %esi
+  4b160a:	e8 71 6d 07 00       	call   0x528380
+  4b160f:	80 3b 70             	cmpb   $0x70,(%ebx)
+  4b1612:	75 20                	jne    0x4b1634
+  4b1614:	8b 8f 40 00 01 00    	mov    0x10040(%edi),%ecx
+  4b161a:	56                   	push   %esi
+  4b161b:	e8 50 3b 12 00       	call   0x5d5170
+  4b1620:	83 78 1c 01          	cmpl   $0x1,0x1c(%eax)
+  4b1624:	75 0e                	jne    0x4b1634
+  4b1626:	8b 8f 10 00 01 00    	mov    0x10010(%edi),%ecx
+  4b162c:	55                   	push   %ebp
+  4b162d:	53                   	push   %ebx
+  4b162e:	56                   	push   %esi
+  4b162f:	e8 ec 64 07 00       	call   0x527b20
+  4b1634:	5e                   	pop    %esi
+  4b1635:	5d                   	pop    %ebp
+  4b1636:	5b                   	pop    %ebx
+  4b1637:	b8 01 00 00 00       	mov    $0x1,%eax
+  4b163c:	5f                   	pop    %edi
+  4b163d:	c2 10 00             	ret    $0x10
+  4b1640:	33 c0                	xor    %eax,%eax
+  4b1642:	5f                   	pop    %edi
+  4b1643:	c2 10 00             	ret    $0x10

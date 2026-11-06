@@ -150,3 +150,31 @@ def read_report(path: Path, provider: str) -> dict:
     with path.open("rb") as stream:
         raw = stream.read(MAX_REPORT_BYTES + 1)
     return normalize_report(raw, provider)
+
+
+def bind_execution(normalized: dict, execution: dict) -> dict:
+    """Wrap an unchanged normalized report with execution-adapter provenance.
+
+    ``normalized`` is carried as-is. Provenance is verified only when the provider
+    pin is verified at the adapter baseline, the freeze/before/after input identities
+    are equal, the execution completed and its raw report digest is the one that was
+    normalized. Acceptance is never granted here.
+    """
+    provider = normalized.get("provider")
+    pin = execution.get("pin") if isinstance(execution.get("pin"), dict) else {}
+    inputs = execution.get("inputs") if isinstance(execution.get("inputs"), dict) else {}
+    phases = [inputs.get(name) for name in ("freeze", "before", "after")]
+    checks = {"provider_matches": execution.get("provider") == provider,
+              "pin_verified": pin.get("verified") is True and pin.get("commit") == SCHEMA_BASELINES.get(provider),
+              "inputs_unchanged": all(isinstance(p, dict) and p for p in phases) and phases[0] == phases[1] == phases[2],
+              "raw_report_bound": bool(execution.get("raw_report_sha256"))
+                                  and execution.get("raw_report_sha256") == normalized.get("raw_report_sha256"),
+              "execution_completed": execution.get("execution_state") == "completed"}
+    verified = all(checks.values())
+    return {"schema": "agentdecompile.external-validation-binding/v1", "provider": provider,
+            "execution_schema": execution.get("schema"), "execution_state": execution.get("execution_state"),
+            "provider_revision": pin.get("commit") if verified else None,
+            "provenance_verified": verified, "provenance_checks": checks,
+            "proposal_only": True, "recovery_accepted": False, "normalized": normalized,
+            "gaps": ["provider comparison or harness scope only; not whole-image equality",
+                     "independent acceptance and required binary/runtime checks remain outstanding"]}

@@ -131,6 +131,37 @@ New evidence can reduce trusted coverage. Unknown builds can remain absent,
 inlined-only, ambiguous, unsupported, insufficient-evidence or budget-exhausted;
 ingesting a runtime observation alone does not make every entity known or callable.
 
+## M3–M7 findings — 2026-09-27 (read-only, source-only)
+
+These are read-only findings from a separate inventory and assessment pass on
+KotorPhasor, not new implementation, and not a build, test or game run. Full
+packets: `/home/brunner56/agentdecompile-deliverables/2026-09-27-m3m5-inventory/report.md`
+and `/home/brunner56/agentdecompile-deliverables/2026-09-27-m6m7-assessment/report.md`.
+
+- **M3, shared operation IDs: not met.** The in-game console keeps its own
+  request-ID counter; the harness only echoes the client's JSON ID back;
+  `runtime.cpp` hard-codes `kotor.k1.model-scale.v1`; and `kp.model` results
+  carry no operation ID at all. Nothing today ties a console request, a
+  harness reply and a model operation to one shared ID.
+- **M6, host matrix.** Independent sha256 checks against KotorPhasor's
+  `reference_sha256` confirm three builds: K1 Windows GOG, K2 Windows GOG
+  Aspyr, and K2 Windows Steam Aspyr (the last has three contradicting status
+  sources across the address JSON, `builds.inc` and `builds.toml`). K1 and K2
+  Mac are Mach-O and blocked: KotorPhasor has no Mach-O loader, and no macOS
+  host exists to run one. K2 Linux is not registered in `builds.inc` and is
+  refused at load. The only host with a real GPU today is a local Fedora
+  machine (Intel UHD 630, AMD Polaris); the five active Tailnet peers have
+  unverified hardware.
+- **M7, route C measurement.** Of five candidate routes to a whole-game
+  browser build, route C — BoxedWine (Wine plus an x86 emulator compiled to
+  WASM) running the original executable with the KotorPhasor proxy, in
+  Chrome, on the AMD GPU — is the only one that meets all three acceptance
+  conditions, and is recommended for measurement. Nothing has been run yet.
+  The gate: median at least 20 fps, a captured non-black Endar Spire frame,
+  and `lua status` answering through the F12 console in the same session.
+  Passing that gate is not M7 success by itself; input, audio, save/load and
+  sustained play still remain open.
+
 ## Operator workflow
 
 Use the existing 8080 workbench and `GET /api/v1/actions`; inspect the advertised

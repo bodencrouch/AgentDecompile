@@ -165,8 +165,8 @@ def test_place_tree_glob_order_is_directory_order_independent(tmp_path: Path, mo
     src_dir = tmp_path / "src"
     src_dir.mkdir()
     out_root = tmp_path / "out"
-    # Two source files claim the same address; both remain separate unadmitted
-    # proposals in deterministic source order, without recipient replacement.
+    # Two source files claim the same address; the lexicographically first
+    # one must win regardless of how the directory enumerates them.
     (src_dir / "a.c").write_text("/*\n * address: 0x00001000\n */\nint a(void) { return 1; }\n")
     (src_dir / "b.c").write_text("/*\n * address: 0x00001000\n */\nint b(void) { return 2; }\n")
     index = {0x1000: [(2, 0x2000, "dst_prog", "fn")]}
@@ -177,15 +177,9 @@ def test_place_tree_glob_order_is_directory_order_independent(tmp_path: Path, mo
         return iter(sorted(real_glob(self, pattern), reverse=True))
 
     monkeypatch.setattr(Path, "glob", reversed_glob)
-    database = tmp_path / 'fixture.sqlite'; database.write_bytes(b'fixture')
-    monkeypatch.setattr(cross_place, '_db_path', lambda con: database)
-    def unsupported(*args, **kwargs): raise ValueError('unsupported-fixture-provider')
-    monkeypatch.setattr(cross_place.admission, 'physical', unsupported)
-    summary = cross_place.place_tree(src_dir, 1, out_root, con=object())
-    assert summary['placed'] == 0 and summary['proposed'] == 2
-    rows = [json.loads((Path(r['candidate']) / 'manifest.json').read_text()) for r in summary['results']]
-    assert [Path(r['sourcePath']).name for r in rows] == ['a.c', 'b.c']
-    assert not (out_root / 'dst_prog').exists()
+    summary = cross_place.place_tree(src_dir, 1, out_root, con=None)
+    assert summary["placed"] == 1
+    assert "int a(void)" in (out_root / "dst_prog" / "fn_00002000.c").read_text()
 
 
 # --- store.backfill_recovery_family (D9) --------------------------------------
@@ -279,9 +273,20 @@ def test_ensure_binary_columns_tolerates_readonly_but_not_other_errors(tmp_path:
         # none is, so it will BEGIN itself and hit the synthetic error there.
         in_transaction = False
 
+        def __init__(self):
+            self.timeout_assignments = []
+
         def execute(self, sql, *args):
-            if sql.startswith("PRAGMA"):
+            if sql == "PRAGMA table_info(binary)":
                 return iter([(0, "content_sha256"), (1, "recovery_family")])
+            if sql == "PRAGMA busy_timeout":
+                class _TimeoutCur:
+                    def fetchone(self):
+                        return (30000,)
+                return _TimeoutCur()
+            if sql.startswith("PRAGMA busy_timeout="):
+                self.timeout_assignments.append(int(sql.partition("=")[2]))
+                return None
             if sql.startswith("SELECT"):
                 class _Cur:
                     def fetchone(self):
@@ -289,8 +294,10 @@ def test_ensure_binary_columns_tolerates_readonly_but_not_other_errors(tmp_path:
                 return _Cur()
             raise sqlite3.OperationalError("no such table: binary")
 
+    con = _Con()
     with pytest.raises(sqlite3.OperationalError, match="no such table"):
-        store.ensure_binary_columns(_Con())
+        store.ensure_binary_columns(con)
+    assert con.timeout_assignments == [250, 30000]
 
 
 # --- match_store dependency tokens (A3) ---------------------------------------

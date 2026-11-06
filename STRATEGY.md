@@ -2,7 +2,8 @@
 name: AgentDecompile
 last_updated: 2026-09-27
 charter: VISION.md
-active_living_plan: docs/plans/2026-09-27-weekend-design-scope.md
+active_living_plan: docs/plans/2026-09-27-implementation-progress-and-live-track.md
+governing_design_scope: docs/plans/2026-09-27-weekend-design-scope.md
 ---
 
 # AgentDecompile Strategy
@@ -19,6 +20,14 @@ its Phases 0–15 and named units, the [distributed design](docs/plans/2026-09-2
 and the [consolidated product/workstation design](docs/dashboard-design/2026-09-21-consolidated-design-plan.md).
 The September 22 package supplies later contracts and refinements; it is not a
 replacement scope. The 110-item later register does not exhaust the weekend units.
+The [weekend unit delivery ledger](docs/plans/2026-09-27-weekend-unit-delivery.json)
+preserves 193 source-qualified identifiers and their definition/acceptance spans,
+including explicit withdrawals and absorbed aliases. Its initial unverified states
+require current evidence; historical checkmarks do not establish delivery.
+Changes to either this strategy or the living plan must retain traceability to
+that baseline: name the affected original plan units and diagram views, record
+any explicit supersession, and keep remaining requirements visible. A narrower
+implementation slice or newer summary cannot silently redefine completion.
 
 Carry these commitments through delivery:
 
@@ -147,6 +156,12 @@ _Why it serves the approach:_ Cross-match metadata only works if Ghidra state an
 The implemented `corpus.export-hookpack` is advertised through the 8080 catalog. It exports identities, signature strings and per-build instances; it does not prove a ready-to-call adapter. KotorPhasor already loads v1 packs and overlays, admits known builds and can fall back from a stale address hint to a unique executable-region byte scan. Matching hints and instances without expected bytes retain weaker checks. Export site names/build slugs must map to native adapter keys/profiles; raw export is not automatically drop-in.
 
 Runtime reuse is a parallel branch after sufficient identity/ABI evidence, not a mandatory stage after full recovery. Shared corpus → runtime pack and target bindings → supported typed adapter or cave plan → preflight → controlled install/call → independently observed behavior → provenance feedback. KotorPhasor consumes original binaries; it does not replace recovery or turn original bytes into recovered C. Feed names, types, fields and behavioral observations back through the same field-level evidence gates.
+
+### Native decompiler tier (JVM-free replay)
+
+Export a program once from Ghidra as per-function decompiler savefiles with a manifest. Re-decompile those savefiles with Ghidra's own native engine and no JVM. Use that for option sweeps, engine-upgrade regression checks, and consumers that cannot host Java. The export itself still needs one Java decompile per function. Native output is checked against the Java decompile of the same program on the same engine version. A mismatch is a bug, not a tolerance. The priority ladder below is unchanged. This tier feeds step 4 (readable C) and sits at Tier 1 next to `ghidrecomp` in the tiered-re-analysis skill. Living plan: `docs/plans/2026-09-08-2330-feat-ghidra-native-sdk-plan.md`.
+
+_Why it serves the approach:_ Bulk C is the step the corpus repeats most. Decompiling from a saved snapshot lets a worker run without Ghidra and lets an engine change be checked before it touches the corpus.
 
 [Runtime reuse](docs/RUNTIME_REUSE.md) records source pointers, architecture/ABI limits and missing readiness proof. Keep the core generic with target adapters and build profiles: all BioWare corpus builds remain in scope, with future other-game support requiring adapter work. A resolved address is not a universal C-call interface.
 

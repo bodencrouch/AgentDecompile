@@ -7,6 +7,8 @@ in a single MCP tool call. MCP tool name is get-function; this module implements
 """
 
 from __future__ import annotations
+from agentdecompile_cli.mcp_utils.datatype_util import data_type_label
+
 
 import logging
 
@@ -35,7 +37,10 @@ if TYPE_CHECKING:
 
 from mcp import types
 
-from agentdecompile_cli.mcp_server.constants import DEFAULT_TIMEOUT_SECONDS  # pyright: ignore[reportMissingImports]
+from agentdecompile_cli.mcp_server.constants import (  # pyright: ignore[reportMissingImports]
+    DEFAULT_TIMEOUT_SECONDS,
+    MAX_CONFIGURED_TIMEOUT_SECONDS,
+)
 from agentdecompile_cli.mcp_server.providers._collectors import (
     collect_function_comments,
     collect_function_data_flow,
@@ -130,8 +135,12 @@ class GetFunctionAioToolProvider(ToolProvider):
                         },
                         "timeout": {
                             "type": "integer",
-                            "default": 60,
-                            "description": "Maximum seconds for the decompiler before aborting, default 60; omit unless needed.",
+                            "default": DEFAULT_TIMEOUT_SECONDS,
+                            "description": (
+                                f"Maximum seconds for the decompiler before aborting; defaults to {DEFAULT_TIMEOUT_SECONDS} "
+                                "seconds. Set a smaller value to limit the decompilation budget. The default is "
+                                f"configurable with AGENTDECOMPILE_DECOMPILE_TIMEOUT_SECONDS (1-{MAX_CONFIGURED_TIMEOUT_SECONDS})."
+                            ),
                         },
                         "maxInstructions": {
                             "type": "integer",
@@ -664,13 +673,13 @@ class GetFunctionAioToolProvider(ToolProvider):
             "parameters": [
                 {
                     "name": str(p.getName()),
-                    "type": str(p.getDataType()),
+                    "type": data_type_label(p.getDataType()),
                     "ordinal": int(p.getOrdinal()),
                     "storage": str(p.getVariableStorage()) if hasattr(p, "getVariableStorage") else "",
                 }
                 for p in func.getParameters()
             ],
-            "returnType": str(func.getReturnType()),
+            "returnType": data_type_label(func.getReturnType()),
             "callingConvention": str(func.getCallingConventionName() or ""),
             "hasVarArgs": bool(func.hasVarArgs()),
             "hasCustomStorage": bool(func.hasCustomVariableStorage()) if hasattr(func, "hasCustomVariableStorage") else False,
@@ -913,7 +922,7 @@ class GetFunctionAioToolProvider(ToolProvider):
                     "name": str(var.getName()),
                     "offset": int(var.getStackOffset()),
                     "size": int(var.getLength()),
-                    "dataType": str(var.getDataType()),
+                    "dataType": data_type_label(var.getDataType()),
                     "comment": str(var.getComment() or ""),
                     "isParameter": var.getStackOffset() >= 0,  # heuristic: positive offsets = params on many ABIs
                 },

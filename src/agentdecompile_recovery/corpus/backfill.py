@@ -8,8 +8,15 @@ iteration order, resumability, and the receipts.
 Receipts: one JSON file per (pass, binary) under ``receipts_dir/<pass>/``.
 The file name and the ``key`` inside it come from the raw image's own
 sha256 when the image exists, and from the slug when it does not. Nothing
-in a receipt is clock-derived, so a re-run over unchanged inputs writes
-identical bytes -- and with ``resume=True`` does not write at all.
+in a receipt is clock-derived. With ``resume=True`` a valid completed
+receipt is not rewritten; an explicit fresh run may change its status from
+``updated`` to ``unchanged``.
+
+A receipt records the pair's ``status``. Resume trusts a receipt only when
+that status is ``updated`` or ``unchanged`` *and* the row still satisfies
+the pass (:attr:`BackfillPass.satisfied`). A ``skipped`` receipt, a receipt
+without a status, or a row that lost its value since is re-run, so a pair
+skipped for a missing input is retried once the input appears.
 """
 
 from __future__ import annotations
@@ -23,6 +30,17 @@ from dataclasses import dataclass
 from pathlib import Path
 
 PassFn = Callable[[sqlite3.Connection, dict, "bytes | None"], dict]
+#: ``satisfied(row, receipt_result)``: does the stored row still hold what the
+#: receipt says the pass derived? Gates resume.
+SatisfiedFn = Callable[[dict, dict], bool]
+
+#: Receipt statuses that resume may trust (subject to ``satisfied``).
+RESUMABLE_STATUSES = frozenset({"updated", "unchanged"})
+
+
+def _never_satisfied(row: dict, result: dict) -> bool:
+    """Default for a pass that names no check: resume always re-runs it."""
+    return False
 
 
 @dataclass(frozen=True)
@@ -30,6 +48,7 @@ class BackfillPass:
     name: str
     needs_raw_image: bool
     fn: PassFn
+    satisfied: SatisfiedFn = _never_satisfied
 
 
 def _pass_content_sha256(con: sqlite3.Connection, binary_row: dict, raw: bytes | None) -> dict:
@@ -81,9 +100,20 @@ def _pass_analyzer_identity(con: sqlite3.Connection, binary_row: dict, raw: byte
     }
 
 
+def _content_sha256_satisfied(row: dict, result: dict) -> bool:
+    digest = result.get("content_sha256")
+    return bool(digest) and row.get("content_sha256") == digest
+
+
+def _analyzer_identity_satisfied(row: dict, result: dict) -> bool:
+    return all(row.get(c) for c in ("analyzer_version", "processor_spec_hash", "basis_hash"))
+
+
 PASSES: dict[str, BackfillPass] = {
-    "content_sha256": BackfillPass("content_sha256", True, _pass_content_sha256),
-    "analyzer_identity": BackfillPass("analyzer_identity", False, _pass_analyzer_identity),
+    "content_sha256": BackfillPass("content_sha256", True, _pass_content_sha256, _content_sha256_satisfied),
+    "analyzer_identity": BackfillPass(
+        "analyzer_identity", False, _pass_analyzer_identity, _analyzer_identity_satisfied
+    ),
 }
 
 
@@ -127,11 +157,14 @@ def run(
     """Run *passes* over every binary in id order. Returns a summary.
 
     Per (pass, binary): a receipt keyed by the raw image's sha256 (or the
-    slug when there is no image). With ``resume=True`` a pair whose receipt
-    already exists with a matching key is counted as ``resumed`` and not
-    re-run. A missing raw image is ``skipped`` with reason ``no_raw_image``,
-    never an exception. The database write for a pair is committed before
-    its receipt is written, so a receipt always implies a committed row.
+    slug when there is no image). With ``resume=True`` a pair is counted as
+    ``resumed`` and not re-run only when its receipt has a matching key, a
+    status of ``updated`` or ``unchanged``, and the row still satisfies the
+    pass; any other receipt (``skipped``, no status, a row that changed
+    since) is re-run and rewritten. A missing raw image is ``skipped`` with
+    reason ``no_raw_image``, never an exception. The database write for a
+    pair is committed before its receipt is written, so a receipt always
+    implies a committed row.
     """
     unknown = sorted(set(passes) - set(PASSES))
     if unknown:
@@ -158,7 +191,13 @@ def run(
                     existing = json.loads(receipt.read_text(encoding="utf-8"))
                 except (OSError, ValueError):
                     existing = None
-                if isinstance(existing, dict) and existing.get("key") == key:
+                if (
+                    isinstance(existing, dict)
+                    and existing.get("key") == key
+                    and existing.get("status") in RESUMABLE_STATUSES
+                    and isinstance(existing.get("result"), dict)
+                    and step.satisfied(row, existing["result"])
+                ):
                     counts["resumed"] += 1
                     entries.append({"id": binary_id, "slug": slug, "status": "resumed"})
                     continue
@@ -170,13 +209,15 @@ def run(
                 con.commit()
             status = str(result.get("status", "unchanged"))
 
-            # The receipt records what was derived, not whether this run had
-            # to write it: the same inputs always produce the same bytes.
+            # The receipt records both what was derived and this run's status;
+            # resume needs the latter to distinguish completed work from a
+            # skipped attempt whose missing input may now be available.
             body = {
                 "key": key,
                 "binary": {"id": binary_id, "slug": slug, "repo_path": row.get("repo_path")},
                 "raw_image": str(raw_path) if raw is not None else None,
                 "result": {k: v for k, v in result.items() if k != "status"},
+                "status": status,
             }
             receipt.parent.mkdir(parents=True, exist_ok=True)
             receipt.write_bytes(_dump(body))

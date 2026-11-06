@@ -507,6 +507,10 @@ does **not** authorize starting 5174 during a live recovery mission.
 > verification on a temp copy of the store. Every surface assignment in this document
 > is read under the lifted guard: 8080 remains the required surface, 5174 the richer
 > one, and no field exists on only one of them (plan, "Surface ownership").
+> **Scope of this note (2026-09-27):** it records design and planning intent only. It does
+> not change operating rules. [AGENTS.md](../../AGENTS.md) "Recovery operations" still
+> governs live work: no 5174 or 8767 starts, and no filesystem test suites for documentation
+> validation, until AGENTS.md itself is changed.
 
 > Chronology note: `verification/2026-09-11-react-aio-redesign.md` records checks on
 > port 5174 and a final PASS at `8767/react`; the "no 5174 process" guard is

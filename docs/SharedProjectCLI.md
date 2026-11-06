@@ -1,6 +1,6 @@
 # Shared Ghidra project via CLI
 
-Install and first start: [README.md](../README.md). Day-to-day CLI: [USAGE.md](../USAGE.md). Ghidra Server credentials are not MCP HTTP auth: [MCP_CONFIGURATION_SECURITY.md](./MCP_CONFIGURATION_SECURITY.md).
+Install and first start: [README.md](../README.md). Day-to-day CLI: [USAGE.md](../USAGE.md). Ghidra Server credentials become MCP HTTP auth only when `AGENT_DECOMPILE_AUTH_ENABLED` is on: [MCP_CONFIGURATION_SECURITY.md](./MCP_CONFIGURATION_SECURITY.md).
 
 This describes how to use the CLI so that **open** connects to a **shared** Ghidra server repository (not a local project). After that, **list-project-files** shows contents from the shared repo (`source: shared-server-session`), and **import-binary** with `enableVersionControl: true` adds binaries to that repo. All tools (analyze-program, decompile-function, checkout-program, etc.) then operate on the shared session.
 

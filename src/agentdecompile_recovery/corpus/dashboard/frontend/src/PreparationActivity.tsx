@@ -3,7 +3,6 @@ import { API, request, type Data, type SurfaceProps, type Selection, type Notify
 import { usePreparationFeed } from "./preparationFeed";
 import { ErrorLine, PrefDetails, Section } from "./ui";
 import { stageDisplayProgress, stageProgressDetail, stageProgressLabel } from "./preparationProgress";
-import { preparationBudgetText, preparationProviderBudgetText } from "./preparationBudget";
 import "./preparation.css";
 const active = (status: string) => ["queued", "running", "waiting", "cancelling", "disconnected", "resync"].includes(status);
 const statusLabels: Record<string, string> = {
@@ -51,14 +50,10 @@ export function PreparationProgress({ run, selection, notify, error = "", loadin
   const stages: Data[] = run?.stages || [];
   const current = active(run?.status) ? stages.find(stage => stage.status === "running" || stage.status === "waiting" || stage.status === "cancelling") || stages.find(stage => stage.status === "queued") : undefined;
   const recent = run?.events?.at(-1);
-  const retryDecisions = Object.entries(run?.retryDecisions || {}).filter(([, value]) => {
-    const decision = value as Data;
-    return decision && typeof decision === "object" && decision.nextAction !== "dispatch";
-  }).reverse();
   const currentProgress = stageDisplayProgress(current);
   const programCount = Array.isArray(run?.programs) ? run.programs.length : currentProgress.primary?.total || 0;
   const workMeasured = Boolean(currentProgress.secondary);
-  const stale = ["disconnected", "resync"].includes(String(run?.status)) || Boolean(error) || Boolean(lastConnectedAt && now - lastConnectedAt > 10000);
+  const stale = Boolean(error) || Boolean(lastConnectedAt && now - lastConnectedAt > 10000);
   const currentJob = run?.currentJob;
   const startedAt = currentJob?.startedAt || currentJob?.started_at || current?.startedAt;
   const elapsed = startedAt ? Math.max(0, Math.floor((now - Number(startedAt) * 1000) / 1000)) : null;
@@ -92,10 +87,6 @@ export function PreparationProgress({ run, selection, notify, error = "", loadin
       </div>
     ) : null}
     {run && <>
-      <p className="preparation-provider-budget">{preparationProviderBudgetText(run.providerBudget)}{stale ? " · last received observation; current usage unknown" : ""}</p>
-      <p>MCP allowance counts prerequisite, retry and check-in tools/call attempts since allocation. It is separate from action admissions and the execution deadline; it does not count tokens, money or provider-internal work.</p>
-      <p className="preparation-admission-budget">{preparationBudgetText(run.objectiveBudget)}</p>
-      {!compact && <p>Admission allowance counts reserved action attempts, including uncertain or rejected dispatches. It is separate from the execution deadline and does not measure recovered code.{run.objectiveBudget?.accountingScope ? ` Accounting scope: ${String(run.objectiveBudget.accountingScope)}.` : " Accounting scope unknown."}</p>}
       {!compact && <>
         <p className="preparation-scope">{run.program ? `Program · ${run.program}` : `Project-wide · ${run.locator || selection.locator}`}</p>
         <div className="preparation-current">
@@ -140,8 +131,8 @@ export function PreparationProgress({ run, selection, notify, error = "", loadin
       {(run.error || run.reason) && <p className="error">{run.error || run.reason}</p>}
       {recent && <div className="preparation-latest"><time>{new Date(recent.at * 1000).toLocaleTimeString()}</time> <ProgressMessage message={recent.message} /></div>}
       <div className="preparation-footer">
-        {updated && <time dateTime={updated.toISOString()}>Last change {updated.toLocaleTimeString()}{active(run.status) ? ` · ${Math.max(0, Math.floor((now - updated.getTime()) / 1000))}s ago` : ""}</time>}
-        {lastConnectedAt ? <span>Last received {Math.max(0, Math.floor((now - lastConnectedAt) / 1000))}s ago{stale ? " · current state unknown" : ""}</span> : <span>No successful status receipt</span>}
+        {!compact && updated && <time dateTime={updated.toISOString()}>Last change {updated.toLocaleTimeString()}{active(run.status) ? ` · ${Math.max(0, Math.floor((now - updated.getTime()) / 1000))}s ago` : ""}</time>}
+        {!compact && lastConnectedAt ? <span>Last received {Math.max(0, Math.floor((now - lastConnectedAt) / 1000))}s ago</span> : null}
         {!compact && <span>Stage completion is not byte verification.</span>}
         <WorkflowControls run={run} selection={selection} notify={notify} compact={compact}/>
       </div>

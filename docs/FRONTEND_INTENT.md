@@ -138,6 +138,25 @@ September 8 left-hand Functions tree is superseded by the current request to rem
 the duplicate sidebar widget; maintain one coherent Functions surface.
 [D2:41315–41960; C2:11; C3:1,42; VISION §§4–6]
 
+### Status note — match-review (2026-09-27, source-only)
+
+This is source-only: it describes what the code does, not what the mounted
+8080 workbench does. See `docs/DELIVERY_STATUS.md` for the acceptance evidence.
+
+- Select-all is added to the match-review surfaces covered by F11: a checkbox
+  selects every decidable row on the current page, in the workstation, the
+  static `/dashboard` window and the full app.
+- Every decision now carries a token and a selection value; a decision missing
+  either is refused.
+- A successful decision returns HTTP 202. That means the decision is pending,
+  not applied yet. The UI shows an outcome only once the job's terminal result
+  says so.
+- Score-ordered review paging is retired. Every surface pages the review queue
+  by match ID instead. An old score-shaped cursor is refused by name, not
+  silently misread as a match-ID cursor.
+- Deciding one or more rows now opens a confirm step first ("Move ... to
+  verification? This cannot be undone here.") before the decision is sent.
+
 ### 4.3 Draw the work, not a decorative indication of work
 
 The following visual design is a synthesis of the explicit request to show *what*

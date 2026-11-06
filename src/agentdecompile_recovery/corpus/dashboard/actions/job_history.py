@@ -104,7 +104,8 @@ def records() -> dict[str, dict]:
         paths = [p for folder in ('preparations', 'workbench-batches', 'workbench-jobs') for p in (root / folder).glob('*.json') if not p.is_symlink()]
         for path in paths:
             try:
-                stat = path.stat(); signature = (stat.st_mtime_ns, stat.st_size)
+                stat = path.stat()
+                signature = (stat.st_mtime_ns, stat.st_size)
                 cached = _CACHE.get(str(path))
                 if cached is None or cached[0] != signature:
                     data = json.loads(path.read_text(encoding='utf-8'))
@@ -120,9 +121,10 @@ def records() -> dict[str, dict]:
                             data['status'] = 'interrupted'
                             data['finishedAt'] = data.get('finishedAt') or time.time()
                             data['error'] = data.get('error') or 'The owning process stopped before recording completion; retained output is available for reconciliation.'
-                            # Read-side projection only. A delayed owner-death
-                            # observation must never overwrite a newer terminal
-                            # receipt/resource reservation written by JobStore.
+                            try:
+                                write(data)
+                            except OSError:
+                                pass
                     rows = [data] if path.parent.name == 'workbench-jobs' else _legacy(path, data)
                     _CACHE[str(path)] = (signature, rows)
                 else:

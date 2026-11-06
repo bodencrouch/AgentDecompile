@@ -55,6 +55,13 @@ The **110-item September 22 register is a later contract/acceptance register**, 
 an exhaustive count of this whole program. It does not subsume or close the
 weekend plan's D/U units. Preserve their original identifiers and acceptance
 definitions; qualify completion against current source and appropriate evidence.
+The [unit delivery ledger](2026-09-27-weekend-unit-delivery.json) now enumerates
+193 source-qualified identifiers (9 D and 184 U, including 20 suffix variants).
+It retains U0 as withdrawn and U127/U128 as absorbed, leaving 190 required records.
+These are requirement dispositions, not implementation counts. All initial delivery
+states are unverified pending per-unit current evidence; missing numeric IDs are
+not invented requirements. Source hashes and complete definition/acceptance spans
+preserve the original basis, including shared Phase 15 definitions.
 Identifiers are source-qualified: a portable-plan `U`/`D` unit is not the
 similarly numbered session directive or September 22 contract row. Completion
 reports must name the source plan as well as the identifier rather than merging

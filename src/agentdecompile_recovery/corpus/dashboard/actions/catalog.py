@@ -433,7 +433,7 @@ def build_command(action: ActionSpec, params: dict[str, Any]) -> list[str]:
         if launcher is None:
             raise ValueError("Ghidra support/bsim not found; configure GHIDRA_INSTALL_DIR")
         return [str(launcher), "commitsigs", str(params["bsimUrl"]), str(params["signatureDirectory"])]
-    if action.backend in {"workflow-control", "activity-snapshot", "merge-evidence", "source-archive", "matching", "resource-reconciliation-report", "resource-reconcile"}:
+    if action.backend in {"workflow-control", "activity-snapshot", "merge-evidence", "source-archive", "matching"}:
         return [action.id]
     if action.backend == "preparation":
         return ["workbench.prepare"]

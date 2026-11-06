@@ -133,13 +133,157 @@ deterministic refusal from bounded infrastructure retries and name what change
 wakes blocked work. Neither negative evidence nor serialized audit JSON can create
 positive producer authority. Current-basis acceptance remains a recipient-side gate.
 
+A process budget is not a permanent stop for an unlimited watcher. On capacity
+exhaustion, publish a bounded terminal checkpoint with a deterministic next cursor
+and relevant input basis. The catalog may admit a successor only after the prior
+session is actually clear. Retain per-basis failed-attempt/circuit history across
+successors; restart must not reset failed budgets or repeatedly process the first
+chunk. Reused candidate evidence stays explicitly reused and cannot recreate opaque
+compiler authority from JSON. Changed dependencies wake only affected work, while
+unchanged exhausted inputs cannot starve new eligible candidates. These continuation
+mechanisms remain required beyond the current process-local admission implementation.
+
+```mermaid
+flowchart TD
+  L[Lifetime owner holds physical candidate-output lease] --> I[Persist generation intent and bounded scan epoch]
+  I --> W[Worker borrows validated lease; reserve durable attempt before compile]
+  W --> C[Every writing descendant retains lease protection]
+  C --> K[Publish outcome and checkpoint; worker terminates]
+  K --> S{Authoritative whole-session clearance?}
+  S -->|no or uncertain| Q[Quarantine; no successor]
+  S -->|yes| N{Pending work and no cancellation?}
+  N -->|yes| I
+  N -->|no| F[Commit terminal receipt then release ownership]
+```
+
+The physical lease spans generation gaps and survives a supervisor/worker failure
+while a compiler descendant can still write. Descriptor inode equality alone is
+not proof of lock ownership; validate actual controlled handoff and ownership.
+Use a finite scan-epoch fence so a growing tail cannot indefinitely postpone
+new work inserted before the cursor. Qualification must cross the actual production
+128-key bound with eligible reserved work; counting unsupported items that never
+consume capacity does not prove rollover. These are explicit future acceptance
+requirements, not observations of the bounded `.15` increment.
+
+Discovery must give each published item a durable inventory identity and each
+scan epoch a sealed membership boundary. An opaque filesystem directory position
+is not that boundary. In particular, alternating a fixed first-entry window with
+a saved directory position can miss an insertion behind the position but beyond
+the first window indefinitely while later entries keep arriving. The September 27
+design review rejected that proposal before qualification. A producer publication
+sequence with a captured high-water mark is a candidate mechanism, subject to
+complete bootstrap and reconciliation of pre-existing and externally added files;
+an index that silently excludes those files does not satisfy discovery either.
+The implementation must establish the ingestion boundary and its crash semantics
+before claiming fairness. Acceptance must insert an eligible item outside the
+head window and behind the frontier, keep adding later items, restart between
+generations, and demonstrate that the inserted item is eventually admitted without
+resetting existing attempt budgets. Directory mutation or inventory uncertainty
+must produce explicit reconciliation state rather than a false completed scan.
+
+Publication enrollment covers the exact source and selected receipt binding, not
+the path alone. Persist ingestion intent before making either final artifact
+visible, then durably record its publication sequence; recovery must reconcile an
+interrupted intent without depending on rediscovering its pathname. Enrolled keys
+also need finite revisitation for changes to identity, receipt, raw-image,
+dependency or provider basis that do not create a new source file. Temporary
+compiler translation units are not source-publication events.
+
+The durable-attempt boundary includes directory ancestry. When a reservation uses
+a newly created checkpoint root or shard, establish each directory link durably
+before returning success: syncing the reservation file and its immediate directory
+alone does not cover newly created ancestor links. The September 27 ownership
+review found this gap in the in-progress implementation. Its acceptance case must
+begin with an absent shard and check the ordered durability operations before any
+scratch allocation or compiler launch; updates to an already established shard
+cannot prove the first-reservation case. Source review or mocked call ordering
+alone is not evidence of survival after an actual storage failure.
+An unsuccessful directory-sync operation must remain unsuccessful on retry until
+the durability barrier actually succeeds; mere existence of the directory created
+by the failed attempt cannot bypass that barrier. Validate checkpoint records as
+an explicit schema before using them for scheduling: allowed states, bounded
+integer attempt counts, finite correctly typed timestamps, and state-dependent
+publication fields. Malformed or non-finite values must produce a structured
+corruption result, without granting an attempt, silently resetting the record, or
+manufacturing publication authority. Include interrupted-sync retry and corrupted
+deadline/state cases in the product qualification set.
+
+The Linux mechanism is grounded in the [flock manual](https://man7.org/linux/man-pages/man2/flock.2.html):
+inherited/duplicated descriptors share a lock, an explicit unlock affects that
+shared lock, and ordinary closing releases it only after the last reference closes.
+The [kernel proc documentation](https://docs.kernel.org/6.9/filesystems/proc.html)
+describes descriptor-specific lock evidence in `fdinfo`. The implementation still
+needs measured host/filesystem qualification of inherited-held versus separately
+opened unlocked descriptors and surviving descendants; these references alone do
+not prove the proposed continuation path.
+
+The September 27 private probes subsequently passed both lifetime cases on this
+host's tmpfs and NVMe btrfs. Their raw evidence shows that the lock row can retain
+the original owner's PID after that process exits and is reaped; it is not current
+liveness or borrower identity. The NVMe evidence also has different numeric device
+representations in `fstat` and the lock row despite the same descriptor/inode.
+Do not assume those fields share a namespace. Validate descriptor/path scope from
+actual file identity and the held-lock observation on the controlled descriptor;
+qualify any additional comparisons against measured filesystem behavior. The
+reports are `/home/brunner56/Documents/AgentDecompile-kernel-lease-feasibility-report.md`
+and `AgentDecompile-kernel-lease-nvme-report.md` in the same directory. These probes
+do not prove compiler-descendant propagation, persistent scheduling or catalog
+restoration; those remain required implementation gates.
+
 The acceptance handoff does not invent recipient verification: supported recipients
 must pass their actual checks, and unavailable adapters produce a local blocked
 reason while other eligible candidates continue. A source digest records bytes;
 producer/identity/compatibility authority must also be corroborated. Existing
 target-local completion guards remain in force. This diagram specifies required
 behavior; current implementation and proof are tracked in the
-[living ledger](2026-09-27-implementation-progress-and-live-track.md#active-source-repair-cross-place-admission).
+[living ledger](2026-09-27-implementation-progress-and-live-track.md#accepted-admission-active-implementation-cross-place-continuation).
+
+### Match-review decisions against the observed basis
+
+September 27 refinement of portable-plan U17/U106/U109 and current-version
+acceptance: a review decision is an optional override, never a prerequisite for
+unrelated recovery or export progress. Numeric match IDs can be reused and an
+unchanged ID/status does not establish that a reviewer saw the current proposal.
+
+```mermaid
+flowchart LR
+  Q[Catalog or mounted review consumer] --> S[One coherent corpus read snapshot]
+  S --> R[Shared row evidence and observed-basis token]
+  R --> D[Explicit single or batch decision]
+  D --> T[Bounded transaction validates every basis]
+  T -->|any stale or missing| F[No mutations or audit writes; refresh required]
+  T -->|all current| A[Atomic status transition and decision audit]
+  A --> V[Accept means verify; reject means rejected]
+  F --> Q
+```
+
+Capture selected corpus identity/incarnation, row revision, run, directed physical
+endpoints, score/margin, evidence/status and relevant binary facts together. Keep
+revisions local to affected rows so unrelated matching does not stale every review.
+Existing migration ownership must govern durable incarnation/revision and audit
+state; missing required schema refuses mutation rather than falling back to IDs.
+Delete/reinsert and update-away/update-back must not revive a consumed token.
+The token provides freshness, not authentication or recovery authority.
+
+All submitted rows must pass before any batch status change. Audit failure rolls
+back the status change. Stale responses refresh displayed evidence and require a
+new deliberate decision; consumers must not automatically replay an old approval.
+Catalog, HTTP compatibility, static ReviewReact and the mounted workstation use
+the same service and row contract. A success message follows actual success.
+Unmounted Surfaces.Review is not proof of mounted frontend delivery.
+
+Supported clone/restore activation must rotate the corpus incarnation under owned
+migration/lifecycle control and preserve lineage. An internal UUID or inode check
+alone cannot detect arbitrary unobserved restoration of identical prior database
+bytes. That guarantee requires controlled activation outside the restored state;
+do not claim it from ordinary row-token checks or silently accept unmanaged restores.
+Recovery signatures remain deterministic: control-plane incarnation/timestamps are
+separate from recovered identity and export content.
+
+The complete U17 fields/order, U106 rendering and U109 Compare view remain required
+scope beyond this decision-integrity detail. Missing relation/components remain
+explicitly unavailable, not fabricated evidence. This is required design behavior;
+current source and mounted/live qualification are tracked in the living ledger.
 
 ### Fresh source revalidation after process loss
 

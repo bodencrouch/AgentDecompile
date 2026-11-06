@@ -39,7 +39,7 @@ export interface ActivitySnapshot {
 }
 
 /** Keep the last valid snapshot while independently reconnecting the live feed. */
-export function useEntityActivity(locator: string, slug: string, program = "", enabled = true) {
+export function useEntityActivity(locator: string, slug: string, program = "") {
   const [state, setState] = useState<{
     entities: EntityActivity[]; revision: number;
     connection: 'connecting' | 'live' | 'polling' | 'disconnected'; error: string;
@@ -191,6 +191,6 @@ export function useEntityActivity(locator: string, slug: string, program = "", e
       void poll();
     }, 5000);
     return () => { disposed = true; document.removeEventListener('visibilitychange', onVisibilityChange); abort.abort(); eventSource?.close(); window.clearInterval(timer); };
-  }, [locator, slug, program, enabled]);
+  }, [locator, slug, program]);
   return state;
 }

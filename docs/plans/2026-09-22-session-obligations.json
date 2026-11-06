@@ -145,8 +145,11 @@
       ],
       "source": "docs/plans/2026-09-22-design-package.md",
       "source_line": 93,
-      "status": "unverified",
-      "evidence_note": "Design exists; complete implementation and required acceptance evidence remain open."
+      "status": "partial",
+      "evidence_note": "Covers the recipient-scope gate only. Synthetic staged-source slice (recipient_acceptance.py) requires commit()'s root set to contain the recipient's own identity dependency, refusing acceptance otherwise. Admission's existing donor-side check (same logical id, narrow constant-leaf provider, cross_place_admission.py:297-312) is separate and unchanged. Independent controller rerun confirmed 15 passed, exitCode 0. No consumer turns a published requires-recipient-acceptance manifest into a real commit proposal, and there is no real compilation/ABI/layout/behaviour verification adapter; verification is supplied by the test.",
+      "evidence": [
+        "/home/brunner56/agentdecompile-deliverables/2026-09-27-p14-recipient-acceptance/report.md"
+      ]
     },
     {
       "id": "D13",
@@ -353,8 +356,11 @@
       ],
       "source": "docs/plans/2026-09-22-design-package.md",
       "source_line": 109,
-      "status": "unverified",
-      "evidence_note": "Design exists; complete implementation and required acceptance evidence remain open."
+      "status": "partial",
+      "evidence_note": "Synthetic staged-source slice (recipient_acceptance.py) retires only current acceptances with no intact root set (OR of ANDs) and lists examined/retired explicitly; retirement is by acceptance id, so identical content returning does not revive a retired claim, and no platform ban is imposed. Independent controller rerun confirmed 15 passed, exitCode 0. Wiring to real change events (identity/matching producers), transitive descendants beyond one root-set level, and export-reference removal remain open.",
+      "evidence": [
+        "/home/brunner56/agentdecompile-deliverables/2026-09-27-p14-recipient-acceptance/report.md"
+      ]
     },
     {
       "id": "D29",
@@ -675,8 +681,11 @@
       ],
       "source": "docs/plans/2026-09-22-recovery-contracts-and-validation-plan.md",
       "source_line": 356,
-      "status": "unverified",
-      "evidence_note": "Design exists; complete implementation and required acceptance evidence remain open."
+      "status": "partial",
+      "evidence_note": "Covers the recipient-acceptance half only. Synthetic staged-source slice (recipient_acceptance.py) refuses a root set lacking the recipient's own identity dependency, so an incompatible accepted replacement without that dependency is refused. The 'same logical family allowed' half and a real ABI/behaviour verification adapter are not covered here; the verification value in the tests is test-supplied, not a real adapter. Independent controller rerun confirmed 15 passed, exitCode 0.",
+      "evidence": [
+        "/home/brunner56/agentdecompile-deliverables/2026-09-27-p14-recipient-acceptance/report.md"
+      ]
     },
     {
       "id": "RC-04",
@@ -781,8 +790,11 @@
       ],
       "source": "docs/plans/2026-09-22-task-acceptance-and-continuation-design.md",
       "source_line": 327,
-      "status": "unverified",
-      "evidence_note": "Design exists; complete implementation and required acceptance evidence remain open."
+      "status": "partial",
+      "evidence_note": "Synthetic staged-source slice (recipient_acceptance.py, 15 tests on the accepted .16 wheel plus a two-file overlay) implements withdrawal: it retires only current acceptances naming a changed dependency, checked against alternate root sets (OR of ANDs), and lists examined/retired explicitly. Retirement is by acceptance id, so a dependency returning to identical content does not revive a retired claim. An independent controller rerun on a fresh stage confirmed 15 passed, exitCode 0, from restored source (the agent's own first \"green\" artifacts were actually a mutation run and are not the basis for this note). No consumer turns a published requires-recipient-acceptance manifest into a real commit yet, and export-reference removal is not wired.",
+      "evidence": [
+        "/home/brunner56/agentdecompile-deliverables/2026-09-27-p14-recipient-acceptance/report.md"
+      ]
     },
     {
       "id": "A03",
@@ -946,8 +958,11 @@
       ],
       "source": "docs/plans/2026-09-22-task-acceptance-and-continuation-design.md",
       "source_line": 342,
-      "status": "unverified",
-      "evidence_note": "Design exists; complete implementation and required acceptance evidence remain open."
+      "status": "partial",
+      "evidence_note": "Synthetic staged-source slice (recipient_acceptance.py) covers only the input-generation half: commit() reads the basis, evaluates, then re-reads dependency generations and records stale plus changedDependencies if any moved before the recheck completes. Independent controller rerun confirmed 15 passed, exitCode 0. Policy-revision change during verification (the other half of this contract) is not covered, and there is no durable ledger or short DB write transaction; the recheck is in-memory only.",
+      "evidence": [
+        "/home/brunner56/agentdecompile-deliverables/2026-09-27-p14-recipient-acceptance/report.md"
+      ]
     },
     {
       "id": "A18",
@@ -1001,8 +1016,11 @@
       ],
       "source": "docs/plans/2026-09-22-failure-prevention-and-recovery-contracts.md",
       "source_line": 226,
-      "status": "unverified",
-      "evidence_note": "Design exists; complete implementation and required acceptance evidence remain open."
+      "status": "partial",
+      "evidence_note": "Synthetic staged-source slice (recipient_acceptance.py) refuses the producer as its own verifier and withdraws a donor root by retiring only unsupported current acceptances while preserving an independently rooted claim; history is immutable because retirement is by acceptance id and re-acceptance gets a new id, never a mutation of the old record. Independent controller rerun confirmed 15 passed, exitCode 0. No durable ledger table exists; the record set is in-memory only, and there is no consumer for a published manifest yet.",
+      "evidence": [
+        "/home/brunner56/agentdecompile-deliverables/2026-09-27-p14-recipient-acceptance/report.md"
+      ]
     },
     {
       "id": "FP-03",

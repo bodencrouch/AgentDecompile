@@ -80,23 +80,61 @@ def _receipt(path):
         return None, {}, 'unusable_compile_receipt:' + str(exc)
 
 
-def _receipt_row(data, source, address):
-    rows = data.get('results', []) if isinstance(data, dict) else []
-    matches = []
-    if isinstance(rows, list):
-        for row in rows:
-            if not isinstance(row, dict): continue
-            basis = row.get('distribution') or {}
-            if (basis.get('source', {}).get('path') == str(source)
-                    and basis.get('donor', {}).get('address') == address): matches.append(row)
-    return matches[0] if len(matches) == 1 else {}
+def load_byteexact_ok_ids(path: Path) -> set[str] | None:
+    """Fresh verifier receipts admit only individually relocation-masked exact C."""
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError, TypeError):
+        return None
+    rows = data.get("results") if isinstance(data, dict) else None
+    if not isinstance(rows, list) or data.get("total") != len(rows):
+        return None
+    out: set[str] = set()
+    for row in rows:
+        if not isinstance(row, dict) or not row.get("ok"):
+            continue
+        addr = str(row.get("addr") or "").strip().lower().removeprefix("0x")
+        try:
+            out.add(f"{int(addr, 16):x}")
+        except ValueError:
+            continue
+    return out or None
 
 
-def _db_path(con):
-    rows = con.execute('PRAGMA database_list').fetchall()
-    path = next((row[2] for row in rows if row[1] == 'main'), '')
-    if not path: raise ValueError('cross_place_requires_file_database')
-    return Path(path).resolve()
+def _addr_token(addr: int) -> str:
+    return f"{addr:x}"
+
+
+def place_tree(
+    src_dir: Path,
+    src_bid: int,
+    out_root: Path,
+    con,
+    *,
+    compile_ok: set[str] | None = None,
+) -> dict:
+    if compile_ok is not None and not compile_ok:
+        return {
+            "placed": 0,
+            "skipped_no_addr": 0,
+            "src_linked": 0,
+            "reason": "no compile receipt",
+        }
+    index = load_index(con, src_bid)
+    placed = skipped = 0
+    for cfile in sorted(src_dir.glob("*.c")):
+        if cfile.name.startswith("_"):
+            continue
+        head = cfile.read_text(errors="replace")[:800]
+        addr = parse_addr(head)
+        if addr is None:
+            skipped += 1
+            continue
+        if compile_ok is not None and _addr_token(addr) not in compile_ok:
+            skipped += 1
+            continue
+        placed += place_one(cfile, addr, index, out_root)
+    return {"placed": placed, "skipped_no_addr": skipped, "src_linked": len(index)}
 
 
 def place_one(src_path, src_addr, index, out_root, *, con=None, src_bid=None,
@@ -108,28 +146,18 @@ def place_one(src_path, src_addr, index, out_root, *, con=None, src_bid=None,
         receipt_path=receipt_path, no_compile_gate=no_compile_gate, source_paths=[Path(src_path)])
     return result['placed']
 
-
-def place_tree(src_dir, src_bid, out_root, con, *, raw_dir=None, receipt_path=None,
-               no_compile_gate=False, source_paths=None, compile_ok=None):
-    """Refresh source, receipt and index on every pass; address sets never admit."""
-    if con is None:
-        return {'placed': 0, 'proposed': 0, 'reason': 'missing_live_identity_database', 'results': []}
-    database = admission.regular(_db_path(con))
-    src_dir, out_root = Path(src_dir).absolute(), Path(out_root).absolute()
-    receipt_path = Path(receipt_path) if receipt_path else out_root / 'compile-receipt.json'
-    paths = sorted(source_paths if source_paths is not None else src_dir.glob('*.c'))
-    sidecars = [Path(str(database) + suffix) for suffix in ('-wal', '-shm', '-journal')]
-    for path in sidecars:
-        if path.exists() or path.is_symlink(): admission.regular(path)
-    inputs = [database, *sidecars, *paths, receipt_path]
-    if raw_dir:
-        # Files, not the raw directory's parent: out/.cross-place can coexist
-        # with out/extract/raw but may not contain any actual image input.
-        inputs.extend(Path(raw_dir).glob('*'))
-    stats = {'placed': 0, 'proposed': 0, 'idempotent': 0, 'skipped_no_addr': 0, 'results': []}
-    with admission.output_owner(out_root, inputs) as area:
-        for path in paths:
-            if path.name.startswith('_'): continue
+    compile_ok = load_compile_ok_ids(out_root)
+    if compile_ok is None or not compile_ok:
+        print("cross-place watch: no compile receipt; copy 0", flush=True)
+        return
+    index = load_index(con, src_bid)
+    seen: dict[str, float] = {}
+    print(f"cross-place watch {src_dir} -> {len(index)} linked addrs", flush=True)
+    while True:
+        n = 0
+        for cfile in sorted(src_dir.glob("*.c")):
+            if cfile.name.startswith("_"):
+                continue
             try:
                 path = admission.regular(path)
                 captured = path.read_bytes()
@@ -258,26 +286,43 @@ def guarded_main(raw):
 
 def main(argv=None):
     import argparse
+
+    from .store import connect
+
     ap = argparse.ArgumentParser()
-    ap.add_argument('--from', dest='program', required=True)
-    ap.add_argument('--db', type=Path, required=True)
-    ap.add_argument('--out-dir', type=Path, required=True)
-    ap.add_argument('--repo', required=True)
-    ap.add_argument('--raw-dir', type=Path, required=True)
-    ap.add_argument('--watch', action='store_true')
-    ap.add_argument('--interval', type=float, default=8.0)
-    ap.add_argument('--byteexact-receipt', type=Path)
-    ap.add_argument('--no-compile-gate', action='store_true')
+    ap.add_argument("--from", dest="program", required=True)
+    ap.add_argument("--db", type=Path, required=True)
+    ap.add_argument("--out-dir", type=Path, required=True)
+    ap.add_argument("--repo", required=True)
+    ap.add_argument("--watch", action="store_true")
+    ap.add_argument("--interval", type=float, default=8.0)
+    ap.add_argument("--byteexact-receipt", type=Path,
+                    help="completed verify-byteexact receipt; place only its individually exact C")
+    ap.add_argument("--no-compile-gate", action="store_true",
+                    help="place any real-C with an address (skip the source compile-receipt gate); "
+                         "for cross-binary seeding where the shared receipt does not match the source")
     args = ap.parse_args(argv)
-    with admission.read_database(args.db) as con:
-        brow = con.execute('SELECT id FROM binary WHERE repo_path=?', (args.repo,)).fetchone()
-        if not brow: raise ValueError('source_binary_not_in_database')
-        src_dir = resolve_source_dir(args.out_dir, args.program)
-        if src_dir is None: raise ValueError('no_source_directory')
-        kw = {'raw_dir': args.raw_dir, 'receipt_path': args.byteexact_receipt,
-              'no_compile_gate': args.no_compile_gate}
-        if args.watch: watch(src_dir, int(brow['id']), args.out_dir, con, args.interval, **kw)
-        else: print(json.dumps(place_tree(src_dir, int(brow['id']), args.out_dir, con, **kw), sort_keys=True))
+    con = connect(args.db)
+    brow = con.execute("SELECT id FROM binary WHERE repo_path=?", (args.repo,)).fetchone()
+    if not brow:
+        raise SystemExit(f"not in database: {args.repo}")
+    dump_tree = args.out_dir / "dump-source"
+    src_dir = resolve_source_dir(args.out_dir, args.program)
+    if src_dir is None:
+        raise SystemExit(
+            f"no recovered C under {args.out_dir / args.program} or {dump_tree}. "
+            "Recover → Dump source writes C under dump-source, then run Cross-place."
+        )
+    compile_ok = (load_byteexact_ok_ids(args.byteexact_receipt) if args.byteexact_receipt
+                  else None if args.no_compile_gate else load_compile_ok_ids(args.out_dir))
+    if not args.no_compile_gate and (compile_ok is None or not compile_ok):
+        print(f"cross-place {args.program}: {{'placed': 0, 'reason': 'no usable exact receipt'}}")
+        return 0
+    if args.watch:
+        watch(src_dir, int(brow["id"]), args.out_dir, con, args.interval)
+        return 0
+    stats = place_tree(src_dir, int(brow["id"]), args.out_dir, con, compile_ok=compile_ok)
+    print(f"cross-place {args.program}: {stats}")
     return 0
 
 

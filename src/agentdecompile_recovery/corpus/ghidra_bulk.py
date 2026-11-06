@@ -888,21 +888,10 @@ def write_compile_receipt(out_dir: pathlib.Path, program: str, ok_ids: list[str]
     from .cross_place_admission import canonical
     dest = pathlib.Path(out_dir) / "compile-receipt.json"
     dest.parent.mkdir(parents=True, exist_ok=True)
-    import tempfile
-    for parent in [dest, *dest.parents]:
-        if parent.is_symlink(): raise ValueError('unsafe_compile_receipt_output')
-    if dest.exists() and dest.stat().st_nlink != 1:
-        raise ValueError('unsafe_compile_receipt_output')
-    fd, name = tempfile.mkstemp(prefix='.compile-receipt-', dir=dest.parent)
-    temp = pathlib.Path(name)
-    try:
-        with os.fdopen(fd, 'wb') as stream:
-            stream.write(canonical({"schema": "agentdecompile.bulk-compile/v2", "program": program,
-                "ok": sorted(ok_ids), "results": sorted(results, key=lambda r: str(r.get('addr', '')))}) + b"\n")
-            stream.flush(); os.fsync(stream.fileno())
-        os.replace(temp, dest)
-    finally:
-        temp.unlink(missing_ok=True)
+    dest.write_text(
+        json.dumps({"program": program, "ok": sorted(ok_ids)}, indent=2) + "\n",
+        encoding="utf-8",
+    )
     return dest
 
 
@@ -1549,7 +1538,7 @@ def _try_compile_inner(entry_hex, name, header, body, tmpdir, prog_dir, program_
 
 
 def main(argv: list[str] | None = None) -> int:
-    global OUT_DIR, KB, COMPILE, NORMALIZE_MODE, ASM_FALLBACK, EXTRACT_RAW, _CROSS_INDEX, _RAW_IMAGE, _CROSS_CONFIG
+    global OUT_DIR, KB, COMPILE, NORMALIZE_MODE, ASM_FALLBACK, EXTRACT_RAW, _CROSS_INDEX, _RAW_IMAGE
     ap = argparse.ArgumentParser()
     ap.add_argument("--program", required=True)
     ap.add_argument("--repo", required=True, help="binary repo_path in the store")

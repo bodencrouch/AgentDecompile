@@ -26,7 +26,7 @@ Analysis idle polling and ensure logic had been duplicated (for example in `Impo
 Use one module as the source of truth:
 
 - `wait_for_program_analysis_idle()` — poll until idle or raise `ProgramAnalysisTimeout`.
-- `blocking_ensure_analyzed()` — per-program lock, incremental `run_analysis(force_analysis=False)` when needed.
+- `blocking_ensure_analyzed()` — per-program lock; once `program_needs_analysis` says analysis is needed, it runs `run_analysis(force_analysis=True)`. ghidrecomp's non-forced path only checks `shouldAskToAnalyze`, which is false for a freshly imported program that has not been analyzed, so it skipped those programs.
 - `analysis_gate_exempt_tool()` — normalized tool names that must not pre-wait.
 
 Providers call these functions; they do not reimplement poll loops.

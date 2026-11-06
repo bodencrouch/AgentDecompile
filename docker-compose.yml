@@ -110,7 +110,8 @@ services:
       #AGENT_DECOMPILE_PROJECT_NAME: my_project
       # Path to an AgentDecompile config file
       AGENT_DECOMPILE_CONFIG_FILE: ${AGENT_DECOMPILE_CONFIG_FILE:-}
-      # ── Proxy / backend (skip local JVM; forward to an existing MCP server) ─
+      # ── Proxy / backend guard (unsupported by agentdecompile-server) ─────────
+      # Use these only with agentdecompile-proxy; this service exits if either is non-empty.
       #AGENT_DECOMPILE_BACKEND_URL: "http://other-host:8080/mcp/message"
       #AGENT_DECOMPILE_MCP_SERVER_URL: ""   # alias for BACKEND_URL
       # ── Ghidra shared-project server ────────────────────────────────────────
@@ -122,35 +123,38 @@ services:
       AGENT_DECOMPILE_GHIDRA_SERVER_USERNAME: ${AGENT_DECOMPILE_GHIDRA_SERVER_USERNAME:-}
       AGENT_DECOMPILE_GHIDRA_SERVER_PASSWORD: ${AGENT_DECOMPILE_GHIDRA_SERVER_PASSWORD:-}
       # ── HTTP auth ────────────────────────────────────────────────────────────
-      # true/1 = always require Basic auth; false/0 = never; unset = auto
+      # true/1 = pass --require-auth; false/0 = pass --no-require-auth (does NOT turn off
+      # AGENT_DECOMPILE_AUTH_ENABLED); unset = no flag. Auth needs
+      # AGENT_DECOMPILE_GHIDRA_SERVER_USERNAME and _PASSWORD.
       #AGENT_DECOMPILE_REQUIRE_AUTH: ""
+      #AGENT_DECOMPILE_AUTH_ENABLED: ""
       # ── TLS (HTTPS) ──────────────────────────────────────────────────────────
       # Mount certs as volumes and set these paths inside the container
       #AGENT_DECOMPILE_TLS_CERT: "/certs/server.crt"
       #AGENT_DECOMPILE_TLS_KEY: "/certs/server.key"
       # ── Analysis options ─────────────────────────────────────────────────────
-      # Force re-analysis of every binary on startup (true/1)
+      # Force re-analysis of every binary on startup (true/1) (not applied)
       #AGENT_DECOMPILE_FORCE_ANALYSIS: "false"
       # Verbose Ghidra analysis log (true/1)
       #AGENT_DECOMPILE_VERBOSE_ANALYSIS: "false"
-      # Disable symbol loading (true/1)
+      # Disable symbol loading (true/1) (not applied)
       #AGENT_DECOMPILE_NO_SYMBOLS: "false"
-      # Path to symbols directory (mounted via volume)
+      # Path to symbols directory (mounted via volume) (not applied)
       #AGENT_DECOMPILE_SYMBOLS_PATH: ""
-      # Path to a single PDB symbol file
+      # Path to a single PDB symbol file (not applied)
       #AGENT_DECOMPILE_SYM_FILE_PATH: ""
-      # Colon-separated GDT file paths
+      # Colon-separated GDT file paths (not applied)
       #AGENT_DECOMPILE_GDT: ""
-      # Path to JSON program-options file
+      # Path to JSON program-options file (not applied)
       #AGENT_DECOMPILE_PROGRAM_OPTIONS: ""
-      # GZF output path
+      # GZF output path (not applied)
       #AGENT_DECOMPILE_GZFS_PATH: ""
       # ── Analysis performance ─────────────────────────────────────────────────
-      # Worker count for analysis (0 = CPU count)
+      # Worker count for analysis (0 = CPU count) (not applied)
       #AGENT_DECOMPILE_MAX_WORKERS: "0"
-      # Wait for initial analysis before serving (true/1)
+      # Sleeps 5 s after startup imports (true/1)
       #AGENT_DECOMPILE_WAIT_FOR_ANALYSIS: "false"
-      # Disable threaded analysis (false/0 to disable)
+      # Disable threaded analysis (false/0 to disable) (not applied)
       #AGENT_DECOMPILE_THREADED: "true"
       # ── Input binaries ───────────────────────────────────────────────────────
       # Colon-separated binary paths to import at startup (paths inside container)

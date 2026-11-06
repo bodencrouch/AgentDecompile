@@ -25,8 +25,10 @@ HDR_EVID = re.compile(r"evidence:\s*(\S+)")
 ADDR_IN_NAME = re.compile(r"(?:FUN|sub|LAB)_([0-9a-fA-F]{6,16})")
 ADDR_SUFFIX = re.compile(r"_([0-9a-fA-F]{6,16})$")
 
-RECOVERED_SCHEMA = """
-CREATE TABLE IF NOT EXISTS recovered_function (
+# Canonical recovered_function shape. Every module that creates the table
+# uses this DDL (export_run_report and restore_recovered_tree import it), so
+# the first verb to touch a store can no longer fix a different shape.
+_CREATE_RECOVERED_FUNCTION_SQL = """CREATE TABLE IF NOT EXISTS recovered_function (
     program      TEXT NOT NULL,
     binary_id    INTEGER,
     addr         INTEGER,
@@ -39,9 +41,26 @@ CREATE TABLE IF NOT EXISTS recovered_function (
     path         TEXT NOT NULL,
     evidence     TEXT,
     PRIMARY KEY (program, name)
-);
-CREATE INDEX IF NOT EXISTS ix_recovered_logical ON recovered_function(logical_id);
+)"""
+_CREATE_RECOVERED_LOGICAL_INDEX_SQL = (
+    "CREATE INDEX IF NOT EXISTS ix_recovered_logical ON recovered_function(logical_id)"
+)
+# Run one by one through con.execute (executescript would COMMIT caller work).
+_RECOVERED_FUNCTION_STATEMENTS = (
+    _CREATE_RECOVERED_FUNCTION_SQL,
+    _CREATE_RECOVERED_LOGICAL_INDEX_SQL,
+)
+# The same statements as one script, for executescript consumers.
+RECOVERED_FUNCTION_DDL = "\n" + ";\n".join(_RECOVERED_FUNCTION_STATEMENTS) + ";\n"
 
+# Columns added after the first shipped shape. export_run_report once created
+# recovered_function without binary_id; those stores gain it here, additively.
+# binary_id stays NULL on upgraded rows: the canonical writer only sets it from
+# an operator-supplied program -> repo_path map (ingest(program_to_repo=...)),
+# so the store alone cannot derive it, and NULL is already a normal value.
+RECOVERED_FUNCTION_ADDED_COLUMNS = (("binary_id", "INTEGER"),)
+
+REUSE_CANDIDATE_DDL = """
 CREATE TABLE IF NOT EXISTS reuse_candidate (
     src_program   TEXT NOT NULL,
     src_name      TEXT NOT NULL,
@@ -57,8 +76,107 @@ CREATE INDEX IF NOT EXISTS ix_reuse_dst ON reuse_candidate(dst_binary_id, dst_ad
 """
 
 
+RECOVERED_SCHEMA = RECOVERED_FUNCTION_DDL + REUSE_CANDIDATE_DDL
+
+
+def ensure_recovered_function(con: sqlite3.Connection) -> None:
+    """Create recovered_function in the canonical shape, or upgrade an old one.
+
+    A canonical table (it has the primary key and every column) is only read:
+    no DDL, no write lock, so read-only stores and concurrent writers are safe.
+
+    The narrow shape once created by export_run_report has no binary_id and no
+    primary key. Every row writer names binary_id, so in practice that table is
+    empty; an empty one is rebuilt canonical. One that holds rows is upgraded
+    additively, like ``store.ensure_match_columns``: missing columns are added
+    and, when no (program, name) pair repeats, a unique index restores the key
+    INSERT OR REPLACE relies on. Rows are never dropped, rewritten or reordered.
+
+    Like the store.py ensure_* helpers, this never commits or rolls back a
+    caller's open transaction: it joins it through a SAVEPOINT. With no open
+    transaction it takes its own BEGIN IMMEDIATE ... COMMIT.
+    """
+    info = list(con.execute("PRAGMA table_info(recovered_function)"))
+    if info:
+        cols = {row[1] for row in info}
+        has_pk = any(row[5] for row in info)
+        if has_pk and all(c in cols for c, _d in RECOVERED_FUNCTION_ADDED_COLUMNS):
+            return
+        work = _upgrade_recovered_function
+    else:
+        work = _create_recovered_function
+    if con.in_transaction:
+        # Join the caller's transaction; the caller owns COMMIT/ROLLBACK.
+        # An open transaction holds at least a SHARED lock (a deferred or
+        # read-only one holds no more), escalating on the first write. A
+        # competing writer then makes the DROP or ALTER fail as busy, and the
+        # savepoint rolls back, so no row can slip in after the emptiness check.
+        con.execute("SAVEPOINT recovered_function_upgrade")
+        try:
+            work(con)
+        except BaseException:
+            con.execute("ROLLBACK TO recovered_function_upgrade")
+            con.execute("RELEASE recovered_function_upgrade")
+            raise
+        con.execute("RELEASE recovered_function_upgrade")
+        return
+    con.execute("BEGIN IMMEDIATE")
+    try:
+        work(con)
+        con.execute("COMMIT")
+    except BaseException:
+        con.execute("ROLLBACK")
+        raise
+
+
+def _create_recovered_function(con: sqlite3.Connection) -> None:
+    """Per-statement DDL: executescript would COMMIT the caller's work."""
+    for stmt in _RECOVERED_FUNCTION_STATEMENTS:
+        con.execute(stmt)
+
+
+def _upgrade_recovered_function(con: sqlite3.Connection) -> None:
+    """Run inside BEGIN IMMEDIATE or SAVEPOINT recovered_function_upgrade.
+
+    Re-reads the shape inside that transaction or savepoint, so the decision
+    uses what the store holds now, not what ensure_recovered_function saw.
+    """
+    info = list(con.execute("PRAGMA table_info(recovered_function)"))
+    has_pk = any(row[5] for row in info)
+    if not has_pk:
+        empty = con.execute("SELECT 1 FROM recovered_function LIMIT 1").fetchone() is None
+        if empty:
+            con.execute("DROP TABLE recovered_function")
+            _create_recovered_function(con)
+            return
+    cols = {row[1] for row in info}
+    for col, decl in RECOVERED_FUNCTION_ADDED_COLUMNS:
+        if col not in cols:
+            con.execute(f"ALTER TABLE recovered_function ADD COLUMN {col} {decl}")
+    if has_pk:
+        return
+    con.execute(_CREATE_RECOVERED_LOGICAL_INDEX_SQL)
+    duplicate = con.execute(
+        "SELECT 1 FROM recovered_function GROUP BY program, name"
+        " HAVING COUNT(*) > 1 LIMIT 1"
+    ).fetchone()
+    if duplicate is None:
+        con.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS ux_recovered_program_name"
+            " ON recovered_function(program, name)"
+        )
+
+
 def ensure_recovered_schema(con: sqlite3.Connection) -> None:
-    con.executescript(RECOVERED_SCHEMA)
+    ensure_recovered_function(con)
+    # Unlike ensure_recovered_function, this commits pending caller work.
+    # executescript() issues an implicit COMMIT first, so any work left open
+    # by store.connect() (such as a recovery_family backfill UPDATE from
+    # ensure_binary_columns()) is persisted here. The `ingest-recovered
+    # --report` paths (corpus/cli.py and main() below) only read afterwards
+    # and never commit. The explicit commit() keeps that true if this DDL
+    # ever stops using executescript().
+    con.executescript(REUSE_CANDIDATE_DDL)
     con.commit()
 
 

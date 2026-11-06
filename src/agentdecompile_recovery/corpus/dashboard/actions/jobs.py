@@ -998,7 +998,8 @@ def _default_executor(
         if line is None:
             break
         log = (log + line)[-MAX_LOG_BYTES:]
-        if on_output: on_output(log)
+        if on_output:
+            on_output(log)
     returncode = proc.poll()
     if returncode is None:
         try:

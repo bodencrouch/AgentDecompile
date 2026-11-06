@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import subprocess
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -41,10 +42,13 @@ def run_enrich_refresh_subprocess(work_dir: Path, *, timeout: int = 600) -> dict
     target_input = _load_target_input(work_dir)
     if not target_input:
         return {"status": "skipped:no-target", "returncode": None}
+    # Run the front door module with this interpreter rather than a console
+    # script: the ``agentdecompile-reconstruct`` script is being retired and
+    # ``uv run`` could resolve a different environment than the caller's.
     cmd = [
-        "uv",
-        "run",
-        "agentdecompile-reconstruct",
+        sys.executable,
+        "-m",
+        "agentdecompile_recovery.frontdoor",
         target_input,
         "--work-dir",
         str(work_dir),

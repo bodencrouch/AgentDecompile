@@ -244,6 +244,11 @@ def _step_payload(step: dict[str, Any]) -> dict[str, Any]:
     if not step.get("success") or (step.get("result") or {}).get("isError"):
         return {}
     result = step.get("result") or {}
+    if isinstance(result, dict) and "content" not in result:
+        # T11: -f json tool-seq now unwraps tool data (no envelope) per step.
+        payload = dict(result)
+        payload.pop("projectContext", None)
+        return payload
     for item in result.get("content") or []:
         if item.get("type") != "text":
             continue

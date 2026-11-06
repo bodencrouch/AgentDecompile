@@ -8,13 +8,30 @@ Scope: the three axes the user asked to consolidate — the **pipeline**, the
 gathered from every reachable prior conversation and design doc and reconciled
 into one reading.
 
+## Revision — 2026-09-22
+
+The [active design package](../plans/2026-09-22-design-package.md) incorporates both
+supplied reviews and governs the recovery/acceptance/continuation refinements here.
+This remains design-only: documents, editable diagrams and future verification
+specifications. It does not activate dependencies, probe workbenches or require
+runtime availability. The current diagram preserves lane E and has a focused
+execution/acceptance companion. Historical implementation and guard-lifting notes
+below retain their dates; they do not authorize execution in this design task.
+
+
 ## How to read this file
+
+Scope clarification — 2026-09-27: the [weekend scope index](../plans/2026-09-27-weekend-design-scope.md)
+preserves this document and the full September 18–21 plan/brainstorm baseline.
+September 22 contracts refine that scope. Original historical design-only phases,
+operational permissions and runtime observations retain their dates; current
+implementation authorization and operational policy live in STRATEGY/AGENTS.
 
 This is a distillation, not a replacement. Where a canonical document already
 governs, this plan cites it and does not fork it:
 
 - **Recovery ordering authority:** [`STRATEGY.md`](../../STRATEGY.md) (the eight
-  named stages, "do not reorder").
+  named stages with preserved prerequisites and explicit feedback).
 - **Charter / intent authority:** [`VISION.md`](../../VISION.md).
 - **Consolidated intent + frontend contract (2026-09-20):**
   [`FRONTEND_INTENT.md`](../FRONTEND_INTENT.md) — this plan builds on it, verifies
@@ -24,11 +41,12 @@ governs, this plan cites it and does not fork it:
   [`2026-09-20-unified-workstation-spec.md`](2026-09-20-unified-workstation-spec.md).
 
 A prior consolidation (`FRONTEND_INTENT.md`, commit `8a89c28`, 2026-09-20 11:56)
-already gathered the user's intent with a full source ledger. Independent
-re-verification against the raw Codex/Cursor/Claude/Copilot transcripts found it
-accurate, and found **no human design requirement decided after 2026-09-20** —
-everything later is implementation-fix commits or subagent automation. So this
-document's new value is: (1) the three axes pulled out cleanly and reconciled,
+already gathered the user's intent with a full source ledger. The initial
+transcript review reported no later human requirements within its then-reviewed
+material. That was an earlier research cutoff, not a valid blanket conclusion:
+the subsequent September 21 ledger, audit 3 and Phase 14 record explicit autonomy,
+no-Start and derive/backfill additions. Preserve those later directives. This
+document brings (1) the three axes together,
 (2) the dated evolution/supersession history with verbatim origin quotes, and
 (3) two design questions sharpened past what the docs settle — the actual-work
 feedback model and the single pipeline control.
@@ -56,26 +74,26 @@ generalize to another game's builds and to non-game compiled software.
 ### 2.1 Canonical stage order (recovery)
 
 The authority is `STRATEGY.md` §"Priority ladder → Stages", implemented by the
-active living plan
-[`docs/plans/2026-09-08-0156-feat-recovery-pipeline-ladder-plan.md`](../plans/2026-09-08-0156-feat-recovery-pipeline-ladder-plan.md).
-Eight named stages, "do not reorder":
+active [design package](../plans/2026-09-22-design-package.md); the September 8
+ladder retains implementation history under its dated reconciliation.
+Eight named stages with preserved prerequisites and explicit feedback:
 
 | # | Stage | Catalog verb | What it does |
 |---|---|---|---|
 | 1 | **Identity** | `corpus.extract-stabs` → `corpus.match-pair` | Extract facts once; short-circuit identical images; bind `logical_id` by independent evidence channels (below). Candidate generation is not acceptance. |
-| 2 | **Global calibration** | `corpus.calibrate-global` | Compiler versions, flags, ABIs, global struct layouts — before per-function recovery. |
-| 3 | **Scaffolding (assembly floor)** | `corpus.workspace` | Donor workspace, one file per function, exact inline asm where no C exists yet; must link. |
-| 4 | **Readable C** | `corpus.ghidra-bulk` | `ghidra-bulk` replaces asm when the C compiles; keep asm on failure. |
-| 5 | **Propagation** | `corpus.cross-place` | Only after compile succeeds: place the compiling `.c` on siblings sharing the `logical_id`. |
-| 6 | **Targeted AI** | `corpus.genproject` (leftovers) | Leftovers only, leaves before callers; never before stages 4–5 for functions whose Ghidra C already compiles. LLM output never creates a trusted identity edge alone. |
-| 7 | **Parity** | `corpus.objdiff-check` | objdiff-0 per function when claiming verified readable C; isolated toolchain. A rebuild-validation stage, not a cross-architecture identity oracle. |
-| 8 | **Whole-image byte identity (exact placement)** | — | Terminal goal: relink into a file bit-identical to the shipped image. Verify by whole-file hash, not per-function diff. Open engineering problem; core scope, not a stretch. |
+| 2 | **Global calibration** | `corpus.calibrate-global` | Minimum platform facts, then scoped toolchain/ABI/layout hypotheses refined with identity and function evidence. |
+| 3 | **Scaffolding (assembly floor)** | `corpus.workspace` | Validated linkable regions, reconstructed fixups, associated data/metadata and an early unchanged round trip; architecture-specific floor. |
+| 4 | **Readable C** | `corpus.ghidra-bulk` | C/C++ compile success admits candidates; accepted replacement and floor contributions remain separate. |
+| 5 | **Propagation** | `corpus.cross-place` | Compile plus variant/ABI/layout compatibility admits recipient candidates; each recipient earns its own verification. |
+| 6 | **Targeted AI** | `corpus.genproject` (leftovers) | Bounded diagnosed residue after cheaper applicable methods; use ReAgent as an independent checker where supported. LLM output never creates a trusted identity edge alone. |
+| 7 | **Parity** | `corpus.objdiff-check` | Continuous objdiff against validated references, linked-region checks where required, optional reccmp diagnostics; separate ABI and tested-behavior facts. |
+| 8 | **Whole-image byte identity (exact placement)** | — | Start reconstruction checks during scaffolding. Terminal fresh rebuild proves source contribution and whole-file identity; record reconstruction/original-style methods and both source variants. |
 
-Goal-capsule shorthand (`STRATEGY.md`; `CONCEPTS.md` "Corpus pipeline"):
-*extract → `logical_id` → global calibration → assembly floor → compiling Ghidra C
-→ cross-place → targeted AI on leftovers → objdiff last → fresh whole-image rebuild
-and identity.* **Never decompile the same logical function twice. Skip a step when
-its receipt or Ghidra analysis already exists.**
+Current flow: identity ↔ calibration → validated region scaffold → C/C++
+candidates → compatible recipient candidates, with continuous parity and early
+reconstruction checks. **Never repeat valid unchanged work.** Version analysis,
+types, toolchains and dependency evidence; stale results cannot be reused merely
+because a receipt exists.
 
 Identity evidence cascade (stage 1, cheap-first): authentic symbols/provenance →
 unique exact / relocation-normalized hashes → rare refs / C++ metadata →
@@ -86,22 +104,18 @@ bad seeds. (`STRATEGY.md`; `FRONTEND_INTENT.md` §6.)
 
 ### 2.2 The compile-gated "cross-match" tier
 
-The single most-repeated invariant in the whole corpus. `STRATEGY.md`
-§"Corpus recovery pipeline" is the authoritative definition:
+Compilation remains a necessary admission gate for candidate distribution.
+It is not acceptance as a replacement. Donors transfer only to compatible
+implementation variants under recipient ABI/layout checks. Recipient compilation,
+local/linked comparisons and contribution evidence remain separate. Legacy
+`real_c` records compilation; logical identity and similarity never imply
+interchangeable behavior. [The implementation delta](../plans/2026-09-22-recovery-contracts-and-validation-plan.md)
+tracks the missing enforcement rather than claiming the current copy path already
+performs these new checks.
 
-> `ghidra-bulk` → compile check → **(pass)** propagate that `.c` onto every sibling
-> bound to the same `logical_id`, then byte-exact verify in order → permuter →
-> LLM last; **(fail)** sanitizer/preparse helpers retry compile, then one bounded
-> LLM cleanup pass on that Ghidra body, then retry.
-
-Two hard rules: **cross-place copies only compiling C** (the assembly-floor link
-receipt is *not* that gate; enforcement refuses bodies without a
-`compile-receipt.json`), and **a `logical_id` bind alone never authorizes copying
-types, layouts, or source** — identity binding is a separate, already-run layer.
-Knowledge cross-match (labels, comments, structs/types, STABS names) runs
-concurrently and is **bidirectional per field**: the strongest source for each
-field wins, so a build is the donor for a *field*, not for everything. A weaker
-build never overwrites a stronger one.
+Knowledge fusion remains bidirectional and per field. A human name preference
+cannot override physical-layout evidence. Preserve unknown spans, per-build field
+layouts and evidence lineage. Withdraw unsupported descendants of invalid seeds.
 
 ### 2.3 What runs concurrently vs must serialize
 
@@ -114,7 +128,11 @@ build never overwrites a stronger one.
 | Runtime-reuse branch after sufficient identity/ABI evidence | Central acceptance of results and authoritative receipt/identity writes |
 | Optional distributed workers on leased independent units | |
 
-A configured worker count is not permission for overlapping writers. Resource
+A configured worker count is not permission for overlapping writers. The
+[task contract](../plans/2026-09-22-task-acceptance-and-continuation-design.md)
+adds task-specific resource budgets, durable retries, quarantine/fencing and
+capability priorities. Missing evidence or unhealthy resources block only their
+dependent claims/work; no stage-wide barrier may stall unrelated eligible tasks. Resource
 admission uses **actual ownership and measured memory/swap.** (`STRATEGY.md`;
 `FRONTEND_INTENT.md` §6 "What can run together".)
 
@@ -177,8 +195,9 @@ itself a requirement.
 
 ### 3.1 Axis A — the eight recovery stages (governing)
 
-The §2.1 stage list is the sole recovery-ordering authority, "do not reorder"
-(`STRATEGY.md`). Everything else defers to it.
+STRATEGY.md owns the stage prerequisites represented in §2.1. Feedback between
+identity/calibration and early/continuous verification are required; this is not
+a rigid one-pass schedule.
 
 ### 3.2 Axis B — the user's "priorities 1–9" shorthand
 
@@ -385,19 +404,25 @@ rendering consumers** — the static 8080 surface renders a truthful *lighter* f
 (inline row changes, stage details, expandable causal explanations, navigable
 evidence), the React surface renders the rich animated form — **both replaying the
 same accepted-event receipts.** Do not build it per-frontend (that violates "no
-providers copied into either frontend"). Do not presume a push transport: today
-both surfaces **poll** (the static donor lineage polls via ETag fragment refresh
-with backoff and hidden-tab pause; the React dock polls jobs), so build "real-time"
-as **replaying recorded event deltas over the existing poll** — which also yields
-the required freeze/step/history for free. Gate every animated edge on its
+providers copied into either frontend"). **Transport reconciliation, September 27:**
+preparation and job views poll, while entity activity already uses the shared
+`/workbench/activity/events` SSE producer with cursor/replay and HTTP fallback.
+Reuse that producer for entity evidence; do not introduce a second watcher or infer
+accepted work from a heartbeat. Freeze/step/history still needs explicit UI and replay
+acceptance. Gate every animated edge on its
 accepted/rejected receipt on **both** surfaces.
 
-Distinguish the three honest dimensions separately, never merged into one accuracy
-score (2026-08-31 `feel.md`, 2026-09-08 F07): **activity** (is work happening),
-**evidence/decomp posture** (none / asm / C), and **proof/validate posture**
-(none / objdiff / linked/whole-image). A **third combined "byte-accuracy bar" was
-explicitly and repeatedly rejected.** Repeated honest copy: "A finished job is not
-a match"; "Real C and a complete executable are separate facts."
+Keep activity, representation, evidence and capability dimensions separate; never
+merge them into one accuracy score. Activity has liveness, distinct durable-unit
+execution progress and accepted goal progress. Representation distinguishes
+candidate source, accepted source, preserved regions and unknown/excluded inventory.
+Compilation, ABI, tested behavior, local match, linked match, contribution and
+whole-file equality are independent named facts, each `not_run`, `passed`, `failed`,
+`unknown`, `unsupported` or `stale`. Runtime located/readable/callable/detourable/
+writable states have their own current conditions and can overlap. A legacy
+none/asm/C badge is display shorthand only and cannot authorize a replacement or
+operation. The historical prohibition on a combined byte-accuracy bar remains:
+"A finished job is not a match"; "Real C and a complete executable are separate facts."
 
 ### 4.4 The single pipeline control
 
@@ -482,6 +507,10 @@ does **not** authorize starting 5174 during a live recovery mission.
 > verification on a temp copy of the store. Every surface assignment in this document
 > is read under the lifted guard: 8080 remains the required surface, 5174 the richer
 > one, and no field exists on only one of them (plan, "Surface ownership").
+> **Scope of this note (2026-09-27):** it records design and planning intent only. It does
+> not change operating rules. [AGENTS.md](../../AGENTS.md) "Recovery operations" still
+> governs live work: no 5174 or 8767 starts, and no filesystem test suites for documentation
+> validation, until AGENTS.md itself is changed.
 
 > Chronology note: `verification/2026-09-11-react-aio-redesign.md` records checks on
 > port 5174 and a final PASS at `8767/react`; the "no 5174 process" guard is
@@ -557,7 +586,8 @@ does **not** authorize starting 5174 during a live recovery mission.
 | 2026-09-16 | Codex D2 recovery/redesign session — corpus-first, "draw the work," one control, remove duplicate Functions, priority-0 rework, runtime-reuse branch in-scope | all three |
 | 2026-09-20 | `dashboard-design/2026-09-20-{kotorxid,ghidra-guide}-capability-inventory.md` | look/feel |
 | 2026-09-20 | `dashboard-design/2026-09-20-{unified-workstation-spec,delivery-reconciliation}.md`; `plans/2026-09-20-unified-reversing-workstation.md`; **`FRONTEND_INTENT.md` consolidation** | all three |
-| 2026-09-20/21 | Post-consolidation git commits — implementation fixes consistent with intent (pause-drains-safely, bound stage progress to measured facets, keep draft tab, honor configured roots). **No new human requirements.** | — |
+| 2026-09-20/21 | Initial post-consolidation review captured implementation fixes (pause-drains-safely, measured facets, draft tab, configured roots); its research cutoff did not establish absence of later human requirements | implementation history |
+| 2026-09-21 | Requirements ledger, audit 3 and Phase 14 explicitly add autonomous open/add/resume, no-Start control semantics, derive/backfill visibility and complete surface acceptance | adopted product requirements |
 
 ### Supersessions / reversals (all confirmed against primary sources)
 
@@ -595,9 +625,10 @@ model built from all sources. These are the crux additions.
   truthful-inline, React rich-animated — not as a per-frontend UI item.
 - **Both** surfaces must be *event-truthful*; only rendering fidelity differs. 8080
   showing *less* is honest; 8080 showing a *spinner* is not.
-- **Transport is poll/replay, not push.** Neither surface has a live socket; build
-  "real-time" as replaying recorded event deltas over the existing poll (this also
-  gives freeze/step/history for free).
+- **Transport reconciliation, September 27:** reuse existing entity-activity SSE
+  with cursor/replay and polling fallback; preparation/jobs retain their existing
+  polling. Transport liveness is separate from accepted evidence. Freeze/step/history
+  requires implementation and acceptance rather than following automatically from replay.
 - Gate every animated edge on its **accepted/rejected receipt** — never animate a
   transfer before its event exists.
 
@@ -652,7 +683,8 @@ per-message provenance lives in `FRONTEND_INTENT.md` §11; the primary roots are
 - **Codex sessions:** `~/.codex/sessions/2026/09/08/rollout-…01a080d3….jsonl` (D1,
   dashboard/delivery), `~/.codex/sessions/2026/09/16/rollout-…01a0aca5….jsonl` (D2,
   recovery/redesign — the "draw the work" / one-control / priority-0 turns), and the
-  2026-09-20 handoff. No human design session exists after 2026-09-20.
+  2026-09-20 handoff. This historical source inventory ended at 2026-09-20;
+  the September 22 revisions also incorporate the current user instructions and attachments.
 - **Cursor:** `~/.cursor/chats/**/prompt_history.json` — the 2026-08-31 canonical
   contract (project `b3ef1b8d…` session `955d2c64…` idx 42), the frontend-
   architecture message (`74f6348d…` idx 11), and the one-page/menu-bar/project-tab
@@ -669,7 +701,6 @@ Coverage honesty: the ~64GB `boden_wizard_chat_context` archive and the full Cod
 corpus were sampled by recency + design-vocabulary co-occurrence, not read
 end-to-end; the 2026-09-17/18 "personal branding / mental-health" thread that
 keyword-matches "pipeline/priority" is **not** AgentDecompile and was excluded. The
-companion design-system extraction is in
-[`2026-09-21-design-system.md`](2026-09-21-design-system.md).
-</content>
-</invoke>
+historical inventory named `2026-09-21-design-system.md`, which is not present.
+The current consolidated frontend requirements are in
+[FRONTEND_INTENT.md](../FRONTEND_INTENT.md).

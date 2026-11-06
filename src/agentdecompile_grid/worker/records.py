@@ -27,7 +27,13 @@ Readers here use only ``LogStore.read``; nothing enumerates the object store.  `
 assumes a ``TASK`` body equals ``TaskSpec.to_record()`` (the publish side's contract; flagged
 for the objects/tasks slice).
 
-**Who said it is the signer, not the body.**  A RESULT whose ``producer_key`` differs from the
+**Who said it is the signer, and the signer must be trusted.**  Every reader here takes a
+``keyring`` (``log.signing.Keyring``, built from ``GridConfig.keyring_locator()``) and passes each
+record through ``signing.authorize_record`` before it trusts it: the signer is in the keyring,
+the signature verifies, and a TASK is signed by an operator key.  A refused record is dropped and,
+when the caller passes a ``refused`` list, named there as ``(partition, seq, reason)``;
+``keyring=None`` means an empty keyring (``allow_null`` = ``trust_unsigned``), so an unwired reader
+refuses rather than trusts.  A RESULT whose ``producer_key`` differs from the
 record's authenticated ``signer_key`` is dropped by every reader here (a forged producer could
 otherwise poison a task with invented keys or make two siblings look independent).  Unsigned
 records are those whose signer is the null signer (``signer_key`` ``null`` or ``null:<label>``,
@@ -50,6 +56,18 @@ from dataclasses import dataclass
 from typing import Any, Callable, Iterable, Mapping, Sequence
 
 from ..core import LogStore, NodeIdentity, ObjectRef, Record, RecordType, ResultStatus, TaskResult, TaskSpec, Verification, VerificationOutcome
+from ..log.signing import Keyring, refusal_reason
+
+RefusedRecords = list[tuple[str, int, str]]
+"""Where a reader names the records it would not trust: ``(partition, seq, reason)``."""
+
+
+def _trusted(rec: Record, keyring: Keyring | None, trust_unsigned: bool, refused: RefusedRecords | None) -> bool:
+    """``signing.authorize_record`` as a filter; ``keyring=None`` = an empty keyring (null only with ``trust_unsigned``)."""
+    reason = refusal_reason(rec, keyring if keyring is not None else Keyring(allow_null=trust_unsigned))
+    if reason is not None and refused is not None:
+        refused.append((rec.partition, rec.seq, reason))
+    return reason is None
 
 RESULTS_POINTER_PREFIX = "results/"     # results/<task_id>/<producer_key> -> result_ref (utf-8 bytes)
 EXPECTED_POINTER_PREFIX = "expected/"   # expected/<task_id> -> canonical JSON {"task_id", "outputs": {name: ref}} (hash-lookup pin)
@@ -166,10 +184,14 @@ class Proposal:
 LineageLookup = Callable[[str], Sequence[str] | None]
 
 
-def proposal_from_record(rec: Record, *, trust_unsigned: bool = False, lineage_lookup: LineageLookup | None = None) -> Proposal | None:
-    """A RESULT record as a Proposal, or None when it is not one or its producer claim is not
-    the authenticated signer (``signer_key``).  ``lineage_lookup`` replaces the claimed lineage."""
+def proposal_from_record(rec: Record, *, trust_unsigned: bool = False, lineage_lookup: LineageLookup | None = None,
+                         keyring: Keyring | None = None, refused: RefusedRecords | None = None) -> Proposal | None:
+    """A RESULT record as a Proposal, or None when it is not one, its signer is not trusted by
+    ``keyring`` (named in ``refused``), or its producer claim is not the authenticated signer
+    (``signer_key``).  ``lineage_lookup`` replaces the claimed lineage."""
     if rec.type != RecordType.RESULT:
+        return None
+    if not _trusted(rec, keyring, trust_unsigned, refused):
         return None
     b = rec.body
     try:
@@ -192,23 +214,30 @@ def proposal_from_record(rec: Record, *, trust_unsigned: bool = False, lineage_l
         return None
 
 
-def read_results(log: LogStore, partition: str, task_id: str | None = None, *, since_seq: int = 0, trust_unsigned: bool = False, lineage_lookup: LineageLookup | None = None) -> list[Proposal]:
+def read_results(log: LogStore, partition: str, task_id: str | None = None, *, since_seq: int = 0, trust_unsigned: bool = False, lineage_lookup: LineageLookup | None = None,
+                 keyring: Keyring | None = None, refused: RefusedRecords | None = None) -> list[Proposal]:
     out: list[Proposal] = []
     for rec in log.read(partition, since_seq):
-        p = proposal_from_record(rec, trust_unsigned=trust_unsigned, lineage_lookup=lineage_lookup)
+        p = proposal_from_record(rec, trust_unsigned=trust_unsigned, lineage_lookup=lineage_lookup, keyring=keyring, refused=refused)
         if p is not None and (task_id is None or p.task_id == task_id):
             out.append(p)
     return out
 
 
-def read_timeouts(log: LogStore, partition: str, task_id: str, *, trust_unsigned: bool = False, lineage_lookup: LineageLookup | None = None) -> list[tuple[str, tuple[str, ...]]]:
+def read_timeouts(log: LogStore, partition: str, task_id: str, *, trust_unsigned: bool = False, lineage_lookup: LineageLookup | None = None,
+                  keyring: Keyring | None = None) -> list[tuple[str, tuple[str, ...]]]:
     """(signer_key, lineage) for every TIMEOUT result of one task — the authenticated key, never the body's claim."""
-    return [(p.signer_key, p.producer_lineage) for p in read_results(log, partition, task_id, trust_unsigned=trust_unsigned, lineage_lookup=lineage_lookup) if p.status == ResultStatus.TIMEOUT]
+    return [(p.signer_key, p.producer_lineage) for p in read_results(log, partition, task_id, trust_unsigned=trust_unsigned, lineage_lookup=lineage_lookup, keyring=keyring)
+            if p.status == ResultStatus.TIMEOUT]
 
 
-def read_verdicts(log: LogStore, partition: str, task_id: str) -> list[Mapping[str, Any]]:
-    """VERIFIED and REFUTED bodies for one task (each carries ``result_ref`` and ``verifier_key``)."""
-    return [dict(rec.body) for rec in log.read(partition, 0) if rec.type in (RecordType.VERIFIED, RecordType.REFUTED) and rec.body.get("task_id") == task_id]
+def read_verdicts(log: LogStore, partition: str, task_id: str | None, *, keyring: Keyring | None = None, trust_unsigned: bool = False,
+                  refused: RefusedRecords | None = None) -> list[Mapping[str, Any]]:
+    """Trusted VERIFIED/REFUTED bodies for one task, or every task when ``task_id`` is ``None``."""
+    return [dict(rec.body) for rec in log.read(partition, 0)
+            if rec.type in (RecordType.VERIFIED, RecordType.REFUTED)
+            and (task_id is None or rec.body.get("task_id") == task_id)
+            and _trusted(rec, keyring, trust_unsigned, refused)]
 
 
 def has_poison(log: LogStore, partition: str, task_id: str) -> bool:
@@ -225,13 +254,20 @@ def live_intents(log: LogStore, partition: str, task_id: str, *, now_wall: float
 
 
 class LogTaskIndex:
-    """task_id -> TaskSpec from TASK records.  Assumes the TASK body is ``TaskSpec.to_record()``."""
+    """task_id -> TaskSpec from TASK records.  Assumes the TASK body is ``TaskSpec.to_record()``.
 
-    def __init__(self, log: LogStore, *, partitions: Iterable[str] | None = None) -> None:
+    Only TASK records ``keyring`` authorises (operator-signed) are indexed; the rest are named in
+    ``refused`` as ``(partition, seq, reason)``.  ``keyring=None`` = empty keyring: nothing indexed."""
+
+    def __init__(self, log: LogStore, *, partitions: Iterable[str] | None = None, keyring: Keyring | None = None,
+                 trust_unsigned: bool = False) -> None:
         self.log = log
         self._partitions = tuple(partitions) if partitions is not None else None
         self._specs: dict[str, TaskSpec] = {}
         self._seen: dict[str, int] = {}
+        self.keyring = keyring
+        self.trust_unsigned = trust_unsigned
+        self.refused: RefusedRecords = []
 
     def refresh(self) -> int:
         added = 0
@@ -242,6 +278,8 @@ class LogTaskIndex:
             for rec in self.log.read(partition, since):
                 last = max(last, rec.seq)
                 if rec.type == RecordType.TASK:
+                    if not _trusted(rec, self.keyring, self.trust_unsigned, self.refused):
+                        continue
                     try:
                         spec = TaskSpec.from_record(rec.body)
                     except (KeyError, ValueError):

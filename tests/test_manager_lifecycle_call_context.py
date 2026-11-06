@@ -19,7 +19,7 @@ async def test_activation_retains_checkout_context(monkeypatch, bootstrap):
     manager.program_info = lifecycle
     adapter = object()
     handle = {"repository_adapter": adapter}
-    session = SimpleNamespace(project_handle=None if bootstrap else handle)
+    session = SimpleNamespace(project_handle=None if bootstrap else handle, project_binaries=[])
     opened = []
 
     async def open_project(args, *, program_info):
@@ -57,7 +57,7 @@ async def test_failed_checkout_keeps_local_activation_fallback(monkeypatch):
     target = SimpleNamespace(program=object())
     checkout = AsyncMock(side_effect=RuntimeError("checkout unavailable"))
     adapter = object()
-    session = SimpleNamespace(project_handle={"repository_adapter": adapter})
+    session = SimpleNamespace(project_handle={"repository_adapter": adapter}, project_binaries=[])
     monkeypatch.setattr(manager, "_get_project_provider", lambda: SimpleNamespace(_checkout_shared_program=checkout))
     monkeypatch.setattr(tool_providers.SESSION_CONTEXTS, "get_program_info", lambda *_: None)
     monkeypatch.setattr(tool_providers.SESSION_CONTEXTS, "get_or_create", lambda *_: session)

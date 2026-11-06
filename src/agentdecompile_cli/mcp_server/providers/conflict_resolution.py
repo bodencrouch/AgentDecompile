@@ -92,6 +92,9 @@ class ConflictResolutionToolProvider(ToolProvider):
         invoke_args["__force_apply_conflict_id"] = pending.conflict_id
         if pending.program_path and not any(n(k) == "programpath" for k in invoke_args):
             invoke_args["programPath"] = pending.program_path
+        # The manager renders markdown by default; the replay result must stay JSON so its outcome can be checked.
+        invoke_args = {k: v for k, v in invoke_args.items() if n(k) != "responseformat"}
+        invoke_args["responseFormat"] = "json"
         src_tool = pending.tool
         try:
             result = await self._manager.call_tool(pending.tool, invoke_args, program_info=program_info)
@@ -100,7 +103,36 @@ class ConflictResolutionToolProvider(ToolProvider):
                 "resolve-modification-conflict overwrite failed exc_type=%s",
                 type(e).__name__,
             )
-            return create_error_response(f"Failed to apply stored modification: {e}")
+            return create_error_response(
+                f"Failed to apply stored modification: {e}",
+                context={"resolution": "overwrite", "applied": False, "conflictId": conflict_id, "tool": pending.tool},
+            )
+        data: Any = None
+        if result and isinstance(result[0], types.TextContent):
+            import json as _json
+
+            try:
+                data = _json.loads(result[0].text)
+            except (TypeError, ValueError):
+                data = None
+        failure: str | None = None
+        if not result:
+            failure = "the stored tool returned no result"
+        elif not isinstance(data, dict):
+            failure = "the stored tool returned a result that is not JSON, so success cannot be confirmed"
+        elif data.get("success") is False or data.get("modificationConflict") is True:
+            failure = str(data.get("error") or data.get("message") or "the stored tool reported failure")
+        if failure is not None:
+            # Keep the conflict so the caller can retry or skip it.
+            logger.warning(
+                "resolve-modification-conflict overwrite not applied conflict_id_prefix=%s source_tool=%s",
+                conflict_id[:8],
+                src_tool,
+            )
+            return create_error_response(
+                f"Failed to apply stored modification: {failure}",
+                context={"resolution": "overwrite", "applied": False, "conflictId": conflict_id, "tool": pending.tool},
+            )
         conflict_remove(session_id, conflict_id)
         logger.info(
             "modification_conflict_resolved resolution=overwrite conflict_id_prefix=%s source_tool=%s session_id=%s",
@@ -108,12 +140,4 @@ class ConflictResolutionToolProvider(ToolProvider):
             src_tool,
             redact_session_id(session_id),
         )
-        if result and isinstance(result[0], types.TextContent):
-            import json as _json
-
-            try:
-                data = _json.loads(result[0].text)
-                return create_success_response({"resolution": "overwrite", "applied": True, "conflictId": conflict_id, "tool": pending.tool, "result": data})
-            except Exception:
-                pass
-        return create_success_response({"resolution": "overwrite", "applied": True, "conflictId": conflict_id, "tool": pending.tool})
+        return create_success_response({"resolution": "overwrite", "applied": True, "conflictId": conflict_id, "tool": pending.tool, "result": data})

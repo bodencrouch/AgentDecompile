@@ -20,7 +20,7 @@ from pathlib import Path
 try:
     from unicorn import Uc, UC_ARCH_X86, UC_MODE_32, UC_HOOK_CODE, UC_HOOK_MEM_WRITE, \
         UC_HOOK_MEM_UNMAPPED
-    from unicorn.x86_const import UC_X86_REG_ESP, UC_X86_REG_EIP
+    from unicorn.x86_const import UC_X86_REG_ESP
     _HAVE_UC = True
 except ImportError:  # pragma: no cover
     _HAVE_UC = False

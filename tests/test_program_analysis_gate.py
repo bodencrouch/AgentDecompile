@@ -163,7 +163,8 @@ def test_blocking_ensure_runs_analysis_when_needed(monkeypatch: pytest.MonkeyPat
         result = pa.blocking_ensure_analyzed(program, info, program_path="/bin.exe")
 
     assert result.get("ran") is True
-    run_mock.assert_called_once_with(program, force_analysis=False)
+    # The gate already decided analysis is needed; ghidrecomp must not veto it.
+    run_mock.assert_called_once_with(program, force_analysis=True)
     assert info.ghidra_analysis_complete is True
 
 
@@ -400,3 +401,36 @@ def test_program_analysis_module_exports_public_api() -> None:
     assert set(pa.__all__) == expected
     for name in pa.__all__:
         assert hasattr(pa, name), f"missing export: {name}"
+
+
+@pytest.mark.unit
+def test_gate_needed_but_ghidra_not_asking_still_runs_analysis(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Fresh import: shouldAskToAnalyze is False yet isAnalyzed is False.
+
+    ghidrecomp's analyze_program skips unless shouldAskToAnalyze or
+    force_analysis; our gate says analysis is needed, so the run is forced.
+    """
+    program = MagicMock(spec=["getDomainFile", "getOptions", "getLanguageID", "getName", "hashCode"])
+    df = MagicMock()
+    df.getPathname.return_value = "/fresh.bin"
+    program.getDomainFile.return_value = df
+    flags = {"analyzed": False}
+
+    def fake_ghidrecomp(prog, force_analysis=False):
+        should_ask = False  # the observed state after import
+        if should_ask or force_analysis:
+            flags["analyzed"] = True
+
+    monkeypatch.setattr(pa, "run_analysis", fake_ghidrecomp)
+    monkeypatch.setattr(pa, "_ghidra_utilities_pending", lambda _p: not flags["analyzed"])
+    monkeypatch.setattr(pa, "wait_for_program_analysis_idle", lambda *_a, **_k: None)
+    monkeypatch.setattr(pa, "_defer_expensive_default_analyzers", lambda *_a, **_k: [])
+
+    info = SimpleNamespace(ghidra_analysis_complete=False, analysis_complete=False)
+    result = pa.blocking_ensure_analyzed(program, info, program_path="/fresh.bin")
+
+    assert result.get("ran") is True
+    assert flags["analyzed"] is True
+    assert info.ghidra_analysis_complete is True

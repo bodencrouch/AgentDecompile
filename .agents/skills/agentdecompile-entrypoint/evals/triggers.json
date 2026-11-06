@@ -1,0 +1,12 @@
+[
+  {"query": "set me up to start reversing with AgentDecompile", "should_trigger": true, "split": "train"},
+  {"query": "point my agent at these binaries, what do I read first", "should_trigger": true, "split": "train"},
+  {"query": "what tools do we have on this machine for matching and verification", "should_trigger": true, "split": "train"},
+  {"query": "configure cursor to use the agentdecompile mcp server", "should_trigger": true, "split": "train"},
+  {"query": "what should we be exporting and when is recovery done", "should_trigger": true, "split": "validation"},
+  {"query": "run the doctor and tell me which gaps are covered", "should_trigger": true, "split": "validation"},
+  {"query": "decompile FUN_401000", "should_trigger": false, "split": "train"},
+  {"query": "ingest the odyssey repo into BSim", "should_trigger": false, "split": "train"},
+  {"query": "the MCP call timed out", "should_trigger": false, "split": "validation"},
+  {"query": "continue from where we left off", "should_trigger": false, "split": "validation"}
+]

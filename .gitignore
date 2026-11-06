@@ -355,6 +355,12 @@ src/agentdecompile_recovery/__pycache__/
 src/agentdecompile_recovery/**/*.pyc
 !.claude/skills/agentdecompile*/
 !.claude/skills/agentdecompile*/**
+!.agents/skills/agentdecompile*/
+!.agents/skills/agentdecompile*/**
+!.cursor/skills/agentdecompile*/
+!.cursor/skills/agentdecompile*/**
+!skills/agentdecompile*/
+!skills/agentdecompile*/**
 .lfg_*/
 .venv*/
 ralphy-spec/

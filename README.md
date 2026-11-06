@@ -8,6 +8,8 @@ AgentDecompile exposes live Ghidra state through the open [Model Context Protoco
 
 [Quick start](#installation) · [Usage guide](USAGE.md) · [Tool list](TOOLS_LIST.md) · [Docs site](https://bodecloud.github.io/AgentDecompile/) · [Doc index](docs/INDEX.md)
 
+**Pointing an AI agent at this repository?** Start at [entrypoint/README.md](entrypoint/README.md): client setup, the operating rules, the curated tool stack, and what a finished result is allowed to claim.
+
 ```mermaid
 flowchart TD
   A[MCP client] --> B[mcp-agentdecompile or agentdecompile-mcp]

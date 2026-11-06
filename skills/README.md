@@ -45,6 +45,7 @@ automatic propagation threshold.
 | `lfg` | Continue authorized work from STRATEGY and existing evidence |
 | `re-planner` / `re-worker` / `re-critic` / `re-aggregator` | Multi-agent RE roles |
 | `agentdecompile-server-env` | Attach existing 8080, environment, bind, sessions |
+| `agentdecompile-entrypoint` | New agent onboarding: client setup, stack doctor, recovery loop, exports |
 
 `agentdecompile-rewrite-worker` and `agentdecompile-server-env` have canonical
 bodies under `.agents/skills/` and Claude loaders. Migrated `source-command-*`

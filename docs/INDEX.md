@@ -20,8 +20,9 @@ implementation references, subject to those constraints.
 ### Start here
 
 1. [../README.md](../README.md) — operator entry and installation references
-2. [../USAGE.md](../USAGE.md) — CLI, HTTP MCP, sessions, Web UI, failures
-3. [../TOOLS_LIST.md](../TOOLS_LIST.md) — tool parameters and aliases
+2. [../entrypoint/README.md](../entrypoint/README.md) — agent entrypoint: setup, recovery loop, stack, coordinator design
+3. [../USAGE.md](../USAGE.md) — CLI, HTTP MCP, sessions, Web UI, failures
+4. [../TOOLS_LIST.md](../TOOLS_LIST.md) — tool parameters and aliases
 
 ### Recovery
 

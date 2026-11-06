@@ -10,6 +10,22 @@ execution: code
 
 # Portable Signatures and Phasor Export - Plan
 
+## Reconciliation — 2026-09-22
+
+[Recovery contracts and external validation](2026-09-22-recovery-contracts-and-validation-plan.md) implements the latest
+design revision under [STRATEGY.md](../../STRATEGY.md). It supersedes rigid stage
+barriers, universal per-function compilation/inline assembly, identity-only source
+transfer and unconditional locator/runtime promises in the historical body.
+Identity/calibration iterate; reconstruction starts early; candidate admission,
+recipient verification and runtime capabilities stay separate. Reuse only valid
+unchanged dependencies. reccmp/ReAgent are planned optional external adapters;
+provider baselines are documentary references, not dependencies installed now.
+The [design package](2026-09-22-design-package.md) also governs task/acceptance,
+dependency-local continuation and independent identity evidence. Future execution
+and reconstruction/runtime demonstrations are NOT RUN; no running service is
+required to complete the design.
+The current session's AGENTS.md operational constraints govern historical recipes.
+
 ## Reconciliation — 2026-09-20
 
 This note governs current work; the original plan below is retained as decision

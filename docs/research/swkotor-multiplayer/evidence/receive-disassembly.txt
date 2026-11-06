@@ -1,0 +1,62 @@
+Input SHA256: 9c10e0450a6eeca417e036e3cde7474fed1f0a92aab018446d156944dea91435
+Command: objdump -d --start-address=0x5d57d0 --stop-address=0x5d586a /home/brunner56/agentdecompile-nvme/agentdecompile_projects/extract/raw/K1__k1_win_gog_swkotor.exe
+
+
+/home/brunner56/agentdecompile-nvme/agentdecompile_projects/extract/raw/K1__k1_win_gog_swkotor.exe:     file format pei-i386
+
+
+Disassembly of section .text:
+
+005d57d0 <.text+0x1d47d0>:
+  5d57d0:	8b 44 24 04          	mov    0x4(%esp),%eax
+  5d57d4:	85 c0                	test   %eax,%eax
+  5d57d6:	56                   	push   %esi
+  5d57d7:	8b f1                	mov    %ecx,%esi
+  5d57d9:	0f 84 87 00 00 00    	je     0x5d5866
+  5d57df:	8b 86 00 00 02 00    	mov    0x20000(%esi),%eax
+  5d57e5:	3b 86 04 00 02 00    	cmp    0x20004(%esi),%eax
+  5d57eb:	74 79                	je     0x5d5866
+  5d57ed:	55                   	push   %ebp
+  5d57ee:	57                   	push   %edi
+  5d57ef:	90                   	nop
+  5d57f0:	81 be 00 00 02 00 00 	cmpl   $0x10000,0x20000(%esi)
+  5d57f7:	00 01 00 
+  5d57fa:	72 0a                	jb     0x5d5806
+  5d57fc:	c7 86 00 00 02 00 00 	movl   $0x0,0x20000(%esi)
+  5d5803:	00 00 00 
+  5d5806:	8b 86 00 00 02 00    	mov    0x20000(%esi),%eax
+  5d580c:	8b 14 30             	mov    (%eax,%esi,1),%edx
+  5d580f:	83 c0 04             	add    $0x4,%eax
+  5d5812:	8b ca                	mov    %edx,%ecx
+  5d5814:	83 e1 03             	and    $0x3,%ecx
+  5d5817:	8b f8                	mov    %eax,%edi
+  5d5819:	2b f9                	sub    %ecx,%edi
+  5d581b:	8d 6c 17 04          	lea    0x4(%edi,%edx,1),%ebp
+  5d581f:	8d 3c 30             	lea    (%eax,%esi,1),%edi
+  5d5822:	89 86 00 00 02 00    	mov    %eax,0x20000(%esi)
+  5d5828:	80 3f 42             	cmpb   $0x42,(%edi)
+  5d582b:	75 14                	jne    0x5d5841
+  5d582d:	80 7c 30 01 4e       	cmpb   $0x4e,0x1(%eax,%esi,1)
+  5d5832:	75 0d                	jne    0x5d5841
+  5d5834:	52                   	push   %edx
+  5d5835:	57                   	push   %edi
+  5d5836:	6a 00                	push   $0x0
+  5d5838:	8b ce                	mov    %esi,%ecx
+  5d583a:	e8 51 fe ff ff       	call   0x5d5690
+  5d583f:	eb 11                	jmp    0x5d5852
+  5d5841:	8b 8e 08 00 02 00    	mov    0x20008(%esi),%ecx
+  5d5847:	8b 01                	mov    (%ecx),%eax
+  5d5849:	6a 00                	push   $0x0
+  5d584b:	52                   	push   %edx
+  5d584c:	57                   	push   %edi
+  5d584d:	6a 00                	push   $0x0
+  5d584f:	ff 50 04             	call   *0x4(%eax)
+  5d5852:	89 ae 00 00 02 00    	mov    %ebp,0x20000(%esi)
+  5d5858:	8b 86 04 00 02 00    	mov    0x20004(%esi),%eax
+  5d585e:	8b cd                	mov    %ebp,%ecx
+  5d5860:	3b c8                	cmp    %eax,%ecx
+  5d5862:	75 8c                	jne    0x5d57f0
+  5d5864:	5f                   	pop    %edi
+  5d5865:	5d                   	pop    %ebp
+  5d5866:	5e                   	pop    %esi
+  5d5867:	c2 04 00             	ret    $0x4

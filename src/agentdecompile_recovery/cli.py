@@ -92,8 +92,11 @@ def unity_config_kwargs(args: argparse.Namespace) -> dict[str, Any]:
     }
 
 
-def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="agentdecompile-recover", formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+DEFAULT_PROG = "agentdecompile-recover"
+
+
+def build_parser(prog: str | None = None) -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(prog=prog or DEFAULT_PROG, formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     sub = parser.add_subparsers(dest="command")
 
     inspect = sub.add_parser("inspect", help="Resolve and identify the target binary.")
@@ -591,7 +594,19 @@ def run_name_census(args: argparse.Namespace) -> int:
     from .ghidra_db.project import list_programs, open_project_program
 
     if args.db is not None:
-        program = open_program(args.db)
+        try:
+            program = open_program(args.db)
+        except FileNotFoundError as exc:
+            if exc.filename is None or Path(exc.filename).resolve() != Path(args.db).resolve():
+                raise
+            print(
+                json.dumps(
+                    {"error": f"no such file: {args.db}", "hint": "pass an existing db.N.gbf, or use --project instead"},
+                    indent=2,
+                ),
+                file=sys.stderr,
+            )
+            return 1
     else:
         if args.project_program:
             program = open_project_program(args.project, args.project_program)
@@ -626,7 +641,7 @@ def run_recover(args: argparse.Namespace) -> int:
         try:
             resolve_existing_project_source(project, project_program)
         except (OSError, ValueError) as exc:
-            print(f"agentdecompile-recovery: --project error: {exc}", file=sys.stderr)
+            print(f"{getattr(args, '_prog', DEFAULT_PROG)}: --project error: {exc}", file=sys.stderr)
             return 2
     work_dir = args.work_dir or default_work_dir(args.input)
     config = RecoveryConfig(
@@ -683,6 +698,7 @@ def run_recover(args: argparse.Namespace) -> int:
         skip_enrichment=bool(getattr(args, "skip_enrichment", False)),
         project=project,
         project_program=project_program,
+        display_prog=getattr(args, "_prog", None) or DEFAULT_PROG,
         **unity_config_kwargs(args),
     )
     return RecoveryRunner(config).run()
@@ -713,6 +729,7 @@ def run_recover_windows(args: argparse.Namespace) -> int:
         context_max_index_text_chars=args.context_max_index_text_chars,
         context_extract_containers=not args.no_context_extract_containers,
         context_include_low_signal_members=args.context_include_low_signal_members,
+        display_prog=getattr(args, "_prog", None) or DEFAULT_PROG,
     )
     summary = run_recovery_windows(
         base_config=config,
@@ -1038,7 +1055,7 @@ def run_acquire(args: argparse.Namespace) -> int:
     if project is not None:
         problem = project_input_error(project)
         if problem:
-            print(f"agentdecompile-recovery: --project error: {problem}", file=sys.stderr)
+            print(f"{getattr(args, '_prog', DEFAULT_PROG)}: --project error: {problem}", file=sys.stderr)
             return 2
 
     receipt = acquire_context(
@@ -1368,9 +1385,13 @@ def run_survey_project(args: argparse.Namespace) -> int:
     return 0
 
 
-def main(argv: list[str] | None = None) -> int:
-    parser = build_parser()
+def main(argv: list[str] | None = None, prog: str | None = None) -> int:
+    parser = build_parser(prog)
     args = parser.parse_args(argv if argv is not None else sys.argv[1:])
+    # Not an argparse action/default: the 8080 catalog introspects parser
+    # actions, and adding one here would leak into that surface. This is
+    # purely for diagnostics printed by the run_* handlers below.
+    args._prog = parser.prog
     if args.command == "inspect":
         return run_inspect(args)
     if args.command == "headers":

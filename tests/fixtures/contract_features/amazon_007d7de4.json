@@ -1,0 +1,212 @@
+{
+ "build": "amazon",
+ "va": 8224228,
+ "cacheName": "FUN_007d7de4",
+ "cacheSize": 80,
+ "source": {
+  "evidence": "/home/brunner56/agentdecompile-deliverables/2026-09-27-tie-triage-w2/evidence.json",
+  "evidenceSha256": "82759d010d85fe909f63059dc757ff6b856d96588bfa8545da3740e5041bb24e",
+  "jsonPath": "bodies['amazon:0x7d7de4'].independentDecode",
+  "handRowsPath": "receiverMisread.bytes"
+ },
+ "image": {
+  "imageSha256": "0b6a2a7f8b4880a4986aecfe758a94b7b8fefec1cba4dac6fd06dda3ae0e7f3e",
+  "va": 8224228,
+  "fileOffset": 4026852
+ },
+ "spanSha256": "8dc6b837ce749efd2393a0f17d69b50cf97bf83a584d282e465d0d94af5aabab",
+ "capstoneBanner": "capstone 5.0.7",
+ "instructions": [
+  {
+   "va": 8224228,
+   "hex": "8bff",
+   "text": "mov edi, edi"
+  },
+  {
+   "va": 8224230,
+   "hex": "55",
+   "text": "push ebp"
+  },
+  {
+   "va": 8224231,
+   "hex": "8bec",
+   "text": "mov ebp, esp"
+  },
+  {
+   "va": 8224233,
+   "hex": "8b550c",
+   "text": "mov edx, dword ptr [ebp + 0xc]"
+  },
+  {
+   "va": 8224236,
+   "hex": "56",
+   "text": "push esi"
+  },
+  {
+   "va": 8224237,
+   "hex": "8bf1",
+   "text": "mov esi, ecx"
+  },
+  {
+   "va": 8224239,
+   "hex": "83faff",
+   "text": "cmp edx, -1"
+  },
+  {
+   "va": 8224242,
+   "hex": "7439",
+   "text": "je 0x7d7e2d"
+  },
+  {
+   "va": 8224244,
+   "hex": "8b4508",
+   "text": "mov eax, dword ptr [ebp + 8]"
+  },
+  {
+   "va": 8224247,
+   "hex": "83e800",
+   "text": "sub eax, 0"
+  },
+  {
+   "va": 8224250,
+   "hex": "742d",
+   "text": "je 0x7d7e29"
+  },
+  {
+   "va": 8224252,
+   "hex": "83e801",
+   "text": "sub eax, 1"
+  },
+  {
+   "va": 8224255,
+   "hex": "7419",
+   "text": "je 0x7d7e1a"
+  },
+  {
+   "va": 8224257,
+   "hex": "83e807",
+   "text": "sub eax, 7"
+  },
+  {
+   "va": 8224260,
+   "hex": "7527",
+   "text": "jne 0x7d7e2d"
+  },
+  {
+   "va": 8224262,
+   "hex": "0fb6d2",
+   "text": "movzx edx, dl"
+  },
+  {
+   "va": 8224265,
+   "hex": "40",
+   "text": "inc eax"
+  },
+  {
+   "va": 8224266,
+   "hex": "8bca",
+   "text": "mov ecx, edx"
+  },
+  {
+   "va": 8224268,
+   "hex": "c1ea03",
+   "text": "shr edx, 3"
+  },
+  {
+   "va": 8224271,
+   "hex": "83e107",
+   "text": "and ecx, 7"
+  },
+  {
+   "va": 8224274,
+   "hex": "d3e0",
+   "text": "shl eax, cl"
+  },
+  {
+   "va": 8224276,
+   "hex": "8444323c",
+   "text": "test byte ptr [edx + esi + 0x3c], al"
+  },
+  {
+   "va": 8224280,
+   "hex": "eb0d",
+   "text": "jmp 0x7d7e27"
+  },
+  {
+   "va": 8224282,
+   "hex": "83fa09",
+   "text": "cmp edx, 9"
+  },
+  {
+   "va": 8224285,
+   "hex": "7c05",
+   "text": "jl 0x7d7e24"
+  },
+  {
+   "va": 8224287,
+   "hex": "83fa0d",
+   "text": "cmp edx, 0xd"
+  },
+  {
+   "va": 8224290,
+   "hex": "7e09",
+   "text": "jle 0x7d7e2d"
+  },
+  {
+   "va": 8224292,
+   "hex": "83fa20",
+   "text": "cmp edx, 0x20"
+  },
+  {
+   "va": 8224295,
+   "hex": "7404",
+   "text": "je 0x7d7e2d"
+  },
+  {
+   "va": 8224297,
+   "hex": "b001",
+   "text": "mov al, 1"
+  },
+  {
+   "va": 8224299,
+   "hex": "eb02",
+   "text": "jmp 0x7d7e2f"
+  },
+  {
+   "va": 8224301,
+   "hex": "32c0",
+   "text": "xor al, al"
+  },
+  {
+   "va": 8224303,
+   "hex": "5e",
+   "text": "pop esi"
+  },
+  {
+   "va": 8224304,
+   "hex": "5d",
+   "text": "pop ebp"
+  },
+  {
+   "va": 8224305,
+   "hex": "c20800",
+   "text": "ret 8"
+  }
+ ],
+ "handRows": [
+  {
+   "va": 8224237,
+   "hex": "8bf1",
+   "meaning": "mov esi, ecx: entry ECX copied",
+   "cachedText": "MOV ESI,ECX",
+   "imageVerified": true
+  },
+  {
+   "va": 8224276,
+   "hex": "8444323c",
+   "meaning": "test [edx+esi+0x3c]: the copied receiver is dereferenced",
+   "cachedText": "TEST byte ptr [EDX + ESI*0x1 + 0x3c],AL",
+   "imageVerified": true
+  }
+ ]
+}

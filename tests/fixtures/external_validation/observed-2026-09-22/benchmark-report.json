@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "results": [
+    {
+      "name": "matching-original-arithmetic",
+      "matched": true,
+      "expected_match": true,
+      "cases_run": 3,
+      "findings": [
+        "All 3 differential cases matched"
+      ],
+      "duration_s": 0.3839403379824944
+    },
+    {
+      "name": "deliberately-wrong-constant",
+      "matched": false,
+      "expected_match": false,
+      "cases_run": 1,
+      "findings": [
+        "{\"candidate\": {\"result\": 2}, \"case\": {\"x\": 0}, \"reference\": {\"result\": 1}}"
+      ],
+      "duration_s": 0.13257663502008654
+    }
+  ],
+  "total": 2,
+  "expectations_met": 2
+}

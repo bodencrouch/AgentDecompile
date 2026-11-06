@@ -33,7 +33,12 @@ from mcp import types
 from agentdecompile_cli.app_logger import basename_hint, redact_session_id
 from agentdecompile_cli.context import ProgramInfo
 from agentdecompile_cli.mcp_server.providers._collectors import iter_items
-from agentdecompile_cli.mcp_server.providers.project import ProjectToolProvider
+from agentdecompile_cli.mcp_server.providers.project import (
+    ProjectToolProvider,
+    domain_file_sha256s,
+    file_sha256,
+    record_source_sha256,
+)
 from agentdecompile_cli.mcp_server.repository_adapter_listing import list_repository_adapter_items
 from agentdecompile_cli.mcp_server.session_context import (
     SESSION_CONTEXTS,
@@ -1129,6 +1134,7 @@ class ImportExportToolProvider(ToolProvider):
                         "repository": repository_name,
                         "programs": binaries,
                         "method": "pyghidra_api",
+                        "_sharedImportIdentity": (server_host, server_port, repository_name),
                     }
                 except Exception:
                     if not transient_program_released:
@@ -1382,6 +1388,7 @@ class ImportExportToolProvider(ToolProvider):
             "repository": repository_name,
             "programs": binaries,
             "stdout": stdout or None,
+            "_sharedImportIdentity": (server_host, server_port, repository_name),
         }
         if not analyze_after_import:
             result["inSessionAnalysisPending"] = True
@@ -1465,6 +1472,14 @@ class ImportExportToolProvider(ToolProvider):
                 protection = await _native_call(inspect_protection, candidate)
                 if protection.get('status') == 'detected':
                     return create_error_response(f"protection-unavailable: import {candidate.name} individually so a derived image can be prepared before shared import.")
+            shared_result = self._handle_shared_import(
+                source,
+                recursive,
+                analyze_after_import,
+                program_file_name=repo_program_name,
+                program_info=program_info,
+            )
+            shared_result.pop("_sharedImportIdentity", None)
             return create_success_response(
                 self._handle_shared_import(
                     source,
@@ -1538,8 +1553,14 @@ class ImportExportToolProvider(ToolProvider):
                     if protection.get('handling') == 'blocked':
                         raise ValueError(f"protection-unavailable: {protection.get('reason')}")
                     analysis_item = Path(protection['analysisPath'])
-                    from agentdecompile_recovery.corpus.dashboard.library_identity import binary_sha256
-                    digest = await _native_call(binary_sha256, str(analysis_item))
+                    # Reuse is keyed on the raw file the caller named, the same bytes
+                    # _import_file hashes.  ``digest`` (bytes Ghidra loads) still
+                    # matches files imported before the source hash was recorded.
+                    source_digest = await _native_call(file_sha256, item)
+                    if analysis_item.resolve() == Path(item).resolve():
+                        digest = source_digest
+                    else:
+                        digest = await _native_call(file_sha256, analysis_item)
                     def existing_content():
                         root = ghidra_project.getProject().getProjectData().getRootFolder()
                         pending = [root]
@@ -1548,9 +1569,8 @@ class ImportExportToolProvider(ToolProvider):
                             folder = pending.pop()
                             pending.extend(list(folder.getFolders()))
                             for domain_file in folder.getFiles():
-                                metadata = domain_file.getMetadata()
-                                prior = str(metadata.get("Executable SHA256") or metadata.get("SHA256") or "").lower()
-                                if digest and prior == digest:
+                                known = domain_file_sha256s(domain_file)
+                                if (source_digest and source_digest in known) or (digest and digest in known):
                                     return str(domain_file.getPathname()), str(domain_file.getName())
                                 if str(domain_file.getName()) == name and str(folder.getPathname()).rstrip("/") == dest_folder.rstrip("/"):
                                     collision = True
@@ -1662,7 +1682,10 @@ class ImportExportToolProvider(ToolProvider):
                     )
                     from agentdecompile_cli.launcher import ProgramInfo as _ProgramInfo
                     from agentdecompile_cli.mcp_utils.decompiler_util import open_decompiler_for_program
-                    from agentdecompile_cli.mcp_utils.program_analysis import blocking_ensure_analyzed
+                    from agentdecompile_cli.mcp_utils.program_analysis import (
+                        blocking_ensure_analyzed,
+                        clear_analysis_failure,
+                    )
 
                     _dec = None
                     try:
@@ -1679,6 +1702,9 @@ class ImportExportToolProvider(ToolProvider):
                         file_path=item,
                         load_time=time.time(),
                     )
+                    # Imported or reused, the program now sits at its final path; a
+                    # failure recorded earlier for that path must not suppress analysis.
+                    clear_analysis_failure(program, path_in_project)
                     SESSION_CONTEXTS.set_active_program_info(session_id, path_in_project, _pi)
                     program_info = _pi
                     if analyze_after_import:
@@ -2205,19 +2231,27 @@ class ImportExportToolProvider(ToolProvider):
         program: GhidraProgram | None = program_info.program
 
         try:
-            from agentdecompile_cli.mcp_utils.program_analysis import program_needs_analysis
+            from agentdecompile_cli.mcp_utils.program_analysis import observed_analysis_complete
 
-            already_analyzed = not program_needs_analysis(program)
-            if already_analyzed and not force:
+            complete = observed_analysis_complete(program)
+            if complete is not False and not force:
                 return create_success_response(
                     {
                         "action": "analyze",
                         "programName": program.getName() if program is not None else "(none)",
                         "analyzers": analyzers or "all",
                         "success": False,
-                        "alreadyAnalyzed": True,
+                        "alreadyAnalyzed": complete is True,
+                        "analysisComplete": complete,
+                        "analysisTriggered": False,
                         "forceAllowed": True,
-                        "error": "Program has already been analyzed. Re-run only when you have a specific reason; set force=true to override.",
+                        "error": (
+                            "Ghidra reports the program is already analyzed for its configured analysis. "
+                            "No analysis was run. Re-run only for a specific reason; set force=true to override."
+                            if complete is True else
+                            "Ghidra analysis completion could not be determined. No analysis was run; "
+                            "inspect the program state before deliberately overriding with force=true."
+                        ),
                     },
                 )
 
@@ -2232,8 +2266,8 @@ class ImportExportToolProvider(ToolProvider):
                 # Best-effort hint only: auto-analysis can proceed without a path.
                 logger.debug("Unable to resolve program path hint for analysis: %s", exc)
 
-            def _run_auto_analysis() -> None:
-                blocking_ensure_analyzed(
+            def _run_auto_analysis() -> dict[str, Any]:
+                return blocking_ensure_analyzed(
                     program,
                     program_info,
                     program_path=program_path_hint or None,
@@ -5569,39 +5603,63 @@ class ImportExportToolProvider(ToolProvider):
     async def _handle_list_processors(self, args: dict[str, Any], *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
         logger.debug("diag.enter %s", "mcp_server/providers/import_export.py:ImportExportToolProvider._handle_list_processors")
         filter_str = self._get_str(args, "filter", "query", "search")
+        needle = filter_str.strip().lower()
 
         try:
-            from ghidra.framework.main import AppInfo as GhidraAppInfo  # pyright: ignore[reportMissingModuleSource, reportMissingImports]
-
-            GhidraAppInfo.getActiveProject().getProjectData()
-            # This needs proper language service access
-            return create_success_response(
-                {
-                    "action": "list_processors",
-                    "note": "Processor listing requires Ghidra LanguageService",
-                    "filter": filter_str,
-                },
-            )
-        except Exception:
-            # Common processors
+            from ghidra.program.util import DefaultLanguageService as GhidraDefaultLanguageService  # pyright: ignore[reportMissingModuleSource, reportMissingImports]
+        except ImportError:
+            # Outside a Ghidra JVM there is no language service; say so instead of
+            # passing a hardcoded list off as the installed languages.
             common = [
                 "x86:LE:32:default",
                 "x86:LE:64:default",
                 "ARM:LE:32:v8",
-                "ARM:LE:64:v8A",
                 "AARCH64:LE:64:v8A",
                 "MIPS:BE:32:default",
                 "MIPS:LE:32:default",
                 "PowerPC:BE:32:default",
                 "PowerPC:BE:64:default",
             ]
-            if filter_str:
-                common = [p for p in common if filter_str.lower() in p.lower()]
+            if needle:
+                common = [p for p in common if needle in p.lower()]
             return create_success_response(
                 {
                     "action": "list_processors",
+                    "filter": filter_str,
                     "processors": common,
-                    "note": "Showing common processors; full list requires Ghidra environment",
                     "count": len(common),
+                    "source": "fallback",
+                    "note": "Ghidra language service unavailable; showing a fixed list of common language IDs",
                 },
             )
+
+        languages: list[dict[str, Any]] = []
+        for desc in list(GhidraDefaultLanguageService.getLanguageService().getLanguageDescriptions(False)):
+            if desc is None:
+                continue
+            language_id = str(desc.getLanguageID())
+            processor = str(desc.getProcessor())
+            description = str(desc.getDescription() or "")
+            if needle and needle not in f"{language_id}\n{processor}\n{description}".lower():
+                continue
+            languages.append(
+                {
+                    "languageId": language_id,
+                    "processor": processor,
+                    "endian": str(desc.getEndian()),
+                    "size": int(desc.getSize()),
+                    "variant": str(desc.getVariant()),
+                    "description": description,
+                },
+            )
+        languages.sort(key=lambda row: row["languageId"].lower())
+        return create_success_response(
+            {
+                "action": "list_processors",
+                "filter": filter_str,
+                "processors": [row["languageId"] for row in languages],
+                "languages": languages,
+                "count": len(languages),
+                "source": "language-service",
+            },
+        )

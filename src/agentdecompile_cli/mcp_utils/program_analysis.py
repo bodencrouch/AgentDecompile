@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import logging
 import threading
 import time
@@ -19,11 +20,15 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 __all__ = [
+    "ProgramAnalysisIncomplete",
     "ProgramAnalysisTimeout",
+    "analysis_failure",
     "analysis_gate_exempt_tool",
+    "clear_analysis_failure",
     "blocking_ensure_analyzed",
     "mark_program_analysis_complete",
     "program_needs_analysis",
+    "observed_analysis_complete",
     "wait_for_program_analysis_idle",
     "wait_for_program_analysis_ready",
 ]
@@ -31,6 +36,15 @@ __all__ = [
 
 class ProgramAnalysisTimeout(TimeoutError):
     """Ghidra auto-analysis did not become idle within the allowed wait."""
+
+
+class ProgramAnalysisIncomplete(ProgramAnalysisTimeout):
+    """Analysis ran to idle but the program still reports it needs analysis.
+
+    Unlike an idle-wait timeout this repeats on every run, so it is recorded in
+    ``_FAILED_ANALYSIS``.  It subclasses ProgramAnalysisTimeout so existing
+    handlers keep returning the analysis-timeout response.
+    """
 
 
 _LOCKS: dict[str, threading.Lock] = {}
@@ -41,6 +55,7 @@ _MAX_PROGRAM_LOCKS = 512
 _POLL_INTERVAL_MIN_SEC = 0.05
 _POLL_INTERVAL_MAX_SEC = 1.0
 _POLL_BACKOFF_FACTOR = 1.5
+_ANALYSIS_HEARTBEAT_INTERVAL_SEC = 60.0
 
 # Tools that manage analysis themselves or do not need an analyzed program yet.
 _ANALYSIS_GATE_EXEMPT_TOOLS: frozenset[str] = frozenset(
@@ -55,6 +70,17 @@ _ANALYSIS_GATE_EXEMPT_TOOLS: frozenset[str] = frozenset(
         "svradmin",
         "debuginfo",
         "getcurrentprogram",
+        # Memory inspection reads existing bytes/listing entries; analysis is explicit.
+        "inspectmemory",
+        "readbytes",
+        # Function inventory reads only the currently defined listing.
+        "listfunctions",
+        # Symbol name discovery reads the existing symbol table; analysis is explicit.
+        "searchsymbols",
+        # A bounded function decompile must not start unbounded full-image analysis.
+        # Resolve existing functions and let Ghidra report missing listing data.
+        "decompilefunction",
+        "decompile",
         # Version-control lifecycle tools do not require an analyzed listing yet.
         "checkoutprogram",
         "checkinprogram",
@@ -355,7 +381,21 @@ def blocking_ensure_analyzed(
                 raise ProgramAnalysisTimeout(
                     f"Ghidra auto-analysis did not complete for program (key={key})"
                 )
-            mark_program_analysis_complete(program_info)
+                if not analyzers and program_needs_analysis(program, program_info=program_info):
+                    raise ProgramAnalysisIncomplete(
+                        f"Ghidra auto-analysis did not complete for program (key={key})"
+                    )
+            except ProgramAnalysisTimeout as exc:
+                if not analyzers and isinstance(exc, ProgramAnalysisIncomplete):
+                    _record_analysis_failure(key, exc)
+                raise
+            except Exception as exc:
+                if not analyzers:
+                    _record_analysis_failure(key, exc)
+                raise
+            if not analyzers:
+                _FAILED_ANALYSIS.pop(key, None)
+                mark_program_analysis_complete(program_info)
             logger.info("program_analysis_done key=%s", key)
             result = {"ran": True, "programKey": key, "force": force, "deferredAnalyzers": deferred}
     return result
@@ -380,6 +420,12 @@ def wait_for_program_analysis_ready(
     with _program_analysis_lock(program, program_path) as key:
         if not program_needs_analysis(program, program_info=program_info):
             mark_program_analysis_complete(program_info)
+            return
+        failure = _FAILED_ANALYSIS.get(key)
+        if failure is not None:
+            # Analysis already failed once here; let the tool run on the listing
+            # as it is instead of re-running (and re-failing) analysis per call.
+            logger.warning("program_analysis_gate_skip_after_failure key=%s error=%s", key, failure)
             return
         wait_for_program_analysis_idle(program, max_wait_sec=max_wait_sec)
         if program_needs_analysis(program, program_info=program_info):

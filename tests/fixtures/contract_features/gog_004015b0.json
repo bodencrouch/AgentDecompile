@@ -1,0 +1,157 @@
+{
+ "build": "gog",
+ "va": 4199856,
+ "cacheName": "StoreMouseTrailsState",
+ "cacheSize": 60,
+ "source": {
+  "evidence": "/home/brunner56/agentdecompile-deliverables/2026-09-27-tie-triage/evidence.json",
+  "evidenceSha256": "8972699e1caa2213e2ce60c870b8acf683e19e31254ee6b517efb0622b73ca30",
+  "jsonPath": "bodies['gog:0x4015b0'].independentDecode",
+  "handRowsPath": "handRows['gog:0x4015b0']"
+ },
+ "image": {
+  "imageSha256": "9c10e0450a6eeca417e036e3cde7474fed1f0a92aab018446d156944dea91435",
+  "va": 4199856,
+  "fileOffset": 5552
+ },
+ "spanSha256": "1f187e9fef2ba7d1c2d094166318b6464b2ea930c61bda8f027b6b5f78f8cc0e",
+ "capstoneBanner": "capstone 5.0.7",
+ "instructions": [
+  {
+   "va": 4199856,
+   "hex": "51",
+   "text": "push ecx"
+  },
+  {
+   "va": 4199857,
+   "hex": "56",
+   "text": "push esi"
+  },
+  {
+   "va": 4199858,
+   "hex": "8b35f8d37300",
+   "text": "mov esi, dword ptr [0x73d3f8]"
+  },
+  {
+   "va": 4199864,
+   "hex": "6a00",
+   "text": "push 0"
+  },
+  {
+   "va": 4199866,
+   "hex": "8d442408",
+   "text": "lea eax, [esp + 8]"
+  },
+  {
+   "va": 4199870,
+   "hex": "50",
+   "text": "push eax"
+  },
+  {
+   "va": 4199871,
+   "hex": "6a00",
+   "text": "push 0"
+  },
+  {
+   "va": 4199873,
+   "hex": "6a5e",
+   "text": "push 0x5e"
+  },
+  {
+   "va": 4199875,
+   "hex": "c744241400000000",
+   "text": "mov dword ptr [esp + 0x14], 0"
+  },
+  {
+   "va": 4199883,
+   "hex": "ffd6",
+   "text": "call esi"
+  },
+  {
+   "va": 4199885,
+   "hex": "85c0",
+   "text": "test eax, eax"
+  },
+  {
+   "va": 4199887,
+   "hex": "7418",
+   "text": "je 0x4015e9"
+  },
+  {
+   "va": 4199889,
+   "hex": "8b442404",
+   "text": "mov eax, dword ptr [esp + 4]"
+  },
+  {
+   "va": 4199893,
+   "hex": "83f801",
+   "text": "cmp eax, 1"
+  },
+  {
+   "va": 4199896,
+   "hex": "7c0f",
+   "text": "jl 0x4015e9"
+  },
+  {
+   "va": 4199898,
+   "hex": "6a00",
+   "text": "push 0"
+  },
+  {
+   "va": 4199900,
+   "hex": "6a00",
+   "text": "push 0"
+  },
+  {
+   "va": 4199902,
+   "hex": "6a00",
+   "text": "push 0"
+  },
+  {
+   "va": 4199904,
+   "hex": "6a5d",
+   "text": "push 0x5d"
+  },
+  {
+   "va": 4199906,
+   "hex": "a3a83c7a00",
+   "text": "mov dword ptr [0x7a3ca8], eax"
+  },
+  {
+   "va": 4199911,
+   "hex": "ffd6",
+   "text": "call esi"
+  },
+  {
+   "va": 4199913,
+   "hex": "5e",
+   "text": "pop esi"
+  },
+  {
+   "va": 4199914,
+   "hex": "59",
+   "text": "pop ecx"
+  },
+  {
+   "va": 4199915,
+   "hex": "c3",
+   "text": "ret"
+  }
+ ],
+ "handRows": [
+  {
+   "va": 4199873,
+   "hex": "6a5e",
+   "meaning": "SPI 0x5e",
+   "cachedText": "PUSH 0x5e",
+   "imageVerified": true
+  },
+  {
+   "va": 4199904,
+   "hex": "6a5d",
+   "meaning": "SPI 0x5d",
+   "cachedText": "PUSH 0x5d",
+   "imageVerified": true
+  }
+ ]
+}

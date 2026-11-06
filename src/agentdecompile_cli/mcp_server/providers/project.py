@@ -10,6 +10,7 @@ or a shared-server adapter.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import os
@@ -173,6 +174,102 @@ def _shared_auth_failed(adapter_error_type: str | None, adapter_error: str | Non
             "permission denied",
         )
     )
+
+
+# Program Information option holding the SHA256 of the file the user pointed the
+# import at.  "Executable SHA256" is what the loader read, which differs when
+# import-binary unpacks or extracts first; reuse is keyed on the raw file.  No "."
+# in the name: ProgramDB.getMetadata skips second-tier option names.
+SOURCE_FILE_SHA256_OPTION = "Source File SHA256"
+
+
+def file_sha256(path: str | os.PathLike[str]) -> str:
+    """Lowercase SHA256 of a local file's bytes; "" when unreadable or it changed mid-read."""
+    try:
+        source = Path(path)
+        before = source.stat()
+        digest = hashlib.sha256()
+        with source.open("rb") as handle:
+            for block in iter(lambda: handle.read(1024 * 1024), b""):
+                digest.update(block)
+        after = source.stat()
+        if (before.st_size, before.st_mtime_ns) != (after.st_size, after.st_mtime_ns):
+            return ""
+        return digest.hexdigest()
+    except (OSError, ValueError):
+        return ""
+
+
+def domain_file_sha256s(domain_file: Any) -> set[str]:
+    """Lowercased SHA256 values recorded in a project file's metadata.
+
+    ``SOURCE_FILE_SHA256_OPTION`` (raw import source) and "Executable SHA256" (bytes
+    the loader read; AbstractProgramLoader.setProgramProperties).  ProgramDB.getMetadata
+    copies Program Information options into the file metadata.
+    """
+    try:
+        metadata = domain_file.getMetadata()
+        values = (metadata.get(key) for key in (SOURCE_FILE_SHA256_OPTION, "Executable SHA256", "SHA256"))
+        return {str(value).lower() for value in values if value}
+    except Exception:
+        return set()
+
+
+def find_project_file_by_sha256(root_folder: Any, digest: str) -> Any | None:
+    """First DomainFile under ``root_folder`` that records ``digest``."""
+    if not digest:
+        return None
+    digest = digest.lower()
+    pending = [root_folder]
+    while pending:
+        folder = pending.pop()
+        pending.extend(list(folder.getFolders() or []))
+        for domain_file in folder.getFiles() or []:
+            if digest in domain_file_sha256s(domain_file):
+                return domain_file
+    return None
+
+
+def record_source_sha256(program: Any, digest: str) -> None:
+    """Store the raw import source's SHA256 on a new program (saved with its metadata)."""
+    if not digest:
+        return
+    try:
+        from ghidra.program.model.listing import Program as GhidraProgramClass  # pyright: ignore[reportMissingImports]
+
+        category = GhidraProgramClass.PROGRAM_INFO
+    except Exception:
+        category = "Program Information"
+    tx_id = program.startTransaction("AgentDecompile source SHA256")
+    try:
+        program.getOptions(category).setString(SOURCE_FILE_SHA256_OPTION, digest)
+    except Exception as exc:
+        logger.warning("import_reuse record_source_sha256_failed exc_type=%s exc=%s", type(exc).__name__, exc)
+    finally:
+        program.endTransaction(tx_id, True)
+
+
+
+def svr_admin_script_candidates(server_dir: Path, os_name: str | None = None) -> tuple[Path, ...]:
+    """svrAdmin launchers for this platform: the shell script on POSIX, .bat/.cmd on Windows.
+
+    A Ghidra install ships both svrAdmin and svrAdmin.bat; a .bat cannot run on Linux.
+    """
+    if (os_name or os.name) == "nt":
+        return (server_dir / "svrAdmin.bat", server_dir / "svrAdmin.cmd")
+    return (server_dir / "svrAdmin", server_dir / "svrAdmin.sh")
+
+
+# manage-files operations that route to _handle_sync_shared (normalized).
+_SHARED_SYNC_OPERATIONS = frozenset(
+    {
+        "downloadshared", "downloadsharedproject", "downloadsharedrepository",
+        "pullshared", "pullsharedproject", "pullsharedrepository",
+        "importtoshared", "pushshared", "pushsharedproject", "pushsharedrepository",
+        "uploadshared", "uploadsharedrepository",
+        "mirrorshared", "syncshared", "syncsharedproject", "syncsharedrepository", "syncwithshared",
+    }
+)
 
 
 class ProjectToolProvider(ToolProvider):
@@ -772,16 +869,7 @@ class ProjectToolProvider(ToolProvider):
 
         server_dir: Path = Path(ghidra_install_dir) / "server"
         script_path: Path | None = next(
-            (
-                candidate
-                for candidate in (
-                    server_dir / "svrAdmin.bat",
-                    server_dir / "svrAdmin.cmd",
-                    server_dir / "svrAdmin.sh",
-                    server_dir / "svrAdmin",
-                )
-                if candidate.exists()
-            ),
+            (candidate for candidate in svr_admin_script_candidates(server_dir) if candidate.exists()),
             None,
         )
         if script_path is None:
@@ -2791,7 +2879,45 @@ class ProjectToolProvider(ToolProvider):
 
     async def _handle_manage(self, args: dict[str, Any], *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
         logger.debug("diag.enter %s", "mcp_server/providers/project.py:ProjectToolProvider._handle_manage")
-        operation: str = self._require_str(args, "mode", "action", "operation", name="mode")
+        dispatch = {
+            "open": "_handle_open",
+            "changeprocessor": "_handle_change_processor",
+            "import": "_handle_import",
+            "export": "_handle_export",
+            "downloadshared": "_handle_sync_shared",
+            "downloadsharedproject": "_handle_sync_shared",
+            "downloadsharedrepository": "_handle_sync_shared",
+            "pullshared": "_handle_sync_shared",
+            "pullsharedproject": "_handle_sync_shared",
+            "pullsharedrepository": "_handle_sync_shared",
+            "importtoshared": "_handle_sync_shared",
+            "pushshared": "_handle_sync_shared",
+            "pushsharedproject": "_handle_sync_shared",
+            "pushsharedrepository": "_handle_sync_shared",
+            "uploadshared": "_handle_sync_shared",
+            "uploadsharedrepository": "_handle_sync_shared",
+            "mirrorshared": "_handle_sync_shared",
+            "syncshared": "_handle_sync_shared",
+            "syncsharedproject": "_handle_sync_shared",
+            "syncsharedrepository": "_handle_sync_shared",
+            "syncwithshared": "_handle_sync_shared",
+            "checkout": "_handle_checkout",
+            "uncheckout": "_handle_uncheckout",
+            "unhijack": "_handle_unhijack",
+            "list": "_handle_list_files",
+            "mkdir": "_handle_filesystem_operation_blocked",
+            "touch": "_handle_filesystem_operation_blocked",
+            "info": "_handle_filesystem_operation_blocked",
+            "read": "_handle_filesystem_operation_blocked",
+            "write": "_handle_filesystem_operation_blocked",
+            "append": "_handle_filesystem_operation_blocked",
+            "copy": "_handle_filesystem_operation_blocked",
+            "rename": "_handle_rename",
+            "delete": "_handle_delete",
+            "move": "_handle_move",
+        }
+        operation = self._manage_files_operation(args, {n(key) for key in dispatch})
+        return await self._dispatch_handler(args, operation, dispatch, program_info=program_info)
 
         return await self._dispatch_handler(
             args,
@@ -2970,9 +3096,7 @@ class ProjectToolProvider(ToolProvider):
 
     async def _handle_sync_shared(self, args: dict[str, Any], *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
         logger.debug("diag.enter %s", "mcp_server/providers/project.py:ProjectToolProvider._handle_sync_shared")
-        operation: str | None = self._get_str(args, "mode", "action", "operation", default="syncshared")
-        if operation is None:
-            operation = "syncshared"
+        operation: str = self._manage_files_operation(args, _SHARED_SYNC_OPERATIONS) if any(self._get_str(args, key) for key in ("operation", "action", "mode")) else "syncshared"
         op: str = n(operation)
         logger.info(
             "shared-sync dispatch start operation=%s normalized=%s arg_keys=%s",
@@ -3095,7 +3219,8 @@ class ProjectToolProvider(ToolProvider):
 
     async def _handle_list_files(self, args: dict[str, Any], *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
         logger.debug("diag.enter %s", "mcp_server/providers/project.py:ProjectToolProvider._handle_list_files")
-        file_path: str | None = self._get_str(args, "filepath", "file", "path", "programpath")
+        # Filesystem listing: the active/injected programPath is a project path, not a directory.
+        file_path: str | None = self._get_str(args, "filepath", "file", "path")
         res = self._get_int(args, "maxresults", default=200)
         max_results = 200 if res is None else res
         base_path = Path(file_path).expanduser().resolve() if file_path else Path.cwd()
@@ -3590,6 +3715,7 @@ class ProjectToolProvider(ToolProvider):
         if not source.exists():
             raise ValueError(f"Import path not found: {source}")
 
+        analyze_after_import: bool = self._get_bool(args, "analyzeafterimport", default=True)
         recursive: bool = self._get_bool(args, "recursive", default=source.is_dir())
         res: int | None = self._get_int(args, "maxdepth", default=16)
         max_depth: int = 16 if res is None else res
@@ -3630,9 +3756,36 @@ class ProjectToolProvider(ToolProvider):
                 if project_handle is None:
                     raise RuntimeError("No active Ghidra project context available for import")
 
-                program: GhidraProgram = project_handle.importProgram(JavaFile(str(entry)))
-                if program is None:
-                    raise RuntimeError("import_binary returned None")
+                # Same policy as import-binary (_handle_import): bytes already in the
+                # project are opened, not imported again.
+                source_digest = file_sha256(entry)
+                existing_file = find_project_file_by_sha256(
+                    self._project_root_folder(ghidra_project, project_handle),
+                    source_digest,
+                )
+                program: GhidraProgram | None
+                if existing_file is not None:
+                    program = self._open_reused_import(ghidra_project, existing_file, session_id)
+                    if program is None:
+                        raise RuntimeError(f"Existing program {existing_file.getPathname()} could not be opened")
+                    logger.info("import_reuse sha256_match path=%s", existing_file.getPathname())
+                else:
+                    program = project_handle.importProgram(JavaFile(str(entry)))
+                    if program is None:
+                        raise RuntimeError("import_binary returned None")
+                    # GhidraProject.importProgram loads the program but does not save it
+                    # (GhidraProject.java importProgram: ProgramLoader "created but not
+                    # saved").  Until it is saved into a project folder its DomainFile is a
+                    # DomainFileProxy: nothing reaches <name>.rep/idata, every later
+                    # GhidraProject.save() throws "Location does not exist for a save
+                    # operation!" (DomainFileProxy.save), and a new process sees 0 files.
+                    record_source_sha256(program, source_digest)
+                    self._persist_imported_program(ghidra_project, project_handle, program)
+                # A failure recorded for an earlier program at this path must not
+                # suppress analysis of the one just imported (key = domain path).
+                from agentdecompile_cli.mcp_utils.program_analysis import clear_analysis_failure
+
+                clear_analysis_failure(program)
 
                 from agentdecompile_cli.launcher import ProgramInfo
                 from agentdecompile_cli.mcp_utils.decompiler_util import open_decompiler_for_program
@@ -3669,12 +3822,25 @@ class ProjectToolProvider(ToolProvider):
                     self._manager.set_program_info(program_info)
                 else:
                     self.set_program_info(program_info)
-                self._blocking_ensure_program_analyzed(program, program_path, program_info)
+                try:
+                    if analyze_after_import:
+                        self._blocking_ensure_program_analyzed(program, program_path, program_info)
+                finally:
+                    # Save the analysis (or whatever part of it ran) into the project file
+                    # created above, so a restart does not reopen an unanalyzed copy.
+                    self._save_imported_program(ghidra_project, program)
 
                 imported_program_info = program_info
                 imported_count += 1
                 prog_name = program.getName() if hasattr(program, "getName") else entry.name
-                imported.append({"path": str(entry), "programName": prog_name, "projectPath": program_path})
+                imported.append(
+                    {
+                        "path": str(entry),
+                        "programName": prog_name,
+                        "projectPath": program_path,
+                        "reused": existing_file is not None,
+                    },
+                )
                 imported_session_binaries.append(
                     {
                         "path": program_path,
@@ -3781,7 +3947,9 @@ class ProjectToolProvider(ToolProvider):
                 "groupsCreated": 0,
                 "maxDepthUsed": max_depth,
                 "wasRecursive": recursive,
-                "analysisRequested": True,
+                "analysisRequested": analyze_after_import,
+                "success": not errors,
+                **({"error": "; ".join(item["error"] for item in errors)} if errors else {}),
                 "errors": errors,
                 "programDetails": program_details,
                 "projectFiles": project_files_snapshot,
@@ -7017,6 +7185,16 @@ class ProjectToolProvider(ToolProvider):
             function_count = fm.getFunctionCount()
         except Exception:
             pass
+        image_base: str = ""
+        try:
+            image_base = str(program.getImageBase())
+        except Exception:
+            pass
+        symbol_count: int = 0
+        try:
+            symbol_count = int(program.getSymbolTable().getNumSymbols())
+        except Exception:
+            pass
 
         return create_success_response(
             {
@@ -7025,7 +7203,9 @@ class ProjectToolProvider(ToolProvider):
                 "programPath": path or name,
                 "language": language,
                 "compiler": compiler,
+                "imageBase": image_base,
                 "functionCount": function_count,
+                "symbolCount": symbol_count,
             },
             program_info=program_info,
         )

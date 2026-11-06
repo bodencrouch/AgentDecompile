@@ -14,8 +14,10 @@ the shipped bytes. Terminal acceptance also requires a fresh whole-image rebuild
 Keep byte-accurate C+assembly-floor and max-C variants separately accounted.
 A dashboard light is not proof. [STRATEGY.md](../STRATEGY.md) owns policy.
 
-Do not decompile the same logical function twice. Do not re-analyze a Ghidra
-program that already has analysis. Open that project and use what is there.
+Reuse valid unchanged analysis. Changed dependencies invalidate affected work,
+not the entire corpus. A logical identity or compile receipt cannot authorize a
+verified replacement. Optional reccmp and ReAgent checks contribute their own
+scoped evidence; they do not replace objdiff or whole-file acceptance.
 
 ```mermaid
 flowchart TD
@@ -33,7 +35,7 @@ flowchart TD
 
 Identity matching (`identify`) is not source copy. It is also not "paste a nearby instruction run into the other binary." Use STRATEGY's evidence-fusion cascade, including early unique exact/relocation-normalized evidence. A runtime byte-window fallback is a separate local resolution operation. Source copy (`apply-cross-build`) is after donor C compiles. `analyze-program` runs only when that program has no analysis yet. `corpus.export-hookpack` is already in the catalog. It writes identities for a runtime consumer; [RUNTIME_REUSE.md](RUNTIME_REUSE.md) separates export, compatible bindings, ABI readiness and behavior proof.
 
-## Priorities
+## Catalog operations and CLI reference
 
 1. Know which functions match (`logical_id`). Skip Ghidra analyze when the
    program already has it.
@@ -78,7 +80,7 @@ to redo analysis or C-replace.
 uv run agentdecompile-corpus export-hookpack --db target/corpus.sqlite --out target/hookpack.json
 ```
 
-`agentdecompile-reconstruct corpus …` is the same CLI. Identity work uses
+`agentdecompile-cli corpus …` is the same CLI. Identity work uses
 `init-store`, `apply-stabs`, `logical-build`, `match-pair`, `merge-parts`.
 Project emit uses `genproject` and `ingest-recovered`. Compile Ghidra C with
 `ghidra-bulk` (default `--mode compile-only`; `--mode semantic` refuses

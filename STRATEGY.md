@@ -2,16 +2,69 @@
 name: AgentDecompile
 last_updated: 2026-09-20
 charter: VISION.md
-active_living_plan: docs/plans/2026-09-08-0156-feat-recovery-pipeline-ladder-plan.md
+active_living_plan: docs/plans/2026-09-27-implementation-progress-and-live-track.md
+governing_design_scope: docs/plans/2026-09-27-weekend-design-scope.md
 ---
 
 # AgentDecompile Strategy
 
 Charter lives in [VISION.md](VISION.md). Operators start at [README.md](README.md). This file is the investment bet under that charter, not a second north star.
 
+## Governing design scope: September 18–21, 2026
+
+This strategy and the [living implementation plan](docs/plans/2026-09-27-implementation-progress-and-live-track.md)
+represent the user's September 18–21 designs, diagrams, plans and brainstorms.
+The [scope index](docs/plans/2026-09-27-weekend-design-scope.md) preserves the full
+[September 21 portable-substrate plan](docs/plans/2026-09-21-portable-signatures-codecaves-generic-plan.md),
+its Phases 0–15 and named units, the [distributed design](docs/plans/2026-09-21-distributed-compute-design.md),
+and the [consolidated product/workstation design](docs/dashboard-design/2026-09-21-consolidated-design-plan.md).
+The September 22 package supplies later contracts and refinements; it is not a
+replacement scope. The 110-item later register does not exhaust the weekend units.
+The [weekend unit delivery ledger](docs/plans/2026-09-27-weekend-unit-delivery.json)
+preserves 193 source-qualified identifiers and their definition/acceptance spans,
+including explicit withdrawals and absorbed aliases. Its initial unverified states
+require current evidence; historical checkmarks do not establish delivery.
+Changes to either this strategy or the living plan must retain traceability to
+that baseline: name the affected original plan units and diagram views, record
+any explicit supersession, and keep remaining requirements visible. A narrower
+implementation slice or newer summary cannot silently redefine completion.
+
+Carry these commitments through delivery:
+
+- A deterministic, model-free path produces usable exports; bounded model help may
+  accelerate diagnosed residue but cannot be the only mechanism for continuation.
+- Cross-match every supported entity kind and data-access path, preserving per-build
+  layouts, divergence and ordered locator fallbacks; pursue applicable strategies
+  and learn new builds rather than treating an initial miss as the endpoint.
+- Deliver the complete export bundle: portable `hookpack/v2`, generated Lua,
+  per-build headers, readiness/divergence and evidence, alongside recovered projects.
+  Ambiguous or contested records remain structured outputs and refuse unsafe use;
+  they do not wait indefinitely for human triage before the rest can advance.
+- Make the dense shared workspace show actual work and its evidence in both the
+  static workbench and full React app. Explicit project open/add/resume admits
+  eligible work automatically; ordinary browsing remains read-only. Preserve the
+  September 21 pause/resume control model and readiness/review/residue views.
+  Keep F01–F28, Phase 14 U104–U112 and both guide/donor workflow inventories:
+  corpus-first comparison, project lifecycle, synchronized code/data/evidence,
+  genuine type/storage editing, accessibility and inspectable work are required.
+  The full optional Vite application and packaged `/react/` remain product scope;
+  the 8080 recovery-operation rule does not reduce them to development previews.
+- Build the reusable bounded-task compute/state foundation, starting with a local
+  publish → work → verify → materialize cycle. Independent verification, resumable
+  adapters and a materialized local view are architectural requirements. Remote
+  fleet growth follows local qualification; it is not permission to postpone the
+  foundation or make an unqualified shared SQLite file the permanent authority.
+
+Historical progress marks and operating recipes are not current acceptance or
+authorization. Current ownership/catalog constraints still govern execution.
+Useful qualified RE/cross-match work and implementation proceed together; missing
+unrelated milestones cannot become global gates.
+
 ## Target problem
 
-A Ghidra project holds dozens of builds of the same codebase. Each build has its own addresses, but the functions, labels, and types are the same logical objects. Without cross-build identity and a propagation path, every recovery pass repeats work and metadata edits on one binary never reach the others. The crux is telling honest source from a wrapper that only compiles because it still contains the original bytes.
+A Ghidra project holds dozens of builds of the same codebase. Each build has its own addresses and may share logical functions and fields while changing their behavior, layout, or physical representation. Without cross-build identity and a propagation path, every recovery pass repeats work and metadata edits on one binary never reach the others. The crux is telling honest source from a wrapper that only compiles because it still contains the original bytes.
+
+The end state is not per-function byte parity — it is a **whole-image byte-identical rebuild**: a source project that recompiles and *relinks* into a file bit-identical to the shipped executable. Per-function objdiff-0 is necessary but not sufficient. A stock linker assigns its own layout — section order, virtual addresses, padding, the PE/ELF headers, the import table, and base relocations — none of which reproduce the original image unless placement is enforced. This exact-placement gap is a first-class, unsolved part of the problem, not a footnote: the goal is a rebuilt binary whose whole-file hash equals the original's.
 
 The end state is not per-function byte parity — it is a **whole-image byte-identical rebuild**: a source project that recompiles and *relinks* into a file bit-identical to the shipped executable. Per-function objdiff-0 is necessary but not sufficient. A stock linker assigns its own layout — section order, virtual addresses, padding, the PE/ELF headers, the import table, and base relocations — none of which reproduce the original image unless placement is enforced. This exact-placement gap is a first-class, unsolved part of the problem, not a footnote: the goal is a rebuilt binary whose whole-file hash equals the original's.
 
@@ -27,7 +80,7 @@ Link the builds, recover on the easiest one, and propagate. Treat **cross-build 
 
 ## Key metrics
 
-- **Verified readable C:** distinct logical functions with objdiff 0 (coverage or isolated audit receipts). Can regress on audit. Not the same as `real_c`.
+- **Verified readable C:** source contributions with relocation-aware objdiff 0 against validated targets, plus linked-region checks when needed (with scope and receipts). Can regress on audit. Not the same as `real_c`.
 - **Compiling Ghidra C share:** functions whose decompiled C is assembly-free and compiles (`ghidra-bulk` tally, `real_c=1`). Leading indicator, not proof.
 - **Cross-placed compiling C:** compiling functions placed on sibling builds via `logical_id` (`cross-place` receipts).
 - **Identity coverage:** inventoried functions bound to a logical function (`identity` table). Must stay high before propagation claims. Auto-accept precision matters more than forcing 100% paired; unresolved/ambiguous counts should stay visible.
@@ -46,7 +99,13 @@ _Why it serves the approach:_ Agents and humans must share one catalog and one p
 
 Extract facts → `logical_id` (evidence-fusion cascade) → global calibration → scaffolding (assembly floor) → readable C (`ghidra-bulk`) → propagation (`cross-place`) → targeted AI on leftovers → parity (objdiff) → fresh whole-image acceptance. Skip a step when its receipt or Ghidra state already exists. Within measured memory/swap and ownership limits, parallelize independent analysis, evidence extract, bulk C, and cheap index queries; run pairwise graph or emulation only on the residue. Serialize `logical_id` writes, mutations to one Ghidra project, and isolated compiler/objdiff environments.
 
-_Why it serves the approach:_ Recover once on the easy build and share the win. Do not reverse twenty versions independently.
+**Cross match pipeline:** `ghidra-bulk` → compile admission → compatible implementation variant and recipient ABI/layout gate → distribute candidate → recipient compile/local/linked verification. Compile success authorizes candidate distribution, not replacement, runtime calls or verified-source credit. Keep candidate storage separate from accepted replacement selection; legacy `real_c=1` records compilation only. A failed compile routes through behavior-preserving deterministic repair and then bounded AI when applicable. Diagnose behavior/types, ABI, compilation context, code generation and placement before source search or permutation.
+
+Recovery units, compilation units and comparison units are distinct. Per-function fragments may be assembled into translation units or LTCG groups; compare the final emitted region when an intermediate object is insufficient. Toolchain records include compiler/linker hashes, headers/libraries, language, macros, packing, floating-point mode, grouping and scoped overrides. Probe legacy toolchain support instead of copying modern switches.
+
+Knowledge fusion remains bidirectional and per field. The best donor may differ for every field or function. Human naming preference changes the display name, not physical-layout evidence. Logical field correspondence is separate from each build's physical layout; pointer-width scaling is only a search hint. Export known offsets and opaque unknown spans. Track evidence lineage: withdrawing an identity seed invalidates unsupported descendants, not independent corroboration. New evidence may reduce accepted coverage.
+
+Workers read versioned snapshots and return proposals against those versions. Acceptance rechecks relevant dependencies, commits once, and rejects stale proposals. Local compilation keys exclude unrelated corpus additions; matching keys include their comparison evidence; publication keys include the corpus snapshot. Record exact AI proposals and runtime observations as immutable replay inputs. Shared read-only compiler installations are allowed; mutable compiler/PDB/temp output and Wine state require isolated ownership.
 
 **Cross match pipeline** names the compile-gated tier of this: `ghidra-bulk` → compile check → (pass) propagate that `.c` onto every sibling bound to the same `logical_id`, then byte-exact in order verify → permuter → LLM last; (fail) sanitizer/preparse helpers retry compile, then one LLM cleanup pass on that Ghidra body, then retry. Identity binding is a separate, already-run layer — cross match never runs before compile succeeds, and a `logical_id` bind alone never authorizes copying source that hasn't compiled. Elsewhere in this repo, "cross match pipeline" refers to exactly this tier; no further restatement needed.
 
@@ -72,7 +131,7 @@ Runtime reuse is a parallel branch after sufficient identity/ABI evidence, not a
 
 [Runtime reuse](docs/RUNTIME_REUSE.md) records source pointers, architecture/ABI limits and missing readiness proof. Keep the core generic with target adapters and build profiles: all BioWare corpus builds remain in scope, with future other-game support requiring adapter work. A resolved address is not a universal C-call interface.
 
-## Priority ladder (do not reorder)
+### Native decompiler tier (JVM-free replay)
 
 ### Per-target loop and corpus roll-up
 

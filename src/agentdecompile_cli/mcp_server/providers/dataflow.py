@@ -85,6 +85,14 @@ class DataFlowToolProvider(ToolProvider):
                             "type": "string",
                             "description": "Name or address of the function containing the data to track.",
                         },
+                        "startAddress": {
+                            "type": "string",
+                            "description": "Address inside the function to seed a backward/forward trace from. Defaults to the function entry (backward then starts at the returns, forward at the parameters).",
+                        },
+                        "variableName": {
+                            "type": "string",
+                            "description": "Variable to report reads/writes for in variable_accesses mode. Omit to list every variable.",
+                        },
                         "direction": {
                             "type": "string",
                             "enum": ["backward", "forward", "variable_accesses"],
@@ -116,8 +124,11 @@ class DataFlowToolProvider(ToolProvider):
         logger.debug("diag.enter %s", "mcp_server/providers/dataflow.py:DataFlowToolProvider._handle")
         self._require_program(program_info=program_info)
         addr_str = self._get_address_or_symbol(args)
+        start_str = self._get_str(args, "startaddress", "starta")
         if not addr_str:
-            raise ValueError("addressOrSymbol or functionIdentifier required")
+            addr_str = start_str
+        if not addr_str:
+            raise ValueError("addressOrSymbol, functionAddress or startAddress required")
 
         direction = self._get_str(args, "direction", "mode", default="backward")
         max_ops = self._get_int(args, "maxops", default=500)
@@ -137,10 +148,18 @@ class DataFlowToolProvider(ToolProvider):
             func = self._resolve_function(addr_str, program=program, program_info=program_info)
             if func is not None:
                 addr = func.getEntryPoint()
-        assert addr is not None, "addr should be set after resolving address or function"
+        if addr is None:
+            raise ValueError(f"Could not resolve address or function: {addr_str}")
         func = fm.getFunctionContaining(addr)
         if func is None:
             raise ValueError(f"No function found containing {addr_str}")
+        if start_str and start_str != addr_str:
+            start_addr = self._resolve_address(start_str, program=program, program_info=program_info)
+            if start_addr is None:
+                raise ValueError(f"Could not resolve startAddress: {start_str}")
+            if not func.getBody().contains(start_addr):
+                raise ValueError(f"startAddress {start_addr} is outside function {func.getName()} ({func.getEntryPoint()})")
+            addr = start_addr
 
         return await self._dispatch_handler(
             args,
@@ -186,6 +205,8 @@ class DataFlowToolProvider(ToolProvider):
                 session_decompiler=getattr(program_info, "decompiler", None) if program_info is not None else None,
             )
             return create_success_response(payload)
+        except DataFlowVariableNotFoundError:
+            raise
         except Exception as e:
             logger.error("Data flow analysis error: %s", e)
             return self._empty_response(direction, addr, error=str(e))

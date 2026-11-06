@@ -97,10 +97,10 @@ class BookmarkToolProvider(ToolProvider):
                 "get": "_handle_get",
                 "list": "_handle_get",  # alias
                 "search": "_handle_get",  # alias
-                "remove": "_handle_remove",
-                "delete": "_handle_remove",  # alias
-                "remove_all": "_handle_remove_all",
-                "remove_all_bookmarks": "_handle_remove_all",
+                "remove": "_remove",
+                "delete": "_remove",  # alias
+                "remove_all": "_remove_all",
+                "remove_all_bookmarks": "_remove_all",
                 "categories": "_handle_categories",
                 "category": "_handle_categories",  # alias
             },
@@ -241,9 +241,10 @@ class BookmarkToolProvider(ToolProvider):
             assert program_info is not None  # for type checker
             bm_mgr: GhidraBookmarkManager = program_info.program.getBookmarkManager()
 
-            def _remove_bookmarks() -> None:
-                for bm in list(bm_mgr.getBookmarks(address)):
-                    bm_mgr.removeBookmark(bm)
+        def _remove_bookmarks() -> None:
+            for bm in list(bm_mgr.getBookmarks(address)):
+                bm_mgr.removeBookmark(bm)
+                removed[0] += 1
 
             self._run_program_transaction(program_info.program, "remove-bookmark", _remove_bookmarks)
         except Exception:
@@ -253,6 +254,7 @@ class BookmarkToolProvider(ToolProvider):
                 "success": True,
                 "action": "remove",
                 "address": str(address),
+                "removedCount": removed[0],
             },
         )
 
@@ -264,16 +266,18 @@ class BookmarkToolProvider(ToolProvider):
             program: GhidraProgram = program_info.program
             bm_mgr: GhidraBookmarkManager = program.getBookmarkManager()
 
-            def _remove_all_bookmarks() -> None:
-                bm_mgr.removeAllBookmarks()
+        def _remove_all_bookmarks() -> None:
+            # BookmarkManager has no removeAllBookmarks() (Ghidra 12.1); remove each bookmark explicitly.
+            for bm in list(bm_mgr.getBookmarksIterator()):
+                bm_mgr.removeBookmark(bm)
+                removed[0] += 1
 
-            self._run_program_transaction(program, "remove-all-bookmarks", _remove_all_bookmarks)
-        except Exception:
-            pass
+        self._run_program_transaction(program, "remove-all-bookmarks", _remove_all_bookmarks)
         return create_success_response(
             {
                 "success": True,
                 "action": "remove_all",
+                "removedCount": removed[0],
             },
         )
 

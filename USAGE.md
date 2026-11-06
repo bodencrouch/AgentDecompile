@@ -40,7 +40,12 @@ When no `mcp-session-id` (or session cookie) is sent, the server uses a single d
 
 **Session IDs are not authentication.** Do not treat `mcp-session-id` or the default session as access control. Protocol rules: [docs/session-handling.md](docs/session-handling.md).
 
-`tool-seq` counts a step as failed (and exits non-zero) if any text part contains markdown `## Error` with a blockquote, or `## Modification conflict`, even when the MCP envelope has `isError: false`.
+Direct tool commands, `tool`, and `tool-seq` exit non-zero for MCP `isError: true`,
+structured `success: false`, or a text part headed `## Error` or
+`## Modification conflict`, even when the envelope has `isError: false`.
+Results are displayed before direct commands exit, including script stdout,
+stderr, and traceback when the server supplies them. Error-shaped text inside
+a successful script's captured output does not make its response a failure.
 
 Add `--verbose` on the CLI, server, or proxy when you need transport diagnostics.
 
@@ -67,6 +72,24 @@ export AGENT_DECOMPILE_GHIDRA_SERVER_REPOSITORY="<set-in-user-env>"
 ```
 
 Those credentials authenticate Ghidra Server, not the MCP HTTP listener. See [docs/MCP_CONFIGURATION_SECURITY.md](docs/MCP_CONFIGURATION_SECURITY.md).
+
+## Consolidated command groups
+
+`agentdecompile-cli corpus`, `agentdecompile-cli recover`, and
+`agentdecompile-cli grid` expose the corpus, staged recovery, and grid command
+surfaces. Use `<group> --help` to list verbs and `<group> <verb> --help` for
+options. Arguments, including a literal `--`, are forwarded to the backing CLI.
+The optional `agentdecompile[s3]` and `agentdecompile[signing]` extras supply
+grid S3 storage and Ed25519 signing dependencies.
+
+Use `agentdecompile-cli reconstruct` for the reconstruction front door. The
+standalone `agentdecompile-reconstruct` and `agentdecompile-acquisition-query`
+entry points have been retired; acquisition queries remain available through
+`agentdecompile-cli acquisition-query`. Duplicate recovery verbs direct you to
+`agentdecompile-cli corpus list-archive` or `corpus check-extraction`.
+
+These are implementation and general-use interfaces. Current recovery
+operations still use the existing 8080 action catalog under [AGENTS.md](AGENTS.md).
 
 ## Workflows
 
@@ -155,7 +178,7 @@ Typical unresolved-program payload:
 | `AGENT_DECOMPILE_GHIDRA_SERVER_USERNAME`, `AGENT_DECOMPILE_SERVER_USERNAME`, `AGENT_DECOMPILE_GHIDRA_USERNAME` | Runtime/CLI | Shared Ghidra username |
 | `AGENT_DECOMPILE_GHIDRA_SERVER_PASSWORD`, `AGENT_DECOMPILE_SERVER_PASSWORD`, `AGENT_DECOMPILE_GHIDRA_PASSWORD` | Runtime/CLI | Shared Ghidra password |
 | `AGENT_DECOMPILE_GHIDRA_SERVER_REPOSITORY`, `AGENT_DECOMPILE_HTTP_GHIDRA_SERVER_REPOSITORY`, `AGENT_DECOMPILE_REPOSITORY`, `AGENT_DECOMPILE_GHIDRA_REPOSITORY` | Runtime/CLI | Shared repository name |
-| `AGENT_DECOMPILE_AUTH_ENABLED` | Runtime | Require MCP HTTP auth |
+| `AGENT_DECOMPILE_AUTH_ENABLED` | Runtime | Require MCP HTTP Basic auth (HTTP transports). Needs `AGENT_DECOMPILE_GHIDRA_SERVER_USERNAME` and `_PASSWORD`; startup fails without them. `--no-require-auth` does not override it |
 | `AGENT_DECOMPILE_TLS_CERT`, `AGENT_DECOMPILE_TLS_KEY` | Runtime | TLS paths for HTTPS |
 | `AGENT_DECOMPILE_PYGHIDRA_VMARGS` | Runtime/tests | Extra JVM args |
 | `AGENT_DECOMPILE_CLI_OP_TIMEOUT` | CLI | Per-tool timeout |

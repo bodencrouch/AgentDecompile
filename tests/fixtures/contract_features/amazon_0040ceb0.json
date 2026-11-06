@@ -1,0 +1,403 @@
+{
+ "build": "amazon",
+ "cacheName": "FUN_0040ceb0",
+ "cacheRow": {
+  "asm": "# FUN_0040ceb0  int * __thiscall FUN_0040ceb0(void * this, int param_1)\n0040ceb0: 55                       PUSH EBP\n0040ceb1: 8b ec                    MOV EBP,ESP\n0040ceb3: 56                       PUSH ESI\n0040ceb4: 8b f1                    MOV ESI,ECX\n0040ceb6: 57                       PUSH EDI\n0040ceb7: 8b 0e                    MOV ECX,dword ptr [ESI]\n0040ceb9: 85 c9                    TEST ECX,ECX\n0040cebb: 74 09                    JZ LAB_0040cec6  ; -> LAB_0040cec6 (0040cec6)\n0040cebd: 56                       PUSH ESI\n0040cebe: 83 c1 04                 ADD ECX,0x4\n0040cec1: e8 4a 5a 00 00           CALL FUN_00412910  ; -> FUN_00412910 (00412910)\nLAB_0040cec6:\n0040cec6: 8b 7d 08                 MOV EDI,dword ptr [EBP + param_1]\n0040cec9: 89 3e                    MOV dword ptr [ESI],EDI\n0040cecb: 85 ff                    TEST EDI,EDI\n0040cecd: 74 2c                    JZ LAB_0040cefb  ; -> LAB_0040cefb (0040cefb)\n0040cecf: 8b 4f 08                 MOV ECX,dword ptr [EDI + 0x8]\n0040ced2: 8b 47 0c                 MOV EAX,dword ptr [EDI + 0xc]\n0040ced5: 3b c8                    CMP ECX,EAX\n0040ced7: 75 19                    JNZ LAB_0040cef2  ; -> LAB_0040cef2 (0040cef2)\n0040ced9: 85 c0                    TEST EAX,EAX\n0040cedb: 74 04                    JZ LAB_0040cee1  ; -> LAB_0040cee1 (0040cee1)\n0040cedd: 03 c0                    ADD EAX,EAX\n0040cedf: eb 05                    JMP LAB_0040cee6  ; -> LAB_0040cee6 (0040cee6)\nLAB_0040cee1:\n0040cee1: b8 08 00 00 00           MOV EAX,0x8\nLAB_0040cee6:\n0040cee6: 50                       PUSH EAX\n0040cee7: 8d 4f 04                 LEA ECX,[EDI + 0x4]\n0040ceea: e8 11 60 00 00           CALL FUN_00412f00  ; -> FUN_00412f00 (00412f00)\n0040ceef: 8b 4f 08                 MOV ECX,dword ptr [EDI + 0x8]\nLAB_0040cef2:\n0040cef2: 8b 47 04                 MOV EAX,dword ptr [EDI + 0x4]\n0040cef5: 89 34 88                 MOV dword ptr [EAX + ECX*0x4],ESI\n0040cef8: ff 47 08                 INC dword ptr [EDI + 0x8]\nLAB_0040cefb:\n0040cefb: 5f                       POP EDI\n0040cefc: 8b c6                    MOV EAX,ESI\n0040cefe: 5e                       POP ESI\n0040ceff: 5d                       POP EBP\n0040cf00: c2 04 00                 RET 0x4\n",
+  "asmLength": 2212,
+  "entry_hex": "0040ceb0",
+  "file_offset": 49840,
+  "name": "FUN_0040ceb0",
+  "size": 83
+ },
+ "cacheRowSource": {
+  "evidence": "/home/brunner56/agentdecompile-deliverables/2026-09-27-amazon-remove-callers/evidence.json",
+  "evidenceSha256": "4c87df372e11ffbe8d5876d58993e829a1fa2b1955c1ebd9d82221150f4d76fd",
+  "jsonPath": "callers['0x40ceb0'].body.cache"
+ },
+ "cacheSize": 83,
+ "capstoneBanner": "capstone 5.0.7 ",
+ "capstoneRows": [
+  {
+   "hex": "55",
+   "text": "push ebp",
+   "va": 4247216
+  },
+  {
+   "hex": "8bec",
+   "text": "mov ebp, esp",
+   "va": 4247217
+  },
+  {
+   "hex": "56",
+   "text": "push esi",
+   "va": 4247219
+  },
+  {
+   "hex": "8bf1",
+   "text": "mov esi, ecx",
+   "va": 4247220
+  },
+  {
+   "hex": "57",
+   "text": "push edi",
+   "va": 4247222
+  },
+  {
+   "hex": "8b0e",
+   "text": "mov ecx, dword ptr [esi]",
+   "va": 4247223
+  },
+  {
+   "hex": "85c9",
+   "text": "test ecx, ecx",
+   "va": 4247225
+  },
+  {
+   "hex": "7409",
+   "text": "je 0x40cec6",
+   "va": 4247227
+  },
+  {
+   "hex": "56",
+   "text": "push esi",
+   "va": 4247229
+  },
+  {
+   "hex": "83c104",
+   "text": "add ecx, 4",
+   "va": 4247230
+  },
+  {
+   "hex": "e84a5a0000",
+   "text": "call 0x412910",
+   "va": 4247233
+  },
+  {
+   "hex": "8b7d08",
+   "text": "mov edi, dword ptr [ebp + 8]",
+   "va": 4247238
+  },
+  {
+   "hex": "893e",
+   "text": "mov dword ptr [esi], edi",
+   "va": 4247241
+  },
+  {
+   "hex": "85ff",
+   "text": "test edi, edi",
+   "va": 4247243
+  },
+  {
+   "hex": "742c",
+   "text": "je 0x40cefb",
+   "va": 4247245
+  },
+  {
+   "hex": "8b4f08",
+   "text": "mov ecx, dword ptr [edi + 8]",
+   "va": 4247247
+  },
+  {
+   "hex": "8b470c",
+   "text": "mov eax, dword ptr [edi + 0xc]",
+   "va": 4247250
+  },
+  {
+   "hex": "3bc8",
+   "text": "cmp ecx, eax",
+   "va": 4247253
+  },
+  {
+   "hex": "7519",
+   "text": "jne 0x40cef2",
+   "va": 4247255
+  },
+  {
+   "hex": "85c0",
+   "text": "test eax, eax",
+   "va": 4247257
+  },
+  {
+   "hex": "7404",
+   "text": "je 0x40cee1",
+   "va": 4247259
+  },
+  {
+   "hex": "03c0",
+   "text": "add eax, eax",
+   "va": 4247261
+  },
+  {
+   "hex": "eb05",
+   "text": "jmp 0x40cee6",
+   "va": 4247263
+  },
+  {
+   "hex": "b808000000",
+   "text": "mov eax, 8",
+   "va": 4247265
+  },
+  {
+   "hex": "50",
+   "text": "push eax",
+   "va": 4247270
+  },
+  {
+   "hex": "8d4f04",
+   "text": "lea ecx, [edi + 4]",
+   "va": 4247271
+  },
+  {
+   "hex": "e811600000",
+   "text": "call 0x412f00",
+   "va": 4247274
+  },
+  {
+   "hex": "8b4f08",
+   "text": "mov ecx, dword ptr [edi + 8]",
+   "va": 4247279
+  },
+  {
+   "hex": "8b4704",
+   "text": "mov eax, dword ptr [edi + 4]",
+   "va": 4247282
+  },
+  {
+   "hex": "893488",
+   "text": "mov dword ptr [eax + ecx*4], esi",
+   "va": 4247285
+  },
+  {
+   "hex": "ff4708",
+   "text": "inc dword ptr [edi + 8]",
+   "va": 4247288
+  },
+  {
+   "hex": "5f",
+   "text": "pop edi",
+   "va": 4247291
+  },
+  {
+   "hex": "8bc6",
+   "text": "mov eax, esi",
+   "va": 4247292
+  },
+  {
+   "hex": "5e",
+   "text": "pop esi",
+   "va": 4247294
+  },
+  {
+   "hex": "5d",
+   "text": "pop ebp",
+   "va": 4247295
+  },
+  {
+   "hex": "c20400",
+   "text": "ret 4",
+   "va": 4247296
+  }
+ ],
+ "effectTable": {
+  "callees": "Amazon 0x412910, 0x412f00",
+  "eaxAtRet": "M (@0x40cefc)",
+  "nListBase": "N+4 (@0x40cee7)",
+  "receiver": "M (mov esi,ecx @0x40ceb4)",
+  "removeThisOffset": "O+4 (@0x40cebe)",
+  "retImm": "ret 4"
+ },
+ "image": {
+  "fileOffset": 49840,
+  "imageSha256": "0b6a2a7f8b4880a4986aecfe758a94b7b8fefec1cba4dac6fd06dda3ae0e7f3e"
+ },
+ "instructions": [
+  {
+   "hex": "55",
+   "text": "PUSH EBP",
+   "va": 4247216
+  },
+  {
+   "hex": "8bec",
+   "text": "MOV EBP,ESP",
+   "va": 4247217
+  },
+  {
+   "hex": "56",
+   "text": "PUSH ESI",
+   "va": 4247219
+  },
+  {
+   "hex": "8bf1",
+   "text": "MOV ESI,ECX",
+   "va": 4247220
+  },
+  {
+   "hex": "57",
+   "text": "PUSH EDI",
+   "va": 4247222
+  },
+  {
+   "hex": "8b0e",
+   "text": "MOV ECX,dword ptr [ESI]",
+   "va": 4247223
+  },
+  {
+   "hex": "85c9",
+   "text": "TEST ECX,ECX",
+   "va": 4247225
+  },
+  {
+   "hex": "7409",
+   "text": "JZ LAB_0040cec6  ; -> LAB_0040cec6 (0040cec6)",
+   "va": 4247227
+  },
+  {
+   "hex": "56",
+   "text": "PUSH ESI",
+   "va": 4247229
+  },
+  {
+   "hex": "83c104",
+   "text": "ADD ECX,0x4",
+   "va": 4247230
+  },
+  {
+   "hex": "e84a5a0000",
+   "text": "CALL FUN_00412910  ; -> FUN_00412910 (00412910)",
+   "va": 4247233
+  },
+  {
+   "hex": "8b7d08",
+   "text": "MOV EDI,dword ptr [EBP + param_1]",
+   "va": 4247238
+  },
+  {
+   "hex": "893e",
+   "text": "MOV dword ptr [ESI],EDI",
+   "va": 4247241
+  },
+  {
+   "hex": "85ff",
+   "text": "TEST EDI,EDI",
+   "va": 4247243
+  },
+  {
+   "hex": "742c",
+   "text": "JZ LAB_0040cefb  ; -> LAB_0040cefb (0040cefb)",
+   "va": 4247245
+  },
+  {
+   "hex": "8b4f08",
+   "text": "MOV ECX,dword ptr [EDI + 0x8]",
+   "va": 4247247
+  },
+  {
+   "hex": "8b470c",
+   "text": "MOV EAX,dword ptr [EDI + 0xc]",
+   "va": 4247250
+  },
+  {
+   "hex": "3bc8",
+   "text": "CMP ECX,EAX",
+   "va": 4247253
+  },
+  {
+   "hex": "7519",
+   "text": "JNZ LAB_0040cef2  ; -> LAB_0040cef2 (0040cef2)",
+   "va": 4247255
+  },
+  {
+   "hex": "85c0",
+   "text": "TEST EAX,EAX",
+   "va": 4247257
+  },
+  {
+   "hex": "7404",
+   "text": "JZ LAB_0040cee1  ; -> LAB_0040cee1 (0040cee1)",
+   "va": 4247259
+  },
+  {
+   "hex": "03c0",
+   "text": "ADD EAX,EAX",
+   "va": 4247261
+  },
+  {
+   "hex": "eb05",
+   "text": "JMP LAB_0040cee6  ; -> LAB_0040cee6 (0040cee6)",
+   "va": 4247263
+  },
+  {
+   "hex": "b808000000",
+   "text": "MOV EAX,0x8",
+   "va": 4247265
+  },
+  {
+   "hex": "50",
+   "text": "PUSH EAX",
+   "va": 4247270
+  },
+  {
+   "hex": "8d4f04",
+   "text": "LEA ECX,[EDI + 0x4]",
+   "va": 4247271
+  },
+  {
+   "hex": "e811600000",
+   "text": "CALL FUN_00412f00  ; -> FUN_00412f00 (00412f00)",
+   "va": 4247274
+  },
+  {
+   "hex": "8b4f08",
+   "text": "MOV ECX,dword ptr [EDI + 0x8]",
+   "va": 4247279
+  },
+  {
+   "hex": "8b4704",
+   "text": "MOV EAX,dword ptr [EDI + 0x4]",
+   "va": 4247282
+  },
+  {
+   "hex": "893488",
+   "text": "MOV dword ptr [EAX + ECX*0x4],ESI",
+   "va": 4247285
+  },
+  {
+   "hex": "ff4708",
+   "text": "INC dword ptr [EDI + 0x8]",
+   "va": 4247288
+  },
+  {
+   "hex": "5f",
+   "text": "POP EDI",
+   "va": 4247291
+  },
+  {
+   "hex": "8bc6",
+   "text": "MOV EAX,ESI",
+   "va": 4247292
+  },
+  {
+   "hex": "5e",
+   "text": "POP ESI",
+   "va": 4247294
+  },
+  {
+   "hex": "5d",
+   "text": "POP EBP",
+   "va": 4247295
+  },
+  {
+   "hex": "c20400",
+   "text": "RET 0x4",
+   "va": 4247296
+  }
+ ],
+ "source": {
+  "evidence": "/home/brunner56/agentdecompile-deliverables/2026-09-27-contract-pairing/evidence.json",
+  "evidenceSha256": "0d9974efa803a3d9156e2897d68f9d3b8cee85850e3c15ea73846b45dbbb530c",
+  "jsonPath": "bodies.aPrime40ceb0"
+ },
+ "spanHex": "558bec568bf1578b0e85c974095683c104e84a5a00008b7d08893e85ff742c8b4f088b470c3bc8751985c0740403c0eb05b808000000508d4f04e8116000008b4f088b4704893488ff47085f8bc65e5dc20400",
+ "spanSha256": "6618c924b839e8903990c574cff209948cc8047074c7479c77a8ac09eb4bc890",
+ "va": 4247216
+}

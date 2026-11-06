@@ -38,7 +38,7 @@ logger = logging.getLogger(__name__)
 class CallGraphToolProvider(ToolProvider):
     HANDLERS = {
         "getcallgraph": "_handle",
-        "gencallgraph": "_handle",
+        "gencallgraph": "_handle_gen",
     }
 
     def _get_callgraph_tool(self, *, program_info: ProgramInfo | SimpleNamespace | None):
@@ -92,12 +92,19 @@ class CallGraphToolProvider(ToolProvider):
         self._require_program(program_info=program_info)
         # function/addressOrSymbol: resolved via AddressUtil (0x=hex, else decimal) in CallGraphTool or _resolve_function
         func = self._get_address_or_symbol(args)
+        mode_explicit = self._get_str(args, "mode", "action", "operation")
+
+        # find-common-callers(programPath, functionAddresses) names no single function:
+        # the first functionAddresses entry is the primary one. _handle_callers skips
+        # it when it reappears among the others.
+        if not func and n(mode_explicit) == "commoncallers":
+            listed = self._other_functions(args, None)
+            func = listed[0] if listed else ""
 
         # No function specified → return whole-program call graph overview
         if not func:
             return await self._handle_overview(args, program_info=program_info)
 
-        mode_explicit = self._get_str(args, "mode", "action", "operation")
         direction_raw = self._get_str(args, "direction", default="calling")
         logger.info("get-call-graph function=%s direction=%s", func, direction_raw)
         _dir_aliases = {"callers": "calling", "callees": "called", "up": "calling", "down": "called"}
@@ -106,6 +113,10 @@ class CallGraphToolProvider(ToolProvider):
         # If caller didn't set mode, derive it from direction so "direction: called" → mode "callees"
         if mode_explicit:
             mode = mode_explicit
+        elif self._get_str(args, "displaytype"):
+            # displayType only means something for a drawn graph. Keying on the
+            # argument keeps it working whichever alias the call arrived under.
+            mode = "graph"
         else:
             mode = "callees" if direction == "called" else "callers"
         display_type = self._get_str(args, "displaytype", default="flow")
@@ -121,7 +132,7 @@ class CallGraphToolProvider(ToolProvider):
         condense = self._get_int(args, "condensethreshold", default=50)
         top = self._get_int(args, "toplayers", default=5)
         bottom = self._get_int(args, "bottomlayers", default=5)
-        max_nodes = self._get_int(args, "maxnodes", default=250)
+        max_nodes = self._get_int(args, "maxnodes", "maxcallers", default=250)
         second = self._get_str(args, "secondfunction")
 
         # CallGraphTool renders visual graph/tree output and does not implement
@@ -143,15 +154,17 @@ class CallGraphToolProvider(ToolProvider):
                     bottom_layers=bottom,
                 )
                 logger.debug("get-call-graph completed via CallGraphTool function=%s", func)
-                return create_success_response(
-                    {
-                        "functionName": result.function_name,
-                        "direction": result.direction.value if hasattr(result.direction, "value") else str(result.direction),
-                        "displayType": result.display_type.value if hasattr(result.display_type, "value") else str(result.display_type),
-                        "graph": result.graph if hasattr(result, "graph") else {},
-                        "mermaidUrl": getattr(result, "mermaid_url", None),
-                    },
-                )
+                payload: dict[str, Any] = {
+                    "functionName": result.function_name,
+                    "direction": result.direction.value if hasattr(result.direction, "value") else str(result.direction),
+                    "displayType": result.display_type.value if hasattr(result.display_type, "value") else str(result.display_type),
+                    "graph": result.graph if hasattr(result, "graph") else {},
+                    "mermaidUrl": getattr(result, "mermaid_url", None),
+                }
+                if getattr(result, "truncated", False):
+                    payload["truncated"] = True
+                    payload["maxRunTime"] = result.max_run_time
+                return create_success_response(payload)
             except Exception as e:
                 logger.warning("CallGraphTool failed, using Ghidra API fallback: %s", e)
 
@@ -242,7 +255,8 @@ class CallGraphToolProvider(ToolProvider):
 
     async def _handle_callers(self, args: dict[str, Any], program: GhidraProgram, target_func: GhidraFunction, func: str, second: str | None, max_nodes: int, *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
         logger.debug("diag.enter %s", "mcp_server/providers/callgraph.py:CallGraphToolProvider._handle_callers")
-        callers = list(islice(target_func.getCallingFunctions(make_task_monitor()), max_nodes))
+        start = max(0, self._get_int(args, "startindex", default=0) or 0)
+        callers = list(islice(target_func.getCallingFunctions(make_task_monitor()), start, start + max_nodes))
         caller_info = [{"name": c.getName(), "address": str(c.getEntryPoint())} for c in callers]
 
         mode = self._get_str(args, "mode", default="callers")

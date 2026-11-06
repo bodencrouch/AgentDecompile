@@ -8,12 +8,16 @@ from __future__ import annotations
 
 import json
 import logging
+import time
 
 from typing import TYPE_CHECKING, Any
 
 from mcp import types
 
-from agentdecompile_cli.mcp_server.constants import DEFAULT_TIMEOUT_SECONDS  # pyright: ignore[reportMissingImports]
+from agentdecompile_cli.mcp_server.constants import (  # pyright: ignore[reportMissingImports]
+    DEFAULT_TIMEOUT_SECONDS,
+    MAX_CONFIGURED_TIMEOUT_SECONDS,
+)
 from agentdecompile_cli.mcp_server.tool_providers import (
     ToolProvider,
     create_success_response,
@@ -43,6 +47,33 @@ if TYPE_CHECKING:
     from agentdecompile_cli.launcher import ProgramInfo
 
 logger = logging.getLogger(__name__)
+
+
+def _aggregate_decompile_results(results: list[dict[str, Any]]) -> dict[str, Any]:
+    """Build a truthful success envelope for single and batch decompile results."""
+    if len(results) == 1:
+        if results[0].get("error"):
+            return {**results[0], "success": False}
+        return results[0]
+
+    failures = [item for item in results if item.get("error")]
+    response: dict[str, Any] = {
+        "results": results,
+        "count": len(results),
+        "success": not failures,
+    }
+    if failures:
+        details: list[str] = []
+        for item in failures[:5]:
+            name = str(item.get("name") or item.get("function") or "unknown").replace("\n", " ").replace("\r", " ")
+            reason = str(item.get("error") or "failed").replace("\n", " ").replace("\r", " ")
+            if len(reason) > 240:
+                reason = reason[:237] + "..."
+            details.append(f"{name}: {reason}")
+        if len(failures) > len(details):
+            details.append(f"and {len(failures) - len(details)} more failures")
+        response["error"] = f"{len(failures)} of {len(results)} function decompilations failed: " + " | ".join(details)
+    return response
 
 
 class DecompilerToolProvider(ToolProvider):
@@ -87,7 +118,24 @@ class DecompilerToolProvider(ToolProvider):
                             ],
                             "description": "Compatibility batch input for one or more function identifiers.",
                         },
-                        "timeout": {"type": "integer", "default": 60, "description": "Maximum time in seconds to wait for the decompiler to finish before aborting."},
+                        "timeout": {
+                            "type": "integer",
+                            "default": DEFAULT_TIMEOUT_SECONDS,
+                            "description": (
+                                f"Maximum time in seconds to wait for the decompiler to finish before aborting; "
+                                f"defaults to {DEFAULT_TIMEOUT_SECONDS} seconds. The default is configurable with "
+                                f"AGENTDECOMPILE_DECOMPILE_TIMEOUT_SECONDS (1-{MAX_CONFIGURED_TIMEOUT_SECONDS})."
+                            ),
+                        },
+                        "maxFunctionAddresses": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "description": (
+                                "Optional preflight budget for the number of addresses in the function body. If the "
+                                "body exceeds this count, skip decompilation before invoking Ghidra. This bounds unusually large "
+                                "functions without changing the default behavior."
+                            ),
+                        },
                         "showUnreachable": {"type": "boolean", "description": "Include unreachable code in this decompilation without changing shared decompiler settings."},
                         "includeCallees": {"type": "boolean", "default": False, "description": "Include callee function summaries."},
                         "includeStrings": {"type": "boolean", "default": False, "description": "Include referenced string literals when available."},
@@ -123,6 +171,7 @@ class DecompilerToolProvider(ToolProvider):
                         target_func,
                         program,
                         timeout,
+                        max_function_addresses=max_function_addresses,
                         include_callees=include_callees,
                         include_strings=include_strings,
                         include_xrefs=include_xrefs,
@@ -144,9 +193,7 @@ class DecompilerToolProvider(ToolProvider):
                     )
                 )
 
-        if len(results) == 1 and len(targets) == 1:
-            return create_success_response(results[0])
-        return create_success_response({"results": results, "count": len(results)})
+        return create_success_response(_aggregate_decompile_results(results))
 
     def _get_targets(self, args: dict[str, Any]) -> list[str]:
         logger.debug("diag.enter %s", "mcp_server/providers/decompiler.py:DecompilerToolProvider._get_targets")
@@ -168,6 +215,7 @@ class DecompilerToolProvider(ToolProvider):
         program: GhidraProgram,
         timeout: int,
         *,
+        max_function_addresses: int | None = None,
         include_callees: bool = False,
         include_strings: bool = False,
         include_xrefs: bool = False,
@@ -230,6 +278,8 @@ class DecompilerToolProvider(ToolProvider):
 
     @staticmethod
     def _collect_referenced_strings(program: GhidraProgram, target_func: GhidraFunction) -> list[dict[str, str]]:
+        from agentdecompile_cli.mcp_utils.datatype_util import data_type_label
+
         try:
             listing = program.getListing()
             references = program.getReferenceManager()
@@ -241,7 +291,7 @@ class DecompilerToolProvider(ToolProvider):
                     data = listing.getDataAt(to_addr)
                     if data is None:
                         continue
-                    data_type = str(data.getDataType())
+                    data_type = data_type_label(data.getDataType())
                     if "string" not in data_type.lower():
                         continue
                     key = str(to_addr)
@@ -307,14 +357,16 @@ class DecompilerToolProvider(ToolProvider):
         """Perform the actual decompilation with retry logic."""
         logger.debug("diag.enter %s", "mcp_server/providers/decompiler.py:DecompilerToolProvider._perform_decompilation")
         decomp = lease.decompiler
+        deadline = time.monotonic() + timeout if timeout > 0 else None
         dr: GhidraDecompileResults = decomp.decompileFunction(target_func, timeout, monitor)
 
         if dr and dr.decompileCompleted():
             return self._extract_successful_decompilation(dr, target_func)
 
         # Try retry with fresh interface if session decomp failed
-        if session_decomp is not None and lease.reused_session:
-            retry_result = self._try_retry_decompilation(target_func, timeout, monitor, decomp, program)
+        remaining = int(deadline - time.monotonic()) if deadline is not None else timeout
+        if session_decomp is not None and lease.reused_session and (deadline is None or remaining > 0):
+            retry_result = self._try_retry_decompilation(target_func, remaining, monitor, decomp, program)
             if retry_result:
                 return retry_result
 

@@ -1,0 +1,56 @@
+{
+  "schema": "agentdecompile.native-expected-agreement/v0",
+  "corpus": "ghidra-12.1.3-native-tools/sleigh",
+  "binary": {
+    "path": "Ghidra/Features/Decompiler/os/linux_x86_64/sleigh",
+    "sha256": "593d75ff9eebbf7a972a6a06307c860b2335e128bdf09b6e5fe1e628b6087863"
+  },
+  "snapshot": {
+    "producer_ghidra_version": "12.1.3",
+    "language_id": "x86:LE:64:default",
+    "compiler_spec_id": "gcc",
+    "engine_sig_major": 6,
+    "engine_sig_minor": 1,
+    "sla_format_version": 4,
+    "options_sha256": "2e75caa0d92c9acf77937d919df8f0aa7754847884e41aeebf8640492fd32e28",
+    "total": 3364,
+    "ok": 3061,
+    "timed_out": 0,
+    "error": 0,
+    "skipped": 303,
+    "skipped_by_reason": {
+      "thunk": 303
+    },
+    "total_bytes": 41520023
+  },
+  "differential": {
+    "parity_ok": false,
+    "parity_errors": [
+      "native SLEIGH hash drift coincides with mismatch-content results"
+    ],
+    "parity_warnings": [
+      "native SLEIGH hash mismatch for x86:LE:64:default: expected 931a74423b13771edef8f79eae4191313c1ca8cc201a42e9adde2f25134b4c4c, got fed8fe00aa43cc9466c20960f68823e01d6741556704ecf9b6f7399c0a876a62"
+    ],
+    "expected_agreement": {
+      "total_results": 3061,
+      "match": 1008,
+      "mismatch_layout_only": 0,
+      "mismatch_content": 1817,
+      "native_error": 236,
+      "native_timeout": 0,
+      "native_crash": 0,
+      "oracle_absent": 0,
+      "native_missing_dependency": 0
+    }
+  },
+  "commands": {
+    "export": "GHIDRA_INSTALL_DIR=/home/brunner56/ghidra-install/ghidra_12.1.3_PUBLIC uv run python -m agentdecompile_recovery.native_snapshot export /home/brunner56/ghidra-install/ghidra_12.1.3_PUBLIC/Ghidra/Features/Decompiler/os/linux_x86_64/sleigh --out /run/media/brunner56/MyBook/Workspaces/ai-projects/AgentDecompile-native-out/wp9-shipped-sleigh/snapshot --project-location /run/media/brunner56/MyBook/Workspaces/ai-projects/AgentDecompile-native-out/wp9-shipped-sleigh/ghidra-project --project-name shipped-sleigh --timeout-s 30 --all --heap 2g --quiet",
+    "diff": "uv run python -m agentdecompile_recovery.native_snapshot diff /run/media/brunner56/MyBook/Workspaces/ai-projects/AgentDecompile-native-out/wp9-shipped-sleigh/snapshot --mode batch --batch native/build/relwithdebinfo/tools/gnsdk_batch/gnsdk-batch --sleigh-home native/build/relwithdebinfo/ghidra-decomp/sleigh-home --timeout-s 30 --workers 1 --tmpdir /run/media/brunner56/MyBook/Workspaces/ai-projects/AgentDecompile-native-out/wp9-shipped-sleigh/tmp --output /run/media/brunner56/MyBook/Workspaces/ai-projects/AgentDecompile-native-out/wp9-shipped-sleigh/diff"
+  },
+  "notes": [
+    "Generated from the installed Ghidra 12.1.3 shipped sleigh ELF on 2026-09-10.",
+    "The Ghidra project and snapshot were written outside the .claude worktree path because Ghidra ProjectLocator rejects path elements beginning with '.'.",
+    "This pins observed agreement for the slow corpus; mismatches remain classified evidence, not tolerated equality.",
+    "parity_ok is false because the compiled native .sla hash differs from the Java-export .sla hash and the report contains mismatch-content results."
+  ]
+}

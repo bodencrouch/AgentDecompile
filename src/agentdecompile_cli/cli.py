@@ -2313,7 +2313,7 @@ def _add_global_options(cmd: click.Command | FunctionType) -> click.Command | Fu
     if _declares_format_param(cmd):
         cmd = click.option(
             "-f",
-            type=_OUTPUT_FORMAT_TYPE,
+            type=str,
             default=None,
             expose_value=False,
             callback=_set_output_format_option,
@@ -4830,7 +4830,12 @@ def callgraph_grp() -> None:
     default=None,
     help="Function identifier. Omit for a whole-program overview.",
 )
-@click.option("--mode", type=click.Choice(["graph", "tree", "callers", "callees", "callers_decomp", "common_callers"]), default="graph")
+@click.option(
+    "--mode",
+    type=click.Choice(["graph", "tree", "callers", "callees", "callers_decomp", "common_callers"]),
+    default=None,
+    help="Omit to infer from --direction or use the server default.",
+)
 @click.option("--depth", type=int)
 @click.option(
     "--direction",
@@ -4847,7 +4852,7 @@ def callgraph_run(
     ctx: click.Context,
     program_path: str | None,
     function_identifier: str | None,
-    mode: str,
+    mode: str | None,
     depth: int | None,
     direction: str | None,
     max_depth: int | None,
@@ -4857,7 +4862,9 @@ def callgraph_run(
     function_addresses: str | None,
 ) -> None:
     logger.debug("diag.enter %s", "cli.py:callgraph_run")
-    payload: dict[str, Any] = {"mode": mode}
+    payload: dict[str, Any] = {}
+    if mode is not None:
+        payload["mode"] = mode
     if function_identifier is not None:
         payload["functionIdentifier"] = function_identifier
     if program_path is not None and program_path.strip():

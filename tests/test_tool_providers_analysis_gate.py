@@ -27,6 +27,7 @@ class _GateProbeProvider(ToolProvider):
     """Minimal provider for list-functions, list-project-files, and open."""
 
     HANDLERS = {
+        "getfunction": "_handle_probe",
         "listfunctions": "_handle_probe",
         "listprojectfiles": "_handle_list_project_files",
         "checkoutprogram": "_handle_checkout_program",
@@ -36,6 +37,11 @@ class _GateProbeProvider(ToolProvider):
 
     def list_tools(self) -> list[types.Tool]:
         return [
+            types.Tool(
+                name="get-function",
+                description="probe",
+                inputSchema={"type": "object", "properties": {}, "required": []},
+            ),
             types.Tool(
                 name="list-functions",
                 description="probe",
@@ -157,7 +163,7 @@ async def test_call_scoped_program_survives_two_program_interleaving(
     ):
         call_a = asyncio.create_task(
             gate_manager.call_tool(
-                "list-functions",
+                "get-function",
                 {"programPath": "/repo/a.exe", "responseFormat": "json"},
             )
         )
@@ -168,7 +174,7 @@ async def test_call_scoped_program_survives_two_program_interleaving(
                 await call_a
             raise
         result_b = await gate_manager.call_tool(
-            "list-functions",
+            "get-function",
             {"programPath": "/repo/b.exe", "responseFormat": "json"},
         )
         release_a.set()
@@ -290,10 +296,10 @@ async def test_analysis_gate_invoked_for_non_exempt_tool(
             to_thread_mock,
         ),
     ):
-        await gate_manager.call_tool("list-functions", {"programPath": "/repo/other.exe"})
+        await gate_manager.call_tool("get-function", {"programPath": "/repo/other.exe"})
 
     assert to_thread_mock.await_count == 1
-    assert to_thread_mock.await_args.args[0].__name__ == "wait_for_program_analysis_ready"
+    assert to_thread_mock.await_args.args[0].__name__ == "_run_analysis_gate"
 
 
 @pytest.mark.unit
@@ -364,7 +370,7 @@ async def test_analysis_gate_skipped_for_autoprereq_invocation(
         ),
     ):
         await gate_manager.call_tool(
-            "list-functions",
+            "get-function",
             {"programPath": "/repo/other.exe", "__auto_prereq_invocation": True},
         )
 
@@ -396,7 +402,7 @@ async def test_analysis_incomplete_returns_structured_error(
         ),
     ):
         result = await gate_manager.call_tool(
-            "list-functions",
+            "get-function",
             {"programPath": "/repo/other.exe", "responseFormat": "json"},
         )
 
@@ -433,7 +439,7 @@ async def test_analysis_timeout_returns_structured_error(
         ),
     ):
         result = await gate_manager.call_tool(
-            "list-functions",
+            "get-function",
             {"programPath": "/repo/other.exe", "responseFormat": "json"},
         )
 

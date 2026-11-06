@@ -20,7 +20,7 @@ def test_analysis_gate_exempt_tools(tool_name: str) -> None:
 
 
 @pytest.mark.unit
-@pytest.mark.parametrize("tool_name", ["getfunction", "listfunctions", "decompilefunction"])
+@pytest.mark.parametrize("tool_name", ["getfunction"])
 def test_analysis_gate_non_exempt_tools(tool_name: str) -> None:
     assert pa.analysis_gate_exempt_tool(tool_name) is False
 
@@ -390,10 +390,14 @@ def test_release_program_lock_keeps_locked_entry() -> None:
 @pytest.mark.unit
 def test_program_analysis_module_exports_public_api() -> None:
     expected = {
+        "ProgramAnalysisIncomplete",
         "ProgramAnalysisTimeout",
+        "analysis_failure",
         "analysis_gate_exempt_tool",
         "blocking_ensure_analyzed",
+        "clear_analysis_failure",
         "mark_program_analysis_complete",
+        "observed_analysis_complete",
         "program_needs_analysis",
         "wait_for_program_analysis_idle",
         "wait_for_program_analysis_ready",

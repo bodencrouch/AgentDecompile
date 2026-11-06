@@ -15,7 +15,7 @@ What a snapshot is, per kind:
   puts it as one ``restricted`` object per publish, and derives ``basis_hash`` from *that copy*
   with ``determinism_basis.basis_hash`` (never from the live store, never from the
   environment).  A caller-supplied ``basis_hash`` that differs from the copy's is refused: a task
-  under a foreign basis is the hive's ``derive_unit_id`` collision (§1.5 graft a).  The exception
+  under a foreign basis is the hive's ``derive_unit_id`` collision (§1.5 graft a). The exception
   is a repair kind such as ``corpus-backfill-pass``: an incomplete store is its input, so its task
   id combines the snapshot ref with a lane-specific current-package basis instead.
 * ``compile-attempt`` takes a directory of ``.c`` translation units or a JSONL manifest; each TU
@@ -237,6 +237,7 @@ def plan_tasks(
     given value must equal the derived basis.  Returns specs with partitions assigned.  Raises
     ``Refused`` (no planner, budget above the cap, basis mismatch) or the named refusals of the
     store.
+
     """
     if kind not in PLANNERS:
         raise Refused(f"no-planner:{kind}", candidates=[{"kind": name} for name in PLANNERS.names()])

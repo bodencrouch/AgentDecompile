@@ -75,6 +75,7 @@ async def test_versioned_file_import_attaches_imported_program_context(
             "success": True,
             "versionControlRequested": True,
             "versionControlEnabled": True,
+            "_sharedImportIdentity": ("127.0.0.1", 26100, "agentrepo"),
         }
 
     monkeypatch.setattr(provider, "_handle_shared_import", fake_shared_import)
@@ -129,6 +130,7 @@ async def test_versioned_folder_import_attaches_last_imported_program_context(
             "success": True,
             "versionControlRequested": True,
             "versionControlEnabled": True,
+            "_sharedImportIdentity": ("127.0.0.1", 26100, "agentrepo"),
         }
 
     monkeypatch.setattr(provider, "_handle_shared_import", fake_shared_import)

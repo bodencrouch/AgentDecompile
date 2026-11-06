@@ -274,8 +274,7 @@ def ensure_binary_columns(con: sqlite3.Connection) -> None:
 
     Idempotent: column adds are guarded by ``PRAGMA table_info`` and the
     backfill is read-checked. Callers that hold a connection not opened via
-    ``connect()`` may call this directly. It never commits caller work: the
-    backfill owns a transaction only when the caller does not already have one.
+    ``connect()`` may call this directly.
     """
     cols = {row[1] for row in con.execute("PRAGMA table_info(binary)")}
     if "content_sha256" not in cols:

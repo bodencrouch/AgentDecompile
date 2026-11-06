@@ -10,7 +10,9 @@ kind                 budget   capabilities    what
 ===================  =======  ==============  ==========================================================
 
 Every kind is pure: same inputs + basis -> same outputs, or a deterministic ``Refused``.  Kinds
-return results with an empty ``producer_key``; ``tasks.registry.execute`` stamps it.
+return results with an empty ``producer_key``; ``tasks.registry.execute`` stamps it.  All three
+declare ``basis_fields = ()`` (content-only ids, U158): their output depends on the pinned
+interpreter and the inputs alone, so no basis change ever re-keys them.
 
 ``hash-object`` and ``python-canary`` also carry a planner (``Kind.plan(objects, snapshot, *,
 basis_hash, shard_size, max_budget, scratch, **options)``), the duck-typed contract ``adgrid
@@ -136,6 +138,7 @@ class HashObjectKind:
     version = 1
     budget = BudgetClass.MICRO
     capabilities: Sequence[str] = (PYTHON_CAPABILITY,)
+    basis_fields: tuple[str, ...] = ()        # content-only: a pin-policy or toolchain change never re-keys a digest
     input_names = ("data",)
     output_names = ("digest",)
     verify_method = "recompute"
@@ -241,6 +244,7 @@ class PythonCanaryKind:
     version = 1
     budget = BudgetClass.MICRO
     capabilities: Sequence[str] = ()
+    basis_fields: tuple[str, ...] = ()        # content-only: the interpreter is pinned by the canary, not the basis
     input_names = ()
     output_names = ("fixture",)
     verify_method = "hash-lookup"
@@ -339,6 +343,7 @@ class SubprocessVerbKind:
     budget = BudgetClass.SMALL
     allowed_budgets = (BudgetClass.MICRO, BudgetClass.SMALL, BudgetClass.MEDIUM)
     capabilities: Sequence[str] = ()
+    basis_fields: tuple[str, ...] = ()        # content-only here; a lane wrapping a toolchain verb declares toolchain_identity_hash
     input_names = ()          # declared per spec
     output_names = ()         # declared per spec (params.outputs)
     verify_method = "recompute"

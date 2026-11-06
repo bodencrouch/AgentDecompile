@@ -19,9 +19,6 @@ pipeline tables, and only through the pipeline's own binders.  The applier itsel
 Rules the applier enforces by construction:
 
 * only ``RecordType.VERIFIED`` records produce rows; RESULT/INTENT are proposals and are skipped;
-* every record signature verifies against the configured keyring before replay; TASK records need
-  an operator-role key, and VERIFIED requires ``verifier_key == signer_key`` plus a producer key
-  with disjoint trusted invite lineage;
 * ``seq <= position`` is skipped (replay is idempotent); ``seq > position + 1`` is a named
   ``ViewGap`` refusal, never a silent skip;
 * the first non-empty ``basis_hash`` seen for a partition is pinned in ``grid_view_position``;
@@ -73,7 +70,6 @@ from ..core import (
     TaskResult,
     canonical_json,
 )
-from ..log.signing import Keyring, refusal_reason
 
 # --------------------------------------------------------------------------- registries
 #: kind -> ``apply_result(kind, result, objects, con) -> int``; registered by the kind's lane module.
@@ -133,18 +129,6 @@ class ViewHookFailed(GridError):
     """A kind's hook raised; the batch was rolled back.  Names the kind and task, never text."""
 
     exit_code = 8
-
-
-class ViewUntrusted(GridError):
-    """A record or VERIFIED producer/verifier pair is outside the configured trust root."""
-
-    exit_code = 9
-
-    def __init__(self, reason: str, partition: str = "", seq: int = 0) -> None:
-        super().__init__(f"untrusted:{reason} (partition {partition!r} at seq {seq})")
-        self.reason = reason
-        self.partition = partition
-        self.seq = seq
 
 
 _LOCK_MARKERS = ("locked", "busy", "readonly", "read-only", "unable to open")
@@ -313,7 +297,6 @@ class SQLiteViewApplier:
         busy_timeout_s: float = 5.0,
         hooks: Registry | None = None,
         con: sqlite3.Connection | None = None,
-        keyring: Keyring | None = None,
     ) -> None:
         if not partition:
             raise GridError("SQLiteViewApplier needs a partition: one applier per partition")
@@ -323,7 +306,6 @@ class SQLiteViewApplier:
         self.batch_seconds = max(0.01, float(batch_seconds))
         self.busy_timeout_s = float(busy_timeout_s)
         self.hooks = hooks if hooks is not None else VIEW_HOOKS
-        self.keyring = keyring if keyring is not None else Keyring()
         self._con = con
         self._state = ""
         self.stats = ApplyStats(partition)
@@ -438,11 +420,6 @@ class SQLiteViewApplier:
                     raise ViewGap(
                         f"view-gap: partition {self.partition!r} is at seq {pos}, record seq {rec.seq} arrived"
                     )
-                trust_reason = self._trust_reason(rec)
-                if trust_reason is not None:
-                    commit()
-                    self._set_state(f"view-stale: untrusted:{trust_reason}")
-                    raise ViewUntrusted(trust_reason, self.partition, rec.seq)
                 if rec.basis_hash:
                     if pinned_basis and rec.basis_hash != pinned_basis:
                         commit()
@@ -487,25 +464,6 @@ class SQLiteViewApplier:
                 raise ViewStale("locked", self.partition, pos + 1) from exc
             raise
         return applied
-
-    def _trust_reason(self, rec: Record) -> str | None:
-        reason = refusal_reason(rec, self.keyring)
-        if reason is not None:
-            return reason
-        if rec.type is not RecordType.VERIFIED:
-            return None
-        _task_id, _result_ref, verifier_key, _method = _verified_body(rec.body)
-        producer_key = str(rec.body.get("producer_key", ""))
-        nested = rec.body.get("verification")
-        if not producer_key and isinstance(nested, Mapping):
-            producer_key = str(nested.get("producer_key", ""))
-        if verifier_key != rec.signer_key:
-            return "verifier-not-signer"
-        if not producer_key:
-            return "producer-key-missing"
-        if not self.keyring.independent(producer_key, verifier_key):
-            return "not-independent"
-        return None
 
     def _apply_one(self, rec: Record, objects: ObjectStore) -> None:
         con = self.con
@@ -654,7 +612,6 @@ def materialize(
     batch_rows: int = 200,
     batch_seconds: float = 2.0,
     busy_timeout_s: float = 5.0,
-    keyring: Keyring | None = None,
 ) -> dict[str, Any]:
     """Rebuild the view at *db_path* from record 1 of every partition under *root*.
 
@@ -665,16 +622,12 @@ def materialize(
     """
     objects = objects if objects is not None else _local_objects(root)
     log = log if log is not None else _local_log(root)
-    if keyring is None:
-        from ..config import GridConfig
-
-        keyring = Keyring.from_locator(GridConfig.load().with_root(root).keyring_locator())
     names = list(partitions) if partitions else sorted(log.partitions())
     report: dict[str, Any] = {"db": str(db_path), "root": str(root), "partitions": {}, "stale": [], "events": {}}
     for partition in names:
         applier = applier_factory(
             db_path, partition, batch_rows=batch_rows, batch_seconds=batch_seconds,
-            busy_timeout_s=busy_timeout_s, keyring=keyring,
+            busy_timeout_s=busy_timeout_s,
         )
         try:
             try:
@@ -683,7 +636,7 @@ def materialize(
                 since = applier.position()[partition]
                 applied = applier.apply(log.read(partition, since_seq=since), objects)
                 entry = {"applied": applied, **applier.stats.as_dict(), "state": applier.state()["state"]}
-            except (ViewStale, ViewGap, ViewBasisMismatch, ViewHookFailed, ViewUntrusted) as exc:
+            except (ViewStale, ViewGap, ViewBasisMismatch, ViewHookFailed) as exc:
                 entry = {
                     "applied": applier.stats.applied, **applier.stats.as_dict(),
                     "state": f"{type(exc).__name__}: {exc}",
@@ -702,6 +655,6 @@ def materialize(
 
 __all__ = [
     "ApplyStats", "GRID_TABLES", "SCHEMA_SQL", "SQLiteViewApplier", "VIEW_HOOKS", "VIEW_RESETS",
-    "VIEW_SCHEMA_VERSION", "ViewBasisMismatch", "ViewGap", "ViewHookFailed", "ViewStale", "ViewUntrusted",
+    "VIEW_SCHEMA_VERSION", "ViewBasisMismatch", "ViewGap", "ViewHookFailed", "ViewStale",
     "decode_result", "ensure_tables", "is_lock_error", "materialize", "open_view", "view_hook", "view_reset",
 ]

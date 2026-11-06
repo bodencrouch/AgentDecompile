@@ -1,0 +1,157 @@
+{
+ "build": "gog",
+ "va": 4199952,
+ "cacheName": "StoreScreenSaverState",
+ "cacheSize": 60,
+ "source": {
+  "evidence": "/home/brunner56/agentdecompile-deliverables/2026-09-27-tie-triage/evidence.json",
+  "evidenceSha256": "8972699e1caa2213e2ce60c870b8acf683e19e31254ee6b517efb0622b73ca30",
+  "jsonPath": "bodies['gog:0x401610'].independentDecode",
+  "handRowsPath": "handRows['gog:0x401610']"
+ },
+ "image": {
+  "imageSha256": "9c10e0450a6eeca417e036e3cde7474fed1f0a92aab018446d156944dea91435",
+  "va": 4199952,
+  "fileOffset": 5648
+ },
+ "spanSha256": "506c2cc7602b09ea424a2d90eb05786699e7bdba253ac9931d381913176eb7cb",
+ "capstoneBanner": "capstone 5.0.7",
+ "instructions": [
+  {
+   "va": 4199952,
+   "hex": "51",
+   "text": "push ecx"
+  },
+  {
+   "va": 4199953,
+   "hex": "56",
+   "text": "push esi"
+  },
+  {
+   "va": 4199954,
+   "hex": "8b35f8d37300",
+   "text": "mov esi, dword ptr [0x73d3f8]"
+  },
+  {
+   "va": 4199960,
+   "hex": "6a00",
+   "text": "push 0"
+  },
+  {
+   "va": 4199962,
+   "hex": "8d442408",
+   "text": "lea eax, [esp + 8]"
+  },
+  {
+   "va": 4199966,
+   "hex": "50",
+   "text": "push eax"
+  },
+  {
+   "va": 4199967,
+   "hex": "6a00",
+   "text": "push 0"
+  },
+  {
+   "va": 4199969,
+   "hex": "6a10",
+   "text": "push 0x10"
+  },
+  {
+   "va": 4199971,
+   "hex": "c744241400000000",
+   "text": "mov dword ptr [esp + 0x14], 0"
+  },
+  {
+   "va": 4199979,
+   "hex": "ffd6",
+   "text": "call esi"
+  },
+  {
+   "va": 4199981,
+   "hex": "85c0",
+   "text": "test eax, eax"
+  },
+  {
+   "va": 4199983,
+   "hex": "7418",
+   "text": "je 0x401649"
+  },
+  {
+   "va": 4199985,
+   "hex": "8b442404",
+   "text": "mov eax, dword ptr [esp + 4]"
+  },
+  {
+   "va": 4199989,
+   "hex": "83f801",
+   "text": "cmp eax, 1"
+  },
+  {
+   "va": 4199992,
+   "hex": "7c0f",
+   "text": "jl 0x401649"
+  },
+  {
+   "va": 4199994,
+   "hex": "6a00",
+   "text": "push 0"
+  },
+  {
+   "va": 4199996,
+   "hex": "6a00",
+   "text": "push 0"
+  },
+  {
+   "va": 4199998,
+   "hex": "6a00",
+   "text": "push 0"
+  },
+  {
+   "va": 4200000,
+   "hex": "6a11",
+   "text": "push 0x11"
+  },
+  {
+   "va": 4200002,
+   "hex": "a3ac3c7a00",
+   "text": "mov dword ptr [0x7a3cac], eax"
+  },
+  {
+   "va": 4200007,
+   "hex": "ffd6",
+   "text": "call esi"
+  },
+  {
+   "va": 4200009,
+   "hex": "5e",
+   "text": "pop esi"
+  },
+  {
+   "va": 4200010,
+   "hex": "59",
+   "text": "pop ecx"
+  },
+  {
+   "va": 4200011,
+   "hex": "c3",
+   "text": "ret"
+  }
+ ],
+ "handRows": [
+  {
+   "va": 4199969,
+   "hex": "6a10",
+   "meaning": "SPI 0x10 (get screen saver active)",
+   "cachedText": "PUSH 0x10",
+   "imageVerified": true
+  },
+  {
+   "va": 4200000,
+   "hex": "6a11",
+   "meaning": "SPI 0x11 (set)",
+   "cachedText": "PUSH 0x11",
+   "imageVerified": true
+  }
+ ]
+}

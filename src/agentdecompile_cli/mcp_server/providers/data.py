@@ -7,6 +7,8 @@
 """
 
 from __future__ import annotations
+from agentdecompile_cli.mcp_utils.datatype_util import data_type_label
+
 
 import logging
 import uuid
@@ -103,7 +105,8 @@ class DataToolProvider(ToolProvider):
         self._require_program(program_info=program_info)
         addr_str = self._require_address_or_symbol(args)
         length = self._get_int(args, "length", "size", "len", default=16)
-        fmt = self._get_str(args, "format", default="both")
+        # TOOLS_LIST.md documents this selector as `view` (synonym `format`); accept both.
+        fmt = self._get_str(args, "format", "view", default="both")
 
         program = program_info.program
         addr = self._resolve_address(addr_str, program=program, program_info=program_info)
@@ -122,7 +125,12 @@ class DataToolProvider(ToolProvider):
         listing = self._get_listing(program, program_info=program_info)
         data = listing.getDataAt(addr)
         if data is not None:
-            result["definedType"] = str(data.getDataType())
+            result["definedType"] = data_type_label(data.getDataType())
+            # "length" is the number of bytes read; the defined unit can be longer or shorter.
+            try:
+                result["definedLength"] = int(data.getLength())
+            except Exception:
+                pass
             try:
                 result["value"] = str(data.getValue())
             except Exception:
@@ -147,26 +155,27 @@ class DataToolProvider(ToolProvider):
         dt = parser.parse(dt_name)
 
         if not args.get(FORCE_APPLY_CONFLICT_ID_KEY):
-            existing_data = listing.getDataAt(addr)
-            if existing_data is not None:
-                existing_type = str(existing_data.getDataType() or "").strip()
-                if existing_type and existing_type != dt_name:
-                    from agentdecompile_cli.mcp_server.conflict_store import store as conflict_store_store
-                    from agentdecompile_cli.mcp_server.session_context import get_current_mcp_session_id
+            from agentdecompile_cli.mcp_utils.datatype_util import format_conflict_lines, overlapping_data_conflicts
 
-                    conflict_id = str(uuid.uuid4())
-                    conflict_summary = f"Apply data type would overwrite existing data at address:\n\n```diff\n- {existing_type}\n+ {dt_name}\n```"
-                    next_step = f'To apply this change, call `resolve-modification-conflict` with `conflictId` = "{conflict_id}" and `resolution` = "overwrite". To discard, use `resolution` = "skip".'
-                    program_path = args.get(n("programPath")) or getattr(program_info, "path", None) or getattr(program_info, "file_path", None)
-                    conflict_store_store(
-                        get_current_mcp_session_id(),
-                        conflict_id,
-                        tool=Tool.APPLY_DATA_TYPE.value,
-                        arguments=dict(args),
-                        program_path=str(program_path) if program_path else None,
-                        summary=conflict_summary,
-                    )
-                    return create_conflict_response(conflict_id, Tool.APPLY_DATA_TYPE.value, conflict_summary, next_step)
+            # clearCodeUnits below clears every code unit overlapping [addr, addr+len-1]; ask before losing defined data anywhere in it.
+            conflicts = overlapping_data_conflicts(listing, addr, dt)
+            if conflicts:
+                from agentdecompile_cli.mcp_server.conflict_store import store as conflict_store_store
+                from agentdecompile_cli.mcp_server.session_context import get_current_mcp_session_id
+
+                conflict_id = str(uuid.uuid4())
+                conflict_summary = f"Apply data type would overwrite existing data at address:\n\n```diff\n{format_conflict_lines(conflicts)}\n+ {dt_name}\n```"
+                next_step = f'To apply this change, call `resolve-modification-conflict` with `conflictId` = "{conflict_id}" and `resolution` = "overwrite". To discard, use `resolution` = "skip".'
+                program_path = args.get(n("programPath")) or getattr(program_info, "path", None) or getattr(program_info, "file_path", None)
+                conflict_store_store(
+                    get_current_mcp_session_id(),
+                    conflict_id,
+                    tool=Tool.APPLY_DATA_TYPE.value,
+                    arguments=dict(args),
+                    program_path=str(program_path) if program_path else None,
+                    summary=conflict_summary,
+                )
+                return create_conflict_response(conflict_id, Tool.APPLY_DATA_TYPE.value, conflict_summary, next_step)
 
         def _apply_data_type() -> None:
             listing.clearCodeUnits(addr, addr.add(dt.getLength() - 1), False)

@@ -193,8 +193,6 @@ def _pick_corpus_action(base: str, step: dict, f: dict) -> tuple[str | None, boo
     bound = sum(f["bound"].get(b["id"], 0) for b in bins)
     carried = sum(f["named_carried"].get(b["id"], 0) for b in bins)
     cus = sum(f["stabs"].values())
-    ingest = [f["ingest"].get(b["program"]) for b in bins]
-    complete = sum(1 for x in ingest if x and x[2])
     pkgs = [p for name, p in f["packages"].items() if name in f["by_slug"]]
     n_pkgs = len(pkgs)
     built = sum(1 for p in pkgs if p["built"])
@@ -239,7 +237,6 @@ def _pick_binary_action(base: str, step: dict, f: dict, b: dict) -> tuple[str | 
     bound = f["bound"].get(bid, 0)
     carried = f["named_carried"].get(bid, 0)
     stabs_units = f["stabs"].get(b["slug"])
-    ing = f["ingest"].get(b["program"])
     pkg = f["packages"].get(b["slug"])
     _bodies, real_c = f["recovered"].get(bid, (0, 0))
     built = bool(pkg and pkg["built"])

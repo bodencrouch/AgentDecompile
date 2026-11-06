@@ -101,10 +101,12 @@ def test_content_sha256_pass_runs_then_resumes(fixture_db: Path, tmp_path: Path)
     ]
     with_image = json.loads(after_first[f"content_sha256/{digest}.json"])
     assert with_image["key"] == {"pass": "content_sha256", "identity": digest}
+    assert with_image["status"] == "updated"
     assert with_image["result"] == {"content_sha256": digest}
     assert with_image["binary"]["id"] == 1
     no_image = json.loads(after_first["content_sha256/slug-build-b.json"])
     assert no_image["key"] == {"pass": "content_sha256", "identity": "build-b"}
+    assert no_image["status"] == "skipped"
     assert no_image["result"] == {"reason": "no_raw_image"}
     assert no_image["raw_image"] is None
     for body in after_first.values():
@@ -115,15 +117,17 @@ def test_content_sha256_pass_runs_then_resumes(fixture_db: Path, tmp_path: Path)
     con = store.connect(fixture_db)
     second = backfill.run(con, ["content_sha256"], receipts_dir=receipts)
     con.close()
+    # The skipped pair is retried (its input may have appeared); the
+    # rewrite is byte-identical because the inputs did not change.
     assert second["passes"]["content_sha256"]["counts"] == {
-        "updated": 0, "unchanged": 0, "skipped": 0, "resumed": 2,
+        "updated": 0, "unchanged": 0, "skipped": 1, "resumed": 1,
     }
-    assert [e["status"] for e in second["passes"]["content_sha256"]["binaries"]] == ["resumed", "resumed"]
+    assert [e["status"] for e in second["passes"]["content_sha256"]["binaries"]] == ["resumed", "skipped"]
     assert _receipts(receipts) == after_first
     assert _content_sha(fixture_db) == [(1, digest), (2, None)]
 
 
-def test_no_resume_rewrites_identical_receipts(fixture_db: Path, tmp_path: Path) -> None:
+def test_no_resume_rewrites_completed_receipt_status(fixture_db: Path, tmp_path: Path) -> None:
     receipts = tmp_path / "receipts"
     con = store.connect(fixture_db)
     backfill.run(con, ["content_sha256"], receipts_dir=receipts)
@@ -133,7 +137,11 @@ def test_no_resume_rewrites_identical_receipts(fixture_db: Path, tmp_path: Path)
     assert third["passes"]["content_sha256"]["counts"] == {
         "updated": 0, "unchanged": 1, "skipped": 1, "resumed": 0,
     }
-    assert _receipts(receipts) == before
+    after = _receipts(receipts)
+    assert after != before
+    digest = hashlib.sha256(IMAGE_BYTES).hexdigest()
+    assert json.loads(after[f"content_sha256/{digest}.json"])["status"] == "unchanged"
+    assert after["content_sha256/slug-build-b.json"] == before["content_sha256/slug-build-b.json"]
 
 
 def test_changed_image_gets_a_new_receipt_and_a_new_digest(fixture_db: Path, tmp_path: Path) -> None:
@@ -146,7 +154,7 @@ def test_changed_image_gets_a_new_receipt_and_a_new_digest(fixture_db: Path, tmp
     again = backfill.run(con, ["content_sha256"], receipts_dir=receipts)
     con.close()
     assert again["passes"]["content_sha256"]["counts"] == {
-        "updated": 1, "unchanged": 0, "skipped": 0, "resumed": 1,
+        "updated": 1, "unchanged": 0, "skipped": 1, "resumed": 0,
     }
     new_digest = hashlib.sha256(replaced).hexdigest()
     assert _content_sha(fixture_db)[0] == (1, new_digest)
@@ -170,7 +178,9 @@ def test_cli_backfill_verb_prints_sorted_json(fixture_db: Path, tmp_path: Path, 
     ])
     assert rc == 0
     resumed = json.loads(capsys.readouterr().out)
-    assert resumed["passes"]["content_sha256"]["counts"]["resumed"] == 2
+    assert resumed["passes"]["content_sha256"]["counts"] == {
+        "updated": 0, "unchanged": 0, "skipped": 1, "resumed": 1,
+    }
 
     rc = corpus_main([
         "backfill", "--db", str(fixture_db), "--pass", "content_sha256", "--receipts", str(receipts),
@@ -311,3 +321,76 @@ def test_cli_backfill_analyzer_identity(fixture_db: Path, tmp_path: Path, instal
     from agentdecompile_recovery.corpus.determinism_basis import basis_hash_for
 
     assert {r[3] for r in _identity(fixture_db)} == {basis_hash_for("77.0")}
+
+
+# --- resume honours the receipt's status (review #5/#8) ----------------------
+
+
+def test_skipped_receipt_is_not_resumed_once_the_install_appears(
+    fixture_db: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    receipts = tmp_path / "r"
+    monkeypatch.delenv("GHIDRA_INSTALL_DIR", raising=False)
+    con = store.connect(fixture_db)
+    con.execute("UPDATE binary SET language_id='x86:LE:32:default'")
+    con.commit()
+    first = backfill.run(con, ["analyzer_identity"], receipts_dir=receipts)
+    assert first["passes"]["analyzer_identity"]["counts"]["skipped"] == 2
+    body = json.loads((receipts / "analyzer_identity" / "slug-build-b.json").read_text(encoding="utf-8"))
+    assert body["status"] == "skipped"
+    assert body["result"] == {"reason": "no_install"}
+
+    root = tmp_path / "install"
+    (root / "Ghidra").mkdir(parents=True)
+    (root / "Ghidra" / "application.properties").write_text("application.version=77.0\n", encoding="utf-8")
+    monkeypatch.setenv("GHIDRA_INSTALL_DIR", str(root))
+    # Default resume=True: a skipped receipt must not stand in for the work.
+    second = backfill.run(con, ["analyzer_identity"], receipts_dir=receipts)
+    assert second["passes"]["analyzer_identity"]["counts"] == {
+        "updated": 2, "unchanged": 0, "skipped": 0, "resumed": 0,
+    }
+    from agentdecompile_recovery.corpus.determinism_basis import basis_hash_for
+
+    assert {r[3] for r in _identity(fixture_db)} == {basis_hash_for("77.0")}
+    third = backfill.run(con, ["analyzer_identity"], receipts_dir=receipts)
+    con.close()
+    assert third["passes"]["analyzer_identity"]["counts"] == {
+        "updated": 0, "unchanged": 0, "skipped": 0, "resumed": 2,
+    }
+
+
+def test_resume_reruns_when_the_row_no_longer_satisfies_the_pass(fixture_db: Path, tmp_path: Path) -> None:
+    receipts = tmp_path / "r"
+    con = store.connect(fixture_db)
+    backfill.run(con, ["content_sha256"], receipts_dir=receipts)
+    digest = hashlib.sha256(IMAGE_BYTES).hexdigest()
+    body = json.loads((receipts / "content_sha256" / f"{digest}.json").read_text(encoding="utf-8"))
+    assert body["status"] == "updated"
+    # The row lost its hash after the receipt was written (a restore, a
+    # hand edit, another store sharing this receipts dir).
+    con.execute("UPDATE binary SET content_sha256=NULL WHERE id=1")
+    con.commit()
+    again = backfill.run(con, ["content_sha256"], receipts_dir=receipts)
+    con.close()
+    counts = again["passes"]["content_sha256"]["counts"]
+    assert counts["updated"] == 1 and counts["resumed"] == 0
+    assert _content_sha(fixture_db)[0] == (1, digest)
+
+
+def test_receipt_without_status_is_rerun(fixture_db: Path, tmp_path: Path, install: Path) -> None:
+    receipts = tmp_path / "r"
+    con = store.connect(fixture_db)
+    con.execute("UPDATE binary SET language_id='x86:LE:32:default'")
+    con.commit()
+    backfill.run(con, ["analyzer_identity"], receipts_dir=receipts)
+    # A receipt from before the status field existed: same key, no status.
+    path = receipts / "analyzer_identity" / "slug-build-b.json"
+    legacy = json.loads(path.read_text(encoding="utf-8"))
+    legacy.pop("status")
+    path.write_text(json.dumps(legacy), encoding="utf-8")
+    again = backfill.run(con, ["analyzer_identity"], receipts_dir=receipts)
+    con.close()
+    assert again["passes"]["analyzer_identity"]["counts"] == {
+        "updated": 0, "unchanged": 1, "skipped": 0, "resumed": 1,
+    }
+    assert json.loads(path.read_text(encoding="utf-8"))["status"] == "unchanged"

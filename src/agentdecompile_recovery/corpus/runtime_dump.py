@@ -191,7 +191,6 @@ def _snapshot(pid: int, base: int, lay: dict) -> bytes:
     with open(base and f"/proc/{pid}/mem" or os.devnull, "rb", 0):
         pass
     # rebuild from the on-disk template, overwriting sections with live memory
-    template = None
     image = None
     for lo, _hi, meta in _maps_linux(pid):
         if lo == base:

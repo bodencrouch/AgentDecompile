@@ -40,10 +40,10 @@ This was found while investigating whether `mcp_bridge.CONTEXT_LOCK` (a single
 global lock serializing every dashboard-originated MCP call) is safe to narrow
 for concurrent multi-program work
 ([`docs/plans/2026-09-08-donated-compute-work-exchange.md`](../../plans/2026-09-08-donated-compute-work-exchange.md)).
-**It is not safe to narrow.** `CONTEXT_LOCK` currently prevents this race from
-ever being triggered by dashboard-originated traffic, as a side effect of never
-letting the dashboard have two calls in flight at once. It is load-bearing, not
-dead weight.
+Before the fix, `CONTEXT_LOCK` prevented this race from being triggered by
+dashboard-originated traffic, as a side effect of never letting the dashboard
+have two calls in flight at once. It remains load-bearing for other lifecycle
+and mutation concerns; the provider-context fix alone does not justify narrowing it.
 
 ## Why the obvious fix (a per-provider lock) does not work
 
@@ -76,6 +76,27 @@ was scoped and then ruled out by two independent, verified findings:
 
 Both are structural (base-class and manager-wide), not confined to one
 provider that could be carved out of the fix.
+
+## Fix alternatives considered
+
+Threading `program_info` as an explicit call-scoped parameter through provider
+dispatch, so handlers read a passed-in value instead of shared mutable state —
+eliminating the TOCTOU at its root. This touches every one of the ~31 provider
+classes and their handler methods (the pattern at
+`tool_providers.py:1355,1408,1491,1510,1524,1538,1552` and equivalents across
+every `providers/*.py` file). It was a real architectural refactor, not a
+contained patch; the implementation is described below.
+
+A narrower alternative exists but does not solve the problem that motivated
+this investigation: a manager-wide, reentrancy-safe lock (tracking the owning
+asyncio task to permit the same task to re-enter, since `asyncio` has no
+built-in `RLock`) covering both the fan-out write and the dispatch sequence
+would close the race, but it reintroduces full serialization at the server
+layer — the same shape as today's `CONTEXT_LOCK`, just relocated. It would be
+a genuine correctness improvement in its own right (the race is real today
+even without any donated-compute work, exploitable by ordinary concurrent
+dashboard usage), but it delivers no concurrency gain, so it does not unlock
+anything `CONTEXT_LOCK` doesn't already prevent.
 
 ## Implemented fix (2026-09-10)
 

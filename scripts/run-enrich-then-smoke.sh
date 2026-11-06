@@ -25,7 +25,7 @@ echo "GHIDRA_INSTALL_DIR=$GHIDRA_INSTALL_DIR"
 
 echo "--- phase 1: enrich-decompile ---"
 set +e
-uv run agentdecompile-reconstruct "$TARGET" \
+uv run python -m agentdecompile_recovery.frontdoor "$TARGET" \
   --work-dir "$WORK" \
   --resume \
   --stop-after enrich-decompile

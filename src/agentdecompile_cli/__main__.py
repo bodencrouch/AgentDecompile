@@ -561,8 +561,7 @@ def main():
     """Main entry point for mcp-agentdecompile command.
 
     Flow: parse args → resolve backend URL → if URL given, connect mode (stdio bridge only);
-    else spawn PyGhidra + l
-    apply_default_env()ocal server, then run stdio bridge to that server.
+    else spawn PyGhidra + local server, then run stdio bridge to that server.
     """
     apply_default_env()
     logger.debug("diag.enter %s", "__main__.py:main")
